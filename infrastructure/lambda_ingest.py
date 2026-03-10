@@ -33,9 +33,10 @@ async def _download_file(_session, filename):
 async def _process_file(filename):
     try:
         content = await _download_file(None, filename)
+        table_prefix = filename.rsplit(".", 1)[0]
         s3.put_object(
             Bucket=S3_BUCKET,
-            Key=f"eo_bmf/{filename}",
+            Key=f"eo_bmf/{table_prefix}/{filename}",
             Body=content
         )
         return {"filename": filename, "success": True}
