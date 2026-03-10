@@ -2,22 +2,35 @@
 # LAMBDA - IRS DATA INGESTION
 #############################################
 
-data "archive_file" "ingest_zip" {
+locals {
+  ingest_package_dir   = "${path.module}/build/ingest_package"
+  ingest_package_files = can(fileset(local.ingest_package_dir, "**")) ? fileset(local.ingest_package_dir, "**") : []
+  use_ingest_build_dir = length(local.ingest_package_files) > 0
+}
+
+data "archive_file" "ingest_zip_from_dir" {
+  count       = local.use_ingest_build_dir ? 1 : 0
   type        = "zip"
-  source_dir  = "${path.module}/build/ingest_package"
+  source_dir  = local.ingest_package_dir
+  output_path = "${path.module}/ingest.zip"
+}
+
+data "archive_file" "ingest_zip_from_file" {
+  count       = local.use_ingest_build_dir ? 0 : 1
+  type        = "zip"
+  source_file = "${path.module}/lambda_ingest.py"
   output_path = "${path.module}/ingest.zip"
 }
 
 resource "aws_lambda_function" "ingest" {
-
   function_name = "irs_dataset_ingest"
   handler       = "lambda_ingest.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
 
-  filename         = data.archive_file.ingest_zip.output_path
-  source_code_hash = data.archive_file.ingest_zip.output_base64sha256
+  filename         = local.use_ingest_build_dir ? data.archive_file.ingest_zip_from_dir[0].output_path : data.archive_file.ingest_zip_from_file[0].output_path
+  source_code_hash = local.use_ingest_build_dir ? data.archive_file.ingest_zip_from_dir[0].output_base64sha256 : data.archive_file.ingest_zip_from_file[0].output_base64sha256
 
   environment {
     variables = {
@@ -37,7 +50,6 @@ data "archive_file" "query_zip" {
 }
 
 resource "aws_lambda_function" "query" {
-
   function_name = "irs_query_api"
   handler       = "lambda_query.handler"
   runtime       = "python3.11"

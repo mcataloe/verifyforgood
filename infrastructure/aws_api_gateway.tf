@@ -4,7 +4,7 @@
 #############################################
 
 resource "aws_api_gateway_rest_api" "irs_api" {
-  name = "irs-nonprofit-api"
+  name = "${var.domain_name}${var.env == "prod" ? "" : "-${var.env}"}"
 }
 
 resource "aws_api_gateway_resource" "ein" {
