@@ -64,7 +64,7 @@ resource "aws_iam_role_policy" "lambda_data_access" {
 
 data "archive_file" "ingest_zip" {
   type        = "zip"
-  source_file = "${path.module}/lambda_ingest.py"
+  source_dir  = "${path.module}/build/ingest_package"
   output_path = "${path.module}/ingest.zip"
 }
 
