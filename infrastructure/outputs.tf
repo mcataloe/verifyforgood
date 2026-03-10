@@ -15,7 +15,7 @@ output "glue_table_name" {
 
 output "source_s3_location" {
   description = "S3 location backing the EO BMF Glue table."
-  value       = "s3://${var.source_data_bucket_name}/${local.source_data_prefix_normalized}"
+  value       = "s3://${local.source_data_bucket_name}/${local.source_data_prefix_normalized}"
 }
 
 output "athena_results_bucket_name" {

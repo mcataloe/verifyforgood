@@ -3,6 +3,6 @@
 #############################################
 
 resource "aws_s3_bucket" "irs_data" {
-  bucket        = var.source_data_bucket_name
+  bucket        = local.source_data_bucket_name
   force_destroy = var.environment != "prod"
 }

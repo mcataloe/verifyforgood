@@ -3,7 +3,7 @@
 #############################################
 
 locals {
-  base_domain_name     = trim(var.domain_name, ".")
+  base_domain_name     = trim(local.domain_name, ".")
   computed_domain_name = var.environment == "prod" ? local.base_domain_name : "${var.environment}.${local.base_domain_name}"
   route53_zone_name    = "${local.base_domain_name}."
   enable_custom_domain = var.enable_custom_domain && local.base_domain_name != ""

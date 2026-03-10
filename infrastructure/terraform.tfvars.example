@@ -1,13 +1,8 @@
 # Copy this file to terraform.tfvars (or environment-specific tfvars) and update values.
 
 aws_region                 = "us-east-1"
-project_name               = "charity-status-api"
 environment                = "dev"
-source_data_bucket_name    = "my-existing-irs-source-data-bucket"
 source_data_prefix         = "eo_bmf/"
-athena_results_bucket_name = "charity-status-api-athena-results"
-glue_database_name         = "irs_nonprofits"
 athena_workgroup_name      = "irs-eo-bmf"
 
-# Optional variable used by existing API Gateway/Route53 resources in this repo.
-# domain_name = "example.com"
+# Domain name is derived from base_name as "${base_name}.com".

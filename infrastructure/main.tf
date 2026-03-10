@@ -1,5 +1,9 @@
 locals {
+  domain_name                   = "${var.base_name}.com"
   source_data_prefix_normalized = "${trim(var.source_data_prefix, "/")}/"
+  source_data_bucket_name       = "${var.base_name}-irs-source-data-bucket"
+  athena_results_bucket_name    = "${var.base_name}-athena-results"
+  glue_database_name            = "${var.base_name}_irs_db"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
@@ -35,14 +39,14 @@ locals {
   ]
 
   common_tags = {
-    Project     = var.project_name
+    Project     = var.base_name
     Environment = var.environment
     ManagedBy   = "terraform"
   }
 }
 
 resource "aws_s3_bucket" "athena_results" {
-  bucket = var.environment == "prod" ? var.athena_results_bucket_name : "${var.athena_results_bucket_name}-${var.environment}"
+  bucket = var.environment == "prod" ? local.athena_results_bucket_name : "${local.athena_results_bucket_name}-${var.environment}"
   tags   = local.common_tags
 }
 
@@ -72,7 +76,7 @@ resource "aws_athena_workgroup" "eo_bmf" {
 }
 
 resource "aws_glue_catalog_database" "eo_bmf" {
-  name = var.glue_database_name
+  name = local.glue_database_name
 }
 
 resource "aws_glue_catalog_table" "eo_bmf" {
@@ -86,7 +90,7 @@ resource "aws_glue_catalog_table" "eo_bmf" {
   }
 
   storage_descriptor {
-    location      = "s3://${var.source_data_bucket_name}/${local.source_data_prefix_normalized}"
+    location      = "s3://${local.source_data_bucket_name}/${local.source_data_prefix_normalized}"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
