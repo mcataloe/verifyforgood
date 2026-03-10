@@ -1,21 +1,28 @@
 import json
 import boto3
+import os
 
 athena = boto3.client("athena")
 
-DATABASE = "irs_nonprofits"
-TABLE = "eo_bmf"
-OUTPUT = "s3://athena-query-results/"
+DATABASE = os.environ["DATABASE"]
+TABLE = os.environ["TABLE"]
+OUTPUT = os.environ["OUTPUT"]
 
 def handler(event, context):
+    path_params = event.get("pathParameters") or {}
+    ein = path_params.get("ein")
 
-    ein = event["pathParameters"]["ein"]
+    if not ein:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"message": "Missing path parameter: ein"})
+        }
 
     query = f"""
         SELECT *
         FROM {TABLE}
         WHERE ein = '{ein}'
-        AND subsection = '03'
+          AND subsection = '03'
         LIMIT 1
     """
 
@@ -27,5 +34,7 @@ def handler(event, context):
 
     return {
         "statusCode": 200,
-        "body": json.dumps({"queryExecutionId": response["QueryExecutionId"]})
+        "body": json.dumps({
+            "queryExecutionId": response["QueryExecutionId"]
+        })
     }

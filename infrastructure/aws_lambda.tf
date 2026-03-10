@@ -28,6 +28,7 @@ resource "aws_lambda_function" "ingest" {
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
+  memory_size = 512
 
   filename         = local.use_ingest_build_dir ? data.archive_file.ingest_zip_from_dir[0].output_path : data.archive_file.ingest_zip_from_file[0].output_path
   source_code_hash = local.use_ingest_build_dir ? data.archive_file.ingest_zip_from_dir[0].output_base64sha256 : data.archive_file.ingest_zip_from_file[0].output_base64sha256
@@ -58,6 +59,14 @@ resource "aws_lambda_function" "query" {
 
   filename         = data.archive_file.query_zip.output_path
   source_code_hash = data.archive_file.query_zip.output_base64sha256
+
+  environment {
+    variables = {
+      DATABASE = aws_glue_catalog_database.irs.name
+      TABLE    = aws_glue_catalog_table.eo1.name
+      OUTPUT   = "s3://${aws_s3_bucket.athena_results.bucket}/results/"
+    }
+  }
 }
 
 

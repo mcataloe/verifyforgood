@@ -20,7 +20,7 @@
 # LIMIT 25;
 
 locals {
-  effective_environment = coalesce(var.environment, var.environment)
+  effective_environment = var.environment
   table_name_prefix     = lower(replace("${var.project_name}_${local.effective_environment}", "-", "_"))
 
   # Normalize prefixes to always produce s3://bucket/prefix/
@@ -48,6 +48,39 @@ locals {
     quoteChar     = "\""
     escapeChar    = "\\"
   }
+
+  # IRS EO BMF CSV header:
+  # EIN,NAME,ICO,STREET,CITY,STATE,ZIP,GROUP,SUBSECTION,AFFILIATION,CLASSIFICATION,RULING,DEDUCTIBILITY,FOUNDATION,ACTIVITY,ORGANIZATION,STATUS,TAX_PERIOD,ASSET_CD,INCOME_CD,FILING_REQ_CD,PF_FILING_REQ_CD,ACCT_PD,ASSET_AMT,INCOME_AMT,REVENUE_AMT,NTEE_CD,SORT_NAME
+  eo_bmf_columns = [
+    { name = "ein", type = "string" },
+    { name = "name", type = "string" },
+    { name = "ico", type = "string" },
+    { name = "street", type = "string" },
+    { name = "city", type = "string" },
+    { name = "state", type = "string" },
+    { name = "zip", type = "string" },
+    { name = "group_number", type = "string" },
+    { name = "subsection", type = "string" },
+    { name = "affiliation", type = "string" },
+    { name = "classification", type = "string" },
+    { name = "ruling", type = "string" },
+    { name = "deductibility", type = "string" },
+    { name = "foundation", type = "string" },
+    { name = "activity", type = "string" },
+    { name = "organization", type = "string" },
+    { name = "status", type = "string" },
+    { name = "tax_period", type = "string" },
+    { name = "asset_cd", type = "string" },
+    { name = "income_cd", type = "string" },
+    { name = "filing_req_cd", type = "string" },
+    { name = "pf_filing_req_cd", type = "string" },
+    { name = "acct_pd", type = "string" },
+    { name = "asset_amt", type = "string" },
+    { name = "income_amt", type = "string" },
+    { name = "revenue_amt", type = "string" },
+    { name = "ntee_cd", type = "string" },
+    { name = "sort_name", type = "string" }
+  ]
 }
 
 resource "aws_s3_bucket" "athena_results" {
@@ -100,38 +133,12 @@ resource "aws_glue_catalog_table" "eo1" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO1 BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "city"
-      type = "string"
-    }
-    columns {
-      name = "state"
-      type = "string"
-    }
-    columns {
-      name = "zip"
-      type = "string"
-    }
-    columns {
-      name = "subsection_code"
-      type = "string"
-    }
-    columns {
-      name = "ruling_date"
-      type = "string"
-    }
-    columns {
-      name = "deductibility_code"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }
@@ -152,38 +159,12 @@ resource "aws_glue_catalog_table" "eo2" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO2 BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "activity_code_1"
-      type = "string"
-    }
-    columns {
-      name = "activity_code_2"
-      type = "string"
-    }
-    columns {
-      name = "activity_code_3"
-      type = "string"
-    }
-    columns {
-      name = "asset_code"
-      type = "string"
-    }
-    columns {
-      name = "income_code"
-      type = "string"
-    }
-    columns {
-      name = "filing_requirement_code"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }
@@ -204,38 +185,12 @@ resource "aws_glue_catalog_table" "eo3" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO3 BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "foundation_code"
-      type = "string"
-    }
-    columns {
-      name = "organization_code"
-      type = "string"
-    }
-    columns {
-      name = "exempt_organization_status_code"
-      type = "string"
-    }
-    columns {
-      name = "advance_ruling_expiration"
-      type = "string"
-    }
-    columns {
-      name = "tax_period"
-      type = "string"
-    }
-    columns {
-      name = "asset_amt"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }
@@ -256,38 +211,12 @@ resource "aws_glue_catalog_table" "eo4" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO4 BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "ntee_code"
-      type = "string"
-    }
-    columns {
-      name = "sort_name"
-      type = "string"
-    }
-    columns {
-      name = "country"
-      type = "string"
-    }
-    columns {
-      name = "deductibility_code"
-      type = "string"
-    }
-    columns {
-      name = "organization_status"
-      type = "string"
-    }
-    columns {
-      name = "last_return_posted"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }
@@ -308,38 +237,12 @@ resource "aws_glue_catalog_table" "eo_pr" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO_PR BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "principal_officer_name"
-      type = "string"
-    }
-    columns {
-      name = "mailing_street"
-      type = "string"
-    }
-    columns {
-      name = "mailing_city"
-      type = "string"
-    }
-    columns {
-      name = "mailing_state"
-      type = "string"
-    }
-    columns {
-      name = "mailing_zip"
-      type = "string"
-    }
-    columns {
-      name = "group_exemption_number"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }
@@ -360,38 +263,12 @@ resource "aws_glue_catalog_table" "eo_xx" {
       parameters            = local.csv_serde_parameters
     }
 
-    # TODO: Replace with exact IRS EO_XX BMF column definitions.
-    columns {
-      name = "ein"
-      type = "string"
-    }
-    columns {
-      name = "organization_name"
-      type = "string"
-    }
-    columns {
-      name = "tax_year"
-      type = "string"
-    }
-    columns {
-      name = "return_type"
-      type = "string"
-    }
-    columns {
-      name = "gross_receipts"
-      type = "string"
-    }
-    columns {
-      name = "total_assets"
-      type = "string"
-    }
-    columns {
-      name = "total_revenue"
-      type = "string"
-    }
-    columns {
-      name = "total_expenses"
-      type = "string"
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
     }
   }
 }

@@ -6,7 +6,7 @@ terraform {
     dynamodb_table = "charitystatusapi-dev"
     # encrypt        = true
   }
-  
+
   required_version = ">= 1.14.6" # Specify the minimum Terraform version.
 
   required_providers {
