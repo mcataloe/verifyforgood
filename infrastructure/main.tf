@@ -67,7 +67,7 @@ resource "aws_athena_workgroup" "eo_bmf" {
     }
   }
 
-  force_destroy = false
+  force_destroy = var.environment != "prod"
   tags          = local.common_tags
 }
 

@@ -48,6 +48,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "enable_custom_domain" {
+  description = "Whether to manage ACM/API custom domain/Route53 resources."
+  type        = bool
+  default     = false
+}
+
 variable "base_name" {
   description = "Base name for resources."
   type        = string
