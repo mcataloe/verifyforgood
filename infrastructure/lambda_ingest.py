@@ -11,8 +11,6 @@ IRS_FILES = [
     "eo2.csv",
     "eo3.csv",
     "eo4.csv",
-    "eo_pr.csv",
-    "eo_xx.csv",
 ]
 
 s3 = boto3.client("s3")
@@ -36,7 +34,7 @@ async def _process_file(filename):
         content = await _download_file(None, filename)
         s3.put_object(
             Bucket=S3_BUCKET,
-            # Single-table layout: all 6 files are kept under one shared prefix.
+            # Single-table layout: all files are kept under one shared prefix.
             Key=f"{S3_PREFIX}{filename}",
             Body=content
         )
