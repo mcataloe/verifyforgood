@@ -4,16 +4,10 @@ aws_region                 = "us-east-1"
 project_name               = "charity-status-api"
 environment                = "dev"
 source_data_bucket_name    = "my-existing-irs-source-data-bucket"
-athena_results_bucket_name = "charity-status-api-dev-athena-results"
-glue_database_name         = "charity_status_api_dev_irs_db"
+source_data_prefix         = "eo_bmf/"
+athena_results_bucket_name = "charity-status-api-athena-results"
+glue_database_name         = "irs_nonprofits"
+athena_workgroup_name      = "irs-eo-bmf"
 
-eo1_prefix   = "eo_bmf/eo1/"
-eo2_prefix   = "eo_bmf/eo2/"
-eo3_prefix   = "eo_bmf/eo3/"
-eo4_prefix   = "eo_bmf/eo4/"
-eo_pr_prefix = "eo_bmf/eo_pr/"
-eo_xx_prefix = "eo_bmf/eo_xx/"
-
-# Optional compatibility values for existing resources in this repo.
+# Optional variable used by existing API Gateway/Route53 resources in this repo.
 # domain_name = "example.com"
-# env         = "dev"

@@ -1,23 +1,21 @@
 output "athena_workgroup_name" {
   description = "Athena workgroup name for EO BMF queries."
-  value       = aws_athena_workgroup.irs.name
+  value       = aws_athena_workgroup.eo_bmf.name
 }
 
 output "glue_database_name" {
-  description = "Glue Data Catalog database name for IRS EO BMF tables."
-  value       = aws_glue_catalog_database.irs.name
+  description = "Glue Data Catalog database name for IRS EO BMF table."
+  value       = aws_glue_catalog_database.eo_bmf.name
 }
 
-output "glue_table_names" {
-  description = "Glue table names keyed by IRS EO BMF file type."
-  value = {
-    eo1   = aws_glue_catalog_table.eo1.name
-    eo2   = aws_glue_catalog_table.eo2.name
-    eo3   = aws_glue_catalog_table.eo3.name
-    eo4   = aws_glue_catalog_table.eo4.name
-    eo_pr = aws_glue_catalog_table.eo_pr.name
-    eo_xx = aws_glue_catalog_table.eo_xx.name
-  }
+output "glue_table_name" {
+  description = "Glue table name for IRS EO BMF dataset."
+  value       = aws_glue_catalog_table.eo_bmf.name
+}
+
+output "source_s3_location" {
+  description = "S3 location backing the EO BMF Glue table."
+  value       = "s3://${var.source_data_bucket_name}/${local.source_data_prefix_normalized}"
 }
 
 output "athena_results_bucket_name" {

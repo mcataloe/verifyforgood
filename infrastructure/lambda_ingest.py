@@ -4,6 +4,7 @@ import os
 import urllib.request
 
 S3_BUCKET = os.environ["BUCKET"]
+S3_PREFIX = os.environ.get("PREFIX", "eo_bmf/").strip("/") + "/"
 IRS_BASE_URL = "https://www.irs.gov/pub/irs-soi"
 IRS_FILES = [
     "eo1.csv",
@@ -33,10 +34,10 @@ async def _download_file(_session, filename):
 async def _process_file(filename):
     try:
         content = await _download_file(None, filename)
-        table_prefix = filename.rsplit(".", 1)[0]
         s3.put_object(
             Bucket=S3_BUCKET,
-            Key=f"eo_bmf/{table_prefix}/{filename}",
+            # Single-table layout: all 6 files are kept under one shared prefix.
+            Key=f"{S3_PREFIX}{filename}",
             Body=content
         )
         return {"filename": filename, "success": True}

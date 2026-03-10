@@ -1,7 +1,6 @@
 variable "aws_region" {
   description = "AWS region for provider operations."
   type        = string
-  default     = null
 }
 
 variable "project_name" {
@@ -15,8 +14,14 @@ variable "environment" {
 }
 
 variable "source_data_bucket_name" {
-  description = "S3 bucket that already contains IRS EO BMF source files."
+  description = "S3 bucket that stores the IRS EO BMF CSV source files."
   type        = string
+}
+
+variable "source_data_prefix" {
+  description = "Shared S3 prefix under the source bucket where all EO BMF CSV files are stored."
+  type        = string
+  default     = "eo_bmf/"
 }
 
 variable "athena_results_bucket_name" {
@@ -27,59 +32,53 @@ variable "athena_results_bucket_name" {
 variable "glue_database_name" {
   description = "Glue Data Catalog database name for IRS EO BMF metadata."
   type        = string
+  default     = "irs_nonprofits"
 }
 
-variable "eo1_prefix" {
-  description = "S3 prefix for EO1 CSV files (without bucket name)."
+variable "athena_workgroup_name" {
+  description = "Athena workgroup name used for EO BMF queries."
   type        = string
-  default     = "eo_bmf/eo1/"
+  default     = "irs-eo-bmf"
 }
 
-variable "eo2_prefix" {
-  description = "S3 prefix for EO2 CSV files (without bucket name)."
-  type        = string
-  default     = "eo_bmf/eo2/"
-}
-
-variable "eo3_prefix" {
-  description = "S3 prefix for EO3 CSV files (without bucket name)."
-  type        = string
-  default     = "eo_bmf/eo3/"
-}
-
-variable "eo4_prefix" {
-  description = "S3 prefix for EO4 CSV files (without bucket name)."
-  type        = string
-  default     = "eo_bmf/eo4/"
-}
-
-variable "eo_pr_prefix" {
-  description = "S3 prefix for EO_PR CSV files (without bucket name)."
-  type        = string
-  default     = "eo_bmf/eo_pr/"
-}
-
-variable "eo_xx_prefix" {
-  description = "S3 prefix for EO_XX CSV files (without bucket name)."
-  type        = string
-  default     = "eo_bmf/eo_xx/"
-}
-
-# Compatibility variables already referenced by existing files in this repository.
-variable "region" {
-  description = "Backward-compatible alias for aws_region."
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "env" {
-  description = "Backward-compatible alias used by existing non-Athena resources."
-  type        = string
-  default     = null
-}
-
+# Existing variables still used by other resources in this repo.
 variable "domain_name" {
   description = "Existing Route53/API variable used by other resources in this repo."
   type        = string
   default     = ""
+}
+
+variable "base_name" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo1_prefix" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo2_prefix" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo3_prefix" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo4_prefix" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo_pr_prefix" {
+  description = "Base name for resources."
+  type        = string
+}
+
+variable "eo_xx_prefix" {
+  description = "Base name for resources."
+  type        = string
 }

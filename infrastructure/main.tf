@@ -1,0 +1,110 @@
+locals {
+  source_data_prefix_normalized = "${trim(var.source_data_prefix, "/")}/"
+
+  # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
+  # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
+  eo_bmf_columns = [
+    { name = "ein", type = "string" },
+    { name = "name", type = "string" },
+    { name = "ico", type = "string" },
+    { name = "street", type = "string" },
+    { name = "city", type = "string" },
+    { name = "state", type = "string" },
+    { name = "zip", type = "string" },
+    { name = "group_name", type = "string" },
+    { name = "subsection", type = "string" },
+    { name = "affiliation", type = "string" },
+    { name = "classification", type = "string" },
+    { name = "ruling", type = "string" },
+    { name = "deductibility", type = "string" },
+    { name = "foundation", type = "string" },
+    { name = "activity", type = "string" },
+    { name = "organization", type = "string" },
+    { name = "status", type = "string" },
+    { name = "tax_period", type = "string" },
+    { name = "asset_cd", type = "string" },
+    { name = "income_cd", type = "string" },
+    { name = "filing_req_cd", type = "string" },
+    { name = "pf_filing_req_cd", type = "string" },
+    { name = "acct_pd", type = "string" },
+    { name = "asset_amt", type = "string" },
+    { name = "income_amt", type = "string" },
+    { name = "revenue_amt", type = "string" },
+    { name = "ntee_cd", type = "string" },
+    { name = "sort_name", type = "string" }
+  ]
+
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_s3_bucket" "athena_results" {
+  bucket = var.environment == "prod" ? var.athena_results_bucket_name : "${var.athena_results_bucket_name}-${var.environment}"
+  tags   = local.common_tags
+}
+
+resource "aws_s3_bucket_public_access_block" "athena_results" {
+  bucket = aws_s3_bucket.athena_results.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_athena_workgroup" "eo_bmf" {
+  name = "${var.athena_workgroup_name}-${var.environment}"
+
+  configuration {
+    enforce_workgroup_configuration    = true
+    publish_cloudwatch_metrics_enabled = true
+
+    result_configuration {
+      output_location = "s3://${aws_s3_bucket.athena_results.bucket}/results/"
+    }
+  }
+
+  force_destroy = false
+  tags          = local.common_tags
+}
+
+resource "aws_glue_catalog_database" "eo_bmf" {
+  name = var.glue_database_name
+}
+
+resource "aws_glue_catalog_table" "eo_bmf" {
+  name          = "eo_bmf"
+  database_name = aws_glue_catalog_database.eo_bmf.name
+  table_type    = "EXTERNAL_TABLE"
+  parameters = {
+    EXTERNAL                 = "TRUE"
+    classification           = "csv"
+    "skip.header.line.count" = "1"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.source_data_bucket_name}/${local.source_data_prefix_normalized}"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      serialization_library = "org.apache.hadoop.hive.serde2.OpenCSVSerde"
+      parameters = {
+        separatorChar = ","
+        quoteChar     = "\""
+        escapeChar    = "\\"
+      }
+    }
+
+    dynamic "columns" {
+      for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
+    }
+  }
+}
