@@ -1,7 +1,7 @@
 import asyncio
 import boto3
-import aiohttp
 import os
+import urllib.request
 
 S3_BUCKET = os.environ["BUCKET"]
 IRS_BASE_URL = "https://www.irs.gov/pub/irs-soi"
@@ -17,17 +17,22 @@ IRS_FILES = [
 s3 = boto3.client("s3")
 
 
-async def _download_file(session, filename):
+def _download_file_sync(filename):
     url = f"{IRS_BASE_URL}/{filename}"
-    async with session.get(url) as response:
+    request = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(request, timeout=60) as response:
         if response.status >= 400:
             raise RuntimeError(f"download failed with status {response.status}")
-        return await response.read()
+        return response.read()
 
 
-async def _process_file(session, filename):
+async def _download_file(_session, filename):
+    return await asyncio.to_thread(_download_file_sync, filename)
+
+
+async def _process_file(filename):
     try:
-        content = await _download_file(session, filename)
+        content = await _download_file(None, filename)
         s3.put_object(
             Bucket=S3_BUCKET,
             Key=f"eo_bmf/{filename}",
@@ -39,9 +44,8 @@ async def _process_file(session, filename):
 
 
 async def _ingest_files():
-    async with aiohttp.ClientSession() as session:
-        tasks = [_process_file(session, filename) for filename in IRS_FILES]
-        return await asyncio.gather(*tasks)
+    tasks = [_process_file(filename) for filename in IRS_FILES]
+    return await asyncio.gather(*tasks)
 
 
 def handler(event, context):

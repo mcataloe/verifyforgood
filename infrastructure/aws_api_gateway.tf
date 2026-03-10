@@ -4,7 +4,7 @@
 #############################################
 
 resource "aws_api_gateway_rest_api" "irs_api" {
-  name = "${var.domain_name}${var.env == "prod" ? "" : "-${var.env}"}"
+  name = "${var.domain_name}${var.environment == "prod" ? "" : "-${var.environment}"}"
 }
 
 resource "aws_api_gateway_resource" "ein" {
