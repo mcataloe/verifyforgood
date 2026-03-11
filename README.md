@@ -189,6 +189,56 @@ Benchmarked metrics (when peer data is sufficient):
 
 The model remains deterministic and auditable; no black-box ML is used.
 
+## Decision Workflow (Phase 5C)
+
+Responses now include deterministic decisioning fields for CSR/donation-matching workflows:
+
+- `decision`
+- `audit`
+- `summary`
+
+Decision statuses:
+
+- `approve`
+- `approve_with_review`
+- `manual_review`
+- `deny`
+- `insufficient_data`
+
+`decision` includes:
+
+- `status`
+- `reasons`
+- `risk_flags`
+- `next_actions`
+- `manual_review.reason_codes`
+- `manual_review.notes`
+- `manual_review.flags`
+
+Manual review trigger examples:
+
+- EIN/name mismatch
+- missing or stale filing confirmation
+- missing governance disclosures
+- enrichment provider failures/conflicts
+- low-confidence scoring signals
+- inactive/revoked status (which may escalate to `deny`)
+
+Auditability fields:
+
+- data sources used
+- score model version
+- material factors
+- peer benchmarking usage/context
+- enrichment usage
+- decision basis (eligibility, overall score, reason codes)
+
+Convenience export shape:
+
+- `summary` contains `ein`, `organization_name`, `eligibility_status`, `overall_score`, `decision_status`
+
+This is additive and does not replace detailed response fields.
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`

@@ -1,0 +1,161 @@
+from __future__ import annotations
+
+from typing import Any
+
+
+def build_decision(
+    organization: dict[str, Any],
+    verification: dict[str, Any],
+    scores: dict[str, Any],
+    score_explanation: dict[str, Any],
+    name_verification: dict[str, Any],
+    filing_summary: dict[str, Any] | None,
+    enrichment: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    reasons: list[str] = []
+    risk_flags: list[str] = []
+    manual_review_codes: list[str] = []
+    manual_review_notes: list[str] = []
+    next_actions: list[str] = []
+
+    active = verification.get("irs_status") == "active"
+    deductible = verification.get("tax_deductible") is True
+    recent_filing = verification.get("recent_990_on_file") is True
+    overall = _to_float(scores.get("overall"))
+    eligibility = score_explanation.get("eligibility")
+    confidence = score_explanation.get("confidence")
+
+    if active:
+        reasons.append("irs_active")
+    else:
+        manual_review_codes.append("inactive_or_unknown_status")
+        manual_review_notes.append("IRS status is not active")
+
+    if deductible:
+        reasons.append("tax_deductible")
+
+    if recent_filing:
+        reasons.append("recent_filing_present")
+    else:
+        manual_review_codes.append("missing_or_stale_filing")
+        manual_review_notes.append("Recent filing not confirmed")
+
+    if name_verification.get("name_match") is False:
+        manual_review_codes.append("ein_name_mismatch")
+        manual_review_notes.append("Provided name does not confidently match IRS organization name")
+
+    liabilities_ratio = _to_float(score_explanation.get("factors", {}).get("liabilities_to_assets_ratio"))
+    if liabilities_ratio is not None and liabilities_ratio > 0.8:
+        risk_flags.append("high_liabilities_to_assets")
+
+    narrative_missing = score_explanation.get("factors", {}).get("narrative_missing")
+    if narrative_missing is True:
+        risk_flags.append("missing_governance_disclosures")
+        manual_review_codes.append("missing_governance_disclosures")
+        manual_review_notes.append("Narrative/governance disclosures are incomplete")
+
+    if filing_summary is None:
+        risk_flags.append("missing_filing_data")
+
+    if confidence == "low":
+        risk_flags.append("low_score_confidence")
+
+    enrichment_failures = (enrichment or {}).get("failures", [])
+    if enrichment_failures:
+        risk_flags.append("enrichment_provider_failures")
+        manual_review_codes.append("provider_data_conflict_or_failure")
+        manual_review_notes.append("One or more enrichment providers failed")
+
+    status = "approve"
+
+    if eligibility == "INELIGIBLE" and not active:
+        status = "deny"
+        risk_flags.append("ineligible_status")
+        next_actions.append("deny automated approval")
+        next_actions.append("request corrected legal/status documentation")
+    elif eligibility == "INELIGIBLE":
+        status = "deny"
+        risk_flags.append("ineligible_status")
+        next_actions.append("deny automated approval")
+    elif overall is None:
+        status = "insufficient_data"
+        next_actions.append("obtain minimum required filing and verification data")
+    elif overall < 45:
+        status = "deny"
+        next_actions.append("deny automated approval")
+    elif overall < 60:
+        status = "manual_review"
+        next_actions.append("request manual review")
+        next_actions.append("obtain latest supporting documents")
+    elif manual_review_codes:
+        status = "approve_with_review"
+        next_actions.append("request manual review")
+    elif confidence == "low":
+        status = "manual_review"
+        next_actions.append("request manual review")
+    else:
+        status = "approve"
+
+    if status == "insufficient_data" and "missing_filing_data" not in risk_flags:
+        risk_flags.append("insufficient_core_data")
+
+    decision = {
+        "status": status,
+        "reasons": sorted(set(reasons)),
+        "risk_flags": sorted(set(risk_flags)),
+        "next_actions": _unique(next_actions),
+        "manual_review": {
+            "reason_codes": sorted(set(manual_review_codes)),
+            "notes": _unique(manual_review_notes),
+            "flags": sorted(set(risk_flags)),
+        },
+    }
+
+    audit = {
+        "data_sources_used": score_explanation.get("score_data_sources", []),
+        "model_version": score_explanation.get("model_version"),
+        "material_factors": {
+            "active_status": score_explanation.get("factors", {}).get("active_status"),
+            "program_expense_ratio": score_explanation.get("factors", {}).get("program_expense_ratio"),
+            "liabilities_to_assets_ratio": score_explanation.get("factors", {}).get("liabilities_to_assets_ratio"),
+            "narrative_missing": score_explanation.get("factors", {}).get("narrative_missing"),
+            "name_match": score_explanation.get("factors", {}).get("name_match"),
+        },
+        "peer_benchmarking_used": score_explanation.get("peer_benchmarking_used"),
+        "peer_group": score_explanation.get("peer_group"),
+        "peer_group_size": score_explanation.get("peer_group_size"),
+        "enrichments_used": bool((enrichment or {}).get("providers")),
+        "decision_basis": {
+            "eligibility": eligibility,
+            "overall_score": overall,
+            "decision_status": status,
+            "manual_review_reason_codes": decision["manual_review"]["reason_codes"],
+        },
+    }
+
+    summary = {
+        "ein": organization.get("ein"),
+        "organization_name": organization.get("name"),
+        "eligibility_status": "ELIGIBLE_WITH_REVIEW" if status in {"approve_with_review", "manual_review"} else ("INELIGIBLE" if status == "deny" else "ELIGIBLE"),
+        "overall_score": overall,
+        "decision_status": status,
+    }
+
+    return decision, {"audit": audit, "summary": summary}
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _unique(values: list[str]) -> list[str]:
+    out: list[str] = []
+    for value in values:
+        if value and value not in out:
+            out.append(value)
+    return out

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from charity_status.decision import build_decision
 from charity_status.normalization import compare_names
 from charity_status.query.nonprofit_lookup import map_nonprofit_record
 from charity_status.scoring import assign_peer_group, calculate_v1_scores
@@ -71,6 +72,19 @@ def verify_nonprofit(
             "amended": _to_bool(filings.get("amended_return")),
             "parse_status": filings.get("parse_status"),
         }
+
+    decision, extras = build_decision(
+        organization=payload["organization"],
+        verification=payload["verification"],
+        scores=payload["scores"],
+        score_explanation=payload["score_explanation"],
+        name_verification=payload["name_verification"],
+        filing_summary=payload.get("filing_summary"),
+        enrichment=payload.get("enrichment"),
+    )
+    payload["decision"] = decision
+    payload["audit"] = extras["audit"]
+    payload["summary"] = extras["summary"]
     return 200, payload
 
 

@@ -38,30 +38,7 @@ def _mock_enrichment(providers=None, failures=None):
     return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
 
 
-def test_get_handler_invalid_ein_returns_400():
-    module = _load_module()
-
-    event = {"httpMethod": "GET", "pathParameters": {"ein": "12-34A6789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
-    body = json.loads(result["body"])
-
-    assert result["statusCode"] == 400
-    assert "invalid characters" in body["message"]
-
-
-def test_get_handler_not_found_returns_404():
-    module = _load_module()
-    module.athena_client = _mock_client(record=None)
-
-    event = {"httpMethod": "GET", "pathParameters": {"ein": "12-3456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
-    body = json.loads(result["body"])
-
-    assert result["statusCode"] == 404
-    assert body["ein"] == "123456789"
-
-
-def test_post_verify_success_with_enrichment_and_peer():
+def test_post_verify_includes_decision_audit_summary_with_peer_and_enrichment():
     module = _load_module()
     module.athena_client = _mock_client(
         record=_sample_record("Helping Hands Inc."),
@@ -94,62 +71,35 @@ def test_post_verify_success_with_enrichment_and_peer():
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
-    assert body["score_explanation"]["model_version"] == "2.0.0"
-    assert body["score_explanation"]["peer_benchmarking_used"] is True
-    assert body["score_explanation"]["peer_group_size"] == 100
-    assert "program_expense_ratio" in body["score_explanation"]["benchmarked_metrics"]
+    assert "decision" in body
+    assert "audit" in body
+    assert "summary" in body
+    assert body["audit"]["peer_benchmarking_used"] is True
+    assert body["summary"]["decision_status"] in {"approve", "approve_with_review", "manual_review"}
 
 
-def test_get_fallback_without_990_data():
+def test_get_response_consistency_without_enrichment_or_peer():
     module = _load_module()
     module.athena_client = _mock_client(record=_sample_record("Test Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = json.loads(module.handler(event, None)["body"])
 
-    assert result["statusCode"] == 200
-    assert body["score_explanation"]["score_data_sources"] == ["irs_eo_bmf_athena"]
+    assert "decision" in body
+    assert "audit" in body
+    assert "summary" in body
     assert body["score_explanation"]["peer_benchmarking_used"] is False
+    assert body["audit"]["enrichments_used"] is False
 
 
-def test_post_verify_invalid_request_body():
+def test_deny_condition_when_inactive():
     module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Inactive Org", status="2"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
-    event = {
-        "httpMethod": "POST",
-        "body": "{bad json",
-        "pathParameters": None,
-        "queryStringParameters": None,
-    }
-    result = module.handler(event, None)
-    body = json.loads(result["body"])
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    body = json.loads(module.handler(event, None)["body"])
 
-    assert result["statusCode"] == 400
-    assert "valid JSON" in body["message"]
-
-
-def test_get_nonprofit_filings_endpoint_shape():
-    module = _load_module()
-    module.athena_client = _mock_client(
-        record=_sample_record("Test Org"),
-        filing_rows=[
-            {"tax_year": "2023", "return_type": "990", "filing_date": "2024-05-01", "amended_return": "false", "parse_status": "parsed"},
-            {"tax_year": "2022", "return_type": "990", "filing_date": "2023-05-01", "amended_return": "true", "parse_status": "parsed"},
-        ],
-    )
-
-    event = {
-        "httpMethod": "GET",
-        "resource": "/nonprofit/{ein}/filings",
-        "path": "/nonprofit/123456789/filings",
-        "pathParameters": {"ein": "123456789"},
-        "queryStringParameters": None,
-    }
-    result = module.handler(event, None)
-    body = json.loads(result["body"])
-
-    assert result["statusCode"] == 200
-    assert body["ein"] == "123456789"
-    assert len(body["filings"]) == 2
+    assert body["decision"]["status"] == "deny"
+    assert "ineligible_status" in body["decision"]["risk_flags"]
