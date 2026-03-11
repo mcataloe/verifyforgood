@@ -65,6 +65,23 @@ class AthenaQueryClient:
         )
         return self._run_query_many(query)
 
+    def list_nonprofit_eins_page(self, limit: int, start_after_ein: str | None = None) -> list[str]:
+        where_parts = [
+            "ein IS NOT NULL",
+            "regexp_like(ein, '^[0-9]{9}$')",
+        ]
+        if start_after_ein:
+            where_parts.append(f"ein > '{self._escape_literal(start_after_ein)}'")
+        where_clause = " AND ".join(where_parts)
+        query = (
+            f"SELECT ein FROM {self._table} "
+            f"WHERE {where_clause} "
+            "ORDER BY ein ASC "
+            f"LIMIT {int(limit)}"
+        )
+        _, rows = self._run_query_many(query)
+        return [row.get("ein", "") for row in rows if row.get("ein")]
+
     def lookup_peer_benchmark(self, peer_group: dict[str, Any]) -> dict[str, Any]:
         if not self._form990_metrics_table:
             return {"count": 0, "metrics": {}}

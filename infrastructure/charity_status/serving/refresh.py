@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Callable, Protocol
 
 from charity_status.serving.change_detection import ChangeDetectionConfig, RefreshMode, select_target_eins
@@ -20,6 +22,8 @@ class RefreshConfig:
     batch_size: int = 100
     force_refresh: bool = False
     source_detection_enabled: bool = False
+    allow_nonprod_bootstrap_override: bool = False
+    max_batches_per_run: int | None = None
 
 
 def refresh_materialized_profiles(
@@ -28,7 +32,18 @@ def refresh_materialized_profiles(
     store: Any,
     profile_builder: ProfileBuilder,
     source_detector: Callable[[], list[str]] | None = None,
+    source_page_fetcher: Callable[[str | None, int], tuple[list[str], str | None]] | None = None,
+    bootstrap_start_after: str | None = None,
 ) -> dict[str, Any]:
+    if config.mode == "bootstrap_all":
+        return bootstrap_all_profiles(
+            config=config,
+            store=store,
+            profile_builder=profile_builder,
+            source_page_fetcher=source_page_fetcher,
+            start_after=bootstrap_start_after,
+        )
+
     selected_eins = select_target_eins(
         config=ChangeDetectionConfig(
             mode=config.mode,
@@ -102,3 +117,95 @@ def refresh_materialized_profiles(
 def _increment_reason(result: dict[str, Any], reason: str) -> None:
     reasons = result["reasons"]
     reasons[reason] = reasons.get(reason, 0) + 1
+
+
+def bootstrap_all_profiles(
+    config: RefreshConfig,
+    store: Any,
+    profile_builder: ProfileBuilder,
+    source_page_fetcher: Callable[[str | None, int], tuple[list[str], str | None]] | None,
+    start_after: str | None = None,
+) -> dict[str, Any]:
+    if config.environment != "prod" and not config.allow_nonprod_bootstrap_override:
+        raise ValueError("bootstrap_all is only allowed when APP_ENV=prod unless override is explicitly enabled")
+    if source_page_fetcher is None:
+        raise ValueError("bootstrap_all requires a source_page_fetcher")
+
+    started = datetime.now(timezone.utc)
+    started_perf = perf_counter()
+    writer = MaterializedProfileWriter(store)
+    cursor = start_after
+    batch_count = 0
+    total_seen = 0
+    inserted = 0
+    updated = 0
+    skipped = 0
+    failed = 0
+    errors: list[dict[str, str]] = []
+    status = "completed"
+
+    while True:
+        if config.max_batches_per_run is not None and config.max_batches_per_run > 0 and batch_count >= config.max_batches_per_run:
+            status = "partial"
+            break
+
+        eins, next_cursor = source_page_fetcher(cursor, max(1, config.batch_size))
+        if not eins:
+            cursor = next_cursor
+            break
+
+        batch_count += 1
+        for ein in eins:
+            total_seen += 1
+            try:
+                payload = profile_builder(ein)
+                if not payload:
+                    skipped += 1
+                    continue
+                source_versions = {
+                    "model_version": payload.get("score_explanation", {}).get("model_version"),
+                    "score_data_sources": payload.get("score_explanation", {}).get("score_data_sources"),
+                }
+                item = materialize_profile_item(
+                    ein=ein,
+                    response_payload=payload,
+                    environment=config.environment,
+                    source_data_versions=source_versions,
+                )
+                write_result = writer.write_if_needed(ein=ein, item=item, force_refresh=config.force_refresh)
+                if write_result.wrote:
+                    if write_result.reason == "missing_item":
+                        inserted += 1
+                    else:
+                        updated += 1
+                else:
+                    skipped += 1
+            except Exception as exc:
+                failed += 1
+                status = "completed_with_errors"
+                if len(errors) < 25:
+                    errors.append({"ein": ein, "error": str(exc)})
+
+        if next_cursor is None or next_cursor == cursor:
+            cursor = next_cursor
+            break
+        cursor = next_cursor
+
+    completed = datetime.now(timezone.utc)
+    duration_ms = int((perf_counter() - started_perf) * 1000)
+    return {
+        "status": status,
+        "mode": config.mode,
+        "environment": config.environment,
+        "total_seen": total_seen,
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "failed": failed,
+        "started_at": started.isoformat(),
+        "completed_at": completed.isoformat(),
+        "duration_ms": duration_ms,
+        "batch_count": batch_count,
+        "next_cursor": cursor,
+        "errors": errors,
+    }

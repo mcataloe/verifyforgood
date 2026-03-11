@@ -151,3 +151,21 @@ variable "refresh_schedule_expression" {
   type        = string
   default     = ""
 }
+
+variable "bootstrap_nonprod_override" {
+  description = "Allow bootstrap_all in non-prod when explicitly enabled."
+  type        = bool
+  default     = false
+}
+
+variable "bootstrap_start_after_ein" {
+  description = "Optional EIN cursor to resume bootstrap_all processing after this EIN."
+  type        = string
+  default     = ""
+}
+
+variable "bootstrap_max_batches_per_run" {
+  description = "Optional limit on bootstrap_all batches processed per invocation; 0 means unlimited."
+  type        = number
+  default     = 0
+}

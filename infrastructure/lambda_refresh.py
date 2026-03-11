@@ -33,6 +33,9 @@ REFRESH_BATCH_SIZE = int(os.environ.get("REFRESH_BATCH_SIZE", "100"))
 FORCE_REFRESH = os.environ.get("FORCE_REFRESH", "false").lower() == "true"
 REFRESH_SOURCE_DETECTION_ENABLED = os.environ.get("REFRESH_SOURCE_DETECTION_ENABLED", "false").lower() == "true"
 REFRESH_EINS_CSV = os.environ.get("REFRESH_EINS_CSV", "")
+BOOTSTRAP_NONPROD_OVERRIDE = os.environ.get("BOOTSTRAP_NONPROD_OVERRIDE", "false").lower() == "true"
+BOOTSTRAP_START_AFTER_EIN = os.environ.get("BOOTSTRAP_START_AFTER_EIN")
+BOOTSTRAP_MAX_BATCHES_PER_RUN = int(os.environ.get("BOOTSTRAP_MAX_BATCHES_PER_RUN", "0"))
 
 athena_client: AthenaQueryClient | None = None
 enrichment_service: EnrichmentService | None = None
@@ -95,6 +98,8 @@ def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
             store=_get_profile_store(),
             profile_builder=_build_profile_for_ein,
             source_detector=lambda: _source_changed_eins(payload),
+            source_page_fetcher=_source_population_page,
+            bootstrap_start_after=_bootstrap_start_cursor(payload),
         )
         return _response(200, result)
     except (ValueError, EINValidationError) as exc:
@@ -110,12 +115,16 @@ def _build_refresh_config(payload: dict[str, Any]) -> RefreshConfig:
     batch_size = int(payload.get("batch_size") or REFRESH_BATCH_SIZE)
     force_refresh = bool(payload.get("force_refresh", FORCE_REFRESH))
     source_detection_enabled = bool(payload.get("source_detection_enabled", REFRESH_SOURCE_DETECTION_ENABLED))
+    allow_nonprod_bootstrap_override = bool(payload.get("bootstrap_nonprod_override", BOOTSTRAP_NONPROD_OVERRIDE))
+    max_batches_per_run = int(payload.get("max_batches_per_run", BOOTSTRAP_MAX_BATCHES_PER_RUN))
     return RefreshConfig(
         environment=APP_ENV,
         mode=mode,
         batch_size=batch_size,
         force_refresh=force_refresh,
         source_detection_enabled=source_detection_enabled,
+        allow_nonprod_bootstrap_override=allow_nonprod_bootstrap_override,
+        max_batches_per_run=max_batches_per_run if max_batches_per_run > 0 else None,
     )
 
 
@@ -146,6 +155,21 @@ def _build_profile_for_ein(ein: str) -> dict[str, Any] | None:
     if status_code != 200:
         return None
     return profile
+
+
+def _bootstrap_start_cursor(payload: dict[str, Any]) -> str | None:
+    start_after = payload.get("start_after_ein")
+    if isinstance(start_after, str) and start_after.strip():
+        return normalize_ein(start_after)
+    if BOOTSTRAP_START_AFTER_EIN:
+        return normalize_ein(BOOTSTRAP_START_AFTER_EIN)
+    return None
+
+
+def _source_population_page(start_after: str | None, page_size: int) -> tuple[list[str], str | None]:
+    eins = _get_athena_client().list_nonprofit_eins_page(limit=page_size, start_after_ein=start_after)
+    next_cursor = eins[-1] if len(eins) == page_size else None
+    return eins, next_cursor
 
 
 def _response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:

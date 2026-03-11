@@ -183,6 +183,9 @@ resource "aws_lambda_function" "refresh" {
       REFRESH_BATCH_SIZE               = tostring(var.refresh_batch_size)
       FORCE_REFRESH                    = tostring(var.refresh_force)
       REFRESH_SOURCE_DETECTION_ENABLED = tostring(var.refresh_source_detection_enabled)
+      BOOTSTRAP_NONPROD_OVERRIDE       = tostring(var.bootstrap_nonprod_override)
+      BOOTSTRAP_START_AFTER_EIN        = var.bootstrap_start_after_ein
+      BOOTSTRAP_MAX_BATCHES_PER_RUN    = tostring(var.bootstrap_max_batches_per_run)
     }
   }
 }

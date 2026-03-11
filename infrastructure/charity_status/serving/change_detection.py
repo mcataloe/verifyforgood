@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Literal
 
-RefreshMode = Literal["refresh_changed", "backfill_missing", "refresh_hot", "force_refresh"]
+RefreshMode = Literal["refresh_changed", "backfill_missing", "refresh_hot", "force_refresh", "bootstrap_all"]
 
 
 @dataclass(frozen=True)
@@ -15,7 +15,7 @@ class ChangeDetectionConfig:
 
 def normalize_mode(value: str | None) -> RefreshMode:
     candidate = (value or "refresh_changed").strip().lower()
-    if candidate in {"refresh_changed", "backfill_missing", "refresh_hot", "force_refresh"}:
+    if candidate in {"refresh_changed", "backfill_missing", "refresh_hot", "force_refresh", "bootstrap_all"}:
         return candidate
     raise ValueError(f"Unsupported refresh mode: {value}")
 

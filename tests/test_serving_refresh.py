@@ -4,6 +4,7 @@ from typing import Any
 
 from charity_status.serving.compare import compare_materialized_items
 from charity_status.serving.refresh import RefreshConfig, refresh_materialized_profiles
+import pytest
 
 
 def _payload(model_version: str = "1.0.0", score: int = 80) -> dict[str, Any]:
@@ -133,3 +134,155 @@ def test_compare_changed_hash_and_model_paths():
     existing = {"source_hash": "abc", "model_version": "1.0.0"}
     assert compare_materialized_items(existing, {"source_hash": "xyz", "model_version": "1.0.0"}).reason == "source_hash_changed"
     assert compare_materialized_items(existing, {"source_hash": "abc", "model_version": "2.0.0"}).reason == "model_version_changed"
+
+
+def test_bootstrap_allowed_in_prod():
+    store = InMemoryStore()
+
+    def fetch_page(cursor: str | None, size: int) -> tuple[list[str], str | None]:
+        assert size == 2
+        if cursor is None:
+            return ["123456789", "987654321"], "987654321"
+        return [], None
+
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all", batch_size=2),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=fetch_page,
+    )
+
+    assert result["status"] == "completed"
+    assert result["total_seen"] == 2
+    assert result["inserted"] == 2
+    assert result["failed"] == 0
+
+
+def test_bootstrap_blocked_by_default_in_nonprod():
+    store = InMemoryStore()
+    with pytest.raises(ValueError, match="only allowed"):
+        refresh_materialized_profiles(
+            RefreshConfig(environment="dev", mode="bootstrap_all"),
+            [],
+            store,
+            lambda ein: _payload(),
+            source_page_fetcher=lambda cursor, size: ([], None),
+        )
+
+
+def test_bootstrap_result_shape():
+    store = InMemoryStore()
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all"),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=lambda cursor, size: ([], None),
+    )
+
+    for key in [
+        "status",
+        "total_seen",
+        "inserted",
+        "updated",
+        "skipped",
+        "failed",
+        "started_at",
+        "completed_at",
+        "duration_ms",
+        "batch_count",
+    ]:
+        assert key in result
+
+
+def test_bootstrap_batching_logic():
+    store = InMemoryStore()
+    pages = [
+        (["100000001", "100000002"], "100000002"),
+        (["100000003"], None),
+    ]
+
+    def fetch_page(cursor: str | None, size: int) -> tuple[list[str], str | None]:
+        if not pages:
+            return [], None
+        return pages.pop(0)
+
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all", batch_size=2),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=fetch_page,
+    )
+    assert result["batch_count"] == 2
+    assert result["total_seen"] == 3
+
+
+def test_bootstrap_skips_unchanged_items():
+    store = InMemoryStore()
+
+    def fetch_page(cursor: str | None, size: int) -> tuple[list[str], str | None]:
+        if cursor is None:
+            return ["123456789"], "123456789"
+        return [], None
+
+    refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all"),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=fetch_page,
+    )
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all"),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=fetch_page,
+    )
+    assert result["inserted"] == 0
+    assert result["updated"] == 0
+    assert result["skipped"] == 1
+
+
+def test_bootstrap_handles_partial_failures_safely():
+    store = InMemoryStore()
+
+    def build(ein: str) -> dict[str, Any]:
+        if ein == "987654321":
+            raise RuntimeError("simulated build failure")
+        return _payload()
+
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all"),
+        [],
+        store,
+        build,
+        source_page_fetcher=lambda cursor, size: (["123456789", "987654321"], None) if cursor is None else ([], None),
+    )
+
+    assert result["failed"] == 1
+    assert result["inserted"] == 1
+    assert result["status"] == "completed_with_errors"
+    assert len(result["errors"]) == 1
+
+
+def test_bootstrap_can_checkpoint_with_max_batches():
+    store = InMemoryStore()
+
+    def fetch_page(cursor: str | None, size: int) -> tuple[list[str], str | None]:
+        if cursor is None:
+            return ["123456789"], "123456789"
+        return ["987654321"], None
+
+    result = refresh_materialized_profiles(
+        RefreshConfig(environment="prod", mode="bootstrap_all", max_batches_per_run=1),
+        [],
+        store,
+        lambda ein: _payload(),
+        source_page_fetcher=fetch_page,
+    )
+    assert result["status"] == "partial"
+    assert result["batch_count"] == 1
+    assert result["next_cursor"] == "123456789"

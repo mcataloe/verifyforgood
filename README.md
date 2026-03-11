@@ -376,3 +376,44 @@ Terraform additions are intentionally minimal:
 - refresh env vars (mode, batch size, force flag, source detection flag)
 
 This keeps DynamoDB write costs lower by avoiding rewrites for unchanged profiles while preserving deterministic, auditable serving records.
+
+## Production Bootstrap (Phase D3)
+
+Phase D3 adds explicit `bootstrap_all` support for production eager materialization while keeping non-prod lazy by default.
+
+`bootstrap_all` behavior:
+
+- pages through the source nonprofit population (Athena EIN pagination)
+- builds canonical profiles through existing verification/scoring logic
+- writes to DynamoDB using existing deterministic `source_hash`/`model_version` comparison
+- skips unchanged records, updates changed records, inserts missing records
+- reports structured run summary fields:
+  - `status`
+  - `total_seen`
+  - `inserted`
+  - `updated`
+  - `skipped`
+  - `failed`
+  - `started_at`
+  - `completed_at`
+  - `duration_ms`
+  - `batch_count`
+
+Environment gating:
+
+- `APP_ENV=prod`: `bootstrap_all` is allowed.
+- `APP_ENV!=prod`: `bootstrap_all` is blocked by default.
+- Non-prod override requires explicit enablement (`bootstrap_nonprod_override=true`).
+
+Large-volume safety:
+
+- processing is page-based (`refresh_batch_size`)
+- no full in-memory source preload
+- optional checkpointing via `start_after_ein`/`bootstrap_start_after_ein`
+- optional per-run cap via `bootstrap_max_batches_per_run` (returns `status=partial` with `next_cursor`)
+
+Non-prod defaults remain low-cost:
+
+- lazy/on-demand serving stays the default
+- targeted/manual refresh modes still supported (`refresh_changed`, `backfill_missing`, explicit EIN lists)
+- no automatic non-prod eager bootstrap
