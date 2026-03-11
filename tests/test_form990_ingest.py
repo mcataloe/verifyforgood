@@ -32,6 +32,9 @@ def test_ingest_manifest_and_result_success():
         raw_prefix="form990/raw/",
         metadata_prefix="form990/normalized/metadata/",
         manifest_prefix="form990/normalized/manifests/",
+        metrics_prefix="form990/normalized/metrics/",
+        governance_prefix="form990/normalized/governance/",
+        quality_prefix="form990/normalized/quality/",
         s3_client=s3,
         download_raw=True,
         downloader=lambda url: xml_content,
@@ -42,7 +45,10 @@ def test_ingest_manifest_and_result_success():
     assert result.parsed_count == 1
     assert result.failed_count == 0
     assert any(item["Key"].startswith("form990/raw/") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/metadata/") for item in s3.objects)
+    assert any(item["Key"].startswith("form990/normalized/metadata/filings_") for item in s3.objects)
+    assert any(item["Key"].startswith("form990/normalized/metrics/metrics_") for item in s3.objects)
+    assert any(item["Key"].startswith("form990/normalized/governance/governance_") for item in s3.objects)
+    assert any(item["Key"].startswith("form990/normalized/quality/quality_") for item in s3.objects)
     assert any(item["Key"].startswith("form990/normalized/manifests/") for item in s3.objects)
 
 
@@ -65,6 +71,9 @@ def test_ingest_malformed_xml_fallback():
         raw_prefix="form990/raw/",
         metadata_prefix="form990/normalized/metadata/",
         manifest_prefix="form990/normalized/manifests/",
+        metrics_prefix="form990/normalized/metrics/",
+        governance_prefix="form990/normalized/governance/",
+        quality_prefix="form990/normalized/quality/",
         s3_client=s3,
         download_raw=True,
         downloader=lambda url: b"<Return><bad></Return>",
@@ -94,6 +103,9 @@ def test_ingest_unsupported_return_type_keeps_index_only():
         raw_prefix="form990/raw/",
         metadata_prefix="form990/normalized/metadata/",
         manifest_prefix="form990/normalized/manifests/",
+        metrics_prefix="form990/normalized/metrics/",
+        governance_prefix="form990/normalized/governance/",
+        quality_prefix="form990/normalized/quality/",
         s3_client=s3,
         download_raw=True,
         downloader=lambda url: b"",

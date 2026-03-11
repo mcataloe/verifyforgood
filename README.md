@@ -56,6 +56,79 @@ Raw vs normalized separation:
 - Parse manifests/status: `s3://<BUCKET>/<FORM990_MANIFEST_PREFIX>/...`
 - Future derived metrics and scoring are intentionally separate and not implemented in Phase 4A.
 
+## Form 990 Normalized Extraction (Phase 4B)
+
+Phase 4B extends the Form 990 pipeline to produce normalized filing datasets from XML with conservative, deterministic extraction.
+
+Extracted financial fields:
+
+- `total_revenue`
+- `total_expenses`
+- `program_service_expenses`
+- `management_general_expenses`
+- `fundraising_expenses`
+- `contributions_revenue`
+- `total_assets_eoy`
+- `total_liabilities_eoy`
+- `net_assets_eoy`
+- `grants_paid`
+- `officer_compensation`
+
+Extracted governance indicators:
+
+- `independent_board_majority`
+- `conflict_of_interest_policy`
+- `whistleblower_policy`
+- `records_retention_policy`
+- `contemporaneous_board_minutes`
+- `material_diversion_reported`
+- `compensation_review_process`
+- `public_disclosure_available`
+- `audited_financials_indicator`
+
+Narrative/disclosure signals:
+
+- mission description present
+- program accomplishments present
+- leadership disclosed
+- narrative sections missing list
+
+Derived metrics:
+
+- `programExpenseRatio`
+- `adminExpenseRatio`
+- `fundraisingRatio`
+- `liabilitiesToAssetsRatio`
+- `operatingMargin`
+- `fundraisingEfficiency`
+- `workingCapital`
+- `monthsOfRunway`
+
+Filing quality indicators:
+
+- `missingRequiredFieldsCount`
+- `internalConsistencyIssuesCount`
+- `staleFilingDays`
+- `narrativeMissing`
+- `anomalyFlags`
+- `scoreConfidence`
+
+Anomaly flags currently include:
+
+- large revenue swing year-over-year
+- large expense swing year-over-year
+- large liabilities jump
+- zero program expenses with nonzero total expenses
+- repeated amended return pattern
+- negative net assets pattern (when enough history is present)
+
+Athena/Glue datasets now include:
+
+- `form990_metadata` (normalized filing records)
+- `form990_metrics` (derived financial metrics)
+- `form990_governance` (governance flags)
+- `form990_quality` (filing quality indicators)
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`
@@ -151,8 +224,9 @@ Planned later:
 
 Current 990 limitation:
 
-- Phase 4A extracts metadata fields only (`ein`, tax period/year, filing metadata, return type, source references, parse status).
-- Full financial/governance extraction is not implemented yet.
+- Extraction is deterministic and schema-tolerant but still conservative; missing fields remain `null`.
+- Current API scoring responses are still based on EO/BMF query data, not full 990-derived scoring integration.
+- Full endpoint-level score integration is planned for a next phase.
 
 ## Local Development
 

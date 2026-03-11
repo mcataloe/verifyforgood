@@ -11,6 +11,12 @@ def normalized_metadata_key(prefix: str, now: datetime | None = None) -> str:
     return f"{base}/metadata_{ts}.jsonl"
 
 
+def normalized_dataset_key(prefix: str, dataset_name: str, now: datetime | None = None) -> str:
+    ts = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+    base = prefix.strip("/")
+    return f"{base}/{dataset_name}_{ts}.jsonl"
+
+
 def manifest_key(prefix: str, now: datetime | None = None) -> str:
     ts = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     base = prefix.strip("/")

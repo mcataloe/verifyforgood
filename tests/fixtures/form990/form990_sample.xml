@@ -11,4 +11,33 @@
   <Filer>
     <EIN>123456789</EIN>
   </Filer>
+  <ReturnData>
+    <IRS990>
+      <TotalRevenueAmt>1000000</TotalRevenueAmt>
+      <TotalExpensesAmt>800000</TotalExpensesAmt>
+      <ProgramServiceExpensesAmt>600000</ProgramServiceExpensesAmt>
+      <ManagementAndGeneralAmt>100000</ManagementAndGeneralAmt>
+      <FundraisingAmt>50000</FundraisingAmt>
+      <ContributionsGrantsAmt>700000</ContributionsGrantsAmt>
+      <TotalAssetsEOYAmt>2000000</TotalAssetsEOYAmt>
+      <TotalLiabilitiesEOYAmt>500000</TotalLiabilitiesEOYAmt>
+      <NetAssetsOrFundBalancesEOYAmt>1500000</NetAssetsOrFundBalancesEOYAmt>
+      <GrantsAndSimilarPaidAmt>250000</GrantsAndSimilarPaidAmt>
+      <CompCurrentOfcrDirectorsKeyEmplAmt>120000</CompCurrentOfcrDirectorsKeyEmplAmt>
+
+      <IndBoardMajorityInd>true</IndBoardMajorityInd>
+      <ConflictOfInterestPolicyInd>true</ConflictOfInterestPolicyInd>
+      <WhistleblowerPolicyInd>false</WhistleblowerPolicyInd>
+      <DocumentRetentionPolicyInd>true</DocumentRetentionPolicyInd>
+      <ContemporaneousMeetingsInd>true</ContemporaneousMeetingsInd>
+      <MaterialDiversionOrMisuseInd>false</MaterialDiversionOrMisuseInd>
+      <CompensationProcessCEOAndKeyEmplInd>true</CompensationProcessCEOAndKeyEmplInd>
+      <GoverningDocumentsDiscloseInd>true</GoverningDocumentsDiscloseInd>
+      <AuditOrReviewInd>true</AuditOrReviewInd>
+
+      <MissionDesc>Support underserved communities.</MissionDesc>
+      <ProgramServiceAccomplishmentsTxt>Delivered housing and food services.</ProgramServiceAccomplishmentsTxt>
+      <OfficerDirectorTrusteeEmplCnt>12</OfficerDirectorTrusteeEmplCnt>
+    </IRS990>
+  </ReturnData>
 </Return>

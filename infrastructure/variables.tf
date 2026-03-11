@@ -32,6 +32,24 @@ variable "form990_manifest_prefix" {
   default     = "form990/normalized/manifests/"
 }
 
+variable "form990_metrics_prefix" {
+  description = "S3 prefix for derived Form 990 financial metrics dataset."
+  type        = string
+  default     = "form990/normalized/metrics/"
+}
+
+variable "form990_governance_prefix" {
+  description = "S3 prefix for normalized Form 990 governance flags dataset."
+  type        = string
+  default     = "form990/normalized/governance/"
+}
+
+variable "form990_quality_prefix" {
+  description = "S3 prefix for normalized Form 990 filing quality indicators dataset."
+  type        = string
+  default     = "form990/normalized/quality/"
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

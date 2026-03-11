@@ -51,7 +51,10 @@ class Form990IngestResult:
     parsed_count: int
     failed_count: int
     manifest_s3_key: str
-    metadata_s3_key: str
+    filing_records_s3_key: str
+    metrics_s3_key: str
+    governance_s3_key: str
+    quality_s3_key: str
     records: list[dict[str, Any]]
 
     def to_dict(self) -> dict[str, Any]:

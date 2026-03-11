@@ -37,3 +37,18 @@ output "form990_metadata_s3_prefix" {
   description = "S3 prefix for normalized Form 990 metadata JSONL."
   value       = local.form990_metadata_prefix_normalized
 }
+
+output "form990_metrics_glue_table_name" {
+  description = "Glue table name for Form 990 derived metrics."
+  value       = aws_glue_catalog_table.form990_metrics.name
+}
+
+output "form990_governance_glue_table_name" {
+  description = "Glue table name for Form 990 governance indicators."
+  value       = aws_glue_catalog_table.form990_governance.name
+}
+
+output "form990_quality_glue_table_name" {
+  description = "Glue table name for Form 990 filing quality indicators."
+  value       = aws_glue_catalog_table.form990_quality.name
+}

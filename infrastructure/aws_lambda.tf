@@ -152,10 +152,13 @@ resource "aws_lambda_function" "form990_ingest" {
 
   environment {
     variables = {
-      BUCKET                  = aws_s3_bucket.irs_data.bucket
-      FORM990_RAW_PREFIX      = local.form990_raw_prefix_normalized
-      FORM990_METADATA_PREFIX = local.form990_metadata_prefix_normalized
-      FORM990_MANIFEST_PREFIX = local.form990_manifest_prefix_normalized
+      BUCKET                    = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
     }
   }
 }

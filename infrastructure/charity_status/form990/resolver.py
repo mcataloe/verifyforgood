@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Callable
 
 import xml.etree.ElementTree as ET
@@ -36,9 +37,9 @@ def bool_xpath(path: str) -> Selector:
         if node is None or node.text is None:
             return None
         lowered = node.text.strip().lower()
-        if lowered in {"true", "1"}:
+        if lowered in {"true", "1", "y", "yes"}:
             return "true"
-        if lowered in {"false", "0"}:
+        if lowered in {"false", "0", "n", "no"}:
             return "false"
         return None
 
@@ -76,3 +77,29 @@ CANONICAL_FIELD_SELECTORS: dict[str, FieldResolver] = {
 def resolve_field(root: ET.Element, field_name: str) -> str | None:
     resolver = CANONICAL_FIELD_SELECTORS[field_name]
     return resolver.resolve(root)
+
+
+def resolve_text(root: ET.Element, paths: list[str]) -> str | None:
+    resolver = FieldResolver([text_xpath(path) for path in paths])
+    return resolver.resolve(root)
+
+
+def resolve_bool(root: ET.Element, paths: list[str]) -> bool | None:
+    resolver = FieldResolver([bool_xpath(path) for path in paths])
+    value = resolver.resolve(root)
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
+
+
+def resolve_decimal(root: ET.Element, paths: list[str]) -> float | None:
+    value = resolve_text(root, paths)
+    if value is None:
+        return None
+    cleaned = value.replace(",", "").replace("$", "")
+    try:
+        return float(Decimal(cleaned))
+    except (InvalidOperation, ValueError):
+        return None
