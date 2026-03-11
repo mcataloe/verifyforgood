@@ -326,3 +326,53 @@ Environment-aware behavior:
 - Non-production (`env != prod`): no eager preload, lazy/on-demand materialization only.
 - If DynamoDB is empty, request still works via Athena/source assembly.
 - First request for an EIN may be slower; repeat requests are faster via DynamoDB hit path.
+
+## Materialization Refresh (Phase D2)
+
+Phase D2 adds a refresh/materialization pipeline that updates DynamoDB only when needed.
+
+Core modules:
+
+- `charity_status/serving/change_detection.py`
+- `charity_status/serving/compare.py`
+- `charity_status/serving/writer.py`
+- `charity_status/serving/refresh.py`
+
+Refresh execution:
+
+- `lambda_refresh.py` is a thin orchestrator Lambda.
+- It rebuilds the canonical nonprofit profile for each target EIN using the same verification/scoring pipeline.
+- It materializes a new candidate item with deterministic `source_hash`.
+- It reads the current DynamoDB profile and writes only when:
+  - item is missing
+  - `source_hash` changed
+  - `model_version` changed
+  - force refresh is enabled
+- If hash and version match, the write is skipped.
+
+Supported refresh modes:
+
+- `refresh_changed`
+- `backfill_missing`
+- `refresh_hot`
+- `force_refresh`
+
+Changed-EIN inputs:
+
+- explicit EIN list via event payload (`eins` or `eins_csv`)
+- optional source-driven changed EINs (`changed_eins`) when source detection is enabled
+
+Non-prod cost controls (`env != prod`):
+
+- No eager bootstrap/full preload behavior.
+- Default behavior does not run broad source-driven selection.
+- Non-prod refresh is minimal by default and typically acts on explicitly provided EINs.
+- Source-driven detection in non-prod requires explicit enablement (`source_detection_enabled=true`).
+
+Terraform additions are intentionally minimal:
+
+- optional refresh Lambda
+- optional EventBridge schedule
+- refresh env vars (mode, batch size, force flag, source detection flag)
+
+This keeps DynamoDB write costs lower by avoiding rewrites for unchanged profiles while preserving deterministic, auditable serving records.

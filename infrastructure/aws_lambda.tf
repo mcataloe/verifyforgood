@@ -122,6 +122,72 @@ resource "aws_lambda_function" "query" {
 }
 
 #############################################
+# LAMBDA - MATERIALIZATION REFRESH
+#############################################
+
+data "archive_file" "refresh_zip" {
+  count       = var.refresh_lambda_enabled ? 1 : 0
+  type        = "zip"
+  source_dir  = path.module
+  output_path = "${path.module}/refresh.zip"
+  excludes = [
+    ".terraform/**",
+    "build/**",
+    "__pycache__/**",
+    "charity_status/ingest/**",
+    "charity_status/future/**",
+    "lambda_ingest.py",
+    "lambda_query.py",
+    "lambda_form990.py",
+    "ingest.zip",
+    "query.zip",
+    "form990.zip",
+    "refresh.zip",
+    "*.tf",
+    "*.tfvars",
+    "*.hcl",
+    "*.ps1",
+    "requirements*.txt",
+  ]
+}
+
+resource "aws_lambda_function" "refresh" {
+  count         = var.refresh_lambda_enabled ? 1 : 0
+  function_name = "irs_profile_refresh"
+  handler       = "lambda_refresh.handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 120
+  memory_size   = 1024
+
+  filename         = data.archive_file.refresh_zip[0].output_path
+  source_code_hash = data.archive_file.refresh_zip[0].output_base64sha256
+
+  environment {
+    variables = {
+      DATABASE                         = aws_glue_catalog_database.eo_bmf.name
+      TABLE                            = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                        = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE            = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE            = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE         = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE            = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_ENABLED          = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_ENABLED        = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT       = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY        = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS       = tostring(var.enrichment_timeout_seconds)
+      PROFILE_TABLE_NAME               = aws_dynamodb_table.profiles.name
+      APP_ENV                          = var.environment
+      REFRESH_MODE                     = var.refresh_mode
+      REFRESH_BATCH_SIZE               = tostring(var.refresh_batch_size)
+      FORCE_REFRESH                    = tostring(var.refresh_force)
+      REFRESH_SOURCE_DETECTION_ENABLED = tostring(var.refresh_source_detection_enabled)
+    }
+  }
+}
+
+#############################################
 # LAMBDA - FORM 990 INGESTION
 #############################################
 
@@ -196,4 +262,25 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   function_name = aws_lambda_function.ingest.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.daily_ingest.arn
+}
+
+resource "aws_cloudwatch_event_rule" "refresh_schedule" {
+  count               = var.refresh_lambda_enabled && trim(var.refresh_schedule_expression, " ") != "" ? 1 : 0
+  schedule_expression = var.refresh_schedule_expression
+}
+
+resource "aws_cloudwatch_event_target" "refresh_lambda_target" {
+  count     = var.refresh_lambda_enabled && trim(var.refresh_schedule_expression, " ") != "" ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.refresh_schedule[0].name
+  target_id = "refresh"
+  arn       = aws_lambda_function.refresh[0].arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_refresh" {
+  count         = var.refresh_lambda_enabled && trim(var.refresh_schedule_expression, " ") != "" ? 1 : 0
+  statement_id  = "AllowEventBridgeRefresh"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.refresh[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.refresh_schedule[0].arn
 }

@@ -10,6 +10,7 @@ from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
+from charity_status.serving.writer import MaterializedProfileWriter
 
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
@@ -203,4 +204,4 @@ def _materialize_profile(ein: str, payload: dict) -> None:
         environment=APP_ENV,
         source_data_versions=source_versions,
     )
-    store.put_profile(item)
+    MaterializedProfileWriter(store).write_if_needed(ein=ein, item=item)

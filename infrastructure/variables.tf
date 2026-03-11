@@ -115,3 +115,39 @@ variable "serving_dynamodb_enabled" {
   type        = bool
   default     = true
 }
+
+variable "refresh_lambda_enabled" {
+  description = "Enable the materialization refresh Lambda."
+  type        = bool
+  default     = true
+}
+
+variable "refresh_mode" {
+  description = "Default refresh mode for materialization updates."
+  type        = string
+  default     = "refresh_changed"
+}
+
+variable "refresh_batch_size" {
+  description = "Max EINs processed per refresh invocation."
+  type        = number
+  default     = 100
+}
+
+variable "refresh_force" {
+  description = "Force profile writes even when source hash and model version are unchanged."
+  type        = bool
+  default     = false
+}
+
+variable "refresh_source_detection_enabled" {
+  description = "Allow source-driven changed-EIN detection when no explicit EIN list is provided."
+  type        = bool
+  default     = false
+}
+
+variable "refresh_schedule_expression" {
+  description = "Optional EventBridge schedule expression for the refresh Lambda. Empty disables scheduling."
+  type        = string
+  default     = ""
+}
