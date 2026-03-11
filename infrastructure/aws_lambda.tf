@@ -49,6 +49,21 @@ data "archive_file" "query_zip" {
   type        = "zip"
   source_dir  = path.module
   output_path = "${path.module}/query.zip"
+  excludes = [
+    ".terraform/**",
+    "build/**",
+    "__pycache__/**",
+    "charity_status/ingest/**",
+    "charity_status/future/**",
+    "ingest.zip",
+    "query.zip",
+    "lambda_ingest.py",
+    "*.tf",
+    "*.tfvars",
+    "*.hcl",
+    "*.ps1",
+    "requirements*.txt",
+  ]
 }
 
 resource "aws_lambda_function" "query" {
