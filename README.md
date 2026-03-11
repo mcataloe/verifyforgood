@@ -154,6 +154,41 @@ Configuration (Terraform variables):
 - `enrichment_candid_api_key`
 - `enrichment_timeout_seconds`
 
+## Peer Benchmarking (Phase 5B)
+
+Model version `2.0.0` adds optional peer-group benchmarking for fairer interpretation of selected metrics.
+
+Peer-group dimensions:
+
+- NTEE group (first character when available)
+- organization type/subsection when available
+- revenue band:
+  - `under_250k`
+  - `250k_to_1m`
+  - `1m_to_10m`
+  - `10m_to_100m`
+  - `100m_plus`
+- optional state in peer grouping payload
+
+Peer benchmarking behavior:
+
+- Uses peer context only when peer group size meets minimum threshold.
+- If peer data is sparse/unavailable, scoring falls back to deterministic threshold-based logic.
+- Response explanation includes:
+  - `peer_group`
+  - `peer_group_size`
+  - `peer_benchmarking_used`
+  - `benchmarked_metrics`
+
+Benchmarked metrics (when peer data is sufficient):
+
+- `program_expense_ratio`
+- `liabilities_to_assets_ratio`
+- `operating_margin`
+- `months_of_runway`
+
+The model remains deterministic and auditable; no black-box ML is used.
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`

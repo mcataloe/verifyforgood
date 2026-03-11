@@ -5,7 +5,7 @@ from typing import Any
 
 from charity_status.normalization import compare_names
 from charity_status.query.nonprofit_lookup import map_nonprofit_record
-from charity_status.scoring import calculate_v1_scores
+from charity_status.scoring import assign_peer_group, calculate_v1_scores
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,13 @@ def verify_nonprofit(
     name_check = compare_names(verification_input.provided_name, mapped.organization.get("name"))
 
     filings, metrics, governance, quality = client.lookup_form990_enrichment(verification_input.ein)
+    peer_group = assign_peer_group(
+        ntee_code=record.get("ntee_cd"),
+        org_type=record.get("subsection"),
+        total_revenue=_to_float((filings or {}).get("total_revenue")),
+        state=record.get("state"),
+    )
+    peer_stats = client.lookup_peer_benchmark(peer_group)
 
     score_result = calculate_v1_scores(
         record=record,
@@ -39,6 +46,8 @@ def verify_nonprofit(
         metrics_record=metrics,
         governance_record=governance,
         quality_record=quality,
+        peer_group=peer_group,
+        peer_stats=peer_stats,
     )
 
     payload = mapped.to_dict()
@@ -93,3 +102,12 @@ def _to_bool(value: Any) -> bool | None:
         if lowered in {"false", "0"}:
             return False
     return None
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

@@ -56,7 +56,11 @@ locals {
     { name = "xml_source_reference", type = "string" },
     { name = "raw_s3_key", type = "string" },
     { name = "parse_status", type = "string" },
-    { name = "parse_error", type = "string" }
+    { name = "parse_error", type = "string" },
+    { name = "total_revenue", type = "double" },
+    { name = "mission_description_present", type = "boolean" },
+    { name = "program_accomplishments_present", type = "boolean" },
+    { name = "leadership_disclosed", type = "boolean" }
   ]
 
   form990_metrics_columns = [

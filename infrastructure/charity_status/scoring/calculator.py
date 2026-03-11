@@ -10,6 +10,9 @@ class ScoreResult:
     explanation: dict[str, Any]
 
 
+MIN_PEER_GROUP_SIZE = 25
+
+
 def calculate_v1_scores(
     record: dict[str, Any] | None,
     verification: dict[str, Any],
@@ -19,50 +22,67 @@ def calculate_v1_scores(
     metrics_record: dict[str, Any] | None = None,
     governance_record: dict[str, Any] | None = None,
     quality_record: dict[str, Any] | None = None,
+    peer_group: dict[str, Any] | None = None,
+    peer_stats: dict[str, Any] | None = None,
+    min_peer_group_size: int = MIN_PEER_GROUP_SIZE,
 ) -> ScoreResult:
     record = record or {}
     filing_record = filing_record or {}
     metrics_record = metrics_record or {}
     governance_record = governance_record or {}
     quality_record = quality_record or {}
+    peer_group = peer_group or {}
+    peer_stats = peer_stats or {}
 
     has_990 = any([filing_record, metrics_record, governance_record, quality_record])
+    peer_group_size = _to_int(peer_stats.get("count"))
+    use_peer = bool(peer_group) and peer_group_size is not None and peer_group_size >= min_peer_group_size
 
     active_status = verification.get("irs_status") == "active"
     revoked = bool(verification.get("revoked"))
     tax_period_present = verification.get("recent_990_on_file") is not None
 
     compliance = _bound(
-        _weighted([
-            (ein_valid, 25),
-            (bool(record), 25),
-            (active_status, 20),
-            (verification.get("tax_deductible") is not None, 10),
-            (record.get("filing_req_cd") is not None, 10),
-            (tax_period_present, 10),
-        ])
+        _weighted(
+            [
+                (ein_valid, 25),
+                (bool(record), 25),
+                (active_status, 20),
+                (verification.get("tax_deductible") is not None, 10),
+                (record.get("filing_req_cd") is not None, 10),
+                (tax_period_present, 10),
+            ]
+        )
     )
 
-    financial_resilience = _financial_resilience_score(metrics_record)
+    financial_resilience, benchmarked_metrics = _financial_resilience_score(metrics_record, peer_stats, use_peer)
 
-    transparency = _bound(
-        _weighted([
-            (tax_period_present, 20),
-            (governance_record.get("public_disclosure_available") is True, 20),
-            (filing_record.get("mission_description_present") is True, 15),
-            (filing_record.get("program_accomplishments_present") is True, 15),
-            (filing_record.get("leadership_disclosed") is True, 15),
-            (_to_bool(quality_record.get("narrativeMissing")) is False, 15),
-        ])
-    ) if bool(record) else None
+    transparency = (
+        _bound(
+            _weighted(
+                [
+                    (tax_period_present, 20),
+                    (governance_record.get("public_disclosure_available") is True, 20),
+                    (filing_record.get("mission_description_present") is True, 15),
+                    (filing_record.get("program_accomplishments_present") is True, 15),
+                    (filing_record.get("leadership_disclosed") is True, 15),
+                    (_to_bool(quality_record.get("narrativeMissing")) is False, 15),
+                ]
+            )
+        )
+        if bool(record)
+        else None
+    )
 
-    trust_base = _weighted([
-        (compliance >= 70, 40),
-        (transparency is not None and transparency >= 60, 20),
-        (governance_record.get("material_diversion_reported") is False, 15),
-        (governance_record.get("whistleblower_policy") is True, 10),
-        (quality_record.get("scoreConfidence") == "high", 15),
-    ])
+    trust_base = _weighted(
+        [
+            (compliance >= 70, 40),
+            (transparency is not None and transparency >= 60, 20),
+            (governance_record.get("material_diversion_reported") is False, 15),
+            (governance_record.get("whistleblower_policy") is True, 10),
+            (quality_record.get("scoreConfidence") == "high", 15),
+        ]
+    )
     trust = _bound(trust_base)
 
     available = [v for v in [compliance, trust, transparency, financial_resilience] if v is not None]
@@ -99,20 +119,30 @@ def calculate_v1_scores(
         confidence = "medium"
 
     data_sources = ["irs_eo_bmf_athena"]
-    notes = []
+    notes: list[str] = []
     if has_990:
         data_sources.append("irs_form_990_xml")
         notes.append("Score incorporates IRS EO/BMF verification and parsed Form 990 data")
     else:
         notes.append("Score uses EO/BMF-style IRS data only; Form 990 enrichment unavailable")
+
+    if use_peer:
+        notes.append("Peer benchmarking applied for selected financial metrics")
+    else:
+        notes.append("Peer benchmarking not used due to sparse or unavailable peer data")
+
     notes.append("No third-party enrichment provider data included")
 
     explanation = {
-        "model_version": "1.1.0",
+        "model_version": "2.0.0",
         "score_data_sources": data_sources,
         "confidence": confidence,
         "factors": factors,
         "eligibility": eligibility,
+        "peer_group": peer_group if peer_group else None,
+        "peer_group_size": peer_group_size,
+        "peer_benchmarking_used": use_peer,
+        "benchmarked_metrics": benchmarked_metrics,
         "notes": notes,
     }
 
@@ -128,34 +158,77 @@ def calculate_v1_scores(
     )
 
 
-def _financial_resilience_score(metrics: dict[str, Any]) -> int | None:
+def _financial_resilience_score(metrics: dict[str, Any], peer_stats: dict[str, Any], use_peer: bool) -> tuple[int | None, list[str]]:
     if not metrics:
-        return None
+        return None, []
 
+    benchmarked: list[str] = []
     components: list[int] = []
-    per = _to_float(metrics.get("programExpenseRatio"))
-    if per is not None:
-        components.append(90 if per >= 0.75 else 70 if per >= 0.6 else 50 if per >= 0.5 else 30)
 
-    lta = _to_float(metrics.get("liabilitiesToAssetsRatio"))
-    if lta is not None:
-        components.append(90 if lta <= 0.4 else 75 if lta <= 0.6 else 55 if lta <= 0.8 else 35)
+    peers = peer_stats.get("metrics") if isinstance(peer_stats, dict) else {}
 
-    runway = _to_float(metrics.get("monthsOfRunway"))
-    if runway is not None:
-        components.append(90 if runway >= 12 else 75 if runway >= 6 else 55 if runway >= 3 else 35)
+    mapping = [
+        ("programExpenseRatio", True, "program_expense_ratio"),
+        ("liabilitiesToAssetsRatio", False, "liabilities_to_assets_ratio"),
+        ("operatingMargin", True, "operating_margin"),
+        ("monthsOfRunway", True, "months_of_runway"),
+    ]
 
-    margin = _to_float(metrics.get("operatingMargin"))
-    if margin is not None:
-        components.append(90 if margin >= 0.1 else 75 if margin >= 0.02 else 55 if margin >= -0.05 else 35)
+    for metric_key, higher_is_better, output_name in mapping:
+        value = _to_float(metrics.get(metric_key))
+        if value is None:
+            continue
 
-    stability = _to_float(metrics.get("revenueStability"))
-    if stability is not None:
-        components.append(90 if stability >= 0.8 else 70 if stability >= 0.5 else 45)
+        if use_peer:
+            peer_metric = peers.get(metric_key, {}) if isinstance(peers, dict) else {}
+            peer_score = _peer_component_score(value, peer_metric, higher_is_better)
+            if peer_score is not None:
+                components.append(peer_score)
+                benchmarked.append(output_name)
+                continue
+
+        components.append(_threshold_component_score(metric_key, value))
 
     if not components:
+        return None, benchmarked
+    return _bound(round(sum(components) / len(components))), benchmarked
+
+
+def _peer_component_score(value: float, peer_metric: dict[str, Any], higher_is_better: bool) -> int | None:
+    p25 = _to_float(peer_metric.get("p25"))
+    p75 = _to_float(peer_metric.get("p75"))
+    median = _to_float(peer_metric.get("median"))
+    if p25 is None or p75 is None or median is None:
         return None
-    return _bound(round(sum(components) / len(components)))
+
+    if higher_is_better:
+        if value >= p75:
+            return 90
+        if value >= median:
+            return 75
+        if value >= p25:
+            return 60
+        return 40
+
+    if value <= p25:
+        return 90
+    if value <= median:
+        return 75
+    if value <= p75:
+        return 60
+    return 40
+
+
+def _threshold_component_score(metric_key: str, value: float) -> int:
+    if metric_key == "programExpenseRatio":
+        return 90 if value >= 0.75 else 70 if value >= 0.6 else 50 if value >= 0.5 else 30
+    if metric_key == "liabilitiesToAssetsRatio":
+        return 90 if value <= 0.4 else 75 if value <= 0.6 else 55 if value <= 0.8 else 35
+    if metric_key == "monthsOfRunway":
+        return 90 if value >= 12 else 75 if value >= 6 else 55 if value >= 3 else 35
+    if metric_key == "operatingMargin":
+        return 90 if value >= 0.1 else 75 if value >= 0.02 else 55 if value >= -0.05 else 35
+    return 50
 
 
 def _weighted(weighted_conditions: list[tuple[bool, int]]) -> int:
@@ -167,6 +240,15 @@ def _to_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
     except (ValueError, TypeError):
         return None
 
