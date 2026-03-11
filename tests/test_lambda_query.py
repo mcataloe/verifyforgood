@@ -1,6 +1,7 @@
 import importlib
 import json
 import sys
+from decimal import Decimal
 from types import SimpleNamespace
 
 
@@ -132,3 +133,28 @@ def test_response_shape_still_contains_core_fields():
 
     for key in ["organization", "verification", "scores", "score_explanation", "decision", "audit", "summary"]:
         assert key in body
+
+
+def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Cached Org"},
+            "verification": {"irs_status": "active"},
+            "scores": {"overall": Decimal("88.5")},
+            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False},
+            "model_version": "2.0.0",
+            "decision": {"status": "approve"},
+            "audit": {"model_version": "2.0.0"},
+            "summary": {"decision_status": "approve"},
+        }
+    )
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["scores"]["overall"] == 88.5
