@@ -19,6 +19,7 @@ def response_to_store_payload(response_payload: dict[str, Any]) -> dict[str, Any
         "decision": response_payload.get("decision"),
         "summary": response_payload.get("summary"),
         "audit": response_payload.get("audit"),
+        "evidence": response_payload.get("evidence"),
     }
 
 
@@ -53,6 +54,7 @@ def materialize_profile_item(
         decision=response_payload.get("decision"),
         summary=response_payload.get("summary"),
         audit=response_payload.get("audit"),
+        evidence=response_payload.get("evidence"),
         model_version=response_payload.get("score_explanation", {}).get("model_version", "unknown"),
         source_hash=calculate_source_hash(source_input),
         materialized_at=datetime.now(timezone.utc).isoformat(),

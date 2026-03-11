@@ -192,6 +192,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "decision": item.get("decision"),
         "audit": item.get("audit"),
         "summary": item.get("summary"),
+        "evidence": item.get("evidence"),
     }
 
 

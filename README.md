@@ -244,6 +244,36 @@ Convenience export shape:
 
 This is additive and does not replace detailed response fields.
 
+## Structured Evidence (Phase 6A)
+
+Responses now include a deterministic `evidence` object designed for explainability and audit reuse across live API responses and DynamoDB materialized profiles.
+
+`evidence` shape:
+
+- `factors[]`: normalized positive/negative/warning signals
+- `sources[]`: source usage records (EO/BMF, Form 990, enrichment providers/failures)
+- `rule_results[]`: deterministic rule outcomes used for explainability
+- `confidence`: inherited from score explanation confidence
+- `generated_at`: UTC timestamp when evidence was generated
+- `model_version`: score model version used to generate evidence
+
+Evidence signals cover:
+
+- eligibility/compliance
+- financial resilience
+- transparency
+- governance/quality
+- peer benchmarking usage
+- enrichment usage/failures when relevant
+
+Compatibility notes:
+
+- Existing fields (`scores`, `score_explanation`, `decision`, `audit`, `summary`) remain unchanged.
+- `evidence` is additive and available in:
+  - `GET /nonprofit/{ein}`
+  - `POST /verify`
+  - DynamoDB materialized profile records and cache-hit responses
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`

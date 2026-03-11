@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from charity_status.decision import build_decision
+from charity_status.evidence import build_evidence
 from charity_status.normalization import compare_names
 from charity_status.query.nonprofit_lookup import map_nonprofit_record
 from charity_status.scoring import assign_peer_group, calculate_v1_scores
@@ -85,6 +86,13 @@ def verify_nonprofit(
     payload["decision"] = decision
     payload["audit"] = extras["audit"]
     payload["summary"] = extras["summary"]
+    payload["evidence"] = build_evidence(
+        verification=payload["verification"],
+        scores=payload["scores"],
+        score_explanation=payload["score_explanation"],
+        decision=payload["decision"],
+        enrichment=payload.get("enrichment"),
+    )
     return 200, payload
 
 

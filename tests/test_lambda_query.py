@@ -64,6 +64,7 @@ def test_lookup_hit_path_returns_materialized_profile():
             "decision": {"status": "approve"},
             "audit": {"model_version": "2.0.0"},
             "summary": {"decision_status": "approve"},
+            "evidence": {"model_version": "2.0.0", "factors": []},
         }
     )
 
@@ -74,6 +75,7 @@ def test_lookup_hit_path_returns_materialized_profile():
     assert result["statusCode"] == 200
     assert body["organization"]["name"] == "Cached Org"
     assert body["scores"]["overall"] == 88
+    assert body["evidence"]["model_version"] == "2.0.0"
 
 
 def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
@@ -131,7 +133,7 @@ def test_response_shape_still_contains_core_fields():
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     body = json.loads(module.handler(event, None)["body"])
 
-    for key in ["organization", "verification", "scores", "score_explanation", "decision", "audit", "summary"]:
+    for key in ["organization", "verification", "scores", "score_explanation", "decision", "audit", "summary", "evidence"]:
         assert key in body
 
 
@@ -149,6 +151,7 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
             "decision": {"status": "approve"},
             "audit": {"model_version": "2.0.0"},
             "summary": {"decision_status": "approve"},
+            "evidence": {"model_version": "2.0.0", "factors": []},
         }
     )
 
