@@ -113,6 +113,47 @@ Hard rules:
 - If revoked hard-rule conditions are present, eligibility is `INELIGIBLE` and overall cap is stricter.
 - Missing 990 data never fails requests; scoring falls back and explanation states EO/BMF-only mode.
 
+## External Enrichments (Phase 5A)
+
+External enrichments are optional and source-attributed. Core verification/scoring still works using IRS EO/BMF + 990 data only.
+
+Framework location:
+
+- `infrastructure/charity_status/enrichments/base.py`
+- `infrastructure/charity_status/enrichments/registry.py`
+- `infrastructure/charity_status/enrichments/service.py`
+- `infrastructure/charity_status/enrichments/providers/`
+
+Included providers:
+
+- `mock_provider`: deterministic test provider
+- `candid`: scaffolded provider module with safe fallback behavior
+
+Response behavior:
+
+- Query responses may include:
+  - `enrichment.providers[]` with provider-specific normalized fields
+  - `enrichment.failures[]` for provider call failures
+- Provider errors, disabled providers, missing credentials, or no matches do not fail core nonprofit verification.
+
+Canonical enrichment fields are optional and include source attribution:
+
+- `transparency_level`
+- `profile_complete`
+- `external_rating_label`
+- `rating_score`
+- `impact_metrics_available`
+- `leadership_data_present`
+- `profile_link`
+
+Configuration (Terraform variables):
+
+- `enrichment_mock_enabled`
+- `enrichment_candid_enabled`
+- `enrichment_candid_endpoint`
+- `enrichment_candid_api_key`
+- `enrichment_timeout_seconds`
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`

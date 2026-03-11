@@ -78,3 +78,34 @@ variable "base_name" {
   description = "Base name for resources."
   type        = string
 }
+
+variable "enrichment_mock_enabled" {
+  description = "Enable deterministic mock enrichment provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_candid_enabled" {
+  description = "Enable Candid enrichment provider integration."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_candid_endpoint" {
+  description = "Candid API endpoint URL (if candid provider is enabled)."
+  type        = string
+  default     = ""
+}
+
+variable "enrichment_candid_api_key" {
+  description = "Candid API key (if candid provider is enabled)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "enrichment_timeout_seconds" {
+  description = "Timeout in seconds for enrichment provider calls."
+  type        = number
+  default     = 5
+}

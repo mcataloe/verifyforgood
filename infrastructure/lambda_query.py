@@ -4,6 +4,8 @@ import json
 import os
 
 from charity_status.api import error_response, json_response
+from charity_status.enrichments import EnrichmentService, ProviderRegistry
+from charity_status.enrichments.providers import CandidProvider, MockProvider
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
@@ -16,7 +18,14 @@ FORM990_METRICS_TABLE = os.environ.get("FORM990_METRICS_TABLE", "form990_metrics
 FORM990_GOVERNANCE_TABLE = os.environ.get("FORM990_GOVERNANCE_TABLE", "form990_governance")
 FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality")
 
+ENRICHMENT_MOCK_ENABLED = os.environ.get("ENRICHMENT_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false").lower() == "true"
+ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
+ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
+ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
+
 athena_client: AthenaQueryClient | None = None
+enrichment_service: EnrichmentService | None = None
 
 
 def _get_athena_client() -> AthenaQueryClient:
@@ -32,6 +41,24 @@ def _get_athena_client() -> AthenaQueryClient:
             form990_quality_table=FORM990_QUALITY_TABLE,
         )
     return athena_client
+
+
+def _get_enrichment_service() -> EnrichmentService:
+    global enrichment_service
+    if enrichment_service is None:
+        registry = ProviderRegistry(
+            providers=[
+                MockProvider(enabled=ENRICHMENT_MOCK_ENABLED),
+                CandidProvider(
+                    enabled=ENRICHMENT_CANDID_ENABLED,
+                    api_key=ENRICHMENT_CANDID_API_KEY,
+                    endpoint=ENRICHMENT_CANDID_ENDPOINT,
+                    timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                ),
+            ]
+        )
+        enrichment_service = EnrichmentService(registry=registry)
+    return enrichment_service
 
 
 def handler(event, context):
@@ -59,7 +86,11 @@ def handler(event, context):
             provided_name=verification_input.provided_name,
             subsection=verification_input.subsection,
         )
-        status_code, payload = verify_nonprofit(_get_athena_client(), verification_input)
+        status_code, payload = verify_nonprofit(
+            _get_athena_client(),
+            verification_input,
+            enrichment_service=_get_enrichment_service(),
+        )
         return json_response(status_code, payload)
     except EINValidationError as exc:
         return error_response(400, str(exc))

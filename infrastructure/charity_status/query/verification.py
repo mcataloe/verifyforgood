@@ -18,6 +18,7 @@ class VerificationInput:
 def verify_nonprofit(
     client: Any,
     verification_input: VerificationInput,
+    enrichment_service: Any | None = None,
 ) -> tuple[int, dict[str, Any]]:
     query_execution_id, record = client.lookup_nonprofit(verification_input.ein, subsection=verification_input.subsection)
 
@@ -45,6 +46,14 @@ def verify_nonprofit(
     payload["score_explanation"] = score_result.explanation
     payload["name_verification"] = name_check
     payload["queryExecutionId"] = query_execution_id
+    if enrichment_service is not None:
+        enrichment = enrichment_service.enrich(
+            ein=verification_input.ein,
+            organization_name=mapped.organization.get("name"),
+        )
+        payload["enrichment"] = enrichment.to_dict()
+    else:
+        payload["enrichment"] = {"providers": [], "failures": []}
     if filings:
         payload["filing_summary"] = {
             "tax_year": filings.get("tax_year"),

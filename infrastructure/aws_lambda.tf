@@ -102,13 +102,18 @@ resource "aws_lambda_function" "query" {
 
   environment {
     variables = {
-      DATABASE                 = aws_glue_catalog_database.eo_bmf.name
-      TABLE                    = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP                = aws_athena_workgroup.eo_bmf.name
-      FORM990_FILINGS_TABLE    = aws_glue_catalog_table.form990_metadata.name
-      FORM990_METRICS_TABLE    = aws_glue_catalog_table.form990_metrics.name
-      FORM990_GOVERNANCE_TABLE = aws_glue_catalog_table.form990_governance.name
-      FORM990_QUALITY_TABLE    = aws_glue_catalog_table.form990_quality.name
+      DATABASE                   = aws_glue_catalog_database.eo_bmf.name
+      TABLE                      = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                  = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE      = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE      = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE   = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE      = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_ENABLED    = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_ENABLED  = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY  = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS = tostring(var.enrichment_timeout_seconds)
     }
   }
 }

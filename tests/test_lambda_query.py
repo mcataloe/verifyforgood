@@ -33,6 +33,10 @@ def _mock_client(record=None, filings=None, metrics=None, governance=None, quali
     )
 
 
+def _mock_enrichment(providers=None, failures=None):
+    return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
+
+
 def test_get_handler_invalid_ein_returns_400():
     module = _load_module()
 
@@ -65,6 +69,10 @@ def test_post_verify_success_with_enrichment():
         governance={"whistleblower_policy": True, "material_diversion_reported": False, "public_disclosure_available": True},
         quality={"narrativeMissing": False, "scoreConfidence": "high"},
     )
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment(
+        providers=[{"name": "mock_provider", "status": "matched", "fields": {"transparency_level": "gold"}, "source": {"record_id": "mock-123", "fetched_at": "x", "licensed": False}}],
+        failures=[]
+    ))
 
     event = {
         "httpMethod": "POST",
@@ -80,11 +88,14 @@ def test_post_verify_success_with_enrichment():
     assert body["score_explanation"]["model_version"] == "1.1.0"
     assert "irs_form_990_xml" in body["score_explanation"]["score_data_sources"]
     assert "filing_summary" in body
+    assert "enrichment" in body
+    assert body["enrichment"]["providers"][0]["name"] == "mock_provider"
 
 
 def test_get_fallback_without_990_data():
     module = _load_module()
     module.athena_client = _mock_client(record=_sample_record("Test Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
@@ -93,6 +104,7 @@ def test_get_fallback_without_990_data():
     assert result["statusCode"] == 200
     assert body["score_explanation"]["score_data_sources"] == ["irs_eo_bmf_athena"]
     assert "filing_summary" not in body
+    assert body["enrichment"]["providers"] == []
 
 
 def test_post_verify_invalid_request_body():
@@ -114,6 +126,7 @@ def test_post_verify_invalid_request_body():
 def test_get_and_post_response_shape_consistency():
     module = _load_module()
     module.athena_client = _mock_client(record=_sample_record("Test Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     get_event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     post_event = {
@@ -126,7 +139,7 @@ def test_get_and_post_response_shape_consistency():
     get_body = json.loads(module.handler(get_event, None)["body"])
     post_body = json.loads(module.handler(post_event, None)["body"])
 
-    expected_keys = {"organization", "verification", "scores", "model", "score_explanation", "name_verification"}
+    expected_keys = {"organization", "verification", "scores", "model", "score_explanation", "name_verification", "enrichment"}
     assert expected_keys.issubset(get_body.keys())
     assert expected_keys.issubset(post_body.keys())
 
