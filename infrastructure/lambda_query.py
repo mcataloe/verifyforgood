@@ -1,107 +1,61 @@
-import json
-import boto3
-import os
-import time
+from __future__ import annotations
 
-athena = boto3.client("athena")
+import os
+
+from charity_status.api import error_response, json_response
+from charity_status.normalization import EINValidationError, normalize_ein
+from charity_status.query import AthenaQueryClient, map_nonprofit_record
+from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
+from charity_status.scoring import calculate_v1_scores
 
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
 WORKGROUP = os.environ.get("WORKGROUP")
-POLL_INTERVAL_SECONDS = 1
-MAX_WAIT_SECONDS = 25
+
+athena_client: AthenaQueryClient | None = None
 
 
-def _wait_for_query(query_execution_id):
-    deadline = time.time() + MAX_WAIT_SECONDS
-    while time.time() < deadline:
-        execution = athena.get_query_execution(QueryExecutionId=query_execution_id)
-        state = execution["QueryExecution"]["Status"]["State"]
-        if state in {"SUCCEEDED", "FAILED", "CANCELLED"}:
-            return execution
-        time.sleep(POLL_INTERVAL_SECONDS)
-    raise TimeoutError("Athena query timed out before completion")
+def _get_athena_client() -> AthenaQueryClient:
+    global athena_client
+    if athena_client is None:
+        athena_client = AthenaQueryClient(
+            database=DATABASE,
+            table=TABLE,
+            workgroup=WORKGROUP,
+        )
+    return athena_client
 
-
-def _rows_to_json(result_set):
-    rows = result_set.get("Rows", [])
-    if not rows:
-        return []
-
-    headers = [
-        col.get("VarCharValue", "")
-        for col in rows[0].get("Data", [])
-    ]
-
-    records = []
-    for row in rows[1:]:
-        values = [col.get("VarCharValue") for col in row.get("Data", [])]
-        # Align sparse row values with header length.
-        if len(values) < len(headers):
-            values.extend([None] * (len(headers) - len(values)))
-        records.append(dict(zip(headers, values)))
-    return records
 
 def handler(event, context):
     path_params = event.get("pathParameters") or {}
     query_params = event.get("queryStringParameters") or {}
-    ein = path_params.get("ein")
+
+    raw_ein = path_params.get("ein")
     subsection = query_params.get("subsection")
 
-    if not ein:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"message": "Missing path parameter: ein"})
-        }
-
-    where_clause = f"ein = '{ein}'"
-    if subsection:
-        where_clause += f" AND subsection = '{subsection}'"
-
-    query = f"SELECT * FROM {TABLE} WHERE {where_clause} LIMIT 1"
-
-    execution_args = {
-        "QueryString": query,
-        "QueryExecutionContext": {"Database": DATABASE},
-    }
-    if WORKGROUP:
-        execution_args["WorkGroup"] = WORKGROUP
-
-    start_response = athena.start_query_execution(**execution_args)
-    query_execution_id = start_response["QueryExecutionId"]
+    try:
+        normalized_ein = normalize_ein(raw_ein)
+    except EINValidationError as exc:
+        return error_response(400, str(exc))
 
     try:
-        execution = _wait_for_query(query_execution_id)
-    except TimeoutError as exc:
-        return {
-            "statusCode": 504,
-            "body": json.dumps({
-                "message": str(exc),
-                "queryExecutionId": query_execution_id
-            })
-        }
+        query_execution_id, record = _get_athena_client().lookup_nonprofit(normalized_ein, subsection=subsection)
+    except AthenaQueryTimeout as exc:
+        return json_response(504, {"message": str(exc)})
+    except AthenaQueryError:
+        return error_response(500, "Internal server error")
+    except Exception:
+        return error_response(500, "Internal server error")
 
-    state = execution["QueryExecution"]["Status"]["State"]
-    if state != "SUCCEEDED":
-        reason = execution["QueryExecution"]["Status"].get("StateChangeReason", "Unknown Athena failure")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "message": "Athena query did not succeed",
-                "state": state,
-                "reason": reason,
-                "queryExecutionId": query_execution_id
-            })
-        }
+    if not record:
+        return json_response(404, {"message": "Nonprofit not found", "ein": normalized_ein})
 
-    results = athena.get_query_results(QueryExecutionId=query_execution_id)
-    records = _rows_to_json(results.get("ResultSet", {}))
+    mapped = map_nonprofit_record(normalized_ein, record)
+    score_result = calculate_v1_scores(record=record, verification=mapped.verification, ein_valid=True)
 
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "queryExecutionId": query_execution_id,
-            "count": len(records),
-            "records": records
-        })
-    }
+    payload = mapped.to_dict()
+    payload["scores"] = score_result.scores
+    payload["score_explanation"] = score_result.explanation
+    payload["queryExecutionId"] = query_execution_id
+
+    return json_response(200, payload)

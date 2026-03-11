@@ -47,7 +47,7 @@ resource "aws_lambda_function" "ingest" {
 
 data "archive_file" "query_zip" {
   type        = "zip"
-  source_file = "${path.module}/lambda_query.py"
+  source_dir  = path.module
   output_path = "${path.module}/query.zip"
 }
 
