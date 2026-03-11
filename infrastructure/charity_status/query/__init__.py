@@ -1,5 +1,13 @@
 from .athena import AthenaQueryClient
 from .nonprofit_lookup import map_nonprofit_record
+from .search import search_nonprofit_summaries
 from .verification import VerificationInput, get_nonprofit_filings, verify_nonprofit
 
-__all__ = ["AthenaQueryClient", "map_nonprofit_record", "VerificationInput", "verify_nonprofit", "get_nonprofit_filings"]
+__all__ = [
+    "AthenaQueryClient",
+    "map_nonprofit_record",
+    "search_nonprofit_summaries",
+    "VerificationInput",
+    "verify_nonprofit",
+    "get_nonprofit_filings",
+]

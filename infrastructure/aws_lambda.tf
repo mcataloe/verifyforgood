@@ -120,6 +120,8 @@ resource "aws_lambda_function" "query" {
       APP_ENV                    = var.environment
       SERVING_DDB_ENABLED        = tostring(var.serving_dynamodb_enabled)
       BATCH_VERIFY_MAX_SIZE      = tostring(var.batch_verify_max_size)
+      SEARCH_MAX_LIMIT           = tostring(var.search_max_limit)
+      SEARCH_DEFAULT_LIMIT       = tostring(var.search_default_limit)
     }
   }
 }

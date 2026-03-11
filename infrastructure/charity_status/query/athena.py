@@ -82,6 +82,48 @@ class AthenaQueryClient:
         _, rows = self._run_query_many(query)
         return [row.get("ein", "") for row in rows if row.get("ein")]
 
+    def search_nonprofits(
+        self,
+        name_query: str,
+        limit: int,
+        state: str | None = None,
+        subsection: str | None = None,
+        active_only: bool = False,
+        cursor_name: str | None = None,
+        cursor_ein: str | None = None,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        where_parts = [
+            "ein IS NOT NULL",
+            "regexp_like(ein, '^[0-9]{9}$')",
+            f"lower(coalesce(name, '')) LIKE '%{self._escape_literal(name_query.lower())}%'",
+        ]
+        if state:
+            where_parts.append(f"coalesce(state, '') = '{self._escape_literal(state)}'")
+        if subsection:
+            where_parts.append(f"coalesce(subsection, '') = '{self._escape_literal(subsection)}'")
+        if active_only:
+            where_parts.append("coalesce(status, '') = '1'")
+        if cursor_name and cursor_ein:
+            where_parts.append(
+                "("
+                f"lower(coalesce(name, '')) > '{self._escape_literal(cursor_name.lower())}' "
+                "OR "
+                "("
+                f"lower(coalesce(name, '')) = '{self._escape_literal(cursor_name.lower())}' "
+                f"AND ein > '{self._escape_literal(cursor_ein)}'"
+                ")"
+                ")"
+            )
+        where_clause = " AND ".join(where_parts)
+        query = (
+            f"SELECT ein, name, state, subsection, status, tax_period "
+            f"FROM {self._table} "
+            f"WHERE {where_clause} "
+            "ORDER BY lower(coalesce(name, '')) ASC, ein ASC "
+            f"LIMIT {int(limit)}"
+        )
+        return self._run_query_many(query)
+
     def lookup_peer_benchmark(self, peer_group: dict[str, Any]) -> dict[str, Any]:
         if not self._form990_metrics_table:
             return {"count": 0, "metrics": {}}

@@ -12,7 +12,7 @@ from charity_status.enrichments import EnrichmentService, ProviderRegistry
 from charity_status.enrichments.providers import CandidProvider, MockProvider, StateRegistryMockProvider, StateRegistryProvider
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
-from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
+from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
@@ -36,6 +36,8 @@ PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
 BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
+SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
+SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
 
 athena_client: AthenaQueryClient | None = None
 enrichment_service: EnrichmentService | None = None
@@ -104,6 +106,10 @@ def handler(event, context):
         return error_response(400, str(exc))
 
     try:
+        if _is_search_request(event, method):
+            status_code, payload = _handle_search_request(event)
+            return json_response(status_code, payload)
+
         normalized_ein = normalize_ein(verification_input.ein)
 
         if _is_filings_request(event, method):
@@ -130,6 +136,8 @@ def handler(event, context):
             _materialize_profile(normalized_ein, payload)
         return json_response(status_code, payload)
     except EINValidationError as exc:
+        return error_response(400, str(exc))
+    except ValueError as exc:
         return error_response(400, str(exc))
     except AthenaQueryTimeout as exc:
         return json_response(504, {"message": str(exc)})
@@ -191,10 +199,51 @@ def _is_filings_request(event: dict, method: str) -> bool:
     return resource.endswith("/filings") or path.endswith("/filings")
 
 
+def _is_search_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/nonprofits/search") or path.endswith("/nonprofits/search")
+
+
 def _is_batch_verify_request(event: dict) -> bool:
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
     return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
+
+
+def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
+    query = event.get("queryStringParameters") or {}
+    name_query = str(query.get("q") or query.get("name") or "").strip()
+    if not name_query:
+        raise ValueError("Search query parameter q is required")
+    if len(name_query) < 2:
+        raise ValueError("Search query must be at least 2 characters")
+
+    limit = SEARCH_DEFAULT_LIMIT
+    if query.get("limit") is not None:
+        try:
+            limit = int(str(query.get("limit")))
+        except ValueError as exc:
+            raise ValueError("limit must be an integer") from exc
+    if limit < 1 or limit > SEARCH_MAX_LIMIT:
+        raise ValueError(f"limit must be between 1 and {SEARCH_MAX_LIMIT}")
+
+    active_only = _parse_bool(query.get("active_only"), default=False)
+    state = str(query.get("state")).strip().upper() if query.get("state") else None
+    subsection = str(query.get("subsection")).strip() if query.get("subsection") else None
+    cursor = str(query.get("cursor")).strip() if query.get("cursor") else None
+
+    return search_nonprofit_summaries(
+        client=_get_athena_client(),
+        name_query=name_query,
+        limit=limit,
+        state=state,
+        subsection=subsection,
+        active_only=active_only,
+        cursor=cursor,
+    )
 
 
 def _handle_batch_verify(event: dict) -> dict[str, Any]:
@@ -307,6 +356,19 @@ def _verify_single_item(normalized_ein: str, provided_name: str | None, policy_i
         raise ValueError(payload.get("message") or "Verification failed")
     payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
     return payload
+
+
+def _parse_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    candidate = str(value).strip().lower()
+    if candidate in {"true", "1", "yes"}:
+        return True
+    if candidate in {"false", "0", "no"}:
+        return False
+    raise ValueError("active_only must be a boolean")
 
 
 def _load_cached_profile(ein: str) -> dict | None:

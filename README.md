@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`, `POST /verify/batch`, `GET /nonprofit/{ein}/filings`)
+- API: API Gateway (`GET /nonprofit/{ein}`, `GET /nonprofits/search`, `POST /verify`, `POST /verify/batch`, `GET /nonprofit/{ein}/filings`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -297,6 +297,26 @@ Compatibility notes:
 
 Returns normalized organization + verification + scores + model + score explanation.
 When 990 data exists, includes enriched scoring factors and optional `filing_summary`.
+
+### `GET /nonprofits/search`
+
+Lightweight nonprofit listing/search endpoint (Athena-backed in this phase).
+
+Query params:
+
+- `q` (required): name query string
+- `state` (optional): two-letter state filter
+- `subsection` (optional): IRS subsection filter
+- `active_only` (optional): boolean (`true`/`false`)
+- `limit` (optional): page size (bounded by config)
+- `cursor` (optional): opaque pagination token from prior response
+
+Response shape is intentionally index-friendly and lightweight:
+
+- `query`
+- `pagination.limit`
+- `pagination.next_cursor`
+- `items[]` with summary fields (`ein`, `ein_normalized`, `name`, `state`, `subsection`, `irs_status`, `active`, `tax_period`)
 
 ### `POST /verify`
 

@@ -26,12 +26,22 @@ def _sample_record(name="Test Org", status="1"):
     }
 
 
-def _mock_client(record=None, filings=None, metrics=None, governance=None, quality=None, filing_rows=None, peer_stats=None):
+def _mock_client(
+    record=None,
+    filings=None,
+    metrics=None,
+    governance=None,
+    quality=None,
+    filing_rows=None,
+    peer_stats=None,
+    search_rows=None,
+):
     return SimpleNamespace(
         lookup_nonprofit=lambda ein, subsection=None: ("qid-1", record),
         lookup_form990_enrichment=lambda ein: (filings, metrics, governance, quality),
         list_form990_filings=lambda ein, limit=10: ("qid-f", filing_rows or []),
         lookup_peer_benchmark=lambda group: peer_stats or {"count": 0, "metrics": {}},
+        search_nonprofits=lambda **kwargs: ("qid-s", search_rows or []),
     )
 
 
@@ -334,3 +344,91 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["items"][0]["item"]["organization"]["name"] == "Cached Org"
+
+
+def test_nonprofits_search_exactish_name():
+    module = _load_module()
+    module.SEARCH_DEFAULT_LIMIT = 20
+    module.SEARCH_MAX_LIMIT = 50
+    module.athena_client = _mock_client(
+        search_rows=[
+            {
+                "ein": "123456789",
+                "name": "Helping Hands Foundation",
+                "state": "IL",
+                "subsection": "03",
+                "status": "1",
+                "tax_period": "202501",
+            }
+        ]
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/search",
+        "path": "/nonprofits/search",
+        "queryStringParameters": {"q": "helping hands"},
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["items"][0]["name"] == "Helping Hands Foundation"
+    assert body["items"][0]["ein"] == "12-3456789"
+
+
+def test_nonprofits_search_filtered_search():
+    module = _load_module()
+    captured = {}
+
+    def search_nonprofits(**kwargs):
+        captured.update(kwargs)
+        return "qid-s", []
+
+    module.athena_client = SimpleNamespace(search_nonprofits=search_nonprofits)
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/search",
+        "path": "/nonprofits/search",
+        "queryStringParameters": {"q": "org", "state": "il", "subsection": "03", "active_only": "true", "limit": "5"},
+    }
+    result = module.handler(event, None)
+    assert result["statusCode"] == 200
+    assert captured["state"] == "IL"
+    assert captured["subsection"] == "03"
+    assert captured["active_only"] is True
+    assert captured["limit"] == 5
+
+
+def test_nonprofits_search_pagination_cursor():
+    module = _load_module()
+    module.athena_client = _mock_client(
+        search_rows=[
+            {"ein": "123456789", "name": "A Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
+            {"ein": "223456789", "name": "B Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
+        ]
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/search",
+        "path": "/nonprofits/search",
+        "queryStringParameters": {"q": "org", "limit": "2"},
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["pagination"]["next_cursor"] is not None
+
+
+def test_nonprofits_search_invalid_limit_handling():
+    module = _load_module()
+    module.SEARCH_MAX_LIMIT = 10
+    module.athena_client = _mock_client(search_rows=[])
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/search",
+        "path": "/nonprofits/search",
+        "queryStringParameters": {"q": "org", "limit": "100"},
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 400
+    assert "between 1 and 10" in body["message"]

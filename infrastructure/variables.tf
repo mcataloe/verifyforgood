@@ -187,3 +187,15 @@ variable "enrichment_state_registry_mock_enabled" {
   type        = bool
   default     = false
 }
+
+variable "search_max_limit" {
+  description = "Maximum page size allowed for GET /nonprofits/search."
+  type        = number
+  default     = 50
+}
+
+variable "search_default_limit" {
+  description = "Default page size for GET /nonprofits/search."
+  type        = number
+  default     = 20
+}
