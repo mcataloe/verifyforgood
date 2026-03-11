@@ -12,10 +12,29 @@ Charity Status API ingests IRS Exempt Organizations (EO/BMF-style) data into AWS
 
 ## AWS Data Flow
 
-1. `lambda_ingest.py` downloads IRS source files and uploads them to S3.
-2. Glue Catalog table metadata points Athena at the S3 CSV location.
-3. `lambda_query.py` receives API Gateway requests.
-4. Query Lambda validates EIN, queries Athena, maps the row into a domain response, and calculates conservative v1 scores.
+1. `lambda_ingest.py` triggers concurrent download of IRS EO CSV files (`eo1.csv`-`eo4.csv`).
+2. Raw EO files are uploaded to S3 under `s3://<BUCKET>/<PREFIX>/` (default prefix `eo_bmf/`).
+3. Glue Catalog table metadata points Athena at that S3 CSV location.
+4. `lambda_query.py` receives API Gateway requests.
+5. Query Lambda validates EIN, queries Athena, maps the row into a domain response, and calculates conservative v1 scores.
+
+## Ingest Architecture (Phase 2)
+
+- Thin handler: `infrastructure/lambda_ingest.py`
+- Reusable ingest modules: `infrastructure/charity_status/ingest/`
+  - `irs_files.py`: EO source list and bucket/prefix key helpers
+  - `downloader.py`: async download adapter
+  - `uploader.py`: S3 upload abstraction
+  - `result.py`: structured ingest result payload builder
+  - `interfaces.py`: extension interfaces/types for future ingest providers
+
+Current ingest output includes:
+
+- `status`
+- `downloaded` / `failed` (backward-compatible lists)
+- `downloaded_count` / `failed_count`
+- `started_at`, `completed_at`, `duration_ms`
+- `files` (per-file status and error details)
 
 ## API Endpoint
 
@@ -37,14 +56,19 @@ Behavior:
   - optional `source_record`
   - `score_explanation`
 
-## Phase 1 Query Model
+## Current Scope vs Planned
+
+Implemented now:
 
 Query mapping and scoring are currently based only on EO/BMF-style IRS fields available in Athena.
-
-Important limits:
-
 - v1 scores do **not** represent full 990 financial analysis.
 - Unsupported fields are returned as `null` instead of inferred values.
+- EO ingest currently covers IRS EO CSV source files (`eo1.csv`-`eo4.csv`) only.
+
+Planned later:
+
+- Form 990 metadata ingestion hooks (`infrastructure/charity_status/future/form990.py`)
+- External enrichment provider hooks (`infrastructure/charity_status/future/enrichments.py`)
 
 ## Local Development
 
