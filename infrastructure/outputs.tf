@@ -22,3 +22,18 @@ output "athena_results_bucket_name" {
   description = "S3 bucket name used for Athena query results."
   value       = aws_s3_bucket.athena_results.bucket
 }
+
+output "form990_metadata_glue_table_name" {
+  description = "Glue table name for normalized Form 990 metadata."
+  value       = aws_glue_catalog_table.form990_metadata.name
+}
+
+output "form990_raw_s3_prefix" {
+  description = "S3 prefix for raw Form 990 XML documents."
+  value       = local.form990_raw_prefix_normalized
+}
+
+output "form990_metadata_s3_prefix" {
+  description = "S3 prefix for normalized Form 990 metadata JSONL."
+  value       = local.form990_metadata_prefix_normalized
+}

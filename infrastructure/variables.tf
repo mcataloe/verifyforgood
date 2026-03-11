@@ -14,6 +14,24 @@ variable "source_data_prefix" {
   default     = "eo_bmf/"
 }
 
+variable "form990_raw_prefix" {
+  description = "S3 prefix for raw Form 990 XML payloads."
+  type        = string
+  default     = "form990/raw/"
+}
+
+variable "form990_metadata_prefix" {
+  description = "S3 prefix for normalized Form 990 metadata records."
+  type        = string
+  default     = "form990/normalized/metadata/"
+}
+
+variable "form990_manifest_prefix" {
+  description = "S3 prefix for Form 990 parse manifests/status outputs."
+  type        = string
+  default     = "form990/normalized/manifests/"
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

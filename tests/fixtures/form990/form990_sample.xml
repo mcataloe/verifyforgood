@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Return xmlns="http://www.irs.gov/efile">
+  <ReturnHeader>
+    <ReturnTypeCd>990</ReturnTypeCd>
+    <TaxYr>2023</TaxYr>
+    <ReturnTs>2024-05-15</ReturnTs>
+    <TaxPeriodBeginDt>2023-01-01</TaxPeriodBeginDt>
+    <TaxPeriodEndDt>2023-12-31</TaxPeriodEndDt>
+    <AmendedReturnInd>false</AmendedReturnInd>
+  </ReturnHeader>
+  <Filer>
+    <EIN>123456789</EIN>
+  </Filer>
+</Return>

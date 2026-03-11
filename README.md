@@ -36,6 +36,26 @@ Current ingest output includes:
 - `started_at`, `completed_at`, `duration_ms`
 - `files` (per-file status and error details)
 
+## Form 990 Foundation (Phase 4A)
+
+Phase 4A adds foundational Form 990 ingestion plumbing without changing the platform architecture.
+
+New modules live under `infrastructure/charity_status/form990/`:
+
+- `index.py`: index/metadata record parsing
+- `ingest.py`: ingestion orchestration and status manifest generation
+- `storage.py`: S3 key strategy and JSONL serialization helpers
+- `parser.py`: XML parse wrapper with safe error typing
+- `resolver.py`: version-aware, multi-selector field resolution
+- `extractors/metadata.py`: canonical metadata extraction only
+
+Raw vs normalized separation:
+
+- Raw 990 XML references/content: `s3://<BUCKET>/<FORM990_RAW_PREFIX>/...`
+- Normalized metadata JSONL: `s3://<BUCKET>/<FORM990_METADATA_PREFIX>/...`
+- Parse manifests/status: `s3://<BUCKET>/<FORM990_MANIFEST_PREFIX>/...`
+- Future derived metrics and scoring are intentionally separate and not implemented in Phase 4A.
+
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`
@@ -126,6 +146,13 @@ Planned later:
 
 - Form 990 metadata ingestion hooks (`infrastructure/charity_status/future/form990.py`)
 - External enrichment provider hooks (`infrastructure/charity_status/future/enrichments.py`)
+- 990 financial and governance extraction from XML schedules
+- 990-driven scoring enhancements built on normalized derived datasets
+
+Current 990 limitation:
+
+- Phase 4A extracts metadata fields only (`ein`, tax period/year, filing metadata, return type, source references, parse status).
+- Full financial/governance extraction is not implemented yet.
 
 ## Local Development
 

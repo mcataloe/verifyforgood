@@ -16,9 +16,30 @@ data "archive_file" "ingest_zip_from_dir" {
 }
 
 data "archive_file" "ingest_zip_from_file" {
-  count       = local.use_ingest_build_dir ? 0 : 1
-  type        = "zip"
-  source_file = "${path.module}/lambda_ingest.py"
+  count      = local.use_ingest_build_dir ? 0 : 1
+  type       = "zip"
+  source_dir = path.module
+  excludes = [
+    ".terraform/**",
+    "build/**",
+    "__pycache__/**",
+    "charity_status/form990/**",
+    "charity_status/query/**",
+    "charity_status/normalization/**",
+    "charity_status/scoring/**",
+    "charity_status/api/**",
+    "charity_status/future/**",
+    "lambda_query.py",
+    "lambda_form990.py",
+    "ingest.zip",
+    "query.zip",
+    "form990.zip",
+    "*.tf",
+    "*.tfvars",
+    "*.hcl",
+    "*.ps1",
+    "requirements*.txt",
+  ]
   output_path = "${path.module}/ingest.zip"
 }
 
@@ -54,10 +75,13 @@ data "archive_file" "query_zip" {
     "build/**",
     "__pycache__/**",
     "charity_status/ingest/**",
+    "charity_status/form990/**",
     "charity_status/future/**",
     "ingest.zip",
     "query.zip",
+    "form990.zip",
     "lambda_ingest.py",
+    "lambda_form990.py",
     "*.tf",
     "*.tfvars",
     "*.hcl",
@@ -81,6 +105,57 @@ resource "aws_lambda_function" "query" {
       DATABASE  = aws_glue_catalog_database.eo_bmf.name
       TABLE     = aws_glue_catalog_table.eo_bmf.name
       WORKGROUP = aws_athena_workgroup.eo_bmf.name
+    }
+  }
+}
+
+#############################################
+# LAMBDA - FORM 990 INGESTION
+#############################################
+
+data "archive_file" "form990_zip" {
+  type        = "zip"
+  source_dir  = path.module
+  output_path = "${path.module}/form990.zip"
+  excludes = [
+    ".terraform/**",
+    "build/**",
+    "__pycache__/**",
+    "charity_status/query/**",
+    "charity_status/normalization/**",
+    "charity_status/scoring/**",
+    "charity_status/ingest/**",
+    "charity_status/future/**",
+    "lambda_ingest.py",
+    "lambda_query.py",
+    "ingest.zip",
+    "query.zip",
+    "form990.zip",
+    "*.tf",
+    "*.tfvars",
+    "*.hcl",
+    "*.ps1",
+    "requirements*.txt",
+  ]
+}
+
+resource "aws_lambda_function" "form990_ingest" {
+  function_name = "irs_form990_ingest"
+  handler       = "lambda_form990.handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 300
+  memory_size   = 1024
+
+  filename         = data.archive_file.form990_zip.output_path
+  source_code_hash = data.archive_file.form990_zip.output_base64sha256
+
+  environment {
+    variables = {
+      BUCKET                  = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX      = local.form990_raw_prefix_normalized
+      FORM990_METADATA_PREFIX = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX = local.form990_manifest_prefix_normalized
     }
   }
 }

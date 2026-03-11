@@ -1,9 +1,12 @@
 locals {
-  domain_name                   = "${var.base_name}.com"
-  source_data_prefix_normalized = "${trim(var.source_data_prefix, "/")}/"
-  source_data_bucket_name       = "${var.base_name}-irs-source-data-bucket"
-  athena_results_bucket_name    = "${var.base_name}-athena-results"
-  glue_database_name            = "${var.base_name}_irs_db"
+  domain_name                        = "${var.base_name}.com"
+  source_data_prefix_normalized      = "${trim(var.source_data_prefix, "/")}/"
+  form990_raw_prefix_normalized      = "${trim(var.form990_raw_prefix, "/")}/"
+  form990_metadata_prefix_normalized = "${trim(var.form990_metadata_prefix, "/")}/"
+  form990_manifest_prefix_normalized = "${trim(var.form990_manifest_prefix, "/")}/"
+  source_data_bucket_name            = "${var.base_name}-irs-source-data-bucket"
+  athena_results_bucket_name         = "${var.base_name}-athena-results"
+  glue_database_name                 = "${var.base_name}_irs_db"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
@@ -36,6 +39,21 @@ locals {
     { name = "revenue_amt", type = "string" },
     { name = "ntee_cd", type = "string" },
     { name = "sort_name", type = "string" }
+  ]
+
+  form990_metadata_columns = [
+    { name = "ein", type = "string" },
+    { name = "tax_year", type = "string" },
+    { name = "tax_period_begin", type = "string" },
+    { name = "tax_period_end", type = "string" },
+    { name = "filing_date", type = "string" },
+    { name = "amended_return", type = "boolean" },
+    { name = "return_type", type = "string" },
+    { name = "irs_object_id", type = "string" },
+    { name = "xml_source_reference", type = "string" },
+    { name = "raw_s3_key", type = "string" },
+    { name = "parse_status", type = "string" },
+    { name = "parse_error", type = "string" }
   ]
 
   common_tags = {
@@ -105,6 +123,34 @@ resource "aws_glue_catalog_table" "eo_bmf" {
 
     dynamic "columns" {
       for_each = local.eo_bmf_columns
+      content {
+        name = columns.value.name
+        type = columns.value.type
+      }
+    }
+  }
+}
+
+resource "aws_glue_catalog_table" "form990_metadata" {
+  name          = "form990_metadata"
+  database_name = aws_glue_catalog_database.eo_bmf.name
+  table_type    = "EXTERNAL_TABLE"
+  parameters = {
+    EXTERNAL       = "TRUE"
+    classification = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${local.source_data_bucket_name}/${local.form990_metadata_prefix_normalized}"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    dynamic "columns" {
+      for_each = local.form990_metadata_columns
       content {
         name = columns.value.name
         type = columns.value.type

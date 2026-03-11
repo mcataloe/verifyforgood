@@ -68,5 +68,3 @@ venv
 *.tfvars
 */providers-*.tf
 */*.zip
-infrastructure/ingest.zip
-infrastructure/query.zip
