@@ -4,5 +4,8 @@ aws_region                 = "us-east-1"
 environment                = "dev"
 source_data_prefix         = "eo_bmf/"
 athena_workgroup_name      = "irs-eo-bmf"
+enable_custom_domain       = false
+root_domain_name           = "charitystatusapi.com"
+# route53_zone_name        = "charitystatusapi.com."
 
 # Domain name is derived from base_name as "${base_name}.com".

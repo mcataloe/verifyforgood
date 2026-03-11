@@ -5,14 +5,17 @@
 locals {
   base_domain_name     = trim(local.domain_name, ".")
   computed_domain_name = var.environment == "prod" ? local.base_domain_name : "${var.environment}.${local.base_domain_name}"
-  route53_zone_name    = "${local.base_domain_name}."
+  route53_zone_name    = var.route53_zone_name != "" ? var.route53_zone_name : "${local.base_domain_name}."
   enable_custom_domain = var.enable_custom_domain && local.base_domain_name != ""
 }
 
-data "aws_route53_zone" "selected" {
-  count        = local.enable_custom_domain ? 1 : 0
-  name         = local.route53_zone_name
-  private_zone = false
+resource "aws_route53_zone" "selected" {
+  count = local.enable_custom_domain ? 1 : 0
+  name  = trim(local.route53_zone_name, ".")
+}
+
+locals {
+  route53_zone_id = aws_route53_zone.selected[0].zone_id
 }
 
 resource "aws_acm_certificate" "cert" {
@@ -31,7 +34,7 @@ resource "aws_route53_record" "cert_validation" {
     }
   } : {}
 
-  zone_id = data.aws_route53_zone.selected[0].zone_id
+  zone_id = local.route53_zone_id
   name    = each.value.name
   type    = each.value.type
   records = [each.value.record]
@@ -59,7 +62,7 @@ resource "aws_api_gateway_base_path_mapping" "mapping" {
   count = local.enable_custom_domain ? 1 : 0
 
   api_id      = aws_api_gateway_rest_api.irs_api.id
-  stage_name  = aws_api_gateway_stage.prod.stage_name
+  stage_name  = var.environment == "prod" ? aws_api_gateway_stage.prod.stage_name : aws_api_gateway_stage.dev.stage_name
   domain_name = aws_api_gateway_domain_name.api_domain[0].domain_name
 }
 
@@ -69,7 +72,7 @@ resource "aws_api_gateway_base_path_mapping" "mapping" {
 
 resource "aws_route53_record" "api_record" {
   count   = local.enable_custom_domain ? 1 : 0
-  zone_id = data.aws_route53_zone.selected[0].zone_id
+  zone_id = local.route53_zone_id
   name    = local.computed_domain_name
   type    = "A"
 

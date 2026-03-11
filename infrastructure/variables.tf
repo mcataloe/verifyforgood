@@ -44,6 +44,18 @@ variable "enable_custom_domain" {
   default     = false
 }
 
+variable "root_domain_name" {
+  description = "Root DNS domain used for API custom domain resources (for example: charitystatusapi.com)."
+  type        = string
+  default     = ""
+}
+
+variable "route53_zone_name" {
+  description = "Optional Route53 hosted zone name override (for example: charitystatusapi.com.). If empty, root_domain_name is used."
+  type        = string
+  default     = ""
+}
+
 variable "base_name" {
   description = "Base name for resources."
   type        = string
