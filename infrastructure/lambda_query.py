@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 from charity_status.api import error_response, json_response
@@ -32,6 +33,8 @@ SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == 
 athena_client: AthenaQueryClient | None = None
 enrichment_service: EnrichmentService | None = None
 profile_store: DynamoProfileStore | None = None
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def _get_athena_client() -> AthenaQueryClient:
@@ -119,8 +122,10 @@ def handler(event, context):
     except AthenaQueryTimeout as exc:
         return json_response(504, {"message": str(exc)})
     except AthenaQueryError:
+        logger.exception("Athena query error")
         return error_response(500, "Internal server error")
     except Exception:
+        logger.exception("Unhandled exception in lambda_query handler")
         return error_response(500, "Internal server error")
 
 
