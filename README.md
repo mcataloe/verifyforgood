@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`, `GET /nonprofit/{ein}/filings`)
+- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`, `POST /verify/batch`, `GET /nonprofit/{ein}/filings`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -294,6 +294,36 @@ Request body:
 ```
 
 Performs the same verification workflow as GET and includes conservative name-match metadata.
+
+### `POST /verify/batch`
+
+Synchronous batch verification endpoint for CSR/finance workflows.
+
+Request body:
+
+```json
+{
+  "items": [
+    { "ein": "12-3456789" },
+    { "ein": "98-7654321", "name": "Example Org", "policy_id": "strict_manual" }
+  ]
+}
+```
+
+Behavior:
+
+- each item is processed independently
+- invalid rows return item-level errors without failing the whole batch
+- duplicates are processed independently
+- max batch size is enforced by `BATCH_VERIFY_MAX_SIZE` (Terraform: `batch_verify_max_size`)
+
+Response shape:
+
+- `batch_summary`
+- `items[]`
+- `batch_summary.counts_by_status`
+- `batch_summary.counts_by_decision`
+- `batch_summary.counts_by_error`
 
 ## Policy Engine (Phase 6B)
 

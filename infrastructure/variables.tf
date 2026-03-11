@@ -169,3 +169,9 @@ variable "bootstrap_max_batches_per_run" {
   type        = number
   default     = 0
 }
+
+variable "batch_verify_max_size" {
+  description = "Maximum number of rows accepted by POST /verify/batch."
+  type        = number
+  default     = 25
+}

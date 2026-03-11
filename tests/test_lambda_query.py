@@ -192,3 +192,140 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
 
     assert result["statusCode"] == 200
     assert body["scores"]["overall"] == 88.5
+
+
+def test_post_verify_batch_all_success():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.athena_client = _mock_client(record=_sample_record("Batch Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321", "name": "Batch Org"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["batch_summary"]["total"] == 2
+    assert body["batch_summary"]["success"] == 2
+    assert body["batch_summary"]["error"] == 0
+
+
+def test_post_verify_batch_partial_invalid_input():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.athena_client = _mock_client(record=_sample_record("Batch Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "invalid"}, {"ein": "987654321"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    body = json.loads(module.handler(event, None)["body"])
+    assert body["batch_summary"]["success"] == 2
+    assert body["batch_summary"]["error"] == 1
+    assert body["batch_summary"]["counts_by_error"]["invalid_ein"] == 1
+
+
+def test_post_verify_batch_missing_ein_rows():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.athena_client = _mock_client(record=_sample_record("Batch Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"name": "No EIN"}, {"ein": "123456789"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    body = json.loads(module.handler(event, None)["body"])
+    assert body["batch_summary"]["error"] == 1
+    assert body["batch_summary"]["counts_by_error"]["missing_ein"] == 1
+
+
+def test_post_verify_batch_duplicate_eins_are_processed_independently():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.athena_client = _mock_client(record=_sample_record("Batch Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "123456789"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    body = json.loads(module.handler(event, None)["body"])
+    assert body["batch_summary"]["total"] == 2
+    assert body["batch_summary"]["success"] == 2
+    assert len(body["items"]) == 2
+
+
+def test_post_verify_batch_enforces_size_limit():
+    module = _load_module()
+    module.BATCH_VERIFY_MAX_SIZE = 1
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 400
+    assert "maximum of 1" in body["message"]
+
+
+def test_post_verify_batch_reuses_cache_for_get_style_item():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Cached Org"},
+            "verification": {"irs_status": "active"},
+            "scores": {"overall": 88},
+            "score_explanation": {"model_version": "2.0.0"},
+            "model_version": "2.0.0",
+            "decision": {"status": "approve"},
+            "audit": {"model_version": "2.0.0"},
+            "summary": {"decision_status": "approve"},
+            "evidence": {"model_version": "2.0.0", "factors": []},
+        },
+        put_profile=lambda item: None,
+    )
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "body": json.dumps({"items": [{"ein": "123456789"}]}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["items"][0]["item"]["organization"]["name"] == "Cached Org"

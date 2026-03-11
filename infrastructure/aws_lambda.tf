@@ -117,6 +117,7 @@ resource "aws_lambda_function" "query" {
       PROFILE_TABLE_NAME         = aws_dynamodb_table.profiles.name
       APP_ENV                    = var.environment
       SERVING_DDB_ENABLED        = tostring(var.serving_dynamodb_enabled)
+      BATCH_VERIFY_MAX_SIZE      = tostring(var.batch_verify_max_size)
     }
   }
 }

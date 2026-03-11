@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import Counter
+from typing import Any
 
 from charity_status.api import error_response, json_response
 from charity_status.enrichments import EnrichmentService, ProviderRegistry
 from charity_status.enrichments.providers import CandidProvider, MockProvider
 from charity_status.normalization import EINValidationError, normalize_ein
+from charity_status.policy import evaluate_policy
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
@@ -29,6 +32,7 @@ ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
+BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
 
 athena_client: AthenaQueryClient | None = None
 enrichment_service: EnrichmentService | None = None
@@ -81,6 +85,8 @@ def _get_profile_store() -> DynamoProfileStore | None:
 
 def handler(event, context):
     method = (event.get("httpMethod") or "GET").upper()
+    if method == "POST" and _is_batch_verify_request(event):
+        return _handle_batch_verify(event)
 
     try:
         if method == "POST":
@@ -178,6 +184,123 @@ def _is_filings_request(event: dict, method: str) -> bool:
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
     return resource.endswith("/filings") or path.endswith("/filings")
+
+
+def _is_batch_verify_request(event: dict) -> bool:
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
+
+
+def _handle_batch_verify(event: dict) -> dict[str, Any]:
+    try:
+        body = event.get("body")
+        if not body:
+            return error_response(400, "Request body is required")
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return error_response(400, "Request body must be valid JSON")
+
+    items_input: list[Any]
+    if isinstance(payload, list):
+        items_input = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items_input = payload["items"]
+    else:
+        return error_response(400, "Request body must be an array or an object with items[]")
+
+    if len(items_input) > BATCH_VERIFY_MAX_SIZE:
+        return error_response(400, f"Batch size exceeds maximum of {BATCH_VERIFY_MAX_SIZE}")
+
+    results: list[dict[str, Any]] = []
+    status_counts: Counter[str] = Counter()
+    decision_counts: Counter[str] = Counter()
+    error_counts: Counter[str] = Counter()
+
+    for index, row in enumerate(items_input):
+        item_result = _process_batch_item(index, row)
+        results.append(item_result)
+        status_counts[item_result["status"]] += 1
+        if item_result["status"] == "ok":
+            decision_counts[item_result.get("decision_status") or "unknown"] += 1
+        else:
+            error_counts[item_result.get("error_code") or "unknown_error"] += 1
+
+    summary = {
+        "total": len(items_input),
+        "success": status_counts.get("ok", 0),
+        "error": status_counts.get("error", 0),
+        "counts_by_status": dict(status_counts),
+        "counts_by_decision": dict(decision_counts),
+        "counts_by_error": dict(error_counts),
+        "max_batch_size": BATCH_VERIFY_MAX_SIZE,
+    }
+    return json_response(200, {"batch_summary": summary, "items": results})
+
+
+def _process_batch_item(index: int, row: Any) -> dict[str, Any]:
+    if not isinstance(row, dict):
+        return {"index": index, "status": "error", "error_code": "invalid_item", "message": "Item must be an object"}
+
+    ein = row.get("ein")
+    if not ein:
+        return {"index": index, "status": "error", "error_code": "missing_ein", "message": "Item must include ein"}
+
+    provided_name = row.get("name")
+    if provided_name is not None and not isinstance(provided_name, str):
+        return {"index": index, "status": "error", "error_code": "invalid_name", "message": "name must be a string"}
+
+    policy_id = row.get("policy_id")
+    if policy_id is not None and not isinstance(policy_id, str):
+        return {"index": index, "status": "error", "error_code": "invalid_policy_id", "message": "policy_id must be a string"}
+
+    try:
+        normalized_ein = normalize_ein(str(ein))
+        payload = _verify_single_item(normalized_ein, provided_name, policy_id)
+        return {
+            "index": index,
+            "ein": normalized_ein,
+            "status": "ok",
+            "decision_status": (payload.get("decision") or {}).get("status"),
+            "final_recommendation": payload.get("final_recommendation"),
+            "item": payload,
+        }
+    except EINValidationError as exc:
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_ein", "message": str(exc)}
+    except ValueError as exc:
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_policy", "message": str(exc)}
+    except AthenaQueryTimeout as exc:
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_timeout", "message": str(exc)}
+    except AthenaQueryError:
+        logger.exception("Athena query error while processing batch item")
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_error", "message": "Athena query failed"}
+    except Exception:
+        logger.exception("Unhandled exception while processing batch item")
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "internal_error", "message": "Internal server error"}
+
+
+def _verify_single_item(normalized_ein: str, provided_name: str | None, policy_id: str | None) -> dict[str, Any]:
+    if provided_name is None:
+        cached = _load_cached_profile(normalized_ein)
+        if cached is not None:
+            if policy_id:
+                cached["policy_evaluation"] = evaluate_policy(cached, policy_id)
+                cached["final_recommendation"] = cached["policy_evaluation"]["final_recommendation"]
+            return cached
+
+    verification_input = VerificationInput(
+        ein=normalized_ein,
+        provided_name=provided_name,
+        policy_id=policy_id,
+    )
+    status_code, payload = verify_nonprofit(
+        _get_athena_client(),
+        verification_input,
+        enrichment_service=_get_enrichment_service(),
+    )
+    if status_code != 200:
+        raise ValueError(payload.get("message") or "Verification failed")
+    return payload
 
 
 def _load_cached_profile(ein: str) -> dict | None:
