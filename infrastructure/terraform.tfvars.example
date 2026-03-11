@@ -15,6 +15,7 @@ enrichment_candid_enabled  = false
 enrichment_candid_endpoint = ""
 enrichment_candid_api_key  = ""
 enrichment_timeout_seconds = 5
+serving_dynamodb_enabled   = true
 enable_custom_domain       = false
 root_domain_name           = "charitystatusapi.com"
 # route53_zone_name        = "charitystatusapi.com."

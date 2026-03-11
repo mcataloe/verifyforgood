@@ -9,6 +9,7 @@ locals {
   form990_quality_prefix_normalized    = "${trim(var.form990_quality_prefix, "/")}/"
   source_data_bucket_name              = "${var.base_name}-irs-source-data-bucket"
   athena_results_bucket_name           = "${var.base_name}-athena-results"
+  profile_table_name                   = "${var.base_name}-${var.environment}-profiles"
   glue_database_name                   = "${var.base_name}_irs_db"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
@@ -286,4 +287,23 @@ resource "aws_glue_catalog_table" "form990_quality" {
       }
     }
   }
+}
+
+resource "aws_dynamodb_table" "profiles" {
+  name         = local.profile_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  tags = local.common_tags
 }

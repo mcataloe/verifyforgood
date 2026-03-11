@@ -114,6 +114,9 @@ resource "aws_lambda_function" "query" {
       ENRICHMENT_CANDID_ENDPOINT = var.enrichment_candid_endpoint
       ENRICHMENT_CANDID_API_KEY  = var.enrichment_candid_api_key
       ENRICHMENT_TIMEOUT_SECONDS = tostring(var.enrichment_timeout_seconds)
+      PROFILE_TABLE_NAME         = aws_dynamodb_table.profiles.name
+      APP_ENV                    = var.environment
+      SERVING_DDB_ENABLED        = tostring(var.serving_dynamodb_enabled)
     }
   }
 }

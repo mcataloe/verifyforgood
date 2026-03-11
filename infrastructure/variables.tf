@@ -109,3 +109,9 @@ variable "enrichment_timeout_seconds" {
   type        = number
   default     = 5
 }
+
+variable "serving_dynamodb_enabled" {
+  description = "Enable DynamoDB materialized profile serving layer."
+  type        = bool
+  default     = true
+}

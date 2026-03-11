@@ -9,13 +9,18 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Compute: AWS Lambda
 - API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`, `GET /nonprofit/{ein}/filings`)
 - Data lake: S3 + Glue Catalog + Athena
+- Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
 ## AWS Data Flow
 
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
 2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
-4. `lambda_query.py` handles verification/scoring endpoints using Athena-backed data.
+4. `lambda_query.py` handles verification/scoring endpoints.
+5. For `GET /nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
+   - check materialized profile in DynamoDB
+   - return cached profile on hit
+   - on miss, run Athena/source assembly path, materialize to DynamoDB, return response
 
 ## Form 990 Datasets
 
@@ -295,3 +300,29 @@ python -m pytest -q
 - Query Lambda package includes query/normalization/scoring modules.
 - Ingest and Form 990 Lambdas are packaged separately.
 - Domain registration remains manual; Route53 hosted zone and records are managed by Terraform when enabled.
+- DynamoDB table is provisioned for serving profiles (`pk = EIN#{ein}`, `sk = PROFILE#LATEST`).
+
+## Serving Layer (Phase D1)
+
+DynamoDB now acts as a low-latency serving layer for final nonprofit profile responses.
+
+Stored materialized fields include:
+
+- organization
+- verification
+- scores
+- score_explanation
+- latest filing summary (if present)
+- enrichment summary (if present)
+- decision/summary/audit structures
+- model_version
+- source_hash
+- materialized_at
+- environment
+- source_data_versions
+
+Environment-aware behavior:
+
+- Non-production (`env != prod`): no eager preload, lazy/on-demand materialization only.
+- If DynamoDB is empty, request still works via Athena/source assembly.
+- First request for an EIN may be slower; repeat requests are faster via DynamoDB hit path.

@@ -52,3 +52,8 @@ output "form990_quality_glue_table_name" {
   description = "Glue table name for Form 990 filing quality indicators."
   value       = aws_glue_catalog_table.form990_quality.name
 }
+
+output "profiles_dynamodb_table_name" {
+  description = "DynamoDB table for materialized nonprofit serving profiles."
+  value       = aws_dynamodb_table.profiles.name
+}

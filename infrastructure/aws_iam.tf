@@ -38,6 +38,15 @@ resource "aws_iam_role_policy" "lambda_data_access" {
         ]
         Effect   = "Allow"
         Resource = "*"
+      },
+      {
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        Effect   = "Allow"
+        Resource = aws_dynamodb_table.profiles.arn
       }
     ]
   })

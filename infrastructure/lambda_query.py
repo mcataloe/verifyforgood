@@ -9,6 +9,7 @@ from charity_status.enrichments.providers import CandidProvider, MockProvider
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
+from charity_status.serving import DynamoProfileStore, materialize_profile_item
 
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
@@ -23,9 +24,13 @@ ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false")
 ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
 ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
+PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
+APP_ENV = os.environ.get("APP_ENV", "dev")
+SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
 
 athena_client: AthenaQueryClient | None = None
 enrichment_service: EnrichmentService | None = None
+profile_store: DynamoProfileStore | None = None
 
 
 def _get_athena_client() -> AthenaQueryClient:
@@ -61,6 +66,15 @@ def _get_enrichment_service() -> EnrichmentService:
     return enrichment_service
 
 
+def _get_profile_store() -> DynamoProfileStore | None:
+    global profile_store
+    if not SERVING_DDB_ENABLED or not PROFILE_TABLE_NAME:
+        return None
+    if profile_store is None:
+        profile_store = DynamoProfileStore(table_name=PROFILE_TABLE_NAME)
+    return profile_store
+
+
 def handler(event, context):
     method = (event.get("httpMethod") or "GET").upper()
 
@@ -81,6 +95,11 @@ def handler(event, context):
             status_code, payload = get_nonprofit_filings(_get_athena_client(), normalized_ein)
             return json_response(status_code, payload)
 
+        if method == "GET":
+            cached = _load_cached_profile(normalized_ein)
+            if cached is not None:
+                return json_response(200, cached)
+
         verification_input = VerificationInput(
             ein=normalized_ein,
             provided_name=verification_input.provided_name,
@@ -91,6 +110,8 @@ def handler(event, context):
             verification_input,
             enrichment_service=_get_enrichment_service(),
         )
+        if status_code == 200 and method == "GET":
+            _materialize_profile(normalized_ein, payload)
         return json_response(status_code, payload)
     except EINValidationError as exc:
         return error_response(400, str(exc))
@@ -145,3 +166,41 @@ def _is_filings_request(event: dict, method: str) -> bool:
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
     return resource.endswith("/filings") or path.endswith("/filings")
+
+
+def _load_cached_profile(ein: str) -> dict | None:
+    store = _get_profile_store()
+    if store is None:
+        return None
+    item = store.get_profile(ein)
+    if not item:
+        return None
+    return {
+        "organization": item.get("organization"),
+        "verification": item.get("verification"),
+        "scores": item.get("scores"),
+        "score_explanation": item.get("score_explanation"),
+        "model": {"version": item.get("model_version"), "source": "materialized_dynamodb"},
+        "filing_summary": item.get("latest_filing"),
+        "enrichment": item.get("enrichment") or {"providers": [], "failures": []},
+        "decision": item.get("decision"),
+        "audit": item.get("audit"),
+        "summary": item.get("summary"),
+    }
+
+
+def _materialize_profile(ein: str, payload: dict) -> None:
+    store = _get_profile_store()
+    if store is None:
+        return
+    source_versions = {
+        "model_version": payload.get("score_explanation", {}).get("model_version"),
+        "score_data_sources": payload.get("score_explanation", {}).get("score_data_sources"),
+    }
+    item = materialize_profile_item(
+        ein=ein,
+        response_payload=payload,
+        environment=APP_ENV,
+        source_data_versions=source_versions,
+    )
+    store.put_profile(item)

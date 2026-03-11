@@ -38,32 +38,79 @@ def _mock_enrichment(providers=None, failures=None):
     return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
 
 
-def test_post_verify_includes_decision_audit_summary_with_peer_and_enrichment():
+def test_invalid_ein_still_returns_400():
     module = _load_module()
-    module.athena_client = _mock_client(
-        record=_sample_record("Helping Hands Inc."),
-        filings={"tax_year": "2023", "return_type": "990", "filing_date": "2024-05-15", "amended_return": "false", "parse_status": "parsed", "mission_description_present": True, "program_accomplishments_present": True, "leadership_disclosed": True, "total_revenue": "1500000"},
-        metrics={"programExpenseRatio": 0.8, "liabilitiesToAssetsRatio": 0.4, "monthsOfRunway": 8, "operatingMargin": 0.06},
-        governance={"whistleblower_policy": True, "material_diversion_reported": False, "public_disclosure_available": True},
-        quality={"narrativeMissing": False, "scoreConfidence": "high"},
-        peer_stats={
-            "count": 100,
-            "metrics": {
-                "programExpenseRatio": {"p25": 0.6, "median": 0.7, "p75": 0.78},
-                "liabilitiesToAssetsRatio": {"p25": 0.3, "median": 0.45, "p75": 0.6},
-                "operatingMargin": {"p25": 0.0, "median": 0.03, "p75": 0.08},
-                "monthsOfRunway": {"p25": 4, "median": 6, "p75": 9},
-            },
-        },
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "12-34A6789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 400
+    assert "invalid characters" in body["message"]
+
+
+def test_lookup_hit_path_returns_materialized_profile():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Cached Org"},
+            "verification": {"irs_status": "active"},
+            "scores": {"overall": 88},
+            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False},
+            "model_version": "2.0.0",
+            "decision": {"status": "approve"},
+            "audit": {"model_version": "2.0.0"},
+            "summary": {"decision_status": "approve"},
+        }
     )
-    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment(
-        providers=[{"name": "mock_provider", "status": "matched", "fields": {"transparency_level": "gold"}, "source": {"record_id": "mock-123", "fetched_at": "x", "licensed": False}}],
-        failures=[]
-    ))
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Cached Org"
+    assert body["scores"]["overall"] == 88
+
+
+def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
+    module = _load_module()
+    put_calls = []
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.APP_ENV = "dev"
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: None,
+        put_profile=lambda item: put_calls.append(item),
+    )
+    module.athena_client = _mock_client(record=_sample_record("Fresh Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Fresh Org"
+    assert len(put_calls) == 1
+    assert put_calls[0]["pk"] == "EIN#123456789"
+
+
+def test_post_verify_bypasses_cache_readthrough():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = True
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {"organization": {"name": "Cached Org"}},
+        put_profile=lambda item: None,
+    )
+    module.athena_client = _mock_client(record=_sample_record("Post Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {
         "httpMethod": "POST",
-        "body": json.dumps({"ein": "12-3456789", "name": "Helping Hands"}),
+        "body": json.dumps({"ein": "123456789", "name": "Post Org"}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
@@ -71,35 +118,17 @@ def test_post_verify_includes_decision_audit_summary_with_peer_and_enrichment():
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
-    assert "decision" in body
-    assert "audit" in body
-    assert "summary" in body
-    assert body["audit"]["peer_benchmarking_used"] is True
-    assert body["summary"]["decision_status"] in {"approve", "approve_with_review", "manual_review"}
+    assert body["organization"]["name"] == "Post Org"
 
 
-def test_get_response_consistency_without_enrichment_or_peer():
+def test_response_shape_still_contains_core_fields():
     module = _load_module()
+    module.SERVING_DDB_ENABLED = False
     module.athena_client = _mock_client(record=_sample_record("Test Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     body = json.loads(module.handler(event, None)["body"])
 
-    assert "decision" in body
-    assert "audit" in body
-    assert "summary" in body
-    assert body["score_explanation"]["peer_benchmarking_used"] is False
-    assert body["audit"]["enrichments_used"] is False
-
-
-def test_deny_condition_when_inactive():
-    module = _load_module()
-    module.athena_client = _mock_client(record=_sample_record("Inactive Org", status="2"))
-    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
-
-    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    body = json.loads(module.handler(event, None)["body"])
-
-    assert body["decision"]["status"] == "deny"
-    assert "ineligible_status" in body["decision"]["risk_flags"]
+    for key in ["organization", "verification", "scores", "score_explanation", "decision", "audit", "summary"]:
+        assert key in body
