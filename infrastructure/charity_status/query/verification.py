@@ -27,11 +27,17 @@ def verify_nonprofit(
     mapped = map_nonprofit_record(verification_input.ein, record)
     name_check = compare_names(verification_input.provided_name, mapped.organization.get("name"))
 
+    filings, metrics, governance, quality = client.lookup_form990_enrichment(verification_input.ein)
+
     score_result = calculate_v1_scores(
         record=record,
         verification=mapped.verification,
         ein_valid=True,
         name_match=name_check.get("name_match"),
+        filing_record=filings,
+        metrics_record=metrics,
+        governance_record=governance,
+        quality_record=quality,
     )
 
     payload = mapped.to_dict()
@@ -39,4 +45,42 @@ def verify_nonprofit(
     payload["score_explanation"] = score_result.explanation
     payload["name_verification"] = name_check
     payload["queryExecutionId"] = query_execution_id
+    if filings:
+        payload["filing_summary"] = {
+            "tax_year": filings.get("tax_year"),
+            "form_type": filings.get("return_type"),
+            "filing_date": filings.get("filing_date"),
+            "amended": _to_bool(filings.get("amended_return")),
+            "parse_status": filings.get("parse_status"),
+        }
     return 200, payload
+
+
+def get_nonprofit_filings(client: Any, ein: str) -> tuple[int, dict[str, Any]]:
+    _, rows = client.list_form990_filings(ein)
+    if not rows:
+        return 200, {"ein": ein, "filings": []}
+
+    filings = [
+        {
+            "tax_year": row.get("tax_year"),
+            "form_type": row.get("return_type"),
+            "filing_date": row.get("filing_date"),
+            "amended": _to_bool(row.get("amended_return")),
+            "parse_status": row.get("parse_status"),
+        }
+        for row in rows
+    ]
+    return 200, {"ein": ein, "filings": filings}
+
+
+def _to_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.lower()
+        if lowered in {"true", "1"}:
+            return True
+        if lowered in {"false", "0"}:
+            return False
+    return None

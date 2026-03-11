@@ -1,66 +1,43 @@
 # Charity Status API
 
-Charity Status API ingests IRS Exempt Organizations (EO/BMF-style) data into AWS and exposes a Lambda-backed API for nonprofit EIN verification.
+Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
 
 ## Current Architecture
 
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`)
+- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`, `GET /nonprofit/{ein}/filings`)
 - Data lake: S3 + Glue Catalog + Athena
 
 ## AWS Data Flow
 
-1. `lambda_ingest.py` triggers concurrent download of IRS EO CSV files (`eo1.csv`-`eo4.csv`).
-2. Raw EO files are uploaded to S3 under `s3://<BUCKET>/<PREFIX>/` (default prefix `eo_bmf/`).
-3. Glue Catalog table metadata points Athena at that S3 CSV location.
-4. `lambda_query.py` receives API Gateway requests.
-5. Query Lambda validates EIN, queries Athena, maps the row into a domain response, and calculates conservative v1 scores.
+1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
+2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
+3. Glue catalogs EO/BMF and Form 990 normalized datasets.
+4. `lambda_query.py` handles verification/scoring endpoints using Athena-backed data.
 
-## Ingest Architecture (Phase 2)
+## Form 990 Datasets
 
-- Thin handler: `infrastructure/lambda_ingest.py`
-- Reusable ingest modules: `infrastructure/charity_status/ingest/`
-  - `irs_files.py`: EO source list and bucket/prefix key helpers
-  - `downloader.py`: async download adapter
-  - `uploader.py`: S3 upload abstraction
-  - `result.py`: structured ingest result payload builder
-  - `interfaces.py`: extension interfaces/types for future ingest providers
+S3 prefixes (configurable via Terraform variables):
 
-Current ingest output includes:
+- raw XML: `form990/raw/`
+- normalized filings: `form990/normalized/metadata/`
+- derived metrics: `form990/normalized/metrics/`
+- governance flags: `form990/normalized/governance/`
+- filing quality: `form990/normalized/quality/`
+- manifests: `form990/normalized/manifests/`
 
-- `status`
-- `downloaded` / `failed` (backward-compatible lists)
-- `downloaded_count` / `failed_count`
-- `started_at`, `completed_at`, `duration_ms`
-- `files` (per-file status and error details)
+Glue tables:
 
-## Form 990 Foundation (Phase 4A)
+- `form990_metadata`
+- `form990_metrics`
+- `form990_governance`
+- `form990_quality`
 
-Phase 4A adds foundational Form 990 ingestion plumbing without changing the platform architecture.
+## Extracted 990 Fields (Phase 4B)
 
-New modules live under `infrastructure/charity_status/form990/`:
-
-- `index.py`: index/metadata record parsing
-- `ingest.py`: ingestion orchestration and status manifest generation
-- `storage.py`: S3 key strategy and JSONL serialization helpers
-- `parser.py`: XML parse wrapper with safe error typing
-- `resolver.py`: version-aware, multi-selector field resolution
-- `extractors/metadata.py`: canonical metadata extraction only
-
-Raw vs normalized separation:
-
-- Raw 990 XML references/content: `s3://<BUCKET>/<FORM990_RAW_PREFIX>/...`
-- Normalized metadata JSONL: `s3://<BUCKET>/<FORM990_METADATA_PREFIX>/...`
-- Parse manifests/status: `s3://<BUCKET>/<FORM990_MANIFEST_PREFIX>/...`
-- Future derived metrics and scoring are intentionally separate and not implemented in Phase 4A.
-
-## Form 990 Normalized Extraction (Phase 4B)
-
-Phase 4B extends the Form 990 pipeline to produce normalized filing datasets from XML with conservative, deterministic extraction.
-
-Extracted financial fields:
+Financial fields:
 
 - `total_revenue`
 - `total_expenses`
@@ -74,7 +51,7 @@ Extracted financial fields:
 - `grants_paid`
 - `officer_compensation`
 
-Extracted governance indicators:
+Governance indicators:
 
 - `independent_board_majority`
 - `conflict_of_interest_policy`
@@ -91,7 +68,7 @@ Narrative/disclosure signals:
 - mission description present
 - program accomplishments present
 - leadership disclosed
-- narrative sections missing list
+- missing narrative sections list
 
 Derived metrics:
 
@@ -113,42 +90,35 @@ Filing quality indicators:
 - `anomalyFlags`
 - `scoreConfidence`
 
-Anomaly flags currently include:
+## Scoring (Phase 4C)
 
-- large revenue swing year-over-year
-- large expense swing year-over-year
-- large liabilities jump
-- zero program expenses with nonzero total expenses
-- repeated amended return pattern
-- negative net assets pattern (when enough history is present)
+Model version: `1.1.0`
 
-Athena/Glue datasets now include:
+Scoring modes:
 
-- `form990_metadata` (normalized filing records)
-- `form990_metrics` (derived financial metrics)
-- `form990_governance` (governance flags)
-- `form990_quality` (filing quality indicators)
+- EO/BMF-only fallback (`irs_eo_bmf_athena`)
+- EO/BMF + 990 enrichment (`irs_eo_bmf_athena`, `irs_form_990_xml`)
+
+Dimensions:
+
+- `compliance`
+- `trust`
+- `financial_resilience`
+- `transparency`
+- `overall`
+
+Hard rules:
+
+- If status is not active, eligibility is `INELIGIBLE` and overall score is capped conservatively.
+- If revoked hard-rule conditions are present, eligibility is `INELIGIBLE` and overall cap is stricter.
+- Missing 990 data never fails requests; scoring falls back and explanation states EO/BMF-only mode.
 
 ## API Endpoints
 
 ### `GET /nonprofit/{ein}`
 
-Path parameter:
-
-- `ein`: EIN in forms like `12-3456789`, `123456789`, or with spaces.
-
-Behavior:
-
-- Invalid EIN -> `400`
-- EIN not found -> `404`
-- Success -> `200` with normalized payload:
-  - `organization`
-  - `verification`
-  - `scores`
-  - `model`
-  - optional `source_record`
-  - `score_explanation`
-  - `name_verification`
+Returns normalized organization + verification + scores + model + score explanation.
+When 990 data exists, includes enriched scoring factors and optional `filing_summary`.
 
 ### `POST /verify`
 
@@ -161,72 +131,23 @@ Request body:
 }
 ```
 
-Behavior:
+Performs the same verification workflow as GET and includes conservative name-match metadata.
 
-- Normalizes EIN and performs the same Athena-backed verification workflow as GET.
-- If `name` is provided, includes conservative name comparison fields:
-  - `provided_name`
-  - `irs_name`
-  - `name_match`
-  - `match_confidence`
+### `GET /nonprofit/{ein}/filings`
 
-Example response excerpt:
+Returns filing summaries:
 
-```json
-{
-  "organization": {
-    "name": "Helping Hands Inc.",
-    "ein": "12-3456789"
-  },
-  "scores": {
-    "overall": 82,
-    "trust": 84,
-    "financial_resilience": null,
-    "transparency": 61,
-    "compliance": 92
-  },
-  "score_explanation": {
-    "model_version": "1.0.0",
-    "confidence": "medium",
-    "factors": {
-      "ein_valid": true,
-      "record_found": true,
-      "status_present": true,
-      "deductibility_present": true,
-      "ntee_present": true,
-      "tax_period_present": true,
-      "financial_fields_present": false,
-      "name_match": true
-    },
-    "notes": [
-      "Score is based on EO/BMF-style IRS data only",
-      "Full 990-based financial and governance scoring not yet implemented"
-    ]
-  }
-}
-```
+- `tax_year`
+- `form_type`
+- `filing_date`
+- `amended`
+- `parse_status`
 
-## Current Scope vs Planned
+## Current Limitations
 
-Implemented now:
-
-Query mapping and scoring are currently based only on EO/BMF-style IRS fields available in Athena.
-- v1 scores do **not** represent full 990 financial analysis.
-- Unsupported fields are returned as `null` instead of inferred values.
-- EO ingest currently covers IRS EO CSV source files (`eo1.csv`-`eo4.csv`) only.
-
-Planned later:
-
-- Form 990 metadata ingestion hooks (`infrastructure/charity_status/future/form990.py`)
-- External enrichment provider hooks (`infrastructure/charity_status/future/enrichments.py`)
-- 990 financial and governance extraction from XML schedules
-- 990-driven scoring enhancements built on normalized derived datasets
-
-Current 990 limitation:
-
-- Extraction is deterministic and schema-tolerant but still conservative; missing fields remain `null`.
-- Current API scoring responses are still based on EO/BMF query data, not full 990-derived scoring integration.
-- Full endpoint-level score integration is planned for a next phase.
+- Deterministic, rules-based scoring only; no black-box ML.
+- No paid third-party enrichment providers integrated.
+- Extraction is schema-tolerant and conservative; unavailable fields remain `null`.
 
 ## Local Development
 
@@ -245,5 +166,6 @@ python -m pytest -q
 
 ## Terraform Deployment Notes
 
-- Query Lambda package is created from the `infrastructure/` directory so shared query modules are deployed with `lambda_query.py`.
-- Ingest Lambda packaging remains unchanged.
+- Query Lambda package includes query/normalization/scoring modules.
+- Ingest and Form 990 Lambdas are packaged separately.
+- Domain registration remains manual; Route53 hosted zone and records are managed by Terraform when enabled.

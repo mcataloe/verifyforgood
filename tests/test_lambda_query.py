@@ -9,19 +9,28 @@ def _load_module():
     return importlib.import_module("infrastructure.lambda_query")
 
 
-def _sample_record(name="Test Org"):
+def _sample_record(name="Test Org", status="1"):
     return {
         "name": name,
         "state": "IL",
-        "status": "1",
+        "status": status,
         "deductibility": "1",
         "subsection": "03",
         "ntee_cd": "P20",
         "tax_period": "202501",
+        "filing_req_cd": "1",
         "asset_amt": "",
         "income_amt": "",
         "revenue_amt": "",
     }
+
+
+def _mock_client(record=None, filings=None, metrics=None, governance=None, quality=None, filing_rows=None):
+    return SimpleNamespace(
+        lookup_nonprofit=lambda ein, subsection=None: ("qid-1", record),
+        lookup_form990_enrichment=lambda ein: (filings, metrics, governance, quality),
+        list_form990_filings=lambda ein, limit=10: ("qid-f", filing_rows or []),
+    )
 
 
 def test_get_handler_invalid_ein_returns_400():
@@ -37,7 +46,7 @@ def test_get_handler_invalid_ein_returns_400():
 
 def test_get_handler_not_found_returns_404():
     module = _load_module()
-    module.athena_client = SimpleNamespace(lookup_nonprofit=lambda ein, subsection=None: ("qid-1", None))
+    module.athena_client = _mock_client(record=None)
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "12-3456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
@@ -47,9 +56,15 @@ def test_get_handler_not_found_returns_404():
     assert body["ein"] == "123456789"
 
 
-def test_post_verify_success_and_name_match_true():
+def test_post_verify_success_with_enrichment():
     module = _load_module()
-    module.athena_client = SimpleNamespace(lookup_nonprofit=lambda ein, subsection=None: ("qid-2", _sample_record("Helping Hands Inc.")))
+    module.athena_client = _mock_client(
+        record=_sample_record("Helping Hands Inc."),
+        filings={"tax_year": "2023", "return_type": "990", "filing_date": "2024-05-15", "amended_return": "false", "parse_status": "parsed", "mission_description_present": True, "program_accomplishments_present": True, "leadership_disclosed": True},
+        metrics={"programExpenseRatio": 0.8, "liabilitiesToAssetsRatio": 0.4, "monthsOfRunway": 8, "operatingMargin": 0.06},
+        governance={"whistleblower_policy": True, "material_diversion_reported": False, "public_disclosure_available": True},
+        quality={"narrativeMissing": False, "scoreConfidence": "high"},
+    )
 
     event = {
         "httpMethod": "POST",
@@ -62,27 +77,22 @@ def test_post_verify_success_and_name_match_true():
 
     assert result["statusCode"] == 200
     assert body["name_verification"]["name_match"] is True
-    assert body["name_verification"]["match_confidence"] in {"exact", "normalized"}
-    assert body["score_explanation"]["factors"]["name_match"] is True
+    assert body["score_explanation"]["model_version"] == "1.1.0"
+    assert "irs_form_990_xml" in body["score_explanation"]["score_data_sources"]
+    assert "filing_summary" in body
 
 
-def test_post_verify_name_match_false():
+def test_get_fallback_without_990_data():
     module = _load_module()
-    module.athena_client = SimpleNamespace(lookup_nonprofit=lambda ein, subsection=None: ("qid-3", _sample_record("Helping Hands Foundation")))
+    module.athena_client = _mock_client(record=_sample_record("Test Org"))
 
-    event = {
-        "httpMethod": "POST",
-        "body": json.dumps({"ein": "12-3456789", "name": "Different Org Name"}),
-        "pathParameters": None,
-        "queryStringParameters": None,
-    }
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
-    assert body["name_verification"]["name_match"] is False
-    assert body["name_verification"]["match_confidence"] in {"weak", "none"}
-    assert body["score_explanation"]["factors"]["name_match"] is False
+    assert body["score_explanation"]["score_data_sources"] == ["irs_eo_bmf_athena"]
+    assert "filing_summary" not in body
 
 
 def test_post_verify_invalid_request_body():
@@ -103,7 +113,7 @@ def test_post_verify_invalid_request_body():
 
 def test_get_and_post_response_shape_consistency():
     module = _load_module()
-    module.athena_client = SimpleNamespace(lookup_nonprofit=lambda ein, subsection=None: ("qid-4", _sample_record("Test Org")))
+    module.athena_client = _mock_client(record=_sample_record("Test Org"))
 
     get_event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     post_event = {
@@ -122,3 +132,29 @@ def test_get_and_post_response_shape_consistency():
 
     assert set(get_body["scores"].keys()) == set(post_body["scores"].keys())
     assert set(get_body["score_explanation"].keys()) == set(post_body["score_explanation"].keys())
+
+
+def test_get_nonprofit_filings_endpoint_shape():
+    module = _load_module()
+    module.athena_client = _mock_client(
+        record=_sample_record("Test Org"),
+        filing_rows=[
+            {"tax_year": "2023", "return_type": "990", "filing_date": "2024-05-01", "amended_return": "false", "parse_status": "parsed"},
+            {"tax_year": "2022", "return_type": "990", "filing_date": "2023-05-01", "amended_return": "true", "parse_status": "parsed"},
+        ],
+    )
+
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofit/{ein}/filings",
+        "path": "/nonprofit/123456789/filings",
+        "pathParameters": {"ein": "123456789"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["ein"] == "123456789"
+    assert len(body["filings"]) == 2
+    assert body["filings"][0]["tax_year"] == "2023"

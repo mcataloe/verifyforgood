@@ -102,9 +102,13 @@ resource "aws_lambda_function" "query" {
 
   environment {
     variables = {
-      DATABASE  = aws_glue_catalog_database.eo_bmf.name
-      TABLE     = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP = aws_athena_workgroup.eo_bmf.name
+      DATABASE                 = aws_glue_catalog_database.eo_bmf.name
+      TABLE                    = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE    = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE    = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE    = aws_glue_catalog_table.form990_quality.name
     }
   }
 }
