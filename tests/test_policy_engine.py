@@ -7,6 +7,7 @@ def _base_payload() -> dict:
     return {
         "verification": {"state": "IL", "ntee_category": "Human Services"},
         "source_record": {"subsection": "03"},
+        "state_compliance": {"registration_status": "active", "solicitation_permitted": True, "compliance_flags": []},
         "scores": {"overall": 72},
         "score_explanation": {
             "eligibility": "ELIGIBLE",
@@ -61,3 +62,10 @@ def test_named_policy_relaxes_to_approve_with_review_when_allowed():
     result = evaluate_policy(payload, "relaxed_review")
     assert result["overrides_decision"] is True
     assert result["final_recommendation"] == "approve_with_review"
+
+
+def test_named_policy_manual_review_when_compliance_flag_present():
+    payload = _base_payload()
+    payload["state_compliance"]["compliance_flags"] = ["state_registration_expiring_soon"]
+    result = evaluate_policy(payload, "strict_manual")
+    assert result["final_recommendation"] == "manual_review"

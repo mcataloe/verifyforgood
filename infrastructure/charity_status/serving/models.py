@@ -26,6 +26,7 @@ class MaterializedProfile:
     evidence: dict[str, Any] | None = None
     policy_evaluation: dict[str, Any] | None = None
     final_recommendation: str | None = None
+    state_compliance: dict[str, Any] | None = None
 
     def to_item(self) -> dict[str, Any]:
         item = {
@@ -58,4 +59,6 @@ class MaterializedProfile:
             item["policy_evaluation"] = self.policy_evaluation
         if self.final_recommendation is not None:
             item["final_recommendation"] = self.final_recommendation
+        if self.state_compliance is not None:
+            item["state_compliance"] = self.state_compliance
         return item

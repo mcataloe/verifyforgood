@@ -65,6 +65,7 @@ def test_lookup_hit_path_returns_materialized_profile():
             "audit": {"model_version": "2.0.0"},
             "summary": {"decision_status": "approve"},
             "evidence": {"model_version": "2.0.0", "factors": []},
+            "state_compliance": {"registration_status": "active", "compliance_flags": []},
         }
     )
 
@@ -76,6 +77,7 @@ def test_lookup_hit_path_returns_materialized_profile():
     assert body["organization"]["name"] == "Cached Org"
     assert body["scores"]["overall"] == 88
     assert body["evidence"]["model_version"] == "2.0.0"
+    assert body["state_compliance"]["registration_status"] == "active"
 
 
 def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
@@ -164,6 +166,7 @@ def test_response_shape_still_contains_core_fields():
         "evidence",
         "policy_evaluation",
         "final_recommendation",
+        "state_compliance",
     ]:
         assert key in body
 
@@ -183,6 +186,7 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
             "audit": {"model_version": "2.0.0"},
             "summary": {"decision_status": "approve"},
             "evidence": {"model_version": "2.0.0", "factors": []},
+            "state_compliance": {"registration_status": "active", "compliance_flags": []},
         }
     )
 
@@ -313,6 +317,7 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
             "audit": {"model_version": "2.0.0"},
             "summary": {"decision_status": "approve"},
             "evidence": {"model_version": "2.0.0", "factors": []},
+            "state_compliance": {"registration_status": "active", "compliance_flags": []},
         },
         put_profile=lambda item: None,
     )

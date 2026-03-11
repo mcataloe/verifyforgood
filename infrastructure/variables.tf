@@ -175,3 +175,15 @@ variable "batch_verify_max_size" {
   type        = number
   default     = 25
 }
+
+variable "enrichment_state_registry_enabled" {
+  description = "Enable scaffolded state registry compliance provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_state_registry_mock_enabled" {
+  description = "Enable deterministic mock state registry compliance provider."
+  type        = bool
+  default     = false
+}

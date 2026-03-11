@@ -11,6 +11,7 @@ def build_decision(
     name_verification: dict[str, Any],
     filing_summary: dict[str, Any] | None,
     enrichment: dict[str, Any] | None,
+    state_compliance: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     reasons: list[str] = []
     risk_flags: list[str] = []
@@ -66,6 +67,20 @@ def build_decision(
         manual_review_codes.append("provider_data_conflict_or_failure")
         manual_review_notes.append("One or more enrichment providers failed")
 
+    compliance_flags = (state_compliance or {}).get("compliance_flags") or []
+    registration_status = (state_compliance or {}).get("registration_status")
+    solicitation_permitted = (state_compliance or {}).get("solicitation_permitted")
+    if compliance_flags:
+        risk_flags.append("state_compliance_flags_present")
+        manual_review_codes.append("state_compliance_review")
+        manual_review_notes.append("State registry reported compliance flags")
+    if registration_status and str(registration_status).lower() not in {"active", "good_standing"}:
+        risk_flags.append("state_registration_not_active")
+        manual_review_codes.append("state_registration_status_issue")
+    if solicitation_permitted is False:
+        risk_flags.append("state_solicitation_not_permitted")
+        manual_review_codes.append("state_solicitation_restriction")
+
     status = "approve"
 
     if eligibility == "INELIGIBLE" and not active:
@@ -120,6 +135,9 @@ def build_decision(
             "liabilities_to_assets_ratio": score_explanation.get("factors", {}).get("liabilities_to_assets_ratio"),
             "narrative_missing": score_explanation.get("factors", {}).get("narrative_missing"),
             "name_match": score_explanation.get("factors", {}).get("name_match"),
+            "state_registration_status": registration_status,
+            "state_compliance_flags": compliance_flags,
+            "state_solicitation_permitted": solicitation_permitted,
         },
         "peer_benchmarking_used": score_explanation.get("peer_benchmarking_used"),
         "peer_group": score_explanation.get("peer_group"),
@@ -130,6 +148,7 @@ def build_decision(
             "overall_score": overall,
             "decision_status": status,
             "manual_review_reason_codes": decision["manual_review"]["reason_codes"],
+            "state_compliance_flags_count": len(compliance_flags),
         },
     }
 

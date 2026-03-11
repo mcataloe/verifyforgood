@@ -12,6 +12,7 @@ def build_evidence(
     score_explanation: dict[str, Any],
     decision: dict[str, Any],
     enrichment: dict[str, Any] | None,
+    state_compliance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     factors: list[EvidenceFactor] = []
     sources: list[EvidenceSource] = []
@@ -23,6 +24,7 @@ def build_evidence(
     score_factors = score_explanation.get("factors", {}) or {}
     data_sources = score_explanation.get("score_data_sources", []) or []
     enrichment_payload = enrichment or {"providers": [], "failures": []}
+    compliance = state_compliance or {}
     enrichment_failures = enrichment_payload.get("failures", []) or []
     enrichment_providers = enrichment_payload.get("providers", []) or []
 
@@ -80,6 +82,26 @@ def build_evidence(
     peer_used = bool(score_explanation.get("peer_benchmarking_used"))
     factors.append(
         EvidenceFactor(
+            key="state_registration_status",
+            category="eligibility_compliance",
+            polarity="positive" if str(compliance.get("registration_status") or "").lower() in {"active", "good_standing"} else "warning",
+            severity="medium",
+            value=compliance.get("registration_status"),
+            message="State registry registration status when available.",
+        )
+    )
+    factors.append(
+        EvidenceFactor(
+            key="state_compliance_flags_count",
+            category="governance_quality",
+            polarity="warning" if (compliance.get("compliance_flags") or []) else "positive",
+            severity="medium",
+            value=len(compliance.get("compliance_flags") or []),
+            message="Compliance flags from state registry enrichment.",
+        )
+    )
+    factors.append(
+        EvidenceFactor(
             key="peer_benchmarking_used",
             category="peer_benchmarking",
             polarity="positive" if peer_used else "neutral",
@@ -110,6 +132,8 @@ def build_evidence(
     for failure in enrichment_failures:
         name = str(failure.get("provider") or "unknown_provider")
         sources.append(EvidenceSource(source=f"enrichment:{name}", used=False, detail="Provider failure"))
+    if compliance.get("source", {}).get("provider"):
+        sources.append(EvidenceSource(source=f"state_compliance:{compliance['source']['provider']}", used=True))
 
     overall = _to_int(scores.get("overall"), 0)
     status = str(decision.get("status") or "")
@@ -135,6 +159,14 @@ def build_evidence(
             passed=len(enrichment_failures) == 0,
             severity="low",
             detail=f"failures={len(enrichment_failures)}",
+        )
+    )
+    rule_results.append(
+        EvidenceRuleResult(
+            rule="state_compliance_flags_clear",
+            passed=len(compliance.get("compliance_flags") or []) == 0,
+            severity="medium",
+            detail=f"flags={len(compliance.get('compliance_flags') or [])}",
         )
     )
     rule_results.append(

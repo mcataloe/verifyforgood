@@ -5,7 +5,7 @@ import os
 from typing import Any
 
 from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import CandidProvider, MockProvider
+from charity_status.enrichments.providers import CandidProvider, MockProvider, StateRegistryMockProvider, StateRegistryProvider
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import AthenaQueryClient, VerificationInput, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
@@ -25,6 +25,8 @@ ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false")
 ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
 ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
+ENRICHMENT_STATE_REGISTRY_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED", "false").lower() == "true"
 
 APP_ENV = os.environ.get("APP_ENV", "dev")
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME", "")
@@ -69,6 +71,8 @@ def _get_enrichment_service() -> EnrichmentService:
                     endpoint=ENRICHMENT_CANDID_ENDPOINT,
                     timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
                 ),
+                StateRegistryProvider(enabled=ENRICHMENT_STATE_REGISTRY_ENABLED, adapter=None),
+                StateRegistryMockProvider(enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED),
             ]
         )
         enrichment_service = EnrichmentService(registry=registry)

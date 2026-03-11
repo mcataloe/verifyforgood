@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from charity_status.decision import build_decision
+from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.evidence import build_evidence
 from charity_status.normalization import compare_names
 from charity_status.policy import evaluate_policy
@@ -75,6 +76,7 @@ def verify_nonprofit(
             "amended": _to_bool(filings.get("amended_return")),
             "parse_status": filings.get("parse_status"),
         }
+    payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
 
     decision, extras = build_decision(
         organization=payload["organization"],
@@ -84,6 +86,7 @@ def verify_nonprofit(
         name_verification=payload["name_verification"],
         filing_summary=payload.get("filing_summary"),
         enrichment=payload.get("enrichment"),
+        state_compliance=payload.get("state_compliance"),
     )
     payload["decision"] = decision
     payload["audit"] = extras["audit"]
@@ -94,6 +97,7 @@ def verify_nonprofit(
         score_explanation=payload["score_explanation"],
         decision=payload["decision"],
         enrichment=payload.get("enrichment"),
+        state_compliance=payload.get("state_compliance"),
     )
     payload["policy_evaluation"] = evaluate_policy(payload, verification_input.policy_id)
     payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]

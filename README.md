@@ -133,6 +133,8 @@ Included providers:
 
 - `mock_provider`: deterministic test provider
 - `candid`: scaffolded provider module with safe fallback behavior
+- `state_registry_mock`: deterministic state compliance mock provider
+- `state_registry`: scaffolded adapter-based provider for future state-specific registries
 
 Response behavior:
 
@@ -151,6 +153,14 @@ Canonical enrichment fields are optional and include source attribution:
 - `leadership_data_present`
 - `profile_link`
 
+State compliance enrichment fields (when available):
+
+- `registration_status`
+- `registration_jurisdiction`
+- `registration_expiration_date`
+- `solicitation_permitted`
+- `compliance_flags`
+
 Configuration (Terraform variables):
 
 - `enrichment_mock_enabled`
@@ -158,6 +168,13 @@ Configuration (Terraform variables):
 - `enrichment_candid_endpoint`
 - `enrichment_candid_api_key`
 - `enrichment_timeout_seconds`
+- `enrichment_state_registry_enabled`
+- `enrichment_state_registry_mock_enabled`
+
+Failure tolerance:
+
+- State registry provider failures/unavailable records do not fail core verification.
+- Normalized compliance output is included as `state_compliance` when available and feeds evidence/policy/decision risk context.
 
 ## Peer Benchmarking (Phase 5B)
 

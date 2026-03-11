@@ -7,8 +7,9 @@ from collections import Counter
 from typing import Any
 
 from charity_status.api import error_response, json_response
+from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import CandidProvider, MockProvider
+from charity_status.enrichments.providers import CandidProvider, MockProvider, StateRegistryMockProvider, StateRegistryProvider
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, verify_nonprofit
@@ -29,6 +30,8 @@ ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false")
 ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
 ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
+ENRICHMENT_STATE_REGISTRY_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED", "false").lower() == "true"
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
@@ -68,6 +71,8 @@ def _get_enrichment_service() -> EnrichmentService:
                     endpoint=ENRICHMENT_CANDID_ENDPOINT,
                     timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
                 ),
+                StateRegistryProvider(enabled=ENRICHMENT_STATE_REGISTRY_ENABLED, adapter=None),
+                StateRegistryMockProvider(enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED),
             ]
         )
         enrichment_service = EnrichmentService(registry=registry)
@@ -300,6 +305,7 @@ def _verify_single_item(normalized_ein: str, provided_name: str | None, policy_i
     )
     if status_code != 200:
         raise ValueError(payload.get("message") or "Verification failed")
+    payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
     return payload
 
 
@@ -324,6 +330,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "evidence": item.get("evidence"),
         "policy_evaluation": item.get("policy_evaluation"),
         "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
+        "state_compliance": item.get("state_compliance"),
     }
 
 

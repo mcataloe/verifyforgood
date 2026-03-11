@@ -63,6 +63,7 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
     decision = payload.get("decision") or {}
     source_record = payload.get("source_record") or {}
     enrichment = payload.get("enrichment") or {}
+    state_compliance = payload.get("state_compliance") or {}
     risk_flags = set((decision.get("risk_flags") or []))
     manual_codes = set(((decision.get("manual_review") or {}).get("reason_codes") or []))
 
@@ -93,6 +94,13 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
         return str(source_record.get("subsection")) in set(str(v) for v in expected)
     if key == "cause_in":
         return str(verification.get("ntee_category")) in set(str(v) for v in expected)
+    if key == "compliance_flag_present":
+        has_flags = len(state_compliance.get("compliance_flags") or []) > 0
+        return has_flags is bool(expected)
+    if key == "registration_status_in":
+        return str(state_compliance.get("registration_status")) in set(str(v) for v in expected)
+    if key == "solicitation_permitted":
+        return state_compliance.get("solicitation_permitted") is bool(expected)
 
     return False
 

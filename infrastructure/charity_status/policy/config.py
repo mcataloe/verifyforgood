@@ -30,6 +30,14 @@ POLICIES: dict[str, PolicyDefinition] = {
                 override_decision=True,
                 priority=80,
             ),
+            PolicyRule(
+                rule_id="strict_state_compliance_review",
+                description="Escalate to manual review when state compliance flags are present.",
+                when={"compliance_flag_present": True},
+                outcome="manual_review",
+                override_decision=True,
+                priority=85,
+            ),
         ],
     ),
     "strict_deny": PolicyDefinition(
