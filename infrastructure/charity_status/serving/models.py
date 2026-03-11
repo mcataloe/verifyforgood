@@ -24,6 +24,8 @@ class MaterializedProfile:
     summary: dict[str, Any] | None = None
     audit: dict[str, Any] | None = None
     evidence: dict[str, Any] | None = None
+    policy_evaluation: dict[str, Any] | None = None
+    final_recommendation: str | None = None
 
     def to_item(self) -> dict[str, Any]:
         item = {
@@ -52,4 +54,8 @@ class MaterializedProfile:
             item["audit"] = self.audit
         if self.evidence is not None:
             item["evidence"] = self.evidence
+        if self.policy_evaluation is not None:
+            item["policy_evaluation"] = self.policy_evaluation
+        if self.final_recommendation is not None:
+            item["final_recommendation"] = self.final_recommendation
         return item

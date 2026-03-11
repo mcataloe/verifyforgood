@@ -108,6 +108,7 @@ def calculate_v1_scores(
         "whistleblower_policy": governance_record.get("whistleblower_policy"),
         "material_diversion_reported": governance_record.get("material_diversion_reported"),
         "narrative_missing": quality_record.get("narrativeMissing"),
+        "stale_filing_days": _to_int(quality_record.get("staleFilingDays")),
         "name_match": name_match,
     }
 

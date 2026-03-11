@@ -6,6 +6,7 @@ from typing import Any
 from charity_status.decision import build_decision
 from charity_status.evidence import build_evidence
 from charity_status.normalization import compare_names
+from charity_status.policy import evaluate_policy
 from charity_status.query.nonprofit_lookup import map_nonprofit_record
 from charity_status.scoring import assign_peer_group, calculate_v1_scores
 
@@ -15,6 +16,7 @@ class VerificationInput:
     ein: str
     provided_name: str | None = None
     subsection: str | None = None
+    policy_id: str | None = None
 
 
 def verify_nonprofit(
@@ -93,6 +95,8 @@ def verify_nonprofit(
         decision=payload["decision"],
         enrichment=payload.get("enrichment"),
     )
+    payload["policy_evaluation"] = evaluate_policy(payload, verification_input.policy_id)
+    payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]
     return 200, payload
 
 

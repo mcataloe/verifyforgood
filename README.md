@@ -288,11 +288,42 @@ Request body:
 ```json
 {
   "ein": "12-3456789",
-  "name": "Optional nonprofit name"
+  "name": "Optional nonprofit name",
+  "policy_id": "optional_named_policy"
 }
 ```
 
 Performs the same verification workflow as GET and includes conservative name-match metadata.
+
+## Policy Engine (Phase 6B)
+
+Phase 6B adds a deterministic, config-driven customer policy layer for CSR workflows without replacing core nonprofit scoring or decisioning.
+
+Policy behavior:
+
+- uses a global default policy when no `policy_id` is provided
+- optionally applies named policies via `POST /verify` request body
+- evaluates deterministic conditions against assembled verification payload
+- keeps `decision` unchanged and adds `policy_evaluation` separately
+- exposes `final_recommendation` (policy-aware recommendation)
+
+Supported condition types include:
+
+- eligibility status
+- overall score thresholds
+- stale filing days
+- missing governance disclosures
+- enrichment failures
+- state/subsection/cause filters (when present)
+
+Response additions:
+
+- `policy_evaluation.policy_id`
+- `policy_evaluation.result`
+- `policy_evaluation.matched_rules[]`
+- `policy_evaluation.overrides_decision`
+- `policy_evaluation.final_recommendation`
+- top-level `final_recommendation` (mirrors policy evaluation outcome)
 
 ### `GET /nonprofit/{ein}/filings`
 

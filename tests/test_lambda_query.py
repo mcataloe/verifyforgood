@@ -124,6 +124,26 @@ def test_post_verify_bypasses_cache_readthrough():
     assert body["organization"]["name"] == "Post Org"
 
 
+def test_post_verify_accepts_policy_id_and_returns_policy_evaluation():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.athena_client = _mock_client(record=_sample_record("Policy Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "body": json.dumps({"ein": "123456789", "name": "Policy Org", "policy_id": "strict_deny"}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["policy_evaluation"]["policy_id"] == "strict_deny"
+    assert "final_recommendation" in body
+
+
 def test_response_shape_still_contains_core_fields():
     module = _load_module()
     module.SERVING_DDB_ENABLED = False
@@ -133,7 +153,18 @@ def test_response_shape_still_contains_core_fields():
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     body = json.loads(module.handler(event, None)["body"])
 
-    for key in ["organization", "verification", "scores", "score_explanation", "decision", "audit", "summary", "evidence"]:
+    for key in [
+        "organization",
+        "verification",
+        "scores",
+        "score_explanation",
+        "decision",
+        "audit",
+        "summary",
+        "evidence",
+        "policy_evaluation",
+        "final_recommendation",
+    ]:
         assert key in body
 
 

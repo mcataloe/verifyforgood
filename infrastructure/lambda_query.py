@@ -108,6 +108,7 @@ def handler(event, context):
             ein=normalized_ein,
             provided_name=verification_input.provided_name,
             subsection=verification_input.subsection,
+            policy_id=verification_input.policy_id,
         )
         status_code, payload = verify_nonprofit(
             _get_athena_client(),
@@ -136,6 +137,7 @@ def _parse_get_request(event: dict) -> VerificationInput:
     return VerificationInput(
         ein=path_params.get("ein") or "",
         subsection=query_params.get("subsection"),
+        policy_id=None,
     )
 
 
@@ -159,10 +161,14 @@ def _parse_post_request(event: dict) -> VerificationInput:
     provided_name = payload.get("name")
     if provided_name is not None and not isinstance(provided_name, str):
         raise ValueError("name must be a string")
+    policy_id = payload.get("policy_id")
+    if policy_id is not None and not isinstance(policy_id, str):
+        raise ValueError("policy_id must be a string")
 
     return VerificationInput(
         ein=ein,
         provided_name=provided_name,
+        policy_id=policy_id,
     )
 
 
@@ -193,6 +199,8 @@ def _load_cached_profile(ein: str) -> dict | None:
         "audit": item.get("audit"),
         "summary": item.get("summary"),
         "evidence": item.get("evidence"),
+        "policy_evaluation": item.get("policy_evaluation"),
+        "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
     }
 
 
