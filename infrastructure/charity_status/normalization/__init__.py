@@ -6,6 +6,7 @@ from .irs_codes import (
     map_ntee_category,
     recent_990_on_file,
 )
+from .name_match import compare_names
 
 __all__ = [
     "EINValidationError",
@@ -16,4 +17,5 @@ __all__ = [
     "map_irs_status",
     "map_ntee_category",
     "recent_990_on_file",
+    "compare_names",
 ]

@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations (EO/BMF-style) data into AWS
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`)
+- API: API Gateway (`GET /nonprofit/{ein}`, `POST /verify`)
 - Data lake: S3 + Glue Catalog + Athena
 
 ## AWS Data Flow
@@ -36,7 +36,7 @@ Current ingest output includes:
 - `started_at`, `completed_at`, `duration_ms`
 - `files` (per-file status and error details)
 
-## API Endpoint
+## API Endpoints
 
 ### `GET /nonprofit/{ein}`
 
@@ -55,6 +55,63 @@ Behavior:
   - `model`
   - optional `source_record`
   - `score_explanation`
+  - `name_verification`
+
+### `POST /verify`
+
+Request body:
+
+```json
+{
+  "ein": "12-3456789",
+  "name": "Optional nonprofit name"
+}
+```
+
+Behavior:
+
+- Normalizes EIN and performs the same Athena-backed verification workflow as GET.
+- If `name` is provided, includes conservative name comparison fields:
+  - `provided_name`
+  - `irs_name`
+  - `name_match`
+  - `match_confidence`
+
+Example response excerpt:
+
+```json
+{
+  "organization": {
+    "name": "Helping Hands Inc.",
+    "ein": "12-3456789"
+  },
+  "scores": {
+    "overall": 82,
+    "trust": 84,
+    "financial_resilience": null,
+    "transparency": 61,
+    "compliance": 92
+  },
+  "score_explanation": {
+    "model_version": "1.0.0",
+    "confidence": "medium",
+    "factors": {
+      "ein_valid": true,
+      "record_found": true,
+      "status_present": true,
+      "deductibility_present": true,
+      "ntee_present": true,
+      "tax_period_present": true,
+      "financial_fields_present": false,
+      "name_match": true
+    },
+    "notes": [
+      "Score is based on EO/BMF-style IRS data only",
+      "Full 990-based financial and governance scoring not yet implemented"
+    ]
+  }
+}
+```
 
 ## Current Scope vs Planned
 

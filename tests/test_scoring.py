@@ -14,12 +14,14 @@ def test_v1_scores_with_partial_data():
         "recent_990_on_file": True,
     }
 
-    result = calculate_v1_scores(record=record, verification=verification, ein_valid=True)
+    result = calculate_v1_scores(record=record, verification=verification, ein_valid=True, name_match=True)
 
     assert result.scores["compliance"] >= 80
     assert result.scores["financial_resilience"] is None
     assert result.explanation["confidence"] in {"medium", "high"}
     assert result.explanation["factors"]["financial_fields_present"] is False
+    assert result.explanation["factors"]["name_match"] is True
+    assert result.explanation["model_version"] == "1.0.0"
 
 
 def test_v1_scores_without_record():

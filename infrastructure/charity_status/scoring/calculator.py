@@ -10,7 +10,12 @@ class ScoreResult:
     explanation: dict[str, Any]
 
 
-def calculate_v1_scores(record: dict[str, Any] | None, verification: dict[str, Any], ein_valid: bool) -> ScoreResult:
+def calculate_v1_scores(
+    record: dict[str, Any] | None,
+    verification: dict[str, Any],
+    ein_valid: bool,
+    name_match: bool | None = None,
+) -> ScoreResult:
     record = record or {}
 
     factors = {
@@ -21,6 +26,7 @@ def calculate_v1_scores(record: dict[str, Any] | None, verification: dict[str, A
         "ntee_present": verification.get("ntee_category") is not None,
         "tax_period_present": verification.get("recent_990_on_file") is not None,
         "financial_fields_present": any(record.get(field) for field in ["asset_amt", "income_amt", "revenue_amt"]),
+        "name_match": name_match,
     }
 
     compliance = _score_from_bools(
@@ -64,10 +70,11 @@ def calculate_v1_scores(record: dict[str, Any] | None, verification: dict[str, A
         confidence = "medium"
 
     explanation = {
+        "model_version": "1.0.0",
         "factors": factors,
         "confidence": confidence,
         "notes": [
-            "Score is based only on EO/BMF-style IRS data",
+            "Score is based on EO/BMF-style IRS data only",
             "Full 990-based financial and governance scoring not yet implemented",
         ],
     }
