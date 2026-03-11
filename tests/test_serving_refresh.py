@@ -2,22 +2,38 @@ from __future__ import annotations
 
 from typing import Any
 
+from charity_status.serving.change_events import build_change_event
 from charity_status.serving.compare import compare_materialized_items
 from charity_status.serving.refresh import RefreshConfig, refresh_materialized_profiles
 import pytest
 
 
-def _payload(model_version: str = "1.0.0", score: int = 80) -> dict[str, Any]:
+def _payload(
+    model_version: str = "1.0.0",
+    score: int = 80,
+    eligibility: str = "ELIGIBLE",
+    decision_status: str = "approve",
+    risk_flags: list[str] | None = None,
+    stale_filing_days: int | None = None,
+    registration_status: str | None = None,
+    compliance_flags: list[str] | None = None,
+) -> dict[str, Any]:
     return {
         "organization": {"ein": "12-3456789", "name": "Org"},
-        "verification": {"irs_status": "active"},
+        "verification": {"irs_status": "active", "recent_990_on_file": True},
         "scores": {"overall": score},
-        "score_explanation": {"model_version": model_version, "score_data_sources": ["eo_bmf"]},
+        "score_explanation": {
+            "model_version": model_version,
+            "score_data_sources": ["eo_bmf"],
+            "eligibility": eligibility,
+            "factors": {"stale_filing_days": stale_filing_days},
+        },
         "filing_summary": {"tax_year": "2024"},
         "enrichment": {"providers": [], "failures": []},
-        "decision": {"status": "approve"},
+        "decision": {"status": decision_status, "risk_flags": risk_flags or []},
         "summary": {"decision_status": "approve"},
         "audit": {"model_version": model_version},
+        "state_compliance": {"registration_status": registration_status, "compliance_flags": compliance_flags or []},
     }
 
 
@@ -59,6 +75,7 @@ def test_changed_hash_updates_write():
     assert result["written"] == 1
     assert result["updated"] == 1
     assert result["reasons"]["source_hash_changed"] == 1
+    assert len(result["change_events"]) == 1
 
 
 def test_changed_model_version_updates_write():
@@ -134,6 +151,106 @@ def test_compare_changed_hash_and_model_paths():
     existing = {"source_hash": "abc", "model_version": "1.0.0"}
     assert compare_materialized_items(existing, {"source_hash": "xyz", "model_version": "1.0.0"}).reason == "source_hash_changed"
     assert compare_materialized_items(existing, {"source_hash": "abc", "model_version": "2.0.0"}).reason == "model_version_changed"
+
+
+def test_change_event_unchanged_record_returns_none():
+    before = {
+        "scores": {"overall": 80},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    after = {
+        "scores": {"overall": 80},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    assert build_change_event("123456789", before, after) is None
+
+
+def test_change_event_score_only_change():
+    before = {
+        "scores": {"overall": 60},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    after = {
+        "scores": {"overall": 75},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    event = build_change_event("123456789", before, after)
+    assert event is not None
+    assert "overall_score_threshold_crossed" in event["change_types"]
+
+
+def test_change_event_decision_change():
+    before = {
+        "scores": {"overall": 72},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    after = {
+        "scores": {"overall": 72},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "manual_review", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    event = build_change_event("123456789", before, after)
+    assert event is not None
+    assert "decision_status_changed" in event["change_types"]
+
+
+def test_change_event_eligibility_change():
+    before = {
+        "scores": {"overall": 72},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    after = {
+        "scores": {"overall": 40},
+        "score_explanation": {"eligibility": "INELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "deny", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    event = build_change_event("123456789", before, after)
+    assert event is not None
+    assert "eligibility_changed" in event["change_types"]
+
+
+def test_change_event_new_risk_and_compliance_flags():
+    before = {
+        "scores": {"overall": 72},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 100}},
+        "decision": {"status": "approve", "risk_flags": []},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": []},
+    }
+    after = {
+        "scores": {"overall": 72},
+        "score_explanation": {"eligibility": "ELIGIBLE", "factors": {"stale_filing_days": 500}},
+        "decision": {"status": "approve_with_review", "risk_flags": ["state_compliance_flags_present"]},
+        "verification": {"recent_990_on_file": True},
+        "state_compliance": {"registration_status": "active", "compliance_flags": ["state_registration_expiring_soon"]},
+    }
+    event = build_change_event("123456789", before, after)
+    assert event is not None
+    assert "new_risk_flags" in event["change_types"]
+    assert "new_compliance_flags" in event["change_types"]
+    assert "filing_freshness_threshold_crossed" in event["change_types"]
 
 
 def test_bootstrap_allowed_in_prod():

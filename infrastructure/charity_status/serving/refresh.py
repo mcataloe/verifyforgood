@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, Callable, Protocol
 
 from charity_status.serving.change_detection import ChangeDetectionConfig, RefreshMode, select_target_eins
+from charity_status.serving.change_events import build_change_event
 from charity_status.serving.materializer import materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
 
@@ -68,6 +69,7 @@ def refresh_materialized_profiles(
         "skipped": 0,
         "build_miss": 0,
         "reasons": {},
+        "change_events": [],
     }
 
     for ein in limited_eins:
@@ -108,6 +110,9 @@ def refresh_materialized_profiles(
                 result["inserted"] += 1
             else:
                 result["updated"] += 1
+                change_event = build_change_event(ein=ein, previous_item=write_result.previous_item, current_item=item)
+                if change_event is not None:
+                    result["change_events"].append(change_event)
         else:
             result["skipped"] += 1
 
@@ -208,4 +213,5 @@ def bootstrap_all_profiles(
         "batch_count": batch_count,
         "next_cursor": cursor,
         "errors": errors,
+        "change_events": [],
     }

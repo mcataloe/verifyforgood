@@ -485,6 +485,43 @@ Terraform additions are intentionally minimal:
 
 This keeps DynamoDB write costs lower by avoiding rewrites for unchanged profiles while preserving deterministic, auditable serving records.
 
+Refresh output now includes compact structured `change_events[]` for updated records (no external delivery yet). Each event captures deterministic change types such as:
+
+- `eligibility_changed`
+- `overall_score_threshold_crossed`
+- `decision_status_changed`
+- `new_risk_flags`
+- `filing_freshness_threshold_crossed`
+- `compliance_status_changed`
+- `new_compliance_flags`
+
+Example refresh excerpt:
+
+```json
+{
+  "mode": "refresh_changed",
+  "updated": 1,
+  "change_events": [
+    {
+      "ein": "123456789",
+      "change_types": ["decision_status_changed", "new_risk_flags"],
+      "previous": {
+        "eligibility": "ELIGIBLE",
+        "overall_score": 78,
+        "decision_status": "approve",
+        "risk_flags": []
+      },
+      "current": {
+        "eligibility": "ELIGIBLE",
+        "overall_score": 62,
+        "decision_status": "approve_with_review",
+        "risk_flags": ["state_compliance_flags_present"]
+      }
+    }
+  ]
+}
+```
+
 ## Production Bootstrap (Phase D3)
 
 Phase D3 adds explicit `bootstrap_all` support for production eager materialization while keeping non-prod lazy by default.

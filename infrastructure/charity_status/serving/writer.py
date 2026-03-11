@@ -18,6 +18,7 @@ class ProfileStore(Protocol):
 class WriteResult:
     wrote: bool
     reason: WriteReason
+    previous_item: dict[str, Any] | None = None
 
 
 class MaterializedProfileWriter:
@@ -29,4 +30,4 @@ class MaterializedProfileWriter:
         decision = compare_materialized_items(current, item, force_refresh=force_refresh)
         if decision.should_write:
             self._store.put_profile(item)
-        return WriteResult(wrote=decision.should_write, reason=decision.reason)
+        return WriteResult(wrote=decision.should_write, reason=decision.reason, previous_item=current)
