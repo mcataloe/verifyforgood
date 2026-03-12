@@ -273,6 +273,7 @@ def test_irs_page_source_mode_uses_zip_discovery(monkeypatch):
     module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
         module.IrsYearSource(
             year="2024",
+            archive_name="irs-page-2024-2024_12a",
             zip_url="https://example.org/2024.zip",
             index_url="https://example.org/2024.csv",
             source_page_url=page_url,

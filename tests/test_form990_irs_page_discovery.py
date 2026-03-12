@@ -46,6 +46,7 @@ def test_discover_irs_page_sources_extracts_zip_and_index(monkeypatch):
     by_year = {item.year: item for item in sources}
     assert by_year["2024"].zip_url is not None
     assert by_year["2024"].index_url is not None
+    assert by_year["2024"].archive_name.startswith("irs-page-2024-")
     assert by_year["2023"].zip_url is not None
     assert by_year["2023"].source_signature
 
@@ -53,6 +54,7 @@ def test_discover_irs_page_sources_extracts_zip_and_index(monkeypatch):
 def test_sources_to_catalog_shape():
     source = IrsYearSource(
         year="2024",
+        archive_name="irs-page-2024-2024_12a",
         zip_url="https://example.org/2024.zip",
         index_url="https://example.org/2024.csv",
         source_page_url="https://www.irs.gov/charities-non-profits/form-990-series-downloads",
@@ -61,6 +63,7 @@ def test_sources_to_catalog_shape():
     )
     catalog = sources_to_catalog([source])
     assert catalog[0]["year"] == "2024"
+    assert catalog[0]["archive_name"] == "irs-page-2024-2024_12a"
     assert catalog[0]["zip_url"] == "https://example.org/2024.zip"
     assert catalog[0]["index_url"] == "https://example.org/2024.csv"
 
@@ -69,6 +72,7 @@ def test_discovery_state_changed_detection():
     current = [
         IrsYearSource(
             year="2024",
+            archive_name="irs-page-2024-2024_12a",
             zip_url="https://example.org/2024.zip",
             index_url="https://example.org/2024.csv",
             source_page_url="https://example.org/page",
@@ -76,7 +80,24 @@ def test_discovery_state_changed_detection():
             source_signature="sig-1",
         )
     ]
-    previous_same = [{"year": "2024", "zip_url": "https://example.org/2024.zip", "index_url": "https://example.org/2024.csv", "source_signature": "sig-1"}]
-    previous_changed = [{"year": "2024", "zip_url": "https://example.org/2024-v2.zip", "index_url": "https://example.org/2024.csv", "source_signature": "sig-2"}]
+    previous_same = [{"year": "2024", "archive_name": "irs-page-2024-2024_12a", "zip_url": "https://example.org/2024.zip", "index_url": "https://example.org/2024.csv", "source_signature": "sig-1"}]
+    previous_changed = [{"year": "2024", "archive_name": "irs-page-2024-2024_12a", "zip_url": "https://example.org/2024-v2.zip", "index_url": "https://example.org/2024.csv", "source_signature": "sig-2"}]
     assert discovery_state_changed(current, previous_same) is False
     assert discovery_state_changed(current, previous_changed) is True
+
+
+def test_discover_irs_page_sources_extracts_multiple_archives_same_year(monkeypatch):
+    html = b"""
+<html><body>
+<a href="https://apps.irs.gov/pub/epostcard/990/xml/2024/download990xml_2024_12A.zip">2024 12A ZIP</a>
+<a href="https://apps.irs.gov/pub/epostcard/990/xml/2024/index_2024_12A.csv">2024 12A Index</a>
+<a href="https://apps.irs.gov/pub/epostcard/990/xml/2024/download990xml_2024_12B.zip">2024 12B ZIP</a>
+<a href="https://apps.irs.gov/pub/epostcard/990/xml/2024/index_2024_12B.csv">2024 12B Index</a>
+</body></html>
+"""
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=60: _FakeResponse(html))
+    sources = discover_irs_form990_sources("https://www.irs.gov/charities-non-profits/form-990-series-downloads")
+    assert len(sources) == 2
+    names = {item.archive_name for item in sources}
+    assert "irs-page-2024-2024_12a" in names
+    assert "irs-page-2024-2024_12b" in names

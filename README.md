@@ -135,6 +135,7 @@ Phase 10G ZIP discovery/reconciliation extension:
 - new source mode: `configured` (existing behavior) or `irs_page`
 - in `irs_page` mode, Lambda discovers yearly links from:
   - `FORM990_IRS_DOWNLOADS_PAGE_URL` (default: IRS Form 990 downloads page)
+- discovery keeps multiple archive parts per year (for example year-part variants such as `12A`, `12B`) rather than collapsing to a single yearly link
 - discovery captures per-year metadata:
   - year
   - zip URL

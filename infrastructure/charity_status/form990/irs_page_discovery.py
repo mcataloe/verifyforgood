@@ -15,6 +15,7 @@ YEAR_PATTERN = re.compile(r"(20[0-9]{2})")
 @dataclass(frozen=True)
 class IrsYearSource:
     year: str
+    archive_name: str
     zip_url: str | None
     index_url: str | None
     source_page_url: str
@@ -78,29 +79,34 @@ def discover_irs_form990_sources(page_url: str, timeout_seconds: int = 60, now: 
 
     sources: list[IrsYearSource] = []
     for year in sorted(links_by_year.keys()):
-        urls = links_by_year[year]
-        if not urls.get("zip_url") and not urls.get("index_url"):
-            continue
-        signature = _signature_for(
-            year=year,
-            zip_url=urls.get("zip_url"),
-            index_url=urls.get("index_url"),
-            source_page_url=page_url,
-            etag=etag,
-            last_modified=last_modified,
-        )
-        sources.append(
-            IrsYearSource(
+        entries = links_by_year[year]
+        for archive_key in sorted(entries.keys()):
+            urls = entries[archive_key]
+            if not urls.get("zip_url") and not urls.get("index_url"):
+                continue
+            archive_name = f"irs-page-{year}-{archive_key}"
+            signature = _signature_for(
                 year=year,
+                archive_name=archive_name,
                 zip_url=urls.get("zip_url"),
                 index_url=urls.get("index_url"),
                 source_page_url=page_url,
-                discovered_at=discovered_at,
-                source_etag=etag,
-                source_last_modified=last_modified,
-                source_signature=signature,
+                etag=etag,
+                last_modified=last_modified,
             )
-        )
+            sources.append(
+                IrsYearSource(
+                    year=year,
+                    archive_name=archive_name,
+                    zip_url=urls.get("zip_url"),
+                    index_url=urls.get("index_url"),
+                    source_page_url=page_url,
+                    discovered_at=discovered_at,
+                    source_etag=etag,
+                    source_last_modified=last_modified,
+                    source_signature=signature,
+                )
+            )
     return sources
 
 
@@ -111,8 +117,8 @@ def sources_to_catalog(sources: list[IrsYearSource]) -> list[dict[str, Any]]:
             {
                 "year": source.year,
                 "source_year": source.year,
-                "archive_name": f"irs-page-{source.year}",
-                "source_archive": f"irs-page-{source.year}",
+                "archive_name": source.archive_name,
+                "source_archive": source.archive_name,
                 "index_url": source.index_url,
                 "zip_url": source.zip_url,
                 "source_page_url": source.source_page_url,
@@ -140,8 +146,8 @@ def discovery_state_changed(current: list[IrsYearSource], previous: list[dict[st
     return current_norm != previous_norm
 
 
-def _collect_links_by_year(anchors: list[tuple[str, str]], base_url: str) -> dict[str, dict[str, str]]:
-    by_year: dict[str, dict[str, str]] = {}
+def _collect_links_by_year(anchors: list[tuple[str, str]], base_url: str) -> dict[str, dict[str, dict[str, str]]]:
+    by_year: dict[str, dict[str, dict[str, str]]] = {}
     for raw_href, text in anchors:
         href = urllib.parse.urljoin(base_url, (raw_href or "").strip())
         if not href:
@@ -152,10 +158,12 @@ def _collect_links_by_year(anchors: list[tuple[str, str]], base_url: str) -> dic
         year = _extract_year(f"{href} {text}")
         if not year:
             continue
-        bucket = by_year.setdefault(year, {})
-        if normalized.endswith(".zip") and "xml" in normalized and not bucket.get("zip_url"):
+        archive_key = _archive_key_from_link(href, year)
+        year_bucket = by_year.setdefault(year, {})
+        bucket = year_bucket.setdefault(archive_key, {})
+        if normalized.endswith(".zip") and "xml" in normalized:
             bucket["zip_url"] = href
-        if normalized.endswith(".csv") and ("index" in normalized or "xml" in normalized) and not bucket.get("index_url"):
+        if normalized.endswith(".csv") and ("index" in normalized or "xml" in normalized):
             bucket["index_url"] = href
     return by_year
 
@@ -165,15 +173,27 @@ def _extract_year(value: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _signature_for(year: str, zip_url: str | None, index_url: str | None, source_page_url: str, etag: str | None, last_modified: str | None) -> str:
-    parts = [year, zip_url or "", index_url or "", source_page_url, etag or "", last_modified or ""]
+def _archive_key_from_link(href: str, year: str) -> str:
+    base = href.rstrip("/").split("/")[-1].lower()
+    stem = base.rsplit(".", 1)[0]
+    normalized = stem.replace("download990xml_", "").replace("index_", "")
+    if year in normalized:
+        suffix = normalized.split(year, 1)[1].strip("_-")
+        if suffix:
+            return f"{year}_{suffix}".replace("-", "_")
+    return normalized.replace("-", "_")
+
+
+def _signature_for(year: str, archive_name: str, zip_url: str | None, index_url: str | None, source_page_url: str, etag: str | None, last_modified: str | None) -> str:
+    parts = [year, archive_name, zip_url or "", index_url or "", source_page_url, etag or "", last_modified or ""]
     digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
     return digest
 
 
-def _state_tuple(entry: dict[str, Any]) -> tuple[str, str, str, str]:
+def _state_tuple(entry: dict[str, Any]) -> tuple[str, str, str, str, str]:
     return (
         str(entry.get("year") or "").strip(),
+        str(entry.get("archive_name") or "").strip(),
         str(entry.get("zip_url") or "").strip(),
         str(entry.get("index_url") or "").strip(),
         str(entry.get("source_signature") or "").strip(),
