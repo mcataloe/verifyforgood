@@ -29,6 +29,12 @@ from charity_status.enrichments.providers import (
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from charity_status.query.source_views import (
+    get_nonprofit_compliance_view,
+    get_nonprofit_federal_awards_view,
+    get_nonprofit_single_source_view,
+    get_nonprofit_sources_view,
+)
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
@@ -163,6 +169,40 @@ def handler(event, context):
             return json_response(status_code, payload)
 
         normalized_ein = normalize_ein(verification_input.ein)
+        if _is_sources_list_request(event, method):
+            status_code, payload = get_nonprofit_sources_view(
+                _get_athena_client(),
+                _get_enrichment_service(),
+                normalized_ein,
+                subsection=verification_input.subsection,
+            )
+            return json_response(status_code, payload)
+        if _is_sources_detail_request(event, method):
+            source_name = _extract_source_name(event)
+            status_code, payload = get_nonprofit_single_source_view(
+                _get_athena_client(),
+                _get_enrichment_service(),
+                normalized_ein,
+                source_name=source_name,
+                subsection=verification_input.subsection,
+            )
+            return json_response(status_code, payload)
+        if _is_compliance_request(event, method):
+            status_code, payload = get_nonprofit_compliance_view(
+                _get_athena_client(),
+                _get_enrichment_service(),
+                normalized_ein,
+                subsection=verification_input.subsection,
+            )
+            return json_response(status_code, payload)
+        if _is_federal_awards_request(event, method):
+            status_code, payload = get_nonprofit_federal_awards_view(
+                _get_athena_client(),
+                _get_enrichment_service(),
+                normalized_ein,
+                subsection=verification_input.subsection,
+            )
+            return json_response(status_code, payload)
 
         if _is_filings_request(event, method):
             status_code, payload = get_nonprofit_filings(_get_athena_client(), normalized_ein)
@@ -269,6 +309,50 @@ def _is_batch_verify_request(event: dict) -> bool:
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
     return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
+
+
+def _is_sources_list_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/nonprofits/{ein}/sources") or path.endswith("/sources")
+
+
+def _is_sources_detail_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/nonprofits/{ein}/sources/{source_name}") or "/sources/" in path
+
+
+def _is_compliance_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/nonprofits/{ein}/compliance") or path.endswith("/compliance")
+
+
+def _is_federal_awards_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/nonprofits/{ein}/federal-awards") or path.endswith("/federal-awards")
+
+
+def _extract_source_name(event: dict) -> str:
+    path_params = event.get("pathParameters") or {}
+    direct = path_params.get("source_name")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    path = str(event.get("path") or "")
+    marker = "/sources/"
+    if marker in path:
+        return path.split(marker, 1)[1].strip("/")
+    raise ValueError("source_name is required")
 
 
 def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:

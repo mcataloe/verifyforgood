@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`, `GET /nonprofits/search`, `POST /verify`, `POST /verify/batch`, `GET /nonprofit/{ein}/filings`)
+- API: API Gateway (`GET /nonprofit/{ein}`, `GET /nonprofit/{ein}/filings`, `GET /nonprofits/search`, `GET /nonprofits/{ein}/sources`, `GET /nonprofits/{ein}/sources/{source_name}`, `GET /nonprofits/{ein}/compliance`, `GET /nonprofits/{ein}/federal-awards`, `POST /verify`, `POST /verify/batch`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -394,6 +394,62 @@ Response shape is intentionally index-friendly and lightweight:
 - `pagination.limit`
 - `pagination.next_cursor`
 - `items[]` with summary fields (`ein`, `ein_normalized`, `name`, `state`, `subsection`, `irs_status`, `active`, `tax_period`)
+
+### `GET /nonprofits/{ein}/sources`
+
+Returns normalized source inspection output for the EIN, with source attribution and freshness metadata.
+
+Response fields:
+
+- `ein`
+- `organization` (`ein`, `name`, `state`)
+- `sources[]`:
+  - `source_name`
+  - `status` (`matched`, `unavailable`, `error`, etc.)
+  - `normalized_data`
+  - `attribution` (`record_id`, `licensed`, `notes`)
+  - `freshness.retrieved_at`
+  - `error` (when provider had an error)
+- `failures[]` (provider-level failures from enrichment run)
+
+### `GET /nonprofits/{ein}/sources/{source_name}`
+
+Returns one normalized source entry for the EIN.
+
+- `404` when source is unsupported/not present for that EIN
+- `200` with `source` payload when available
+
+### `GET /nonprofits/{ein}/compliance`
+
+Returns compliance visibility summary aggregated from normalized source records (for example, state registry + state business).
+
+Response fields:
+
+- `ein`
+- `compliance`:
+  - `registration_status`
+  - `registration_jurisdiction`
+  - `registration_expiration_date`
+  - `solicitation_permitted`
+  - `compliance_flags[]`
+  - `state_business_status`
+  - `state_business_good_standing`
+  - `status` (`available` or `unavailable`)
+- `sources[]` (normalized source entries used for summary)
+
+### `GET /nonprofits/{ein}/federal-awards`
+
+Returns normalized federal awards summary derived from external source records.
+
+Response fields:
+
+- `ein`
+- `federal_awards`:
+  - `award_count`
+  - `total_obligations_usd`
+  - `latest_award_date`
+  - `status` (`available` or `unavailable`)
+  - `source`
 
 ### `POST /verify`
 

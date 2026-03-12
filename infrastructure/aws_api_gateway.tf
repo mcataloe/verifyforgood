@@ -43,6 +43,36 @@ resource "aws_api_gateway_resource" "nonprofits_search" {
   path_part   = "search"
 }
 
+resource "aws_api_gateway_resource" "nonprofits_ein" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits.id
+  path_part   = "{ein}"
+}
+
+resource "aws_api_gateway_resource" "nonprofits_sources" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits_ein.id
+  path_part   = "sources"
+}
+
+resource "aws_api_gateway_resource" "nonprofits_source_name" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits_sources.id
+  path_part   = "{source_name}"
+}
+
+resource "aws_api_gateway_resource" "nonprofits_compliance" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits_ein.id
+  path_part   = "compliance"
+}
+
+resource "aws_api_gateway_resource" "nonprofits_federal_awards" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits_ein.id
+  path_part   = "federal-awards"
+}
+
 resource "aws_api_gateway_resource" "verify_batch" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.verify.id
@@ -116,6 +146,70 @@ resource "aws_api_gateway_integration" "lambda_nonprofits_search_integration" {
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_method" "get_nonprofits_sources" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_sources.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "lambda_nonprofits_sources_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_sources.id
+  http_method             = aws_api_gateway_method.get_nonprofits_sources.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_method" "get_nonprofits_source_name" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_source_name.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "lambda_nonprofits_source_name_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_source_name.id
+  http_method             = aws_api_gateway_method.get_nonprofits_source_name.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_method" "get_nonprofits_compliance" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_compliance.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "lambda_nonprofits_compliance_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_compliance.id
+  http_method             = aws_api_gateway_method.get_nonprofits_compliance.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_method" "get_nonprofits_federal_awards" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_federal_awards.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "lambda_nonprofits_federal_awards_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_federal_awards.id
+  http_method             = aws_api_gateway_method.get_nonprofits_federal_awards.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
 resource "aws_api_gateway_method" "post_verify_batch" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.verify_batch.id
@@ -148,7 +242,11 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_filings_integration,
     aws_api_gateway_integration.lambda_verify_integration,
     aws_api_gateway_integration.lambda_verify_batch_integration,
-    aws_api_gateway_integration.lambda_nonprofits_search_integration
+    aws_api_gateway_integration.lambda_nonprofits_search_integration,
+    aws_api_gateway_integration.lambda_nonprofits_sources_integration,
+    aws_api_gateway_integration.lambda_nonprofits_source_name_integration,
+    aws_api_gateway_integration.lambda_nonprofits_compliance_integration,
+    aws_api_gateway_integration.lambda_nonprofits_federal_awards_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.irs_api.id

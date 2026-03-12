@@ -452,3 +452,179 @@ def test_nonprofits_search_invalid_limit_handling():
     body = json.loads(result["body"])
     assert result["statusCode"] == 400
     assert "between 1 and 10" in body["message"]
+
+
+def test_nonprofits_sources_supported_source_lookup():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [
+                    {
+                        "name": "state_registry_mock",
+                        "status": "matched",
+                        "fields": {
+                            "registration_status": "active",
+                            "registration_jurisdiction": "IL",
+                            "registration_expiration_date": "2026-12-31",
+                            "solicitation_permitted": True,
+                            "compliance_flags": [],
+                        },
+                        "source": {"record_id": "sr-1", "fetched_at": "2026-03-12T00:00:00+00:00", "licensed": False},
+                    }
+                ],
+                "failures": [],
+            }
+        )
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/sources/{source_name}",
+        "path": "/nonprofits/123456789/sources/state_registry_mock",
+        "pathParameters": {"ein": "123456789", "source_name": "state_registry_mock"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["source"]["source_name"] == "state_registry_mock"
+    assert body["source"]["normalized_data"]["registration_status"] == "active"
+
+
+def test_nonprofits_sources_unsupported_source_name():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/sources/{source_name}",
+        "path": "/nonprofits/123456789/sources/unknown_source",
+        "pathParameters": {"ein": "123456789", "source_name": "unknown_source"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 404
+    assert "Unsupported source name" in body["message"]
+
+
+def test_nonprofits_compliance_no_source_data_case():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/compliance",
+        "path": "/nonprofits/123456789/compliance",
+        "pathParameters": {"ein": "123456789"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["compliance"]["status"] == "unavailable"
+
+
+def test_nonprofits_sources_no_source_data_case():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/sources",
+        "path": "/nonprofits/123456789/sources",
+        "pathParameters": {"ein": "123456789"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["sources"] == []
+    assert body["failures"] == []
+
+
+def test_nonprofits_compliance_summary_aggregation():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [
+                    {
+                        "name": "state_registry_mock",
+                        "status": "matched",
+                        "fields": {
+                            "registration_status": "active",
+                            "registration_jurisdiction": "IL",
+                            "registration_expiration_date": "2026-12-31",
+                            "solicitation_permitted": True,
+                            "compliance_flags": ["late_filing_notice"],
+                        },
+                        "source": {"record_id": "sr-1", "fetched_at": "2026-03-12T00:00:00+00:00", "licensed": False},
+                    },
+                    {
+                        "name": "state_business_mock",
+                        "status": "matched",
+                        "fields": {
+                            "entity_status": "good_standing",
+                            "good_standing": True,
+                            "compliance_flags": ["registered_agent_issue"],
+                        },
+                        "source": {"record_id": "sb-1", "fetched_at": "2026-03-12T00:00:00+00:00", "licensed": False},
+                    },
+                ],
+                "failures": [],
+            }
+        )
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/compliance",
+        "path": "/nonprofits/123456789/compliance",
+        "pathParameters": {"ein": "123456789"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["compliance"]["status"] == "available"
+    assert body["compliance"]["registration_status"] == "active"
+    assert body["compliance"]["state_business_status"] == "good_standing"
+    assert body["compliance"]["compliance_flags"] == ["late_filing_notice", "registered_agent_issue"]
+
+
+def test_nonprofits_federal_awards_summary_response():
+    module = _load_module()
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [
+                    {
+                        "name": "usaspending_mock",
+                        "status": "matched",
+                        "fields": {
+                            "award_count": 5,
+                            "total_obligations_usd": 320000.0,
+                            "latest_award_date": "2025-11-01",
+                        },
+                        "source": {"record_id": None, "fetched_at": "2026-03-12T00:00:00+00:00", "licensed": False},
+                    }
+                ],
+                "failures": [],
+            }
+        )
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/nonprofits/{ein}/federal-awards",
+        "path": "/nonprofits/123456789/federal-awards",
+        "pathParameters": {"ein": "123456789"},
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["federal_awards"]["status"] == "available"
+    assert body["federal_awards"]["award_count"] == 5
