@@ -45,6 +45,11 @@ def state_manifest_key(prefix: str) -> str:
     return f"{base}/state/latest_filing_manifest.json"
 
 
+def discovery_state_key(prefix: str) -> str:
+    base = prefix.strip("/")
+    return f"{base}/discovery/state/latest_sources.json"
+
+
 def raw_xml_key(prefix: str, ein: str | None, tax_year: str | None, irs_object_id: str | None) -> str:
     base = prefix.strip("/")
     ein_part = (ein or "unknown_ein").strip()

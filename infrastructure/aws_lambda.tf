@@ -289,6 +289,10 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_RECONCILIATION_CADENCE_DAYS = tostring(var.form990_reconciliation_cadence_days)
       FORM990_TARGET_YEARS      = var.form990_target_years
       FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
+      FORM990_SOURCE_MODE       = var.form990_source_mode
+      FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
+      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
       OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX        = var.ops_metadata_prefix
     }

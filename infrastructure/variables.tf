@@ -140,6 +140,30 @@ variable "form990_last_reconciliation_at" {
   default     = ""
 }
 
+variable "form990_source_mode" {
+  description = "Form 990 source discovery mode: configured (existing index/source_catalog flow) or irs_page."
+  type        = string
+  default     = "configured"
+}
+
+variable "form990_irs_downloads_page_url" {
+  description = "IRS Form 990 downloads landing page URL used when form990_source_mode=irs_page."
+  type        = string
+  default     = "https://www.irs.gov/charities-non-profits/form-990-series-downloads"
+}
+
+variable "form990_zip_fetch_timeout_seconds" {
+  description = "Timeout for yearly Form 990 ZIP archive downloads."
+  type        = number
+  default     = 120
+}
+
+variable "form990_zip_max_xml_file_size_bytes" {
+  description = "Maximum XML entry size allowed when extracting yearly Form 990 ZIP archives."
+  type        = number
+  default     = 20971520
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

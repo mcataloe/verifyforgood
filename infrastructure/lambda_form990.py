@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -9,10 +10,18 @@ import boto3
 from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import discover_archives, fetch_index_records
+from charity_status.form990.irs_page_discovery import (
+    IrsYearSource,
+    discover_irs_form990_sources,
+    discovery_state_changed,
+    discovery_state_payload,
+    sources_to_catalog,
+)
 from charity_status.form990.manifest import diff_manifest_entries, to_manifest_entries
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
+from charity_status.form990.zip_processing import fetch_zip_records
 from charity_status.ops import S3RunStore
-from charity_status.form990.storage import checkpoint_key, discovery_manifest_key, filing_manifest_key, state_manifest_key
+from charity_status.form990.storage import checkpoint_key, discovery_manifest_key, discovery_state_key, filing_manifest_key, state_manifest_key
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -35,8 +44,16 @@ FORM990_RECONCILIATION_ENABLED = os.environ.get("FORM990_RECONCILIATION_ENABLED"
 FORM990_RECONCILIATION_CADENCE_DAYS = int(os.environ.get("FORM990_RECONCILIATION_CADENCE_DAYS", "30"))
 FORM990_TARGET_YEARS = os.environ.get("FORM990_TARGET_YEARS", "").strip()
 FORM990_LAST_RECONCILIATION_AT = os.environ.get("FORM990_LAST_RECONCILIATION_AT", "").strip()
+FORM990_SOURCE_MODE = os.environ.get("FORM990_SOURCE_MODE", "configured").strip().lower()
+FORM990_IRS_DOWNLOADS_PAGE_URL = os.environ.get(
+    "FORM990_IRS_DOWNLOADS_PAGE_URL",
+    "https://www.irs.gov/charities-non-profits/form-990-series-downloads",
+).strip()
+FORM990_ZIP_FETCH_TIMEOUT_SECONDS = int(os.environ.get("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "120"))
+FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES", str(20 * 1024 * 1024)))
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
+LOGGER = logging.getLogger(__name__)
 
 
 def handler(event, context):
@@ -93,13 +110,17 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
     reconciliation_all_years = bool(payload.get("reconciliation_all_years", False))
     resume = bool(payload.get("resume", False))
 
-    catalog = _resolve_source_catalog(payload)
+    source_mode = _resolve_source_mode(payload)
+    discovered_sources = _discover_sources(payload, source_mode=source_mode)
+    catalog = sources_to_catalog(discovered_sources) if source_mode == "irs_page" else _resolve_source_catalog(payload)
     now_dt = _resolve_now(payload)
     now_year = now_dt.year
     discovered = discover_archives(catalog, mode="bootstrap", now_year=now_year, reconciliation_all_years=True)
     discovered_years = sorted({archive.source_year for archive in discovered})
+    _log_structured("form990.discovery.summary", source_mode=source_mode, discovered_years=discovered_years, discovered_archives=len(discovered))
     policy = _build_policy_config(payload, mode=mode)
     selected_years, policy_metadata = select_target_years(discovered_years, policy, now=now_dt)
+    _log_structured("form990.discovery.selected_years", selected_years=selected_years, mode=mode, policy_effective_mode=policy_metadata.get("effective_mode"))
     discovered = [archive for archive in discovered if archive.source_year in set(selected_years)] if selected_years else []
     if reconciliation_all_years:
         policy_metadata["effective_mode"] = "reconciliation"
@@ -107,18 +128,24 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
 
     all_records = []
     archive_summaries: list[dict[str, Any]] = []
+    if source_mode == "irs_page":
+        _persist_discovery_state(service.s3, discovered_sources)
+
     for archive in discovered:
-        records = _fetch_with_retries(archive.index_url, archive.source_year, archive.source_archive)
+        _log_structured("form990.archive.start", source_year=archive.source_year, source_archive=archive.source_archive, source_mode=source_mode)
+        records = _fetch_archive_records_with_retries(catalog, archive, source_mode=source_mode)
         all_records.extend(records)
         archive_manifest = {
             "run_id": run_id,
             "source_year": archive.source_year,
             "source_archive": archive.source_archive,
             "index_url": archive.index_url,
+            "source_mode": source_mode,
             "record_count": len(records),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         archive_summaries.append(archive_manifest)
+        _log_structured("form990.archive.complete", source_year=archive.source_year, source_archive=archive.source_archive, record_count=len(records))
         service.s3.put_object(
             Bucket=BUCKET,
             Key=discovery_manifest_key(MANIFEST_PREFIX, run_id=run_id, source_year=archive.source_year, source_archive=archive.source_archive),
@@ -127,6 +154,13 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
 
     previous_entries = _load_previous_manifest_entries(service.s3)
     new_records, changed_records, unchanged_count = diff_manifest_entries(all_records, previous_entries)
+    _log_structured(
+        "form990.reconciliation.summary",
+        total_index_records=len(all_records),
+        new_records=len(new_records),
+        changed_records=len(changed_records),
+        unchanged_records=unchanged_count,
+    )
     selected = all_records if mode == "bootstrap" and bool(payload.get("bootstrap_process_all", True)) else (new_records + changed_records)
 
     selected = _apply_index_filters([_record_to_dict(item) for item in selected], payload)
@@ -172,6 +206,7 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
             completed=False,
         )
         batch_results.append(manifest_entry)
+        _log_structured("form990.batch.complete", batch_index=batches - 1, chunk_size=len(chunk), processed=manifest_entry.get("processed"), failed=manifest_entry.get("failed"))
 
     _save_checkpoint(
         service.s3,
@@ -219,8 +254,10 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
             "batch_size": batch_size,
             "retry_count": FORM990_RETRY_COUNT,
         },
+        "source_mode": source_mode,
     }
     response["status"] = status
+    _log_structured("form990.run.complete", run_id=run_id, status=status, source_mode=source_mode, processed_records=processed, failed_count=failed)
     _persist_ingest_ops_run(service, response, selected)
     return response
 
@@ -237,6 +274,58 @@ def _fetch_with_retries(index_url: str, source_year: str, source_archive: str) -
     return []
 
 
+def _fetch_archive_records_with_retries(catalog: list[dict[str, Any]], archive: Any, source_mode: str) -> list[Any]:
+    source = _lookup_catalog_item(catalog, archive.source_year, archive.source_archive)
+    if source_mode == "irs_page" and str(source.get("zip_url") or "").strip():
+        return _fetch_zip_records_with_retries(
+            zip_url=str(source.get("zip_url") or "").strip(),
+            source_year=archive.source_year,
+            source_archive=archive.source_archive,
+            index_url=archive.index_url,
+        )
+    return _fetch_with_retries(archive.index_url, archive.source_year, archive.source_archive)
+
+
+def _fetch_zip_records_with_retries(zip_url: str, source_year: str, source_archive: str, index_url: str | None = None) -> list[Any]:
+    last_error: Exception | None = None
+    for _attempt in range(FORM990_RETRY_COUNT + 1):
+        try:
+            return _zip_records_to_index_records(
+                zip_url=zip_url,
+                source_year=source_year,
+                source_archive=source_archive,
+                index_url=index_url,
+            )
+        except Exception as exc:  # pragma: no cover - exercised by retries in runtime
+            last_error = exc
+    if last_error:
+        raise last_error
+    return []
+
+
+def _zip_records_to_index_records(zip_url: str, source_year: str, source_archive: str, index_url: str | None = None) -> list[Any]:
+    zipped = fetch_zip_records(
+        zip_url=zip_url,
+        source_year=source_year,
+        source_archive=source_archive,
+        timeout_seconds=FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
+        max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+    )
+    records = []
+    for record, _xml in zipped:
+        records.append(record)
+    return records
+
+
+def _lookup_catalog_item(catalog: list[dict[str, Any]], source_year: str, source_archive: str) -> dict[str, Any]:
+    for item in catalog:
+        year = str(item.get("year") or item.get("source_year") or "").strip()
+        archive = str(item.get("archive_name") or item.get("source_archive") or "").strip()
+        if year == str(source_year).strip() and archive == str(source_archive).strip():
+            return item
+    return {}
+
+
 def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(payload.get("source_catalog"), list):
         return [item for item in payload["source_catalog"] if isinstance(item, dict)]
@@ -251,6 +340,34 @@ def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
     urls = _extract_index_urls(payload)
     return [{"index_url": url} for url in urls]
+
+
+def _resolve_source_mode(payload: dict[str, Any]) -> str:
+    mode = str(payload.get("source_mode") or FORM990_SOURCE_MODE or "configured").strip().lower()
+    if mode in {"configured", "irs_page"}:
+        return mode
+    return "configured"
+
+
+def _discover_sources(payload: dict[str, Any], source_mode: str) -> list[IrsYearSource]:
+    if source_mode != "irs_page":
+        return []
+    page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()
+    if not page_url:
+        raise ValueError("irs_page source_mode requires irs_downloads_page_url or FORM990_IRS_DOWNLOADS_PAGE_URL")
+    return discover_irs_form990_sources(page_url=page_url, timeout_seconds=INDEX_FETCH_TIMEOUT_SECONDS)
+
+
+def _persist_discovery_state(s3_client: Any, discovered_sources: list[IrsYearSource]) -> None:
+    if not discovered_sources:
+        return
+    previous = _load_previous_discovery_state(s3_client)
+    if not discovery_state_changed(discovered_sources, previous):
+        _log_structured("form990.discovery.state_unchanged", discovery_sources=len(discovered_sources))
+        return
+    payload = discovery_state_payload(discovered_sources)
+    s3_client.put_object(Bucket=BUCKET, Key=discovery_state_key(MANIFEST_PREFIX), Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+    _log_structured("form990.discovery.state_updated", discovery_sources=len(discovered_sources), key=discovery_state_key(MANIFEST_PREFIX))
 
 
 def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConfig:
@@ -457,6 +574,19 @@ def _load_previous_manifest_entries(s3_client: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _load_previous_discovery_state(s3_client: Any) -> list[dict[str, Any]]:
+    try:
+        response = s3_client.get_object(Bucket=BUCKET, Key=discovery_state_key(MANIFEST_PREFIX))
+        body = response["Body"].read().decode("utf-8")
+        payload = json.loads(body)
+        sources = payload.get("sources")
+        if isinstance(sources, list):
+            return [item for item in sources if isinstance(item, dict)]
+    except Exception:
+        return []
+    return []
+
+
 def _save_checkpoint(s3_client: Any, run_id: str, mode: str, offset: int, total: int, completed: bool) -> None:
     payload = {
         "run_id": run_id,
@@ -484,3 +614,11 @@ def _resolve_start_offset(s3_client: Any, payload: dict[str, Any], resume: bool)
         return max(0, int(checkpoint.get("offset") or 0))
     except Exception:
         return 0
+
+
+def _log_structured(event: str, **fields: Any) -> None:
+    payload = {"event": event, **fields}
+    try:
+        LOGGER.info(json.dumps(payload, sort_keys=True))
+    except Exception:
+        LOGGER.info("%s %s", event, fields)

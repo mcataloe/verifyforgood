@@ -262,3 +262,43 @@ def test_policy_config_override_target_years(monkeypatch):
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["policy"]["target_years"] == ["2023"]
+
+
+def test_irs_page_source_mode_uses_zip_discovery(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
+        module.IrsYearSource(
+            year="2024",
+            zip_url="https://example.org/2024.zip",
+            index_url="https://example.org/2024.csv",
+            source_page_url=page_url,
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature="discovery-sig",
+        )
+    ]
+    module.fetch_zip_records = lambda zip_url, source_year, source_archive, timeout_seconds=120, max_xml_file_size_bytes=20971520: [
+        (
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-zip-1",
+                xml_url=f"{zip_url}#obj-zip-1.xml",
+                source_year=source_year,
+                source_archive=source_archive,
+                source_signature="zip-sig-1",
+            ),
+            b"<Return/>",
+        )
+    ]
+
+    result = module.handler({"mode": "incremental", "reconciliation_all_years": True}, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["source_mode"] == "irs_page"
+    assert body["processed_records"] == 1

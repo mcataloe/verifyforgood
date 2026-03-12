@@ -83,6 +83,7 @@ S3 prefixes (configurable via Terraform variables):
 Operational note:
 
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
+- `lambda_form990` also supports IRS-page discovery mode (`FORM990_SOURCE_MODE=irs_page`) that discovers yearly ZIP/CSV links from the IRS downloads page and reconciles against discovered yearly sources.
 - If neither explicit records nor index URLs are provided, the run is successful but processes `0` records.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
@@ -128,6 +129,26 @@ Index diffing remains source of truth:
 
 - no assumption that only the latest archive changes
 - new/changed filings are driven by per-filing manifest signature diffing across discovered archives/years
+
+Phase 10G ZIP discovery/reconciliation extension:
+
+- new source mode: `configured` (existing behavior) or `irs_page`
+- in `irs_page` mode, Lambda discovers yearly links from:
+  - `FORM990_IRS_DOWNLOADS_PAGE_URL` (default: IRS Form 990 downloads page)
+- discovery captures per-year metadata:
+  - year
+  - zip URL
+  - index URL (when present)
+  - source page URL
+  - discovery timestamp
+  - source signature / page etag / last-modified (when available)
+- discovery state is persisted separately from filing-manifest state:
+  - discovery state: `form990/normalized/manifests/discovery/state/latest_sources.json`
+  - filing manifest state: `form990/normalized/manifests/state/latest_filing_manifest.json`
+- incremental reconciliation behavior:
+  - detect source changes at discovery layer
+  - detect filing-level new/changed records via existing `irs_object_id + source_signature` manifest diff
+  - unchanged filings are skipped
 
 ## Phase 10E: Post-Ingest Incremental Refresh
 
@@ -849,6 +870,49 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 - Ingest and Form 990 Lambdas are packaged separately.
 - Domain registration remains manual; Route53 hosted zone and records are managed by Terraform when enabled.
 - DynamoDB table is provisioned for serving profiles (`pk = EIN#{ein}`, `sk = PROFILE#LATEST`).
+
+Form 990 mode configuration additions:
+
+- `form990_source_mode`: `configured` or `irs_page`
+- `form990_irs_downloads_page_url`: IRS discovery page URL
+- `form990_zip_fetch_timeout_seconds`: ZIP download timeout
+- `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit
+
+Lambda event examples:
+
+Configured/default mode (backward compatible):
+
+```json
+{
+  "mode": "incremental",
+  "source_mode": "configured"
+}
+```
+
+IRS-page discovery mode:
+
+```json
+{
+  "mode": "incremental",
+  "source_mode": "irs_page",
+  "target_years": ["2024"],
+  "batch_size": 25,
+  "limit": 50
+}
+```
+
+Safe dev smoke test:
+
+```json
+{
+  "mode": "incremental",
+  "source_mode": "irs_page",
+  "target_years": ["2024"],
+  "eins": ["123456789"],
+  "limit": 5,
+  "batch_size": 5
+}
+```
 
 ## Serving Layer (Phase D1)
 
