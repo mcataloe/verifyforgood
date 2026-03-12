@@ -24,6 +24,7 @@ from charity_status.form990.models import (
 )
 from charity_status.form990.parser import XmlParseError, parse_xml
 from charity_status.form990.quality import compute_filing_quality
+from charity_status.form990.relationships import extract_relationship_edges
 from charity_status.form990.storage import manifest_key, normalized_dataset_key, raw_xml_key, to_jsonl
 
 SUPPORTED_RETURN_TYPES = {"990", "FORM_990", "990O"}
@@ -39,6 +40,7 @@ class Form990IngestService:
         metrics_prefix: str,
         governance_prefix: str,
         quality_prefix: str,
+        relationships_prefix: str = "form990/normalized/relationships/",
         s3_client: Any | None = None,
     ):
         self.bucket = bucket
@@ -48,6 +50,7 @@ class Form990IngestService:
         self.metrics_prefix = metrics_prefix
         self.governance_prefix = governance_prefix
         self.quality_prefix = quality_prefix
+        self.relationships_prefix = relationships_prefix
         self.s3 = s3_client or boto3.client("s3")
 
     def ingest_index_payload(self, payload: list[dict[str, Any]], download_raw: bool = False) -> dict[str, Any]:
@@ -61,6 +64,7 @@ class Form990IngestService:
             metrics_prefix=self.metrics_prefix,
             governance_prefix=self.governance_prefix,
             quality_prefix=self.quality_prefix,
+            relationships_prefix=self.relationships_prefix,
             s3_client=self.s3,
             download_raw=download_raw,
         )
@@ -76,6 +80,7 @@ def ingest_form990_records(
     metrics_prefix: str,
     governance_prefix: str,
     quality_prefix: str,
+    relationships_prefix: str,
     s3_client: Any,
     download_raw: bool = False,
     downloader: Any | None = None,
@@ -87,6 +92,7 @@ def ingest_form990_records(
     metrics_records: list[dict[str, Any]] = []
     governance_records: list[dict[str, Any]] = []
     quality_records: list[dict[str, Any]] = []
+    relationship_records: list[dict[str, Any]] = []
 
     grouped_filings: dict[str, list[dict[str, Any]]] = {}
 
@@ -135,6 +141,7 @@ def ingest_form990_records(
             }
             filing_records.append(merged_filing)
             grouped_filings.setdefault(merged_filing.get("ein") or "unknown", []).append(merged_filing)
+            relationship_records.extend(extract_relationship_edges(parsed, merged_filing))
 
         except XmlParseError as exc:
             filing_records.append(
@@ -192,11 +199,13 @@ def ingest_form990_records(
     metrics_key = normalized_dataset_key(metrics_prefix, "metrics", now=started)
     governance_key = normalized_dataset_key(governance_prefix, "governance", now=started)
     quality_key = normalized_dataset_key(quality_prefix, "quality", now=started)
+    relationships_key = normalized_dataset_key(relationships_prefix, "relationships", now=started)
 
     s3_client.put_object(Bucket=bucket, Key=filing_key, Body=to_jsonl(filing_records))
     s3_client.put_object(Bucket=bucket, Key=metrics_key, Body=to_jsonl(metrics_records))
     s3_client.put_object(Bucket=bucket, Key=governance_key, Body=to_jsonl(governance_records))
     s3_client.put_object(Bucket=bucket, Key=quality_key, Body=to_jsonl(quality_records))
+    s3_client.put_object(Bucket=bucket, Key=relationships_key, Body=to_jsonl(relationship_records))
 
     parsed_count = sum(1 for item in filing_records if item.get("parse_status") == Form990ParseStatus.PARSED.value)
     failed_count = sum(
@@ -216,6 +225,7 @@ def ingest_form990_records(
         "metrics_s3_key": metrics_key,
         "governance_s3_key": governance_key,
         "quality_s3_key": quality_key,
+        "relationships_s3_key": relationships_key,
     }
     manifest_s3 = manifest_key(manifest_prefix, now=started)
     s3_client.put_object(Bucket=bucket, Key=manifest_s3, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
@@ -230,6 +240,7 @@ def ingest_form990_records(
         metrics_s3_key=metrics_key,
         governance_s3_key=governance_key,
         quality_s3_key=quality_key,
+        relationships_s3_key=relationships_key,
         records=filing_records,
     )
 

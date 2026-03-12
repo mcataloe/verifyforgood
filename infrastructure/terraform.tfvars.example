@@ -10,6 +10,7 @@ form990_manifest_prefix    = "form990/normalized/manifests/"
 form990_metrics_prefix     = "form990/normalized/metrics/"
 form990_governance_prefix  = "form990/normalized/governance/"
 form990_quality_prefix     = "form990/normalized/quality/"
+form990_relationships_prefix = "form990/normalized/relationships/"
 enrichment_mock_enabled    = false
 enrichment_candid_enabled  = false
 enrichment_candid_endpoint = ""

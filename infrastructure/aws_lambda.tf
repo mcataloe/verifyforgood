@@ -247,6 +247,7 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
       FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
       FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
     }
   }
 }

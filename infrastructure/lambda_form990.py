@@ -13,6 +13,7 @@ MANIFEST_PREFIX = os.environ.get("FORM990_MANIFEST_PREFIX", "form990/normalized/
 METRICS_PREFIX = os.environ.get("FORM990_METRICS_PREFIX", "form990/normalized/metrics/")
 GOVERNANCE_PREFIX = os.environ.get("FORM990_GOVERNANCE_PREFIX", "form990/normalized/governance/")
 QUALITY_PREFIX = os.environ.get("FORM990_QUALITY_PREFIX", "form990/normalized/quality/")
+RELATIONSHIPS_PREFIX = os.environ.get("FORM990_RELATIONSHIPS_PREFIX", "form990/normalized/relationships/")
 
 
 def handler(event, context):
@@ -44,6 +45,7 @@ def handler(event, context):
         metrics_prefix=METRICS_PREFIX,
         governance_prefix=GOVERNANCE_PREFIX,
         quality_prefix=QUALITY_PREFIX,
+        relationships_prefix=RELATIONSHIPS_PREFIX,
     )
     result = service.ingest_index_payload(payload=payload, download_raw=download_raw)
     return json_response(200, result)

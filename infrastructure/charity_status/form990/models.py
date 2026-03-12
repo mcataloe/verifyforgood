@@ -55,6 +55,7 @@ class Form990IngestResult:
     metrics_s3_key: str
     governance_s3_key: str
     quality_s3_key: str
+    relationships_s3_key: str
     records: list[dict[str, Any]]
 
     def to_dict(self) -> dict[str, Any]:

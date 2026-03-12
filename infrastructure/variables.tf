@@ -50,6 +50,12 @@ variable "form990_quality_prefix" {
   default     = "form990/normalized/quality/"
 }
 
+variable "form990_relationships_prefix" {
+  description = "S3 prefix for derived Form 990 relationship edge artifacts."
+  type        = string
+  default     = "form990/normalized/relationships/"
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

@@ -86,6 +86,23 @@ Derived metrics:
 - `workingCapital`
 - `monthsOfRunway`
 
+## Relationship Graph Foundation (Phase 9A)
+
+Form 990 ingestion now emits additive relationship-edge artifacts (JSONL) for future network/risk analysis, without introducing a graph database.
+
+Current edge types:
+
+- `PERSON_TO_NONPROFIT_OFFICER`
+- `PERSON_TO_NONPROFIT_BOARD`
+- `NONPROFIT_TO_STATE`
+
+Design notes:
+
+- identity resolution is conservative (`PERSON#{ein}#{normalized_name}`) to avoid over-merging across nonprofits
+- duplicate edges are suppressed deterministically
+- artifacts are stored under `form990/normalized/relationships/` for future Athena querying or graph import
+- existing ingestion and verification flows remain unchanged/failure-tolerant
+
 Filing quality indicators:
 
 - `missingRequiredFieldsCount`

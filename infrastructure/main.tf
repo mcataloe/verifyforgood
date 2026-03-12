@@ -7,6 +7,7 @@ locals {
   form990_metrics_prefix_normalized    = "${trim(var.form990_metrics_prefix, "/")}/"
   form990_governance_prefix_normalized = "${trim(var.form990_governance_prefix, "/")}/"
   form990_quality_prefix_normalized    = "${trim(var.form990_quality_prefix, "/")}/"
+  form990_relationships_prefix_normalized = "${trim(var.form990_relationships_prefix, "/")}/"
   source_data_bucket_name              = "${var.base_name}-irs-source-data-bucket"
   athena_results_bucket_name           = "${var.base_name}-athena-results"
   profile_table_name                   = "${var.base_name}-${var.environment}-profiles"
