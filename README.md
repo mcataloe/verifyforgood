@@ -102,6 +102,33 @@ Phase 10D ingestion orchestration:
   - latest filing-manifest state for deterministic incremental diffs
 - incremental default behavior focuses on current + previous year unless reconciliation over all years is explicitly enabled.
 
+Phase 10G scheduling/reconciliation hardening:
+
+- policy-driven target-year selection with explicit modes:
+  - `bootstrap`
+  - `incremental`
+  - reconciliation (periodic full-year scan when due)
+- incremental defaults to scanning current + previous year (`form990_incremental_year_window=2`)
+- configurable reconciliation cadence (`form990_reconciliation_cadence_days`) and enablement toggle
+- explicit target-year override supported (`form990_target_years`)
+- safe fallback behavior when year metadata is missing/malformed
+- no-op behavior remains deterministic when manifests/index state are unchanged
+- policy metadata is included in run output and ops run visibility for diagnostics
+
+Recommended schedules:
+
+- production:
+  - daily incremental ingest (current + previous year)
+  - periodic reconciliation every 30 days over all discovered years
+- non-production:
+  - less frequent incremental schedule (for example every few days)
+  - reconciliation disabled or manual-only unless explicitly needed
+
+Index diffing remains source of truth:
+
+- no assumption that only the latest archive changes
+- new/changed filings are driven by per-filing manifest signature diffing across discovered archives/years
+
 ## Phase 10E: Post-Ingest Incremental Refresh
 
 After 10D ingestion identifies and processes new/changed filings, post-ingest refresh can rebuild materialized nonprofit serving profiles only for affected EINs.

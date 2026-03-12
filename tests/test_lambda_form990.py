@@ -231,3 +231,34 @@ def test_resume_checkpoint_behavior(monkeypatch):
     assert result["statusCode"] == 200
     assert body["selected_records"] == 2
     assert body["processed_records"] == 1
+
+
+def test_policy_config_override_target_years(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
+        Form990IndexRecord(
+            ein="111111111",
+            tax_year=source_year,
+            filing_date="2025-01-01",
+            return_type="990",
+            irs_object_id=f"obj-{source_year}",
+            xml_url="https://example.org/x.xml",
+            source_year=source_year,
+            source_archive=source_archive,
+            source_signature=f"sig-{source_year}",
+        )
+    ]
+    result = module.handler(
+        {
+            "mode": "incremental",
+            "target_years": ["2023"],
+            "source_catalog": [
+                {"year": "2022", "index_url": "https://example.org/2022.json"},
+                {"year": "2023", "index_url": "https://example.org/2023.json"},
+            ],
+        },
+        None,
+    )
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["policy"]["target_years"] == ["2023"]

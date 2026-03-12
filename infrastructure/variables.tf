@@ -110,6 +110,36 @@ variable "form990_source_catalog_json" {
   default     = ""
 }
 
+variable "form990_incremental_year_window" {
+  description = "Number of recent years checked during incremental policy mode."
+  type        = number
+  default     = 2
+}
+
+variable "form990_reconciliation_enabled" {
+  description = "Enable periodic full reconciliation scans over all discovered years."
+  type        = bool
+  default     = true
+}
+
+variable "form990_reconciliation_cadence_days" {
+  description = "Cadence in days for reconciliation scans when reconciliation is enabled."
+  type        = number
+  default     = 30
+}
+
+variable "form990_target_years" {
+  description = "Optional comma-delimited explicit target years override for ingest policy."
+  type        = string
+  default     = ""
+}
+
+variable "form990_last_reconciliation_at" {
+  description = "Optional ISO timestamp for last successful full reconciliation (policy hint)."
+  type        = string
+  default     = ""
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

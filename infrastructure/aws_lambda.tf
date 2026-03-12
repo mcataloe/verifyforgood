@@ -284,6 +284,11 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
       FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
       FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
+      FORM990_INCREMENTAL_YEAR_WINDOW = tostring(var.form990_incremental_year_window)
+      FORM990_RECONCILIATION_ENABLED = tostring(var.form990_reconciliation_enabled)
+      FORM990_RECONCILIATION_CADENCE_DAYS = tostring(var.form990_reconciliation_cadence_days)
+      FORM990_TARGET_YEARS      = var.form990_target_years
+      FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
       OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX        = var.ops_metadata_prefix
     }

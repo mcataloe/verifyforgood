@@ -10,6 +10,7 @@ from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import discover_archives, fetch_index_records
 from charity_status.form990.manifest import diff_manifest_entries, to_manifest_entries
+from charity_status.form990.policy import IngestPolicyConfig, select_target_years
 from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_manifest_key, filing_manifest_key, state_manifest_key
 
@@ -29,6 +30,11 @@ FORM990_RUN_MODE = os.environ.get("FORM990_RUN_MODE", "incremental").strip().low
 FORM990_BATCH_SIZE = int(os.environ.get("FORM990_BATCH_SIZE", "100"))
 FORM990_RETRY_COUNT = int(os.environ.get("FORM990_RETRY_COUNT", "2"))
 FORM990_SOURCE_CATALOG_JSON = os.environ.get("FORM990_SOURCE_CATALOG_JSON", "").strip()
+FORM990_INCREMENTAL_YEAR_WINDOW = int(os.environ.get("FORM990_INCREMENTAL_YEAR_WINDOW", "2"))
+FORM990_RECONCILIATION_ENABLED = os.environ.get("FORM990_RECONCILIATION_ENABLED", "true").lower() == "true"
+FORM990_RECONCILIATION_CADENCE_DAYS = int(os.environ.get("FORM990_RECONCILIATION_CADENCE_DAYS", "30"))
+FORM990_TARGET_YEARS = os.environ.get("FORM990_TARGET_YEARS", "").strip()
+FORM990_LAST_RECONCILIATION_AT = os.environ.get("FORM990_LAST_RECONCILIATION_AT", "").strip()
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
@@ -88,8 +94,16 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
     resume = bool(payload.get("resume", False))
 
     catalog = _resolve_source_catalog(payload)
-    now_year = int(payload.get("now_year") or datetime.now(timezone.utc).year)
-    discovered = discover_archives(catalog, mode=mode, now_year=now_year, reconciliation_all_years=reconciliation_all_years)
+    now_dt = _resolve_now(payload)
+    now_year = now_dt.year
+    discovered = discover_archives(catalog, mode="bootstrap", now_year=now_year, reconciliation_all_years=True)
+    discovered_years = sorted({archive.source_year for archive in discovered})
+    policy = _build_policy_config(payload, mode=mode)
+    selected_years, policy_metadata = select_target_years(discovered_years, policy, now=now_dt)
+    discovered = [archive for archive in discovered if archive.source_year in set(selected_years)] if selected_years else []
+    if reconciliation_all_years:
+        policy_metadata["effective_mode"] = "reconciliation"
+        policy_metadata["reconciliation_due"] = True
 
     all_records = []
     archive_summaries: list[dict[str, Any]] = []
@@ -192,6 +206,19 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
         "batches": batch_results,
         "archives": archive_summaries,
+        "policy": {
+            "mode_requested": mode,
+            "effective_mode": policy_metadata.get("effective_mode"),
+            "target_years": selected_years,
+            "incremental_year_window": policy.incremental_year_window,
+            "reconciliation_enabled": policy.reconciliation_enabled,
+            "reconciliation_cadence_days": policy.reconciliation_cadence_days,
+            "reconciliation_due": policy_metadata.get("reconciliation_due"),
+            "fallback_used": policy_metadata.get("fallback_used"),
+            "resume": resume,
+            "batch_size": batch_size,
+            "retry_count": FORM990_RETRY_COUNT,
+        },
     }
     response["status"] = status
     _persist_ingest_ops_run(service, response, selected)
@@ -224,6 +251,34 @@ def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
     urls = _extract_index_urls(payload)
     return [{"index_url": url} for url in urls]
+
+
+def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConfig:
+    target_years = payload.get("target_years")
+    years: list[str] = []
+    if isinstance(target_years, list):
+        years = [str(item).strip() for item in target_years if str(item).strip()]
+    elif FORM990_TARGET_YEARS:
+        years = [part.strip() for part in FORM990_TARGET_YEARS.split(",") if part.strip()]
+    return IngestPolicyConfig(
+        mode=mode,
+        incremental_year_window=int(payload.get("incremental_year_window") or FORM990_INCREMENTAL_YEAR_WINDOW),
+        target_years=tuple(years),
+        reconciliation_enabled=bool(payload.get("reconciliation_enabled", FORM990_RECONCILIATION_ENABLED)),
+        reconciliation_cadence_days=int(payload.get("reconciliation_cadence_days") or FORM990_RECONCILIATION_CADENCE_DAYS),
+        last_reconciliation_at=str(payload.get("last_reconciliation_at") or FORM990_LAST_RECONCILIATION_AT or "") or None,
+        force_reconciliation=bool(payload.get("force_reconciliation", False)),
+    )
+
+
+def _resolve_now(payload: dict[str, Any]) -> datetime:
+    raw = payload.get("now")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
 
 
 def _load_legacy_index_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -369,6 +424,7 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "checkpoint_key": response.get("checkpoint_key"),
         "resume_supported": True,
         "safe_error_summary": {"count": int(response.get("failed_count") or 0), "samples": []},
+        "policy": response.get("policy"),
     }
     store.write_ingest_run(run_id, summary)
     filing_items = [
