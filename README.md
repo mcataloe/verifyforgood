@@ -86,6 +86,22 @@ Operational note:
 - If neither explicit records nor index URLs are provided, the run is successful but processes `0` records.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
+Phase 10D ingestion orchestration:
+
+- supports `mode=bootstrap` and `mode=incremental` (default).
+- discovery uses configured source catalog/index URLs and is resilient to IRS naming variations by extracting year/archive metadata.
+- index diffing against persisted filing-manifest state is the source of truth:
+  - new filings detected by `irs_object_id`
+  - changed filings detected by stable `source_signature`
+  - unchanged filings are skipped
+- does not assume only the latest yearly archive changes.
+- persists:
+  - per-archive discovery manifests
+  - per-batch filing manifests
+  - checkpoint state for resumability
+  - latest filing-manifest state for deterministic incremental diffs
+- incremental default behavior focuses on current + previous year unless reconciliation over all years is explicitly enabled.
+
 Glue tables:
 
 - `form990_metadata`

@@ -86,6 +86,30 @@ variable "form990_schedule_expression" {
   default     = ""
 }
 
+variable "form990_run_mode" {
+  description = "Default mode for form990 ingestion orchestration: incremental or bootstrap."
+  type        = string
+  default     = "incremental"
+}
+
+variable "form990_batch_size" {
+  description = "Batch size for incremental/bootstrap filing processing."
+  type        = number
+  default     = 100
+}
+
+variable "form990_retry_count" {
+  description = "Retry count for transient IRS index fetch failures."
+  type        = number
+  default     = 2
+}
+
+variable "form990_source_catalog_json" {
+  description = "Optional JSON array describing available IRS Form 990 index sources (year/archive/index_url)."
+  type        = string
+  default     = ""
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

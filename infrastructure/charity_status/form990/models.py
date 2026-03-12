@@ -42,6 +42,9 @@ class Form990IndexRecord:
     return_type: str | None
     irs_object_id: str | None
     xml_url: str | None
+    source_year: str | None = None
+    source_archive: str | None = None
+    source_signature: str | None = None
 
 
 @dataclass(frozen=True)

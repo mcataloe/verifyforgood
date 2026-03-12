@@ -276,6 +276,10 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_INDEX_URLS        = var.form990_index_urls
       FORM990_INDEX_FETCH_TIMEOUT_SECONDS = tostring(var.form990_index_fetch_timeout_seconds)
       FORM990_DEFAULT_DOWNLOAD_RAW = tostring(var.form990_default_download_raw)
+      FORM990_RUN_MODE          = var.form990_run_mode
+      FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
+      FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
+      FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
     }
   }
 }

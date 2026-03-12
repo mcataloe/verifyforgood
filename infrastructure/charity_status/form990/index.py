@@ -19,6 +19,9 @@ def parse_index_records(payload: list[dict[str, Any]]) -> list[Form990IndexRecor
                 return_type=_to_str(normalized.get("return_type")),
                 irs_object_id=_to_str(normalized.get("irs_object_id")),
                 xml_url=_to_str(normalized.get("xml_url")),
+                source_year=_to_str(normalized.get("source_year")),
+                source_archive=_to_str(normalized.get("source_archive")),
+                source_signature=_to_str(normalized.get("source_signature")),
             )
         )
     return records
@@ -59,6 +62,9 @@ def _normalize_index_item(item: dict[str, Any]) -> dict[str, Any]:
         "return_type": _first(item, "return_type", "returnType", "ReturnType"),
         "irs_object_id": _first(item, "irs_object_id", "object_id", "objectId", "ObjectId"),
         "xml_url": _first(item, "xml_url", "xmlUrl", "URL", "url"),
+        "source_year": _first(item, "source_year", "SourceYear"),
+        "source_archive": _first(item, "source_archive", "SourceArchive"),
+        "source_signature": _first(item, "source_signature", "SourceSignature"),
     }
 
 
