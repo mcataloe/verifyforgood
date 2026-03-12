@@ -423,6 +423,43 @@ Compatibility notes:
 
 ## API Endpoints
 
+## Authentication and Quotas (Phase 12A)
+
+API key auth is supported for server-to-server and developer workflows, designed to coexist with future OAuth.
+
+Header:
+
+- `x-api-key: csk_<key_id>.<secret>`
+
+Key model:
+
+- key prefix/id + secret pattern
+- secrets are stored as hashes (`secret_hash`), not plaintext
+- one-time secret display is supported by generation contracts in `charity_status/auth/service.py`
+- key is associated with `account_id` and `workspace_id`
+- key may include scopes/entitlements and plan assignment
+
+Plan model (initial):
+
+- `developer`: 250 requests/month
+- `starter`, `team`, `business`, `enterprise`: placeholder limits
+
+Quota enforcement:
+
+- deterministic monthly quota checks run before endpoint execution
+- usage is metered through auth/quota hooks and principal context abstraction
+- over-limit requests return `429`
+
+Terraform/env settings:
+
+- `api_auth_enabled`
+- `api_key_records_json`
+
+Local dev note:
+
+- keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
+- key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
+
 ### `GET /nonprofit/{ein}`
 
 Returns normalized organization + verification + scores + model + score explanation.

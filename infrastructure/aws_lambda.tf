@@ -132,6 +132,8 @@ resource "aws_lambda_function" "query" {
       BATCH_VERIFY_MAX_SIZE      = tostring(var.batch_verify_max_size)
       SEARCH_MAX_LIMIT           = tostring(var.search_max_limit)
       SEARCH_DEFAULT_LIMIT       = tostring(var.search_default_limit)
+      API_AUTH_ENABLED           = tostring(var.api_auth_enabled)
+      API_KEY_RECORDS_JSON       = var.api_key_records_json
     }
   }
 }

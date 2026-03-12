@@ -7,11 +7,20 @@ from collections import Counter
 from typing import Any
 
 from charity_status.api import error_response, json_response
+from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
-from charity_status.platform import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
+from charity_status.platform import (
+    ApiKeyAuthContextProvider,
+    ApiKeyQuotaMeteringHook,
+    QueryRuntimeConfig,
+    RefreshRuntimeConfig,
+    build_athena_client,
+    build_enrichment_service,
+    load_api_key_store,
+)
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
@@ -56,12 +65,15 @@ SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == 
 BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
 SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
 SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
+API_AUTH_ENABLED = os.environ.get("API_AUTH_ENABLED", "false").lower() == "true"
+API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
 profile_store: ProfileStoreAdapter | None = None
 auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
+usage_store: InMemoryUsageStore | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -129,21 +141,35 @@ def _get_profile_store() -> ProfileStoreAdapter | None:
 def _get_auth_context_provider() -> AuthContextProvider:
     global auth_context_provider
     if auth_context_provider is None:
-        auth_context_provider = NoopAuthContextProvider()
+        if API_AUTH_ENABLED:
+            auth_context_provider = ApiKeyAuthContextProvider(load_api_key_store(API_KEY_RECORDS_JSON))
+        else:
+            auth_context_provider = NoopAuthContextProvider()
     return auth_context_provider
 
 
 def _get_quota_metering_hook() -> QuotaMeteringHook:
-    global quota_metering_hook
+    global quota_metering_hook, usage_store
     if quota_metering_hook is None:
-        quota_metering_hook = NoopQuotaMeteringHook()
+        if API_AUTH_ENABLED:
+            usage_store = usage_store or InMemoryUsageStore()
+            quota_metering_hook = ApiKeyQuotaMeteringHook(usage_store=usage_store)
+        else:
+            quota_metering_hook = NoopQuotaMeteringHook()
     return quota_metering_hook
 
 
 def handler(event, context):
-    auth_context = _get_auth_context_provider().extract_context(event or {})
     route_key = _route_key(event or {})
-    _get_quota_metering_hook().on_request(auth_context, route_key)
+    try:
+        auth_context = _get_auth_context_provider().extract_context(event or {})
+        _get_quota_metering_hook().on_request(auth_context, route_key)
+    except AuthenticationError as exc:
+        return error_response(exc.status_code, str(exc))
+    except AuthorizationError as exc:
+        return error_response(exc.status_code, str(exc))
+    except QuotaExceededError as exc:
+        return error_response(exc.status_code, str(exc))
     method = (event.get("httpMethod") or "GET").upper()
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(event)

@@ -295,3 +295,16 @@ variable "search_default_limit" {
   type        = number
   default     = 20
 }
+
+variable "api_auth_enabled" {
+  description = "Enable API key authentication and quota enforcement on query endpoints."
+  type        = bool
+  default     = false
+}
+
+variable "api_key_records_json" {
+  description = "JSON array of API key records with key_id/secret_hash/account_id/workspace_id/scopes/plan_id/revoked."
+  type        = string
+  default     = "[]"
+  sensitive   = true
+}
