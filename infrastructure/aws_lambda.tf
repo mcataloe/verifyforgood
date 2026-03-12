@@ -260,8 +260,8 @@ resource "aws_lambda_function" "form990_ingest" {
   handler       = "lambda_form990.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
-  timeout       = 300
-  memory_size   = 1024
+  timeout       = var.form990_lambda_timeout_seconds
+  memory_size   = var.form990_lambda_memory_size_mb
 
   filename         = data.archive_file.form990_zip.output_path
   source_code_hash = data.archive_file.form990_zip.output_base64sha256
@@ -293,10 +293,108 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
       FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
+      FORM990_EXECUTION_MODE   = "inline"
+      FORM990_CHUNK_SIZE       = tostring(var.form990_chunk_size)
       OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX        = var.ops_metadata_prefix
     }
   }
+}
+
+resource "aws_sqs_queue" "form990_work_dlq" {
+  name                      = "irs-form990-work-dlq"
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue" "form990_work_queue" {
+  name                       = "irs-form990-work-queue"
+  visibility_timeout_seconds = var.form990_queue_visibility_timeout_seconds
+  message_retention_seconds  = 345600
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.form990_work_dlq.arn
+    maxReceiveCount     = var.form990_queue_max_receive_count
+  })
+}
+
+resource "aws_lambda_function" "form990_orchestrator" {
+  function_name = "irs_form990_orchestrator"
+  handler       = "lambda_form990_orchestrator.handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = var.form990_lambda_timeout_seconds
+  memory_size   = var.form990_lambda_memory_size_mb
+
+  filename         = data.archive_file.form990_zip.output_path
+  source_code_hash = data.archive_file.form990_zip.output_base64sha256
+
+  environment {
+    variables = {
+      BUCKET                    = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
+      FORM990_INDEX_URL         = var.form990_index_url
+      FORM990_INDEX_URLS        = var.form990_index_urls
+      FORM990_INDEX_FETCH_TIMEOUT_SECONDS = tostring(var.form990_index_fetch_timeout_seconds)
+      FORM990_DEFAULT_DOWNLOAD_RAW = tostring(var.form990_default_download_raw)
+      FORM990_RUN_MODE          = var.form990_run_mode
+      FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
+      FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
+      FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
+      FORM990_INCREMENTAL_YEAR_WINDOW = tostring(var.form990_incremental_year_window)
+      FORM990_RECONCILIATION_ENABLED = tostring(var.form990_reconciliation_enabled)
+      FORM990_RECONCILIATION_CADENCE_DAYS = tostring(var.form990_reconciliation_cadence_days)
+      FORM990_TARGET_YEARS      = var.form990_target_years
+      FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
+      FORM990_SOURCE_MODE       = var.form990_source_mode
+      FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
+      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
+      FORM990_EXECUTION_MODE    = var.form990_execution_mode
+      FORM990_CHUNK_SIZE        = tostring(var.form990_chunk_size)
+      FORM990_WORK_QUEUE_URL    = aws_sqs_queue.form990_work_queue.url
+      OPS_METADATA_BUCKET       = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX       = var.ops_metadata_prefix
+    }
+  }
+}
+
+resource "aws_lambda_function" "form990_worker" {
+  function_name = "irs_form990_worker"
+  handler       = "lambda_form990_worker.handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = var.form990_worker_timeout_seconds
+  memory_size   = var.form990_worker_memory_size_mb
+  reserved_concurrent_executions = var.form990_worker_reserved_concurrency > 0 ? var.form990_worker_reserved_concurrency : null
+
+  filename         = data.archive_file.form990_zip.output_path
+  source_code_hash = data.archive_file.form990_zip.output_base64sha256
+
+  environment {
+    variables = {
+      BUCKET                    = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
+      OPS_METADATA_BUCKET       = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX       = var.ops_metadata_prefix
+    }
+  }
+}
+
+resource "aws_lambda_event_source_mapping" "form990_worker_sqs" {
+  event_source_arn = aws_sqs_queue.form990_work_queue.arn
+  function_name    = aws_lambda_function.form990_worker.arn
+  batch_size       = var.form990_queue_batch_size
 }
 
 
@@ -349,17 +447,33 @@ resource "aws_cloudwatch_event_rule" "form990_schedule" {
 }
 
 resource "aws_cloudwatch_event_target" "form990_lambda_target" {
-  count     = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  count     = trim(var.form990_schedule_expression, " ") != "" && var.form990_execution_mode == "inline" ? 1 : 0
   rule      = aws_cloudwatch_event_rule.form990_schedule[0].name
   target_id = "form990-ingest"
   arn       = aws_lambda_function.form990_ingest.arn
 }
 
+resource "aws_cloudwatch_event_target" "form990_orchestrator_target" {
+  count     = trim(var.form990_schedule_expression, " ") != "" && var.form990_execution_mode == "orchestrated" ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.form990_schedule[0].name
+  target_id = "form990-orchestrator"
+  arn       = aws_lambda_function.form990_orchestrator.arn
+}
+
 resource "aws_lambda_permission" "allow_eventbridge_form990" {
-  count         = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  count         = trim(var.form990_schedule_expression, " ") != "" && var.form990_execution_mode == "inline" ? 1 : 0
   statement_id  = "AllowEventBridgeForm990"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.form990_ingest.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.form990_schedule[0].arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_form990_orchestrator" {
+  count         = trim(var.form990_schedule_expression, " ") != "" && var.form990_execution_mode == "orchestrated" ? 1 : 0
+  statement_id  = "AllowEventBridgeForm990Orchestrator"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.form990_orchestrator.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.form990_schedule[0].arn
 }

@@ -164,6 +164,66 @@ variable "form990_zip_max_xml_file_size_bytes" {
   default     = 20971520
 }
 
+variable "form990_lambda_timeout_seconds" {
+  description = "Timeout for the Form 990 ingest Lambda."
+  type        = number
+  default     = 900
+}
+
+variable "form990_lambda_memory_size_mb" {
+  description = "Memory size in MB for the Form 990 ingest Lambda."
+  type        = number
+  default     = 3072
+}
+
+variable "form990_execution_mode" {
+  description = "Form 990 execution mode: inline (single invocation) or orchestrated (SQS chunking)."
+  type        = string
+  default     = "inline"
+}
+
+variable "form990_chunk_size" {
+  description = "Chunk size for orchestrated Form 990 work items."
+  type        = number
+  default     = 250
+}
+
+variable "form990_worker_timeout_seconds" {
+  description = "Timeout for Form 990 worker Lambda."
+  type        = number
+  default     = 300
+}
+
+variable "form990_worker_memory_size_mb" {
+  description = "Memory size in MB for Form 990 worker Lambda."
+  type        = number
+  default     = 1024
+}
+
+variable "form990_worker_reserved_concurrency" {
+  description = "Reserved concurrency for Form 990 worker Lambda. Set 0 for unreserved."
+  type        = number
+  default     = 5
+}
+
+variable "form990_queue_visibility_timeout_seconds" {
+  description = "Visibility timeout for Form 990 SQS work queue."
+  type        = number
+  default     = 600
+}
+
+variable "form990_queue_max_receive_count" {
+  description = "Maximum receives before Form 990 work items move to DLQ."
+  type        = number
+  default     = 3
+}
+
+variable "form990_queue_batch_size" {
+  description = "SQS event source batch size for Form 990 worker."
+  type        = number
+  default     = 1
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

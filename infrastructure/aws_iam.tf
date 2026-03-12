@@ -33,6 +33,7 @@ resource "aws_iam_role_policy" "lambda_data_access" {
       {
         Action = [
           "s3:*",
+          "sqs:*",
           "athena:*",
           "glue:*"
         ]

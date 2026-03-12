@@ -151,6 +151,25 @@ Phase 10G ZIP discovery/reconciliation extension:
   - detect filing-level new/changed records via existing `irs_object_id + source_signature` manifest diff
   - unchanged filings are skipped
 
+Phase 10H parallel chunk processing:
+
+- execution modes:
+  - `inline` (existing single-invocation processing)
+  - `orchestrated` (SQS chunking + worker Lambdas)
+- orchestrated flow:
+  - orchestrator discovers/selects filings and writes chunk definitions to S3
+  - orchestrator enqueues chunk messages to SQS
+  - worker Lambda processes chunks in parallel
+  - per-run/per-chunk artifacts are persisted under:
+    - `ops/form990-runs/{run_id}/run.json`
+    - `ops/form990-runs/{run_id}/chunks/{chunk_id}.json`
+    - `ops/form990-runs/{run_id}/results/{chunk_id}.json`
+    - `ops/form990-runs/{run_id}/summary.json`
+- retries/failures:
+  - worker failures leave SQS messages unacked for retry
+  - after max receives, messages move to DLQ
+  - run metadata includes `chunk_status_counts` (`queued`, `running`, `succeeded`, `failed`, `dlq`)
+
 ## Phase 10E: Post-Ingest Incremental Refresh
 
 After 10D ingestion identifies and processes new/changed filings, post-ingest refresh can rebuild materialized nonprofit serving profiles only for affected EINs.
@@ -878,6 +897,14 @@ Form 990 mode configuration additions:
 - `form990_irs_downloads_page_url`: IRS discovery page URL
 - `form990_zip_fetch_timeout_seconds`: ZIP download timeout
 - `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit
+- `form990_execution_mode`: `inline` or `orchestrated`
+- `form990_chunk_size`: records per SQS chunk item
+- `form990_worker_timeout_seconds`: worker Lambda timeout
+- `form990_worker_memory_size_mb`: worker Lambda memory
+- `form990_worker_reserved_concurrency`: worker concurrency limit
+- `form990_queue_visibility_timeout_seconds`: SQS visibility timeout
+- `form990_queue_max_receive_count`: SQS retry attempts before DLQ
+- `form990_queue_batch_size`: SQS event source batch size for worker
 
 Lambda event examples:
 
@@ -899,6 +926,18 @@ IRS-page discovery mode:
   "target_years": ["2024"],
   "batch_size": 25,
   "limit": 50
+}
+```
+
+Orchestrated mode:
+
+```json
+{
+  "mode": "incremental",
+  "execution_mode": "orchestrated",
+  "source_mode": "irs_page",
+  "target_years": ["2024"],
+  "chunk_size": 250
 }
 ```
 

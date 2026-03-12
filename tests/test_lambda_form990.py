@@ -22,6 +22,15 @@ class FakeS3:
         return {"Body": _Body(body)}
 
 
+class FakeSQS:
+    def __init__(self):
+        self.messages = []
+
+    def send_message(self, QueueUrl, MessageBody):
+        self.messages.append({"QueueUrl": QueueUrl, "MessageBody": MessageBody})
+        return {"MessageId": str(len(self.messages))}
+
+
 class _Body:
     def __init__(self, value):
         self._value = value
@@ -303,3 +312,49 @@ def test_irs_page_source_mode_uses_zip_discovery(monkeypatch):
     assert result["statusCode"] == 200
     assert body["source_mode"] == "irs_page"
     assert body["processed_records"] == 1
+
+
+def test_orchestrated_mode_enqueues_chunks(monkeypatch):
+    fake_s3 = FakeS3()
+    fake_sqs = FakeSQS()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
+    monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
+    monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
+        module.IrsYearSource(
+            year="2024",
+            archive_name="irs-page-2024-2024_12a",
+            zip_url="https://example.org/2024.zip",
+            index_url="https://example.org/2024.csv",
+            source_page_url=page_url,
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature="sig",
+        )
+    ]
+    module.fetch_zip_records = lambda zip_url, source_year, source_archive, timeout_seconds=120, max_xml_file_size_bytes=20971520: [
+        (
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/1.xml",
+                source_year=source_year,
+                source_archive=source_archive,
+                source_signature="sig-1",
+            ),
+            b"<Return/>",
+        )
+    ]
+    result = module.handler({"mode": "bootstrap", "chunk_size": 1}, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["execution_mode"] == "orchestrated"
+    assert body["chunk_count"] == 1
+    assert len(fake_sqs.messages) == 1
