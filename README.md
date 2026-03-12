@@ -138,6 +138,7 @@ Hard rules:
 ## External Enrichments (Phase 5A)
 
 External enrichments are optional and source-attributed. Core verification/scoring still works using IRS EO/BMF + 990 data only.
+Current external source framework is explicitly scoped to U.S. nonprofits.
 
 Framework location:
 
@@ -145,6 +146,7 @@ Framework location:
 - `infrastructure/charity_status/enrichments/registry.py`
 - `infrastructure/charity_status/enrichments/service.py`
 - `infrastructure/charity_status/enrichments/providers/`
+- `infrastructure/charity_status/sources/`
 
 Included providers:
 
@@ -187,6 +189,35 @@ Configuration (Terraform variables):
 - `enrichment_timeout_seconds`
 - `enrichment_state_registry_enabled`
 - `enrichment_state_registry_mock_enabled`
+
+## U.S. Source Catalog (Phase 10A)
+
+The enrichment framework now includes a typed U.S.-only source catalog domain model that classifies external source capabilities and normalized source records.
+
+Source categories:
+
+- `identity`
+- `compliance`
+- `financial`
+- `federal_awards`
+- `risk`
+- `transparency`
+
+Typed source model components:
+
+- source metadata
+- normalized source records
+- source attribution
+- source freshness/retrieval timestamps
+- provider capability classification
+
+Provider extension guidance:
+
+- implement provider logic under `charity_status/enrichments/providers/`
+- expose provider capabilities via `capabilities()`
+- return normalized `source_records` alongside existing enrichment fields
+- keep provider-specific schemas out of business logic; map into normalized source records
+- keep U.S.-only behavior explicit unless a future phase expands scope
 
 Failure tolerance:
 

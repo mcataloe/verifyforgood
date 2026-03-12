@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from charity_status.enrichments.base import EnrichmentProvider
 from charity_status.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
+from charity_status.sources import ProviderCapability, SourceCategory
 
 
 class MockProvider(EnrichmentProvider):
@@ -14,6 +15,9 @@ class MockProvider(EnrichmentProvider):
 
     def is_enabled(self) -> bool:
         return self._enabled
+
+    def capabilities(self) -> list[ProviderCapability]:
+        return [ProviderCapability(provider_name=self.name, categories=[SourceCategory.IDENTITY], source_ids=["mock.profile"], us_only=True)]
 
     def lookup(self, ein: str, organization_name: str | None = None) -> EnrichmentProviderResult:
         if not self.is_enabled():
@@ -54,4 +58,21 @@ class MockProvider(EnrichmentProvider):
                 "licensed": False,
                 "notes": "Deterministic test provider",
             },
+            source_records=[
+                self.build_normalized_source_record(
+                    ein=ein,
+                    source_id="mock.profile",
+                    category=SourceCategory.IDENTITY,
+                    description="Deterministic mock profile source",
+                    fetched_at=fetched_at,
+                    fields={
+                        "transparency_level": "gold",
+                        "profile_complete": True,
+                        "external_rating_label": "A",
+                        "rating_score": 92,
+                    },
+                    record_id="mock-123",
+                )
+            ],
+            capabilities=[capability.to_dict() for capability in self.capabilities()],
         )

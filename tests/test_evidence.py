@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from charity_status.enrichments import EnrichmentService, ProviderRegistry
+from charity_status.enrichments.providers import MockProvider
 from charity_status.query.verification import VerificationInput, verify_nonprofit
 
 
@@ -106,3 +108,15 @@ def test_evidence_enrichment_failure_case():
     assert failure_factor["value"] == 1
     health_rule = [r for r in payload["evidence"]["rule_results"] if r["rule"] == "enrichment_provider_health"][0]
     assert health_rule["passed"] is False
+
+
+def test_evidence_flow_with_source_catalog_enrichment_payload():
+    service = EnrichmentService(ProviderRegistry([MockProvider(enabled=True)]))
+    status, payload = verify_nonprofit(
+        _client(),
+        VerificationInput(ein="123456789"),
+        enrichment_service=service,
+    )
+    assert status == 200
+    assert "source_catalog" in payload["enrichment"]
+    assert payload["evidence"]["model_version"] == payload["score_explanation"]["model_version"]

@@ -7,6 +7,7 @@ from typing import Any
 
 from charity_status.enrichments.base import EnrichmentProvider, ProviderError
 from charity_status.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
+from charity_status.sources import ProviderCapability, SourceCategory
 
 
 class CandidProvider(EnrichmentProvider):
@@ -22,6 +23,9 @@ class CandidProvider(EnrichmentProvider):
 
     def is_enabled(self) -> bool:
         return self._enabled and bool(self._api_key) and bool(self._endpoint)
+
+    def capabilities(self) -> list[ProviderCapability]:
+        return [ProviderCapability(provider_name=self.name, categories=[SourceCategory.TRANSPARENCY], source_ids=["candid.profile"], us_only=True)]
 
     def lookup(self, ein: str, organization_name: str | None = None) -> EnrichmentProviderResult:
         if not self.is_enabled():
@@ -46,6 +50,22 @@ class CandidProvider(EnrichmentProvider):
                 "licensed": True,
                 "notes": "Candid provider scaffold; fields depend on configured endpoint/schema",
             },
+            source_records=(
+                [
+                    self.build_normalized_source_record(
+                        ein=ein,
+                        source_id="candid.profile",
+                        category=SourceCategory.TRANSPARENCY,
+                        description="Candid profile source",
+                        fetched_at=fetched_at,
+                        fields=normalized,
+                        record_id=str(record_id) if record_id is not None else None,
+                    )
+                ]
+                if normalized
+                else []
+            ),
+            capabilities=[capability.to_dict() for capability in self.capabilities()],
         )
 
     def _fetch_raw(self, ein: str, organization_name: str | None) -> dict[str, Any]:

@@ -22,6 +22,8 @@ class EnrichmentProviderResult:
     fields: dict[str, Any]
     source_payload: dict[str, Any] | None
     source: dict[str, Any]
+    source_records: list[dict[str, Any]] | None = None
+    capabilities: list[dict[str, Any]] | None = None
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -31,6 +33,10 @@ class EnrichmentProviderResult:
             "fields": self.fields,
             "source": self.source,
         }
+        if self.source_records is not None:
+            payload["source_records"] = self.source_records
+        if self.capabilities is not None:
+            payload["capabilities"] = self.capabilities
         if self.error:
             payload["error"] = self.error
         if self.source_payload is not None:
@@ -42,12 +48,16 @@ class EnrichmentProviderResult:
 class EnrichmentAggregateResult:
     providers: list[EnrichmentProviderResult]
     failures: list[dict[str, str]]
+    source_catalog: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "providers": [provider.to_dict() for provider in self.providers],
             "failures": self.failures,
         }
+        if self.source_catalog is not None:
+            payload["source_catalog"] = self.source_catalog
+        return payload
 
 
 

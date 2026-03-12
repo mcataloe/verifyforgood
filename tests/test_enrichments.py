@@ -62,3 +62,21 @@ def test_enrichment_service_disabled_and_failure_fallback():
     assert any(item["status"] == "disabled" for item in data["providers"])
     assert any(item["status"] == "failed" for item in data["providers"])
     assert any(f["provider"] == "failing" for f in data["failures"])
+    assert data["source_catalog"]["us_only"] is True
+
+
+def test_enrichment_service_capability_discovery_and_backward_compatibility():
+    registry = ProviderRegistry([MockProvider(enabled=True)])
+    service = EnrichmentService(registry)
+
+    aggregate = service.enrich("123456789", "Test Org").to_dict()
+    assert "providers" in aggregate
+    assert "failures" in aggregate
+    assert "source_catalog" in aggregate
+    assert aggregate["providers"][0]["name"] == "mock_provider"
+    assert "fields" in aggregate["providers"][0]
+
+    discovered = service.discover_capabilities()
+    assert discovered["us_only"] is True
+    provider_names = [item["provider_name"] for item in discovered["provider_capabilities"]]
+    assert "mock_provider" in provider_names

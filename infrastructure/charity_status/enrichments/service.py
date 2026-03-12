@@ -3,6 +3,7 @@ from __future__ import annotations
 from charity_status.enrichments.base import ProviderError
 from charity_status.enrichments.models import EnrichmentAggregateResult, EnrichmentProviderResult, EnrichmentStatus
 from charity_status.enrichments.registry import ProviderRegistry
+from charity_status.sources import default_us_source_catalog
 
 
 class EnrichmentService:
@@ -12,6 +13,7 @@ class EnrichmentService:
     def enrich(self, ein: str, organization_name: str | None = None) -> EnrichmentAggregateResult:
         providers: list[EnrichmentProviderResult] = []
         failures: list[dict[str, str]] = []
+        capabilities = [capability for provider in self._registry.list_all() for capability in provider.capabilities()]
 
         for provider in self._registry.list_all():
             if not provider.is_enabled():
@@ -31,4 +33,9 @@ class EnrichmentService:
                 providers.append(provider.failure_result(safe_error))
                 failures.append({"provider": provider.name, "error": safe_error})
 
-        return EnrichmentAggregateResult(providers=providers, failures=failures)
+        catalog = default_us_source_catalog(capabilities).to_dict()
+        return EnrichmentAggregateResult(providers=providers, failures=failures, source_catalog=catalog)
+
+    def discover_capabilities(self) -> dict[str, object]:
+        capabilities = [capability for provider in self._registry.list_all() for capability in provider.capabilities()]
+        return default_us_source_catalog(capabilities).to_dict()
