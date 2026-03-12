@@ -219,6 +219,35 @@ Provider extension guidance:
 - keep provider-specific schemas out of business logic; map into normalized source records
 - keep U.S.-only behavior explicit unless a future phase expands scope
 
+## Public U.S. Source Adapters (Phase 10B)
+
+Phase 10B adds initial public U.S. source-family adapters (framework + deterministic mocks + scaffolded concrete adapter shapes):
+
+- state charity registry compliance
+- state business entity / secretary-of-state status
+- USAspending federal awards
+- OFAC sanctions screening
+
+Behavior:
+
+- source results are normalized into typed `source_records` with attribution/freshness metadata
+- provider capability metadata is exposed via the source catalog
+- provider failures/unavailable data remain non-fatal
+- existing enrichment payload shape remains backward compatible (`providers` + `failures` still present)
+
+Integration:
+
+- `evidence` now includes sanctions/federal-awards risk visibility factors
+- `policy` supports hooks such as sanctions match, minimum federal awards, and state business status filters
+- decision/audit risk context includes sanctions and state business status indicators where available
+
+Contributor guidance:
+
+- implement adapters behind provider interfaces (avoid leaking provider schema outside provider module)
+- map provider-specific fields into normalized source records
+- keep logic deterministic and U.S.-scoped in this phase
+- avoid scraping-heavy patterns unless isolated and explicitly justified
+
 Failure tolerance:
 
 - State registry provider failures/unavailable records do not fail core verification.
