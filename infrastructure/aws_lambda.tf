@@ -134,6 +134,8 @@ resource "aws_lambda_function" "query" {
       SEARCH_DEFAULT_LIMIT       = tostring(var.search_default_limit)
       API_AUTH_ENABLED           = tostring(var.api_auth_enabled)
       API_KEY_RECORDS_JSON       = var.api_key_records_json
+      OAUTH_M2M_ENABLED          = tostring(var.oauth_m2m_enabled)
+      OAUTH_TOKEN_RECORDS_JSON   = var.oauth_token_records_json
     }
   }
 }

@@ -430,6 +430,7 @@ API key auth is supported for server-to-server and developer workflows, designed
 Header:
 
 - `x-api-key: csk_<key_id>.<secret>`
+- `Authorization: Bearer <oauth_access_token>` (OAuth 2.1 client-credentials style M2M)
 
 Key model:
 
@@ -454,11 +455,20 @@ Terraform/env settings:
 
 - `api_auth_enabled`
 - `api_key_records_json`
+- `oauth_m2m_enabled`
+- `oauth_token_records_json`
 
 Local dev note:
 
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
 - key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
+- OAuth token record generation contract is available via `charity_status.auth.build_oauth_token_record`.
+
+Auth coexistence behavior:
+
+- when OAuth M2M is enabled, requests with `Authorization: Bearer ...` use OAuth token auth
+- otherwise requests fall back to API key auth (`x-api-key`)
+- both auth modes resolve to a shared principal/account/plan/scopes abstraction for consistent authorization and billing behavior
 
 ## Billing Domain Model (Phase 12B)
 

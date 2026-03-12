@@ -308,3 +308,16 @@ variable "api_key_records_json" {
   default     = "[]"
   sensitive   = true
 }
+
+variable "oauth_m2m_enabled" {
+  description = "Enable OAuth 2.1 style machine-to-machine bearer token authentication alongside API keys."
+  type        = bool
+  default     = false
+}
+
+variable "oauth_token_records_json" {
+  description = "JSON array of OAuth bearer token records with client_id/token_hash/account_id/workspace_id/scopes/plan_id/revoked."
+  type        = string
+  default     = "[]"
+  sensitive   = true
+}

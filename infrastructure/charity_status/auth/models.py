@@ -19,3 +19,12 @@ class ApiKeyPrincipal:
     workspace_id: str
     plan: ApiPlan
     scopes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OAuthClientPrincipal:
+    client_id: str
+    account_id: str
+    workspace_id: str
+    plan: ApiPlan
+    scopes: tuple[str, ...]

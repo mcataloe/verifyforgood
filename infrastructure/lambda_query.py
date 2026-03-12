@@ -14,12 +14,14 @@ from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.platform import (
     ApiKeyAuthContextProvider,
+    ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
     QueryRuntimeConfig,
     RefreshRuntimeConfig,
     build_athena_client,
     build_enrichment_service,
     load_api_key_store,
+    load_oauth_token_store,
 )
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
@@ -67,6 +69,8 @@ SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
 SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
 API_AUTH_ENABLED = os.environ.get("API_AUTH_ENABLED", "false").lower() == "true"
 API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
+OAUTH_M2M_ENABLED = os.environ.get("OAUTH_M2M_ENABLED", "false").lower() == "true"
+OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -142,7 +146,14 @@ def _get_auth_context_provider() -> AuthContextProvider:
     global auth_context_provider
     if auth_context_provider is None:
         if API_AUTH_ENABLED:
-            auth_context_provider = ApiKeyAuthContextProvider(load_api_key_store(API_KEY_RECORDS_JSON))
+            api_key_store = load_api_key_store(API_KEY_RECORDS_JSON)
+            if OAUTH_M2M_ENABLED:
+                auth_context_provider = ApiKeyOrOAuthAuthContextProvider(
+                    api_key_store=api_key_store,
+                    oauth_store=load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON),
+                )
+            else:
+                auth_context_provider = ApiKeyAuthContextProvider(api_key_store)
         else:
             auth_context_provider = NoopAuthContextProvider()
     return auth_context_provider
