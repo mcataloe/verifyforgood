@@ -102,6 +102,45 @@ Phase 10D ingestion orchestration:
   - latest filing-manifest state for deterministic incremental diffs
 - incremental default behavior focuses on current + previous year unless reconciliation over all years is explicitly enabled.
 
+## Phase 10E: Post-Ingest Incremental Refresh
+
+After 10D ingestion identifies and processes new/changed filings, post-ingest refresh can rebuild materialized nonprofit serving profiles only for affected EINs.
+
+Flow:
+
+1. ingest run produces `run_id`, `affected_eins`, and `affected_filing_ids`
+2. refresh orchestration links `ingest_run_id` to `refresh_run_id`
+3. for each affected EIN, canonical verification/scoring/evidence/policy pipeline recomputes profile
+4. materialized writer updates DynamoDB only when profile hash/version changed
+5. structured change events are emitted for materially changed profiles
+
+Run metadata includes:
+
+- `refresh_run_id`
+- `ingest_run_id`
+- `started_at` / `completed_at`
+- `affected_ein_count`
+- `refreshed_count`
+- `unchanged_count`
+- `failed_count`
+- `mode` / `environment`
+
+Per-EIN metadata includes:
+
+- `ein`
+- `trigger_reason`
+- `source_filing_ids`
+- `previous_profile_hash` / `new_profile_hash`
+- `changed`
+- `status`
+- `error` (when failed)
+
+Behavioral guarantees:
+
+- incremental: only affected EINs are refreshed
+- idempotent: unchanged reruns are recognized and skipped
+- failure isolation: one EIN failure does not fail entire refresh run
+
 Glue tables:
 
 - `form990_metadata`

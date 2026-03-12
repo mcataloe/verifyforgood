@@ -9,7 +9,13 @@ from charity_status.platform import QueryRuntimeConfig, RefreshRuntimeConfig, bu
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import VerificationInput, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
-from charity_status.serving import DynamoProfileStore, RefreshConfig, refresh_materialized_profiles
+from charity_status.serving import (
+    DynamoProfileStore,
+    PostIngestRefreshConfig,
+    RefreshConfig,
+    refresh_from_ingest_output,
+    refresh_materialized_profiles,
+)
 from charity_status.serving.change_detection import normalize_mode, parse_explicit_eins
 
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
@@ -122,6 +128,19 @@ def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
         return _response(500, {"message": "PROFILE_TABLE_NAME is required"})
 
     try:
+        if str(payload.get("mode") or "").strip().lower() == "post_ingest_refresh":
+            ingest_output = payload.get("ingest_output")
+            if not isinstance(ingest_output, dict):
+                return _response(400, {"message": "ingest_output object is required for post_ingest_refresh mode"})
+            result = refresh_from_ingest_output(
+                config=PostIngestRefreshConfig(environment=APP_ENV),
+                ingest_output=ingest_output,
+                store=_get_profile_store(),
+                profile_builder=_build_profile_for_ein,
+                refresh_run_id=(str(payload.get("refresh_run_id")).strip() if payload.get("refresh_run_id") else None),
+            )
+            return _response(200, result)
+
         result = refresh_materialized_profiles(
             config=config,
             explicit_eins=explicit_eins,

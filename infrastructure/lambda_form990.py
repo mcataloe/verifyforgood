@@ -182,6 +182,8 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "parsed_count": parsed,
         "failed_count": failed,
         "batch_count": batches,
+        "affected_eins": sorted({str(item.get("ein") or "").strip() for item in selected if str(item.get("ein") or "").strip()}),
+        "affected_filing_ids": _collect_filing_ids_by_ein(selected),
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
         "batches": batch_results,
         "archives": archive_summaries,
@@ -317,6 +319,19 @@ def _record_to_dict(record: Any) -> dict[str, Any]:
         "source_archive": record.source_archive,
         "source_signature": record.source_signature,
     }
+
+
+def _collect_filing_ids_by_ein(records: list[dict[str, Any]]) -> dict[str, list[str]]:
+    mapping: dict[str, set[str]] = {}
+    for row in records:
+        if not isinstance(row, dict):
+            continue
+        ein = str(row.get("ein") or "").strip()
+        filing_id = str(row.get("irs_object_id") or "").strip()
+        if not ein or not filing_id:
+            continue
+        mapping.setdefault(ein, set()).add(filing_id)
+    return {ein: sorted(values) for ein, values in mapping.items()}
 
 
 def _load_previous_manifest_entries(s3_client: Any) -> list[dict[str, Any]]:
