@@ -117,3 +117,22 @@ def test_ingest_unsupported_return_type_keeps_index_only():
 
     assert result.records[0]["parse_status"] == "unsupported_return_type"
     assert result.parsed_count == 0
+
+
+def test_parse_index_records_supports_irs_style_keys():
+    records = parse_index_records(
+        [
+            {
+                "EIN": "530196605",
+                "TaxYr": "2023",
+                "FilingDt": "2024-05-15",
+                "ReturnType": "990",
+                "ObjectId": "obj-arc-1",
+                "URL": "https://example.org/arc.xml",
+            }
+        ]
+    )
+    assert len(records) == 1
+    assert records[0].ein == "530196605"
+    assert records[0].tax_year == "2023"
+    assert records[0].return_type == "990"

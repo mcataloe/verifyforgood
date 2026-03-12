@@ -80,6 +80,12 @@ S3 prefixes (configurable via Terraform variables):
 - filing quality: `form990/normalized/quality/`
 - manifests: `form990/normalized/manifests/`
 
+Operational note:
+
+- `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
+- If neither explicit records nor index URLs are provided, the run is successful but processes `0` records.
+- Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
+
 Glue tables:
 
 - `form990_metadata`

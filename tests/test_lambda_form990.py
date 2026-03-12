@@ -67,3 +67,42 @@ def test_lambda_form990_json_body(monkeypatch):
 
     assert result["statusCode"] == 400
     assert "valid JSON" in body["message"]
+
+
+def test_lambda_form990_loads_records_from_index_url(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.fetch_index_payload = lambda url, timeout_seconds=60: [
+        {
+            "EIN": "123456789",
+            "TaxYr": "2023",
+            "FilingDt": "2024-05-15",
+            "ReturnType": "990",
+            "ObjectId": "obj-1",
+            "URL": "https://example.org/obj-1.xml",
+        }
+    ]
+
+    result = module.handler({"index_url": "https://example.org/index.json", "download_raw": False}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["records_processed"] == 1
+    assert body["records"][0]["ein"] == "123456789"
+
+
+def test_lambda_form990_index_filters_by_ein_and_limit(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.fetch_index_payload = lambda url, timeout_seconds=60: [
+        {"ein": "123456789", "tax_year": "2023", "return_type": "990"},
+        {"ein": "987654321", "tax_year": "2023", "return_type": "990"},
+    ]
+
+    result = module.handler(
+        {"index_url": "https://example.org/index.json", "download_raw": False, "eins": ["987654321"], "limit": 1},
+        None,
+    )
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["records_processed"] == 1
+    assert body["records"][0]["ein"] == "987654321"

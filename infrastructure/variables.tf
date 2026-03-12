@@ -56,6 +56,36 @@ variable "form990_relationships_prefix" {
   default     = "form990/normalized/relationships/"
 }
 
+variable "form990_index_url" {
+  description = "Optional Form 990 IRS index URL used when lambda_form990 is invoked without explicit records."
+  type        = string
+  default     = ""
+}
+
+variable "form990_index_urls" {
+  description = "Optional comma-delimited list of Form 990 IRS index URLs for fallback ingestion."
+  type        = string
+  default     = ""
+}
+
+variable "form990_index_fetch_timeout_seconds" {
+  description = "Timeout for Form 990 index URL fetches."
+  type        = number
+  default     = 60
+}
+
+variable "form990_default_download_raw" {
+  description = "Default raw XML download behavior for Form 990 ingest when download_raw is not explicitly provided."
+  type        = bool
+  default     = true
+}
+
+variable "form990_schedule_expression" {
+  description = "Optional EventBridge schedule expression for form990 ingest Lambda. Empty disables scheduling."
+  type        = string
+  default     = ""
+}
+
 variable "athena_workgroup_name" {
   description = "Athena workgroup name used for EO BMF queries."
   type        = string

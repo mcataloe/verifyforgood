@@ -268,6 +268,10 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
       FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
       FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
+      FORM990_INDEX_URL         = var.form990_index_url
+      FORM990_INDEX_URLS        = var.form990_index_urls
+      FORM990_INDEX_FETCH_TIMEOUT_SECONDS = tostring(var.form990_index_fetch_timeout_seconds)
+      FORM990_DEFAULT_DOWNLOAD_RAW = tostring(var.form990_default_download_raw)
     }
   }
 }
@@ -314,4 +318,25 @@ resource "aws_lambda_permission" "allow_eventbridge_refresh" {
   function_name = aws_lambda_function.refresh[0].function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.refresh_schedule[0].arn
+}
+
+resource "aws_cloudwatch_event_rule" "form990_schedule" {
+  count               = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  schedule_expression = var.form990_schedule_expression
+}
+
+resource "aws_cloudwatch_event_target" "form990_lambda_target" {
+  count     = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.form990_schedule[0].name
+  target_id = "form990-ingest"
+  arn       = aws_lambda_function.form990_ingest.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_form990" {
+  count         = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  statement_id  = "AllowEventBridgeForm990"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.form990_ingest.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.form990_schedule[0].arn
 }
