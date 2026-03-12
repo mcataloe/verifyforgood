@@ -460,6 +460,45 @@ Local dev note:
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
 - key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
 
+## Billing Domain Model (Phase 12B)
+
+Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/` (no external payment processor dependency yet).
+
+Core billing entities:
+
+- `Account` / `Workspace`
+- `SubscriptionPlan`
+- `EntitlementSet`
+- `UsageMeter`
+- `MonthlyQuotaPeriod`
+- overage-ready accounting fields (`included_units`, `overage_unit_price_usd_micros`)
+
+Default plans:
+
+- `developer` (250/month)
+- `starter`
+- `team`
+- `business`
+- `enterprise`
+
+Entitlement-driven feature gating:
+
+- batch verification
+- advanced source visibility
+- monitoring/change-event capability hooks
+- premium compliance/risk visibility
+
+Deterministic metering hooks:
+
+- single verification requests count as 1 unit
+- batch verification meters by `items[]` count
+- source visibility endpoints may consume higher unit weights
+
+External model remains simple:
+
+- API clients still see standard HTTP auth/quota behavior (`401`/`403`/`429`)
+- richer usage and overage accounting is internal/domain-ready for future billing processor integration
+
 ### `GET /nonprofit/{ein}`
 
 Returns normalized organization + verification + scores + model + score explanation.

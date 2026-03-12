@@ -11,6 +11,7 @@ from charity_status.auth import (
     enforce_quota_and_scope,
 )
 from charity_status.auth.models import ApiKeyPrincipal
+from charity_status.billing.service import DEFAULT_PLANS, check_quota_and_calculate, monthly_period_for
 from charity_status.core.models import AuthContext
 
 
@@ -36,15 +37,23 @@ class ApiKeyQuotaMeteringHook:
         auth_context.metadata["quota_month"] = month_key
 
     def on_response(self, auth_context: AuthContext, route_key: str, status_code: int) -> None:
-        del route_key
         if not auth_context.account_id:
             return
         if status_code >= 500:
             return
-        month_key = auth_context.metadata.get("quota_month")
+        month_key = auth_context.metadata.get("quota_month") or monthly_period_for()
         if not month_key:
             return
-        self._usage_store.increment(auth_context.account_id, month_key)
+        billable_units = _billable_units(route_key, auth_context.metadata)
+        if billable_units <= 0:
+            return
+        plan = DEFAULT_PLANS.get(str(auth_context.plan_id), DEFAULT_PLANS["developer"])
+        current = self._usage_store.get_usage(str(auth_context.account_id), month_key)
+        decision = check_quota_and_calculate(plan=plan, used_units=current, consumed_units=billable_units, period_key=month_key)
+        if decision.projected_usage > decision.limit_units:
+            return
+        for _ in range(billable_units):
+            self._usage_store.increment(str(auth_context.account_id), month_key)
 
 
 def load_api_key_store(raw_json: str) -> StaticApiKeyStore:
@@ -92,6 +101,20 @@ def _from_context(auth_context: AuthContext) -> ApiKeyPrincipal:
         key_id=str(auth_context.api_key_id),
         account_id=str(auth_context.account_id),
         workspace_id=str(auth_context.workspace_id),
-        plan=ApiPlan(plan_id=str(auth_context.plan_id), monthly_limit=DEFAULT_PLAN_LIMITS.get(str(auth_context.plan_id), 250)),
+        plan=ApiPlan(
+            plan_id=str(auth_context.plan_id),
+            monthly_limit=DEFAULT_PLAN_LIMITS.get(str(auth_context.plan_id), 250),
+            entitlements=DEFAULT_PLANS.get(str(auth_context.plan_id), DEFAULT_PLANS["developer"]).entitlements,
+        ),
         scopes=auth_context.scopes,
     )
+
+
+def _billable_units(route_key: str, metadata: dict[str, str]) -> int:
+    if route_key == "POST /verify/batch":
+        total = metadata.get("batch_items_count")
+        if total and str(total).isdigit():
+            return max(1, int(total))
+    if route_key.startswith("GET /nonprofits/{ein}/sources"):
+        return 2
+    return 1

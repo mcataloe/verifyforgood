@@ -134,3 +134,62 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     assert ok["statusCode"] == 200
     missing = module.handler({"httpMethod": "GET", "resource": "/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
     assert missing["statusCode"] == 401
+
+
+def test_entitlement_blocks_batch_for_developer(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:write"],
+        plan_id="developer",
+    )
+    monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
+    sys.modules.pop("infrastructure.lambda_query", None)
+    module = importlib.import_module("infrastructure.lambda_query")
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "headers": {"x-api-key": display_key},
+        "body": json.dumps({"items": [{"ein": "123456789"}]}),
+    }
+    response = module.handler(event, None)
+    assert response["statusCode"] == 403
+
+
+def test_batch_metering_counts_items_for_team_plan(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    display_key, record = build_api_key_record(
+        key_id="team_001",
+        secret="test-secret",
+        account_id="acct_2",
+        workspace_id="ws_2",
+        scopes=["verify:write"],
+        plan_id="team",
+    )
+    monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
+    sys.modules.pop("infrastructure.lambda_query", None)
+    module = importlib.import_module("infrastructure.lambda_query")
+    module.SERVING_DDB_ENABLED = False
+    module.athena_client = SimpleNamespace(
+        lookup_nonprofit=lambda ein, subsection=None: ("qid-1", {"ein": ein, "name": "X", "state": "IL", "status": "1", "deductibility": "1", "subsection": "03", "ntee_cd": "P20", "tax_period": "202501", "filing_req_cd": "1", "asset_amt": "", "income_amt": "", "revenue_amt": ""}),
+        lookup_form990_enrichment=lambda ein: ({}, {}, {}, {}),
+        lookup_peer_benchmark=lambda group: {"count": 0, "metrics": {}},
+        list_form990_filings=lambda ein, limit=10: ("qid-f", []),
+        search_nonprofits=lambda **kwargs: ("qid-s", []),
+    )
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    module.usage_store = InMemoryUsageStore()
+    event = {
+        "httpMethod": "POST",
+        "resource": "/verify/batch",
+        "path": "/verify/batch",
+        "headers": {"x-api-key": display_key},
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
+    }
+    response = module.handler(event, None)
+    assert response["statusCode"] == 200
+    assert sum(module.usage_store._usage.values()) == 2

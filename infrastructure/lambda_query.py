@@ -173,6 +173,13 @@ def handler(event, context):
     method = (event.get("httpMethod") or "GET").upper()
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(event)
+        try:
+            body = json.loads(response.get("body") or "{}")
+            total = ((body.get("batch_summary") or {}).get("total"))
+            if isinstance(total, int):
+                auth_context.metadata["batch_items_count"] = str(total)
+        except Exception:
+            pass
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
 

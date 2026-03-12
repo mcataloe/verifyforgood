@@ -4,18 +4,14 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from charity_status.auth.models import ApiKeyPrincipal, ApiPlan
+from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
 
 DEFAULT_PLAN_LIMITS: dict[str, int] = {
-    "developer": 250,
-    "starter": 1000,
-    "team": 10000,
-    "business": 100000,
-    "enterprise": 1000000,
+    key: plan.monthly_request_limit for key, plan in DEFAULT_PLANS.items()
 }
 
 ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
@@ -97,12 +93,13 @@ def authenticate_api_key(headers: dict[str, Any] | None, store: StaticApiKeyStor
         raise AuthenticationError("Invalid API key")
 
     limits = plan_limits or DEFAULT_PLAN_LIMITS
-    monthly_limit = limits.get(record.plan_id, limits["developer"])
+    resolved = DEFAULT_PLANS.get(record.plan_id, DEFAULT_PLANS["developer"])
+    monthly_limit = limits.get(record.plan_id, resolved.monthly_request_limit)
     return ApiKeyPrincipal(
         key_id=record.key_id,
         account_id=record.account_id,
         workspace_id=record.workspace_id,
-        plan=ApiPlan(plan_id=record.plan_id, monthly_limit=monthly_limit),
+        plan=ApiPlan(plan_id=record.plan_id, monthly_limit=monthly_limit, entitlements=resolved.entitlements),
         scopes=record.scopes,
     )
 
@@ -116,9 +113,17 @@ def enforce_quota_and_scope(
     if required_scope and required_scope not in principal.scopes:
         raise AuthorizationError("Insufficient scope for endpoint")
 
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    if not check_feature_entitlement(DEFAULT_PLANS.get(principal.plan.plan_id, DEFAULT_PLANS["developer"]), route_key):
+        raise AuthorizationError("Plan entitlement does not allow this endpoint")
+    month_key = monthly_period_for()
     used = usage_store.get_usage(principal.account_id, month_key)
-    if used >= principal.plan.monthly_limit:
+    decision = check_quota_and_calculate(
+        plan=DEFAULT_PLANS.get(principal.plan.plan_id, DEFAULT_PLANS["developer"]),
+        used_units=used,
+        consumed_units=1,
+        period_key=month_key,
+    )
+    if decision.projected_usage > decision.limit_units:
         raise QuotaExceededError("Monthly request quota exceeded")
     return month_key, used, principal.plan.monthly_limit
 
