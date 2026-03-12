@@ -11,6 +11,32 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
+## Public-Core Boundary (Phase 11A)
+
+Phase 11A introduces explicit separation boundaries so domain logic can remain canonical/open while deployment/platform wiring can be isolated.
+
+Core/domain modules (intended reusable/public surface):
+
+- `charity_status/query`, `charity_status/scoring`, `charity_status/decision`, `charity_status/evidence`, `charity_status/policy`
+- new core interfaces in `charity_status/core/`:
+  - `QueryRepository`
+  - `ProfileStoreAdapter`
+  - `EnrichmentProviderGateway`
+  - `AuthContextProvider`
+  - `QuotaMeteringHook`
+
+Platform/runtime wiring (environment/deployment concerns):
+
+- `charity_status/platform/runtime.py` builds concrete Athena and enrichment adapters from env/runtime config
+- Lambda entrypoints consume these boundaries while keeping handlers thin
+
+Contributor guidance:
+
+- Keep business rules and deterministic domain logic inside core/domain packages.
+- Keep provider/env/runtime selection in platform wiring modules.
+- Route handlers should orchestrate only; avoid source-specific or provider-specific business logic in handlers.
+- If adding auth/quotas, implement adapters behind `AuthContextProvider` and `QuotaMeteringHook` first, then inject.
+
 ## AWS Data Flow
 
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
@@ -581,6 +607,16 @@ pip install -r infrastructure/requirements-dev.txt
 ```bash
 python -m pytest -q
 ```
+
+### Local reference implementation (no Terraform required)
+
+Run the reference script to execute core verification flow with in-memory repository data:
+
+```bash
+python infrastructure/local_reference.py
+```
+
+This demonstrates local use of domain logic without Terraform, API Gateway, or Lambda deployment wiring.
 
 ## Terraform Deployment Notes
 

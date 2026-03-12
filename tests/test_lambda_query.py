@@ -628,3 +628,36 @@ def test_nonprofits_federal_awards_summary_response():
     assert result["statusCode"] == 200
     assert body["federal_awards"]["status"] == "available"
     assert body["federal_awards"]["award_count"] == 5
+
+
+def test_handler_invokes_auth_and_quota_hooks():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.athena_client = _mock_client(record=_sample_record("Hook Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    calls = []
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            calls.append(("auth", event.get("httpMethod")))
+            return SimpleNamespace(subject="anonymous", scopes=(), metadata={})
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            calls.append(("request", route_key, auth_context.subject))
+
+        def on_response(self, auth_context, route_key, status_code):
+            calls.append(("response", route_key, status_code))
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+
+    assert result["statusCode"] == 200
+    assert calls[0] == ("auth", "GET")
+    assert calls[1][0] == "request"
+    assert calls[-1][0] == "response"
+    assert calls[-1][2] == 200

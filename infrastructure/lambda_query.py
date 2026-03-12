@@ -7,28 +7,14 @@ from collections import Counter
 from typing import Any
 
 from charity_status.api import error_response, json_response
+from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
+from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
-from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import (
-    CandidProvider,
-    MockProvider,
-    OFACApiAdapter,
-    OFACMockProvider,
-    OFACProvider,
-    StateBusinessApiAdapter,
-    StateBusinessMockProvider,
-    StateBusinessProvider,
-    StateRegistryApiAdapter,
-    StateRegistryMockProvider,
-    StateRegistryProvider,
-    USAspendingApiAdapter,
-    USAspendingMockProvider,
-    USAspendingProvider,
-)
+from charity_status.platform import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
-from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from charity_status.query import VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
 from charity_status.query.source_views import (
     get_nonprofit_compliance_view,
     get_nonprofit_federal_awards_view,
@@ -71,75 +57,67 @@ BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
 SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
 SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
 
-athena_client: AthenaQueryClient | None = None
-enrichment_service: EnrichmentService | None = None
-profile_store: DynamoProfileStore | None = None
+athena_client: QueryRepository | None = None
+enrichment_service: EnrichmentProviderGateway | None = None
+profile_store: ProfileStoreAdapter | None = None
+auth_context_provider: AuthContextProvider | None = None
+quota_metering_hook: QuotaMeteringHook | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def _get_athena_client() -> AthenaQueryClient:
+def _get_athena_client() -> QueryRepository:
     global athena_client
     if athena_client is None:
-        athena_client = AthenaQueryClient(
-            database=DATABASE,
-            table=TABLE,
-            workgroup=WORKGROUP,
-            form990_filings_table=FORM990_FILINGS_TABLE,
-            form990_metrics_table=FORM990_METRICS_TABLE,
-            form990_governance_table=FORM990_GOVERNANCE_TABLE,
-            form990_quality_table=FORM990_QUALITY_TABLE,
+        athena_client = build_athena_client(
+            QueryRuntimeConfig(
+                database=DATABASE,
+                table=TABLE,
+                workgroup=WORKGROUP,
+                form990_filings_table=FORM990_FILINGS_TABLE,
+                form990_metrics_table=FORM990_METRICS_TABLE,
+                form990_governance_table=FORM990_GOVERNANCE_TABLE,
+                form990_quality_table=FORM990_QUALITY_TABLE,
+            )
         )
     return athena_client
 
 
-def _get_enrichment_service() -> EnrichmentService:
+def _get_enrichment_service() -> EnrichmentProviderGateway:
     global enrichment_service
     if enrichment_service is None:
-        registry = ProviderRegistry(
-            providers=[
-                MockProvider(enabled=ENRICHMENT_MOCK_ENABLED),
-                CandidProvider(
-                    enabled=ENRICHMENT_CANDID_ENABLED,
-                    api_key=ENRICHMENT_CANDID_API_KEY,
-                    endpoint=ENRICHMENT_CANDID_ENDPOINT,
-                    timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
-                ),
-                StateRegistryProvider(
-                    enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
-                    adapter=StateRegistryApiAdapter(ENRICHMENT_STATE_REGISTRY_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_STATE_REGISTRY_ENABLED and ENRICHMENT_STATE_REGISTRY_ENDPOINT
-                    else None,
-                ),
-                StateRegistryMockProvider(enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED),
-                StateBusinessProvider(
-                    enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
-                    adapter=StateBusinessApiAdapter(ENRICHMENT_STATE_BUSINESS_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_STATE_BUSINESS_ENABLED and ENRICHMENT_STATE_BUSINESS_ENDPOINT
-                    else None,
-                ),
-                StateBusinessMockProvider(enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED),
-                USAspendingProvider(
-                    enabled=ENRICHMENT_USASPENDING_ENABLED,
-                    adapter=USAspendingApiAdapter(ENRICHMENT_USASPENDING_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_USASPENDING_ENABLED and ENRICHMENT_USASPENDING_ENDPOINT
-                    else None,
-                ),
-                USAspendingMockProvider(enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED),
-                OFACProvider(
-                    enabled=ENRICHMENT_OFAC_ENABLED,
-                    adapter=OFACApiAdapter(ENRICHMENT_OFAC_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_OFAC_ENABLED and ENRICHMENT_OFAC_ENDPOINT
-                    else None,
-                ),
-                OFACMockProvider(enabled=ENRICHMENT_OFAC_MOCK_ENABLED),
-            ]
+        enrichment_service = build_enrichment_service(
+            RefreshRuntimeConfig(
+                database=DATABASE,
+                table=TABLE,
+                workgroup=WORKGROUP,
+                form990_filings_table=FORM990_FILINGS_TABLE,
+                form990_metrics_table=FORM990_METRICS_TABLE,
+                form990_governance_table=FORM990_GOVERNANCE_TABLE,
+                form990_quality_table=FORM990_QUALITY_TABLE,
+                enrichment_mock_enabled=ENRICHMENT_MOCK_ENABLED,
+                enrichment_candid_enabled=ENRICHMENT_CANDID_ENABLED,
+                enrichment_candid_api_key=ENRICHMENT_CANDID_API_KEY,
+                enrichment_candid_endpoint=ENRICHMENT_CANDID_ENDPOINT,
+                enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                enrichment_state_registry_enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
+                enrichment_state_registry_mock_enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED,
+                enrichment_state_registry_endpoint=ENRICHMENT_STATE_REGISTRY_ENDPOINT,
+                enrichment_state_business_enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
+                enrichment_state_business_mock_enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED,
+                enrichment_state_business_endpoint=ENRICHMENT_STATE_BUSINESS_ENDPOINT,
+                enrichment_usaspending_enabled=ENRICHMENT_USASPENDING_ENABLED,
+                enrichment_usaspending_mock_enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED,
+                enrichment_usaspending_endpoint=ENRICHMENT_USASPENDING_ENDPOINT,
+                enrichment_ofac_enabled=ENRICHMENT_OFAC_ENABLED,
+                enrichment_ofac_mock_enabled=ENRICHMENT_OFAC_MOCK_ENABLED,
+                enrichment_ofac_endpoint=ENRICHMENT_OFAC_ENDPOINT,
+            )
         )
-        enrichment_service = EnrichmentService(registry=registry)
     return enrichment_service
 
 
-def _get_profile_store() -> DynamoProfileStore | None:
+def _get_profile_store() -> ProfileStoreAdapter | None:
     global profile_store
     if not SERVING_DDB_ENABLED or not PROFILE_TABLE_NAME:
         return None
@@ -148,10 +126,29 @@ def _get_profile_store() -> DynamoProfileStore | None:
     return profile_store
 
 
+def _get_auth_context_provider() -> AuthContextProvider:
+    global auth_context_provider
+    if auth_context_provider is None:
+        auth_context_provider = NoopAuthContextProvider()
+    return auth_context_provider
+
+
+def _get_quota_metering_hook() -> QuotaMeteringHook:
+    global quota_metering_hook
+    if quota_metering_hook is None:
+        quota_metering_hook = NoopQuotaMeteringHook()
+    return quota_metering_hook
+
+
 def handler(event, context):
+    auth_context = _get_auth_context_provider().extract_context(event or {})
+    route_key = _route_key(event or {})
+    _get_quota_metering_hook().on_request(auth_context, route_key)
     method = (event.get("httpMethod") or "GET").upper()
     if method == "POST" and _is_batch_verify_request(event):
-        return _handle_batch_verify(event)
+        response = _handle_batch_verify(event)
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
 
     try:
         if method == "POST":
@@ -166,7 +163,9 @@ def handler(event, context):
     try:
         if _is_search_request(event, method):
             status_code, payload = _handle_search_request(event)
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
 
         normalized_ein = normalize_ein(verification_input.ein)
         if _is_sources_list_request(event, method):
@@ -176,7 +175,9 @@ def handler(event, context):
                 normalized_ein,
                 subsection=verification_input.subsection,
             )
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
         if _is_sources_detail_request(event, method):
             source_name = _extract_source_name(event)
             status_code, payload = get_nonprofit_single_source_view(
@@ -186,7 +187,9 @@ def handler(event, context):
                 source_name=source_name,
                 subsection=verification_input.subsection,
             )
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
         if _is_compliance_request(event, method):
             status_code, payload = get_nonprofit_compliance_view(
                 _get_athena_client(),
@@ -194,7 +197,9 @@ def handler(event, context):
                 normalized_ein,
                 subsection=verification_input.subsection,
             )
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
         if _is_federal_awards_request(event, method):
             status_code, payload = get_nonprofit_federal_awards_view(
                 _get_athena_client(),
@@ -202,16 +207,22 @@ def handler(event, context):
                 normalized_ein,
                 subsection=verification_input.subsection,
             )
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
 
         if _is_filings_request(event, method):
             status_code, payload = get_nonprofit_filings(_get_athena_client(), normalized_ein)
-            return json_response(status_code, payload)
+            response = json_response(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
 
         if method == "GET":
             cached = _load_cached_profile(normalized_ein)
             if cached is not None:
-                return json_response(200, cached)
+                response = json_response(200, cached)
+                _get_quota_metering_hook().on_response(auth_context, route_key, 200)
+                return response
 
         verification_input = VerificationInput(
             ein=normalized_ein,
@@ -227,19 +238,31 @@ def handler(event, context):
         )
         if status_code == 200 and method == "GET":
             _materialize_profile(normalized_ein, payload)
-        return json_response(status_code, payload)
+        response = json_response(status_code, payload)
+        _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+        return response
     except EINValidationError as exc:
-        return error_response(400, str(exc))
+        response = error_response(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
     except ValueError as exc:
-        return error_response(400, str(exc))
+        response = error_response(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
     except AthenaQueryTimeout as exc:
-        return json_response(504, {"message": str(exc)})
+        response = json_response(504, {"message": str(exc)})
+        _get_quota_metering_hook().on_response(auth_context, route_key, 504)
+        return response
     except AthenaQueryError:
         logger.exception("Athena query error")
-        return error_response(500, "Internal server error")
+        response = error_response(500, "Internal server error")
+        _get_quota_metering_hook().on_response(auth_context, route_key, 500)
+        return response
     except Exception:
         logger.exception("Unhandled exception in lambda_query handler")
-        return error_response(500, "Internal server error")
+        response = error_response(500, "Internal server error")
+        _get_quota_metering_hook().on_response(auth_context, route_key, 500)
+        return response
 
 
 def _parse_get_request(event: dict) -> VerificationInput:
@@ -252,6 +275,13 @@ def _parse_get_request(event: dict) -> VerificationInput:
         policy_id=None,
         weighting_profile=(query_params.get("weighting_profile") if query_params else None),
     )
+
+
+def _route_key(event: dict[str, Any]) -> str:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return f"{method} {resource or path or '/'}"
 
 
 def _parse_post_request(event: dict) -> VerificationInput:

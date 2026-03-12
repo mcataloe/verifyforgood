@@ -4,25 +4,10 @@ import json
 import os
 from typing import Any
 
-from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import (
-    CandidProvider,
-    MockProvider,
-    OFACApiAdapter,
-    OFACMockProvider,
-    OFACProvider,
-    StateBusinessApiAdapter,
-    StateBusinessMockProvider,
-    StateBusinessProvider,
-    StateRegistryApiAdapter,
-    StateRegistryMockProvider,
-    StateRegistryProvider,
-    USAspendingApiAdapter,
-    USAspendingMockProvider,
-    USAspendingProvider,
-)
+from charity_status.core.interfaces import EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository
+from charity_status.platform import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
 from charity_status.normalization import EINValidationError, normalize_ein
-from charity_status.query import AthenaQueryClient, VerificationInput, verify_nonprofit
+from charity_status.query import VerificationInput, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, RefreshConfig, refresh_materialized_profiles
 from charity_status.serving.change_detection import normalize_mode, parse_explicit_eins
@@ -64,73 +49,63 @@ BOOTSTRAP_NONPROD_OVERRIDE = os.environ.get("BOOTSTRAP_NONPROD_OVERRIDE", "false
 BOOTSTRAP_START_AFTER_EIN = os.environ.get("BOOTSTRAP_START_AFTER_EIN")
 BOOTSTRAP_MAX_BATCHES_PER_RUN = int(os.environ.get("BOOTSTRAP_MAX_BATCHES_PER_RUN", "0"))
 
-athena_client: AthenaQueryClient | None = None
-enrichment_service: EnrichmentService | None = None
-profile_store: DynamoProfileStore | None = None
+athena_client: QueryRepository | None = None
+enrichment_service: EnrichmentProviderGateway | None = None
+profile_store: ProfileStoreAdapter | None = None
 
 
-def _get_athena_client() -> AthenaQueryClient:
+def _get_athena_client() -> QueryRepository:
     global athena_client
     if athena_client is None:
-        athena_client = AthenaQueryClient(
-            database=DATABASE,
-            table=TABLE,
-            workgroup=WORKGROUP,
-            form990_filings_table=FORM990_FILINGS_TABLE,
-            form990_metrics_table=FORM990_METRICS_TABLE,
-            form990_governance_table=FORM990_GOVERNANCE_TABLE,
-            form990_quality_table=FORM990_QUALITY_TABLE,
+        athena_client = build_athena_client(
+            QueryRuntimeConfig(
+                database=DATABASE,
+                table=TABLE,
+                workgroup=WORKGROUP,
+                form990_filings_table=FORM990_FILINGS_TABLE,
+                form990_metrics_table=FORM990_METRICS_TABLE,
+                form990_governance_table=FORM990_GOVERNANCE_TABLE,
+                form990_quality_table=FORM990_QUALITY_TABLE,
+            )
         )
     return athena_client
 
 
-def _get_enrichment_service() -> EnrichmentService:
+def _get_enrichment_service() -> EnrichmentProviderGateway:
     global enrichment_service
     if enrichment_service is None:
-        registry = ProviderRegistry(
-            providers=[
-                MockProvider(enabled=ENRICHMENT_MOCK_ENABLED),
-                CandidProvider(
-                    enabled=ENRICHMENT_CANDID_ENABLED,
-                    api_key=ENRICHMENT_CANDID_API_KEY,
-                    endpoint=ENRICHMENT_CANDID_ENDPOINT,
-                    timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
-                ),
-                StateRegistryProvider(
-                    enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
-                    adapter=StateRegistryApiAdapter(ENRICHMENT_STATE_REGISTRY_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_STATE_REGISTRY_ENABLED and ENRICHMENT_STATE_REGISTRY_ENDPOINT
-                    else None,
-                ),
-                StateRegistryMockProvider(enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED),
-                StateBusinessProvider(
-                    enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
-                    adapter=StateBusinessApiAdapter(ENRICHMENT_STATE_BUSINESS_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_STATE_BUSINESS_ENABLED and ENRICHMENT_STATE_BUSINESS_ENDPOINT
-                    else None,
-                ),
-                StateBusinessMockProvider(enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED),
-                USAspendingProvider(
-                    enabled=ENRICHMENT_USASPENDING_ENABLED,
-                    adapter=USAspendingApiAdapter(ENRICHMENT_USASPENDING_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_USASPENDING_ENABLED and ENRICHMENT_USASPENDING_ENDPOINT
-                    else None,
-                ),
-                USAspendingMockProvider(enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED),
-                OFACProvider(
-                    enabled=ENRICHMENT_OFAC_ENABLED,
-                    adapter=OFACApiAdapter(ENRICHMENT_OFAC_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
-                    if ENRICHMENT_OFAC_ENABLED and ENRICHMENT_OFAC_ENDPOINT
-                    else None,
-                ),
-                OFACMockProvider(enabled=ENRICHMENT_OFAC_MOCK_ENABLED),
-            ]
+        enrichment_service = build_enrichment_service(
+            RefreshRuntimeConfig(
+                database=DATABASE,
+                table=TABLE,
+                workgroup=WORKGROUP,
+                form990_filings_table=FORM990_FILINGS_TABLE,
+                form990_metrics_table=FORM990_METRICS_TABLE,
+                form990_governance_table=FORM990_GOVERNANCE_TABLE,
+                form990_quality_table=FORM990_QUALITY_TABLE,
+                enrichment_mock_enabled=ENRICHMENT_MOCK_ENABLED,
+                enrichment_candid_enabled=ENRICHMENT_CANDID_ENABLED,
+                enrichment_candid_api_key=ENRICHMENT_CANDID_API_KEY,
+                enrichment_candid_endpoint=ENRICHMENT_CANDID_ENDPOINT,
+                enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                enrichment_state_registry_enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
+                enrichment_state_registry_mock_enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED,
+                enrichment_state_registry_endpoint=ENRICHMENT_STATE_REGISTRY_ENDPOINT,
+                enrichment_state_business_enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
+                enrichment_state_business_mock_enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED,
+                enrichment_state_business_endpoint=ENRICHMENT_STATE_BUSINESS_ENDPOINT,
+                enrichment_usaspending_enabled=ENRICHMENT_USASPENDING_ENABLED,
+                enrichment_usaspending_mock_enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED,
+                enrichment_usaspending_endpoint=ENRICHMENT_USASPENDING_ENDPOINT,
+                enrichment_ofac_enabled=ENRICHMENT_OFAC_ENABLED,
+                enrichment_ofac_mock_enabled=ENRICHMENT_OFAC_MOCK_ENABLED,
+                enrichment_ofac_endpoint=ENRICHMENT_OFAC_ENDPOINT,
+            )
         )
-        enrichment_service = EnrichmentService(registry=registry)
     return enrichment_service
 
 
-def _get_profile_store() -> DynamoProfileStore:
+def _get_profile_store() -> ProfileStoreAdapter:
     global profile_store
     if profile_store is None:
         profile_store = DynamoProfileStore(table_name=PROFILE_TABLE_NAME)
