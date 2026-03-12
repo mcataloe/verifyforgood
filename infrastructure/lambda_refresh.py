@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
+import boto3
 from charity_status.core.interfaces import EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository
+from charity_status.ops import S3RunStore
 from charity_status.platform import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import VerificationInput, verify_nonprofit
@@ -54,6 +57,8 @@ REFRESH_EINS_CSV = os.environ.get("REFRESH_EINS_CSV", "")
 BOOTSTRAP_NONPROD_OVERRIDE = os.environ.get("BOOTSTRAP_NONPROD_OVERRIDE", "false").lower() == "true"
 BOOTSTRAP_START_AFTER_EIN = os.environ.get("BOOTSTRAP_START_AFTER_EIN")
 BOOTSTRAP_MAX_BATCHES_PER_RUN = int(os.environ.get("BOOTSTRAP_MAX_BATCHES_PER_RUN", "0"))
+OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
+OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -139,6 +144,7 @@ def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
                 profile_builder=_build_profile_for_ein,
                 refresh_run_id=(str(payload.get("refresh_run_id")).strip() if payload.get("refresh_run_id") else None),
             )
+            _persist_refresh_ops_run(result)
             return _response(200, result)
 
         result = refresh_materialized_profiles(
@@ -150,6 +156,7 @@ def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
             source_page_fetcher=_source_population_page,
             bootstrap_start_after=_bootstrap_start_cursor(payload),
         )
+        _persist_refresh_ops_run(_normalize_refresh_result(result))
         return _response(200, result)
     except (ValueError, EINValidationError) as exc:
         return _response(400, {"message": str(exc)})
@@ -226,4 +233,47 @@ def _response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body),
+    }
+
+
+def _persist_refresh_ops_run(result: dict[str, Any]) -> None:
+    if not OPS_METADATA_BUCKET:
+        return
+    run_id = str(result.get("refresh_run_id") or f"refresh_{result.get('mode')}_{result.get('started_at') or ''}")
+    s3 = boto3.client("s3")
+    store = S3RunStore(bucket=OPS_METADATA_BUCKET, prefix=OPS_METADATA_PREFIX, s3_client=s3)
+    summary = {
+        "refresh_run_id": run_id,
+        "source_ingest_run_id": result.get("ingest_run_id"),
+        "started_at": result.get("started_at"),
+        "completed_at": result.get("completed_at"),
+        "status": result.get("status") or ("completed_with_errors" if int(result.get("failed_count") or 0) > 0 else "completed"),
+        "affected_ein_count": result.get("affected_ein_count") or result.get("selected") or result.get("total_seen") or 0,
+        "refreshed_count": result.get("refreshed_count") or result.get("written") or result.get("updated") or 0,
+        "unchanged_count": result.get("unchanged_count") or result.get("skipped") or 0,
+        "failed_count": result.get("failed_count") or result.get("failed") or 0,
+        "materialized_profiles_updated": result.get("refreshed_count") or result.get("written") or 0,
+        "change_events_emitted": len(result.get("change_events") or []),
+        "safe_error_summary": {"count": len(result.get("errors") or []), "samples": (result.get("errors") or [])[:10]},
+        "mode": result.get("mode"),
+    }
+    store.write_refresh_run(run_id, summary)
+    eins = result.get("results") or []
+    if isinstance(eins, list):
+        store.write_refresh_eins(run_id, [item for item in eins if isinstance(item, dict)])
+
+
+def _normalize_refresh_result(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "refresh_run_id": result.get("refresh_run_id") or f"refresh_{(result.get('mode') or 'run')}_{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}",
+        "started_at": result.get("started_at"),
+        "completed_at": result.get("completed_at"),
+        "status": result.get("status"),
+        "mode": result.get("mode"),
+        "selected": result.get("selected"),
+        "written": result.get("written"),
+        "skipped": result.get("skipped"),
+        "failed": result.get("failed"),
+        "change_events": result.get("change_events") or [],
+        "errors": result.get("errors") or [],
     }

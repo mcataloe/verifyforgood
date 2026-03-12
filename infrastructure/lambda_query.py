@@ -6,6 +6,7 @@ import os
 from collections import Counter
 from typing import Any
 
+import boto3
 from charity_status.api import error_response, json_response
 from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
@@ -26,6 +27,15 @@ from charity_status.platform import (
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from charity_status.query.ops_views import (
+    get_ingest_run,
+    get_ingest_run_filings,
+    get_nonprofit_pipeline_status,
+    get_refresh_run,
+    get_refresh_run_eins,
+    list_ingest_runs,
+    list_refresh_runs,
+)
 from charity_status.query.source_views import (
     get_nonprofit_compliance_view,
     get_nonprofit_federal_awards_view,
@@ -71,6 +81,8 @@ API_AUTH_ENABLED = os.environ.get("API_AUTH_ENABLED", "false").lower() == "true"
 API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
 OAUTH_M2M_ENABLED = os.environ.get("OAUTH_M2M_ENABLED", "false").lower() == "true"
 OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
+OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
+OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -78,6 +90,7 @@ profile_store: ProfileStoreAdapter | None = None
 auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: InMemoryUsageStore | None = None
+ops_run_store: Any | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -170,6 +183,15 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
     return quota_metering_hook
 
 
+def _get_ops_run_store() -> Any | None:
+    global ops_run_store
+    if not OPS_METADATA_BUCKET:
+        return None
+    if ops_run_store is None:
+        ops_run_store = S3RunStore(bucket=OPS_METADATA_BUCKET, prefix=OPS_METADATA_PREFIX, s3_client=boto3.client("s3"))
+    return ops_run_store
+
+
 def handler(event, context):
     route_key = _route_key(event or {})
     try:
@@ -182,6 +204,11 @@ def handler(event, context):
     except QuotaExceededError as exc:
         return error_response(exc.status_code, str(exc))
     method = (event.get("httpMethod") or "GET").upper()
+    if _is_ops_request(event, method):
+        status_code, payload = _handle_ops_request(event)
+        response = json_response(status_code, payload)
+        _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+        return response
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(event)
         try:
@@ -383,6 +410,44 @@ def _is_batch_verify_request(event: dict) -> bool:
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
     return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
+
+
+def _is_ops_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.startswith("/ops/") or path.startswith("/ops/")
+
+
+def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
+    run_store = _get_ops_run_store()
+    if run_store is None:
+        return 503, {"message": "Operational run store not configured"}
+    resource = str(event.get("resource") or "")
+    path_params = event.get("pathParameters") or {}
+    query = event.get("queryStringParameters") or {}
+    try:
+        limit = int(str(query.get("limit"))) if query.get("limit") else 50
+    except ValueError:
+        return 400, {"message": "limit must be an integer"}
+
+    if resource.endswith("/ops/ingest/runs"):
+        return list_ingest_runs(run_store, limit=limit)
+    if resource.endswith("/ops/ingest/runs/{ingest_run_id}"):
+        return get_ingest_run(run_store, str(path_params.get("ingest_run_id") or ""))
+    if resource.endswith("/ops/ingest/runs/{ingest_run_id}/filings"):
+        return get_ingest_run_filings(run_store, str(path_params.get("ingest_run_id") or ""))
+    if resource.endswith("/ops/refresh/runs"):
+        return list_refresh_runs(run_store, limit=limit)
+    if resource.endswith("/ops/refresh/runs/{refresh_run_id}"):
+        return get_refresh_run(run_store, str(path_params.get("refresh_run_id") or ""))
+    if resource.endswith("/ops/refresh/runs/{refresh_run_id}/eins"):
+        return get_refresh_run_eins(run_store, str(path_params.get("refresh_run_id") or ""))
+    if resource.endswith("/ops/nonprofits/{ein}/pipeline-status"):
+        ein = str(path_params.get("ein") or "")
+        return get_nonprofit_pipeline_status(run_store, _get_profile_store(), ein)
+    return 404, {"message": "Ops route not found"}
 
 
 def _is_sources_list_request(event: dict, method: str) -> bool:
@@ -638,3 +703,4 @@ def _materialize_profile(ein: str, payload: dict) -> None:
         source_data_versions=source_versions,
     )
     MaterializedProfileWriter(store).write_if_needed(ein=ein, item=item)
+from charity_status.ops import S3RunStore

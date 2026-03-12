@@ -43,6 +43,7 @@ api_auth_enabled          = false
 api_key_records_json      = "[]"
 oauth_m2m_enabled         = false
 oauth_token_records_json  = "[]"
+ops_metadata_prefix       = "ops/"
 serving_dynamodb_enabled   = true
 refresh_lambda_enabled     = true
 refresh_mode               = "refresh_changed"

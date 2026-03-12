@@ -345,3 +345,9 @@ variable "oauth_token_records_json" {
   default     = "[]"
   sensitive   = true
 }
+
+variable "ops_metadata_prefix" {
+  description = "S3 prefix for operational ingest/refresh run metadata and diagnostics."
+  type        = string
+  default     = "ops/"
+}

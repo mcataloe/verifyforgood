@@ -5,10 +5,12 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+import boto3
 from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import discover_archives, fetch_index_records
 from charity_status.form990.manifest import diff_manifest_entries, to_manifest_entries
+from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_manifest_key, filing_manifest_key, state_manifest_key
 
 BUCKET = os.environ.get("BUCKET")
@@ -27,6 +29,8 @@ FORM990_RUN_MODE = os.environ.get("FORM990_RUN_MODE", "incremental").strip().low
 FORM990_BATCH_SIZE = int(os.environ.get("FORM990_BATCH_SIZE", "100"))
 FORM990_RETRY_COUNT = int(os.environ.get("FORM990_RETRY_COUNT", "2"))
 FORM990_SOURCE_CATALOG_JSON = os.environ.get("FORM990_SOURCE_CATALOG_JSON", "").strip()
+OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
+OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
 
 def handler(event, context):
@@ -168,7 +172,8 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         Key=state_manifest_key(MANIFEST_PREFIX),
         Body=json.dumps({"run_id": run_id, "entries": to_manifest_entries(all_records)}, sort_keys=True).encode("utf-8"),
     )
-    return {
+    status = "success" if failed == 0 else ("partial_success" if processed > 0 else "failed")
+    response = {
         "status": "success",
         "mode": mode,
         "run_id": run_id,
@@ -188,6 +193,9 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "batches": batch_results,
         "archives": archive_summaries,
     }
+    response["status"] = status
+    _persist_ingest_ops_run(service, response, selected)
+    return response
 
 
 def _fetch_with_retries(index_url: str, source_year: str, source_archive: str) -> list[Any]:
@@ -332,6 +340,52 @@ def _collect_filing_ids_by_ein(records: list[dict[str, Any]]) -> dict[str, list[
             continue
         mapping.setdefault(ein, set()).add(filing_id)
     return {ein: sorted(values) for ein, values in mapping.items()}
+
+
+def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, Any], selected_records: list[dict[str, Any]]) -> None:
+    bucket = OPS_METADATA_BUCKET or BUCKET or ""
+    if not bucket:
+        return
+    run_id = str(response.get("run_id") or "")
+    if not run_id:
+        return
+    store = S3RunStore(bucket=bucket, prefix=OPS_METADATA_PREFIX, s3_client=service.s3)
+    years_checked = sorted({str(item.get("source_year") or "") for item in response.get("archives", []) if str(item.get("source_year") or "")})
+    summary = {
+        "ingest_run_id": run_id,
+        "mode": response.get("mode"),
+        "started_at": None,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "status": response.get("status"),
+        "years_checked": years_checked,
+        "archives_discovered": response.get("archives_discovered"),
+        "index_files_processed": response.get("archives_discovered"),
+        "filings_discovered": response.get("total_index_records"),
+        "filings_new": response.get("new_records"),
+        "filings_changed": response.get("changed_records"),
+        "filings_skipped": response.get("unchanged_records"),
+        "filings_failed": response.get("failed_count"),
+        "affected_ein_count": response.get("affected_ein_count"),
+        "checkpoint_key": response.get("checkpoint_key"),
+        "resume_supported": True,
+        "safe_error_summary": {"count": int(response.get("failed_count") or 0), "samples": []},
+    }
+    store.write_ingest_run(run_id, summary)
+    filing_items = [
+        {
+            "ein": item.get("ein"),
+            "irs_object_id": item.get("irs_object_id"),
+            "tax_year": item.get("tax_year"),
+            "return_type": item.get("return_type"),
+            "source_year": item.get("source_year"),
+            "source_archive": item.get("source_archive"),
+            "status": "selected",
+            "parse_status": None,
+            "error_code": None,
+        }
+        for item in selected_records
+    ]
+    store.write_ingest_filings(run_id, filing_items)
 
 
 def _load_previous_manifest_entries(s3_client: Any) -> list[dict[str, Any]]:

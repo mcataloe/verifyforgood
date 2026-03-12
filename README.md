@@ -645,6 +645,36 @@ Response fields:
   - `status` (`available` or `unavailable`)
   - `source`
 
+## Operational Endpoints (Phase 10F)
+
+Operational diagnostics are exposed on a separate read-only surface under `/ops/*`:
+
+- `GET /ops/ingest/runs`
+- `GET /ops/ingest/runs/{ingest_run_id}`
+- `GET /ops/ingest/runs/{ingest_run_id}/filings`
+- `GET /ops/refresh/runs`
+- `GET /ops/refresh/runs/{refresh_run_id}`
+- `GET /ops/refresh/runs/{refresh_run_id}/eins`
+- `GET /ops/nonprofits/{ein}/pipeline-status`
+
+Run lifecycle status meanings:
+
+- ingest: `success`, `partial_success`, `failed`
+- refresh: `completed`, `completed_with_errors`, `failed`
+
+Operational diagnostics are structured and safe:
+
+- secrets/tokens are not exposed
+- error summaries are code-oriented and redacted where sensitive text is detected
+- stack traces are not returned from ops responses
+
+Common debugging workflow for stale nonprofit data:
+
+1. check latest ingest runs (`/ops/ingest/runs`) and inspect run detail
+2. inspect filing items for the ingest run (`/ops/ingest/runs/{id}/filings`)
+3. inspect linked refresh run and EIN outcomes (`/ops/refresh/runs/{id}/eins`)
+4. inspect nonprofit pipeline status (`/ops/nonprofits/{ein}/pipeline-status`) for latest materialized hash/timestamps and staleness indicators
+
 ### `POST /verify`
 
 Request body:

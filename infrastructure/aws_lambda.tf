@@ -136,6 +136,8 @@ resource "aws_lambda_function" "query" {
       API_KEY_RECORDS_JSON       = var.api_key_records_json
       OAUTH_M2M_ENABLED          = tostring(var.oauth_m2m_enabled)
       OAUTH_TOKEN_RECORDS_JSON   = var.oauth_token_records_json
+      OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX        = var.ops_metadata_prefix
     }
   }
 }
@@ -217,6 +219,8 @@ resource "aws_lambda_function" "refresh" {
       BOOTSTRAP_NONPROD_OVERRIDE       = tostring(var.bootstrap_nonprod_override)
       BOOTSTRAP_START_AFTER_EIN        = var.bootstrap_start_after_ein
       BOOTSTRAP_MAX_BATCHES_PER_RUN    = tostring(var.bootstrap_max_batches_per_run)
+      OPS_METADATA_BUCKET              = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX              = var.ops_metadata_prefix
     }
   }
 }
@@ -280,6 +284,8 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
       FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
       FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
+      OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX        = var.ops_metadata_prefix
     }
   }
 }

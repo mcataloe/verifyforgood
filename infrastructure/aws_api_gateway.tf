@@ -79,6 +79,78 @@ resource "aws_api_gateway_resource" "verify_batch" {
   path_part   = "batch"
 }
 
+resource "aws_api_gateway_resource" "ops" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  path_part   = "ops"
+}
+
+resource "aws_api_gateway_resource" "ops_ingest" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops.id
+  path_part   = "ingest"
+}
+
+resource "aws_api_gateway_resource" "ops_ingest_runs" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_ingest.id
+  path_part   = "runs"
+}
+
+resource "aws_api_gateway_resource" "ops_ingest_run_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_ingest_runs.id
+  path_part   = "{ingest_run_id}"
+}
+
+resource "aws_api_gateway_resource" "ops_ingest_run_filings" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_ingest_run_id.id
+  path_part   = "filings"
+}
+
+resource "aws_api_gateway_resource" "ops_refresh" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops.id
+  path_part   = "refresh"
+}
+
+resource "aws_api_gateway_resource" "ops_refresh_runs" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_refresh.id
+  path_part   = "runs"
+}
+
+resource "aws_api_gateway_resource" "ops_refresh_run_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_refresh_runs.id
+  path_part   = "{refresh_run_id}"
+}
+
+resource "aws_api_gateway_resource" "ops_refresh_run_eins" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_refresh_run_id.id
+  path_part   = "eins"
+}
+
+resource "aws_api_gateway_resource" "ops_nonprofits" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops.id
+  path_part   = "nonprofits"
+}
+
+resource "aws_api_gateway_resource" "ops_nonprofit_ein" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_nonprofits.id
+  path_part   = "{ein}"
+}
+
+resource "aws_api_gateway_resource" "ops_nonprofit_pipeline_status" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_nonprofit_ein.id
+  path_part   = "pipeline-status"
+}
+
 resource "aws_api_gateway_method" "get_ein" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.ein_id.id
@@ -217,10 +289,122 @@ resource "aws_api_gateway_method" "post_verify_batch" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_ops_ingest_runs" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_ingest_runs.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_ingest_run_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_ingest_run_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_ingest_run_filings" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_ingest_run_filings.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_refresh_runs" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_refresh_runs.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_refresh_run_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_refresh_run_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_refresh_run_eins" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_refresh_run_eins.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_ops_nonprofit_pipeline_status" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_nonprofit_pipeline_status.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "lambda_verify_batch_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.verify_batch.id
   http_method             = aws_api_gateway_method.post_verify_batch.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_ingest_runs_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_ingest_runs.id
+  http_method             = aws_api_gateway_method.get_ops_ingest_runs.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_ingest_run_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_ingest_run_id.id
+  http_method             = aws_api_gateway_method.get_ops_ingest_run_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_ingest_run_filings_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_ingest_run_filings.id
+  http_method             = aws_api_gateway_method.get_ops_ingest_run_filings.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_refresh_runs_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_refresh_runs.id
+  http_method             = aws_api_gateway_method.get_ops_refresh_runs.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_refresh_run_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_refresh_run_id.id
+  http_method             = aws_api_gateway_method.get_ops_refresh_run_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_refresh_run_eins_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_refresh_run_eins.id
+  http_method             = aws_api_gateway_method.get_ops_refresh_run_eins.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_ops_nonprofit_pipeline_status_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_nonprofit_pipeline_status.id
+  http_method             = aws_api_gateway_method.get_ops_nonprofit_pipeline_status.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -246,7 +430,14 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_nonprofits_sources_integration,
     aws_api_gateway_integration.lambda_nonprofits_source_name_integration,
     aws_api_gateway_integration.lambda_nonprofits_compliance_integration,
-    aws_api_gateway_integration.lambda_nonprofits_federal_awards_integration
+    aws_api_gateway_integration.lambda_nonprofits_federal_awards_integration,
+    aws_api_gateway_integration.lambda_ops_ingest_runs_integration,
+    aws_api_gateway_integration.lambda_ops_ingest_run_id_integration,
+    aws_api_gateway_integration.lambda_ops_ingest_run_filings_integration,
+    aws_api_gateway_integration.lambda_ops_refresh_runs_integration,
+    aws_api_gateway_integration.lambda_ops_refresh_run_id_integration,
+    aws_api_gateway_integration.lambda_ops_refresh_run_eins_integration,
+    aws_api_gateway_integration.lambda_ops_nonprofit_pipeline_status_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.irs_api.id

@@ -661,3 +661,96 @@ def test_handler_invokes_auth_and_quota_hooks():
     assert calls[1][0] == "request"
     assert calls[-1][0] == "response"
     assert calls[-1][2] == 200
+
+
+def test_ops_ingest_runs_listing_and_detail():
+    module = _load_module()
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=50: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [],
+        get_run=lambda run_type, run_id: {"ingest_run_id": run_id, "status": "partial_success"} if run_type == "ingest" else None,
+        get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}] if (run_type, item_name) == ("ingest", "filings") else None,
+    )
+    module.OPS_METADATA_BUCKET = "test-bucket"
+
+    list_result = module.handler({"httpMethod": "GET", "resource": "/ops/ingest/runs", "headers": {}}, None)
+    detail_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/ops/ingest/runs/{ingest_run_id}",
+            "pathParameters": {"ingest_run_id": "ing-1"},
+            "headers": {},
+        },
+        None,
+    )
+    filings_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/ops/ingest/runs/{ingest_run_id}/filings",
+            "pathParameters": {"ingest_run_id": "ing-1"},
+            "headers": {},
+        },
+        None,
+    )
+    assert list_result["statusCode"] == 200
+    assert detail_result["statusCode"] == 200
+    assert filings_result["statusCode"] == 200
+
+
+def test_ops_refresh_runs_listing_and_not_found():
+    module = _load_module()
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=50: [{"refresh_run_id": "ref-1", "status": "completed"}] if run_type == "refresh" else [],
+        get_run=lambda run_type, run_id: None,
+        get_run_items=lambda run_type, run_id, item_name: None,
+    )
+    module.OPS_METADATA_BUCKET = "test-bucket"
+    list_result = module.handler({"httpMethod": "GET", "resource": "/ops/refresh/runs", "headers": {}}, None)
+    detail_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/ops/refresh/runs/{refresh_run_id}",
+            "pathParameters": {"refresh_run_id": "ref-missing"},
+            "headers": {},
+        },
+        None,
+    )
+    assert list_result["statusCode"] == 200
+    assert detail_result["statusCode"] == 404
+
+
+def test_ops_pipeline_status_lookup_and_not_found():
+    module = _load_module()
+    module.OPS_METADATA_BUCKET = "test-bucket"
+    module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": "2.0.0", "environment": "dev"})
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=100: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [{"refresh_run_id": "ref-1", "status": "completed"}],
+        get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}],
+        get_run=lambda run_type, run_id: None,
+    )
+    ok = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/ops/nonprofits/{ein}/pipeline-status",
+            "pathParameters": {"ein": "123456789"},
+            "headers": {},
+        },
+        None,
+    )
+    assert ok["statusCode"] == 200
+
+    module.profile_store = SimpleNamespace(get_profile=lambda ein: None)
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=100: [],
+        get_run_items=lambda run_type, run_id, item_name: [],
+        get_run=lambda run_type, run_id: None,
+    )
+    missing = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/ops/nonprofits/{ein}/pipeline-status",
+            "pathParameters": {"ein": "123456789"},
+            "headers": {},
+        },
+        None,
+    )
+    assert missing["statusCode"] == 404
