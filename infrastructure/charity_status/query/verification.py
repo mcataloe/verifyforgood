@@ -18,6 +18,7 @@ class VerificationInput:
     provided_name: str | None = None
     subsection: str | None = None
     policy_id: str | None = None
+    weighting_profile: str | None = None
 
 
 def verify_nonprofit(
@@ -53,6 +54,7 @@ def verify_nonprofit(
         quality_record=quality,
         peer_group=peer_group,
         peer_stats=peer_stats,
+        weighting_profile_id=verification_input.weighting_profile,
     )
 
     payload = mapped.to_dict()

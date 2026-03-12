@@ -142,6 +142,7 @@ def build_decision(
         "peer_benchmarking_used": score_explanation.get("peer_benchmarking_used"),
         "peer_group": score_explanation.get("peer_group"),
         "peer_group_size": score_explanation.get("peer_group_size"),
+        "weighting_profile": score_explanation.get("weighting_profile"),
         "enrichments_used": bool((enrichment or {}).get("providers")),
         "decision_basis": {
             "eligibility": eligibility,

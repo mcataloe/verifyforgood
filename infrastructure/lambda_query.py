@@ -126,6 +126,7 @@ def handler(event, context):
             provided_name=verification_input.provided_name,
             subsection=verification_input.subsection,
             policy_id=verification_input.policy_id,
+            weighting_profile=verification_input.weighting_profile,
         )
         status_code, payload = verify_nonprofit(
             _get_athena_client(),
@@ -157,6 +158,7 @@ def _parse_get_request(event: dict) -> VerificationInput:
         ein=path_params.get("ein") or "",
         subsection=query_params.get("subsection"),
         policy_id=None,
+        weighting_profile=(query_params.get("weighting_profile") if query_params else None),
     )
 
 
@@ -183,11 +185,15 @@ def _parse_post_request(event: dict) -> VerificationInput:
     policy_id = payload.get("policy_id")
     if policy_id is not None and not isinstance(policy_id, str):
         raise ValueError("policy_id must be a string")
+    weighting_profile = payload.get("weighting_profile")
+    if weighting_profile is not None and not isinstance(weighting_profile, str):
+        raise ValueError("weighting_profile must be a string")
 
     return VerificationInput(
         ein=ein,
         provided_name=provided_name,
         policy_id=policy_id,
+        weighting_profile=weighting_profile,
     )
 
 
@@ -307,10 +313,13 @@ def _process_batch_item(index: int, row: Any) -> dict[str, Any]:
     policy_id = row.get("policy_id")
     if policy_id is not None and not isinstance(policy_id, str):
         return {"index": index, "status": "error", "error_code": "invalid_policy_id", "message": "policy_id must be a string"}
+    weighting_profile = row.get("weighting_profile")
+    if weighting_profile is not None and not isinstance(weighting_profile, str):
+        return {"index": index, "status": "error", "error_code": "invalid_weighting_profile", "message": "weighting_profile must be a string"}
 
     try:
         normalized_ein = normalize_ein(str(ein))
-        payload = _verify_single_item(normalized_ein, provided_name, policy_id)
+        payload = _verify_single_item(normalized_ein, provided_name, policy_id, weighting_profile)
         return {
             "index": index,
             "ein": normalized_ein,
@@ -333,7 +342,12 @@ def _process_batch_item(index: int, row: Any) -> dict[str, Any]:
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "internal_error", "message": "Internal server error"}
 
 
-def _verify_single_item(normalized_ein: str, provided_name: str | None, policy_id: str | None) -> dict[str, Any]:
+def _verify_single_item(
+    normalized_ein: str,
+    provided_name: str | None,
+    policy_id: str | None,
+    weighting_profile: str | None = None,
+) -> dict[str, Any]:
     if provided_name is None:
         cached = _load_cached_profile(normalized_ein)
         if cached is not None:
@@ -346,6 +360,7 @@ def _verify_single_item(normalized_ein: str, provided_name: str | None, policy_i
         ein=normalized_ein,
         provided_name=provided_name,
         policy_id=policy_id,
+        weighting_profile=weighting_profile,
     )
     status_code, payload = verify_nonprofit(
         _get_athena_client(),

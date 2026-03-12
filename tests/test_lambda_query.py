@@ -156,6 +156,26 @@ def test_post_verify_accepts_policy_id_and_returns_policy_evaluation():
     assert "final_recommendation" in body
 
 
+def test_post_verify_accepts_weighting_profile():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.athena_client = _mock_client(record=_sample_record("Weighted Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {
+        "httpMethod": "POST",
+        "body": json.dumps({"ein": "123456789", "name": "Weighted Org", "weighting_profile": "compliance_heavy_v1"}),
+        "pathParameters": None,
+        "queryStringParameters": None,
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["score_explanation"]["weighting_profile"]["applied"] == "compliance_heavy_v1"
+    assert body["audit"]["weighting_profile"]["applied"] == "compliance_heavy_v1"
+
+
 def test_response_shape_still_contains_core_fields():
     module = _load_module()
     module.SERVING_DDB_ENABLED = False

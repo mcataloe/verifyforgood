@@ -1,4 +1,5 @@
 from infrastructure.charity_status.scoring.calculator import calculate_v1_scores
+import pytest
 
 
 def test_v2_scores_with_990_and_peer_benchmarking():
@@ -111,3 +112,76 @@ def test_v2_scores_hard_rule_ineligible_and_revoked_cap():
 
     assert result.explanation["eligibility"] == "INELIGIBLE"
     assert result.scores["overall"] <= 30
+
+
+def test_weighting_default_profile_applied():
+    verification = {"irs_status": "active", "tax_deductible": True, "ntee_category": "Education", "recent_990_on_file": True, "revoked": False}
+    result = calculate_v1_scores(
+        record={"filing_req_cd": "1"},
+        verification=verification,
+        ein_valid=True,
+        metrics_record={"programExpenseRatio": 0.8},
+    )
+    wp = result.explanation["weighting_profile"]
+    assert wp["applied"] == "default_v1"
+    assert wp["fallback_applied"] is False
+
+
+def test_weighting_compliance_heavy_profile_changes_aggregation():
+    verification = {"irs_status": "active", "tax_deductible": True, "ntee_category": "Education", "recent_990_on_file": True, "revoked": False}
+    base = calculate_v1_scores(
+        record={"filing_req_cd": "1"},
+        verification=verification,
+        ein_valid=True,
+        metrics_record={"programExpenseRatio": 0.8},
+        governance_record={"public_disclosure_available": False},
+        quality_record={"narrativeMissing": True},
+        weighting_profile_id="default_v1",
+    )
+    heavy = calculate_v1_scores(
+        record={"filing_req_cd": "1"},
+        verification=verification,
+        ein_valid=True,
+        metrics_record={"programExpenseRatio": 0.8},
+        governance_record={"public_disclosure_available": False},
+        quality_record={"narrativeMissing": True},
+        weighting_profile_id="compliance_heavy_v1",
+    )
+    assert heavy.explanation["weighting_profile"]["applied"] == "compliance_heavy_v1"
+    assert heavy.scores["overall"] >= base.scores["overall"]
+
+
+def test_weighting_transparency_light_profile():
+    verification = {"irs_status": "active", "tax_deductible": True, "ntee_category": "Education", "recent_990_on_file": True, "revoked": False}
+    light = calculate_v1_scores(
+        record={"filing_req_cd": "1"},
+        verification=verification,
+        ein_valid=True,
+        metrics_record={"programExpenseRatio": 0.8},
+        governance_record={"public_disclosure_available": False},
+        quality_record={"narrativeMissing": True},
+        weighting_profile_id="transparency_light_v1",
+    )
+    assert light.explanation["weighting_profile"]["applied"] == "transparency_light_v1"
+    assert light.explanation["weighting_profile"]["weights"]["transparency"] == 0.1
+
+
+def test_weighting_invalid_profile_fallback_and_error():
+    verification = {"irs_status": "active", "tax_deductible": True, "ntee_category": "Education", "recent_990_on_file": True, "revoked": False}
+    fallback = calculate_v1_scores(
+        record={"filing_req_cd": "1"},
+        verification=verification,
+        ein_valid=True,
+        weighting_profile_id="unknown_profile",
+    )
+    assert fallback.explanation["weighting_profile"]["applied"] == "default_v1"
+    assert fallback.explanation["weighting_profile"]["fallback_applied"] is True
+
+    with pytest.raises(ValueError, match="Unknown weighting profile"):
+        calculate_v1_scores(
+            record={"filing_req_cd": "1"},
+            verification=verification,
+            ein_valid=True,
+            weighting_profile_id="unknown_profile",
+            fallback_invalid_weighting_profile=False,
+        )

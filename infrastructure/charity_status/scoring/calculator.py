@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from charity_status.scoring.weighting_profiles import resolve_weighting_profile
+
 
 @dataclass(frozen=True)
 class ScoreResult:
@@ -25,6 +27,8 @@ def calculate_v1_scores(
     peer_group: dict[str, Any] | None = None,
     peer_stats: dict[str, Any] | None = None,
     min_peer_group_size: int = MIN_PEER_GROUP_SIZE,
+    weighting_profile_id: str | None = None,
+    fallback_invalid_weighting_profile: bool = True,
 ) -> ScoreResult:
     record = record or {}
     filing_record = filing_record or {}
@@ -85,8 +89,17 @@ def calculate_v1_scores(
     )
     trust = _bound(trust_base)
 
-    available = [v for v in [compliance, trust, transparency, financial_resilience] if v is not None]
-    overall = round(sum(available) / len(available)) if available else 0
+    weighting_profile, weighting_meta = resolve_weighting_profile(
+        requested_profile_id=weighting_profile_id,
+        fallback_to_default=fallback_invalid_weighting_profile,
+    )
+    dimension_scores = {
+        "compliance": compliance,
+        "trust": trust,
+        "financial_resilience": financial_resilience,
+        "transparency": transparency,
+    }
+    overall = _weighted_overall(dimension_scores, weighting_profile.weights)
 
     eligibility = "ELIGIBLE"
     if not active_status:
@@ -144,6 +157,11 @@ def calculate_v1_scores(
         "peer_group_size": peer_group_size,
         "peer_benchmarking_used": use_peer,
         "benchmarked_metrics": benchmarked_metrics,
+        "weighting_profile": {
+            **weighting_meta,
+            "weights": weighting_profile.weights,
+            "description": weighting_profile.description,
+        },
         "notes": notes,
     }
 
@@ -234,6 +252,23 @@ def _threshold_component_score(metric_key: str, value: float) -> int:
 
 def _weighted(weighted_conditions: list[tuple[bool, int]]) -> int:
     return sum(weight for condition, weight in weighted_conditions if condition)
+
+
+def _weighted_overall(dimension_scores: dict[str, int | None], weights: dict[str, float]) -> int:
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for dimension, score in dimension_scores.items():
+        if score is None:
+            continue
+        weight = float(weights.get(dimension, 0.0))
+        if weight <= 0:
+            continue
+        weighted_sum += float(score) * weight
+        weight_total += weight
+    if weight_total <= 0:
+        available = [value for value in dimension_scores.values() if value is not None]
+        return round(sum(available) / len(available)) if available else 0
+    return round(weighted_sum / weight_total)
 
 
 def _to_float(value: Any) -> float | None:

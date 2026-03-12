@@ -392,6 +392,32 @@ Response additions:
 - `policy_evaluation.final_recommendation`
 - top-level `final_recommendation` (mirrors policy evaluation outcome)
 
+## Score Weighting Profiles (Phase 8B)
+
+Scoring now supports named deterministic weighting profiles for dimension aggregation without changing hard eligibility caps.
+
+Supported profiles:
+
+- `default_v1` (balanced)
+- `compliance_heavy_v1`
+- `transparency_light_v1`
+
+Usage:
+
+- `POST /verify` supports optional `weighting_profile` in request body.
+- `GET /nonprofit/{ein}` supports optional `weighting_profile` query parameter.
+- `POST /verify/batch` items may include optional `weighting_profile`.
+
+Auditability:
+
+- `score_explanation.weighting_profile` includes requested/applied profile, weights, and fallback metadata.
+- `audit.weighting_profile` mirrors applied profile details.
+- `evidence` includes weighting profile factors/rule results.
+
+Invalid profile behavior:
+
+- defaults to deterministic fallback profile (`default_v1`) with `fallback_applied=true` in explanation metadata.
+
 ### `GET /nonprofit/{ein}/filings`
 
 Returns filing summaries:

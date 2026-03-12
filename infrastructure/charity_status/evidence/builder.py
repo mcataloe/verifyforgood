@@ -22,6 +22,7 @@ def build_evidence(
     confidence = str(score_explanation.get("confidence") or "low")
     model_version = str(score_explanation.get("model_version") or "unknown")
     score_factors = score_explanation.get("factors", {}) or {}
+    weighting_profile = score_explanation.get("weighting_profile") or {}
     data_sources = score_explanation.get("score_data_sources", []) or []
     enrichment_payload = enrichment or {"providers": [], "failures": []}
     compliance = state_compliance or {}
@@ -82,6 +83,16 @@ def build_evidence(
     peer_used = bool(score_explanation.get("peer_benchmarking_used"))
     factors.append(
         EvidenceFactor(
+            key="weighting_profile_applied",
+            category="eligibility_compliance",
+            polarity="neutral",
+            severity="low",
+            value=weighting_profile.get("applied"),
+            message="Named deterministic weighting profile used for overall aggregation.",
+        )
+    )
+    factors.append(
+        EvidenceFactor(
             key="state_registration_status",
             category="eligibility_compliance",
             polarity="positive" if str(compliance.get("registration_status") or "").lower() in {"active", "good_standing"} else "warning",
@@ -137,6 +148,14 @@ def build_evidence(
 
     overall = _to_int(scores.get("overall"), 0)
     status = str(decision.get("status") or "")
+    rule_results.append(
+        EvidenceRuleResult(
+            rule="weighting_profile_valid",
+            passed=bool(not weighting_profile.get("fallback_applied")),
+            severity="low",
+            detail=f"applied={weighting_profile.get('applied')}",
+        )
+    )
     rule_results.append(
         EvidenceRuleResult(
             rule="overall_score_threshold",
