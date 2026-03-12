@@ -12,6 +12,7 @@ def build_decision(
     filing_summary: dict[str, Any] | None,
     enrichment: dict[str, Any] | None,
     state_compliance: dict[str, Any] | None = None,
+    external_signals: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     reasons: list[str] = []
     risk_flags: list[str] = []
@@ -81,6 +82,21 @@ def build_decision(
         risk_flags.append("state_solicitation_not_permitted")
         manual_review_codes.append("state_solicitation_restriction")
 
+    external = external_signals or {}
+    sanctions = external.get("sanctions") or {}
+    state_business = external.get("state_business") or {}
+    federal_awards = external.get("federal_awards") or {}
+    if bool(sanctions.get("sanctions_match")):
+        risk_flags.append("sanctions_match_detected")
+        manual_review_codes.append("sanctions_screening_match")
+        manual_review_notes.append("External sanctions screening returned a potential match")
+    if state_business.get("entity_status") and str(state_business.get("entity_status")).lower() not in {"active", "good_standing"}:
+        risk_flags.append("state_business_not_active")
+        manual_review_codes.append("state_business_status_issue")
+    if state_business.get("compliance_flags"):
+        risk_flags.append("state_business_compliance_flags_present")
+        manual_review_codes.append("state_business_compliance_review")
+
     status = "approve"
 
     if eligibility == "INELIGIBLE" and not active:
@@ -138,6 +154,9 @@ def build_decision(
             "state_registration_status": registration_status,
             "state_compliance_flags": compliance_flags,
             "state_solicitation_permitted": solicitation_permitted,
+            "sanctions_match": sanctions.get("sanctions_match"),
+            "state_business_entity_status": state_business.get("entity_status"),
+            "federal_award_count": federal_awards.get("award_count"),
         },
         "peer_benchmarking_used": score_explanation.get("peer_benchmarking_used"),
         "peer_group": score_explanation.get("peer_group"),

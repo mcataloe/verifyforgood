@@ -8,8 +8,24 @@ from typing import Any
 
 from charity_status.api import error_response, json_response
 from charity_status.enrichments.compliance import extract_state_compliance
+from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import CandidProvider, MockProvider, StateRegistryMockProvider, StateRegistryProvider
+from charity_status.enrichments.providers import (
+    CandidProvider,
+    MockProvider,
+    OFACApiAdapter,
+    OFACMockProvider,
+    OFACProvider,
+    StateBusinessApiAdapter,
+    StateBusinessMockProvider,
+    StateBusinessProvider,
+    StateRegistryApiAdapter,
+    StateRegistryMockProvider,
+    StateRegistryProvider,
+    USAspendingApiAdapter,
+    USAspendingMockProvider,
+    USAspendingProvider,
+)
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import AthenaQueryClient, VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
@@ -32,6 +48,16 @@ ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
 ENRICHMENT_STATE_REGISTRY_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENABLED", "false").lower() == "true"
 ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_REGISTRY_ENDPOINT = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT")
+ENRICHMENT_STATE_BUSINESS_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_BUSINESS_ENDPOINT = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT")
+ENRICHMENT_USASPENDING_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_ENABLED", "false").lower() == "true"
+ENRICHMENT_USASPENDING_MOCK_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_USASPENDING_ENDPOINT = os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT")
+ENRICHMENT_OFAC_ENABLED = os.environ.get("ENRICHMENT_OFAC_ENABLED", "false").lower() == "true"
+ENRICHMENT_OFAC_MOCK_ENABLED = os.environ.get("ENRICHMENT_OFAC_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_OFAC_ENDPOINT = os.environ.get("ENRICHMENT_OFAC_ENDPOINT")
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
@@ -73,8 +99,34 @@ def _get_enrichment_service() -> EnrichmentService:
                     endpoint=ENRICHMENT_CANDID_ENDPOINT,
                     timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
                 ),
-                StateRegistryProvider(enabled=ENRICHMENT_STATE_REGISTRY_ENABLED, adapter=None),
+                StateRegistryProvider(
+                    enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
+                    adapter=StateRegistryApiAdapter(ENRICHMENT_STATE_REGISTRY_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
+                    if ENRICHMENT_STATE_REGISTRY_ENABLED and ENRICHMENT_STATE_REGISTRY_ENDPOINT
+                    else None,
+                ),
                 StateRegistryMockProvider(enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED),
+                StateBusinessProvider(
+                    enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
+                    adapter=StateBusinessApiAdapter(ENRICHMENT_STATE_BUSINESS_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
+                    if ENRICHMENT_STATE_BUSINESS_ENABLED and ENRICHMENT_STATE_BUSINESS_ENDPOINT
+                    else None,
+                ),
+                StateBusinessMockProvider(enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED),
+                USAspendingProvider(
+                    enabled=ENRICHMENT_USASPENDING_ENABLED,
+                    adapter=USAspendingApiAdapter(ENRICHMENT_USASPENDING_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
+                    if ENRICHMENT_USASPENDING_ENABLED and ENRICHMENT_USASPENDING_ENDPOINT
+                    else None,
+                ),
+                USAspendingMockProvider(enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED),
+                OFACProvider(
+                    enabled=ENRICHMENT_OFAC_ENABLED,
+                    adapter=OFACApiAdapter(ENRICHMENT_OFAC_ENDPOINT, ENRICHMENT_TIMEOUT_SECONDS)
+                    if ENRICHMENT_OFAC_ENABLED and ENRICHMENT_OFAC_ENDPOINT
+                    else None,
+                ),
+                OFACMockProvider(enabled=ENRICHMENT_OFAC_MOCK_ENABLED),
             ]
         )
         enrichment_service = EnrichmentService(registry=registry)
@@ -370,6 +422,7 @@ def _verify_single_item(
     if status_code != 200:
         raise ValueError(payload.get("message") or "Verification failed")
     payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
+    payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
     return payload
 
 
@@ -408,6 +461,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "policy_evaluation": item.get("policy_evaluation"),
         "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
         "state_compliance": item.get("state_compliance"),
+        "external_signals": item.get("external_signals"),
     }
 
 

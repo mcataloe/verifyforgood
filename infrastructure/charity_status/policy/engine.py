@@ -64,6 +64,7 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
     source_record = payload.get("source_record") or {}
     enrichment = payload.get("enrichment") or {}
     state_compliance = payload.get("state_compliance") or {}
+    external_signals = payload.get("external_signals") or {}
     risk_flags = set((decision.get("risk_flags") or []))
     manual_codes = set(((decision.get("manual_review") or {}).get("reason_codes") or []))
 
@@ -101,6 +102,14 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
         return str(state_compliance.get("registration_status")) in set(str(v) for v in expected)
     if key == "solicitation_permitted":
         return state_compliance.get("solicitation_permitted") is bool(expected)
+    if key == "sanctions_match":
+        return bool((external_signals.get("sanctions") or {}).get("sanctions_match")) is bool(expected)
+    if key == "federal_awards_min":
+        count = _to_float((external_signals.get("federal_awards") or {}).get("award_count"))
+        return count >= float(expected)
+    if key == "state_business_status_in":
+        status = (external_signals.get("state_business") or {}).get("entity_status")
+        return str(status) in set(str(v) for v in expected)
 
     return False
 

@@ -13,6 +13,7 @@ def build_evidence(
     decision: dict[str, Any],
     enrichment: dict[str, Any] | None,
     state_compliance: dict[str, Any] | None = None,
+    external_signals: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     factors: list[EvidenceFactor] = []
     sources: list[EvidenceSource] = []
@@ -26,6 +27,9 @@ def build_evidence(
     data_sources = score_explanation.get("score_data_sources", []) or []
     enrichment_payload = enrichment or {"providers": [], "failures": []}
     compliance = state_compliance or {}
+    external = external_signals or {}
+    sanctions = external.get("sanctions") or {}
+    federal_awards = external.get("federal_awards") or {}
     enrichment_failures = enrichment_payload.get("failures", []) or []
     enrichment_providers = enrichment_payload.get("providers", []) or []
 
@@ -81,6 +85,26 @@ def build_evidence(
     )
 
     peer_used = bool(score_explanation.get("peer_benchmarking_used"))
+    factors.append(
+        EvidenceFactor(
+            key="sanctions_match",
+            category="risk",
+            polarity="negative" if sanctions.get("sanctions_match") else "positive",
+            severity="high" if sanctions.get("sanctions_match") else "low",
+            value=bool(sanctions.get("sanctions_match")),
+            message="Sanctions screening signal from OFAC-aligned provider adapters.",
+        )
+    )
+    factors.append(
+        EvidenceFactor(
+            key="federal_award_count",
+            category="federal_awards",
+            polarity="neutral",
+            severity="low",
+            value=federal_awards.get("award_count"),
+            message="Federal awards visibility from USAspending adapter source.",
+        )
+    )
     factors.append(
         EvidenceFactor(
             key="weighting_profile_applied",
@@ -145,9 +169,21 @@ def build_evidence(
         sources.append(EvidenceSource(source=f"enrichment:{name}", used=False, detail="Provider failure"))
     if compliance.get("source", {}).get("provider"):
         sources.append(EvidenceSource(source=f"state_compliance:{compliance['source']['provider']}", used=True))
+    if sanctions.get("source"):
+        sources.append(EvidenceSource(source=f"sanctions:{sanctions['source']}", used=True))
+    if federal_awards.get("source"):
+        sources.append(EvidenceSource(source=f"federal_awards:{federal_awards['source']}", used=True))
 
     overall = _to_int(scores.get("overall"), 0)
     status = str(decision.get("status") or "")
+    rule_results.append(
+        EvidenceRuleResult(
+            rule="sanctions_clear",
+            passed=not bool(sanctions.get("sanctions_match")),
+            severity="high",
+            detail=f"sanctions_match={bool(sanctions.get('sanctions_match'))}",
+        )
+    )
     rule_results.append(
         EvidenceRuleResult(
             rule="weighting_profile_valid",

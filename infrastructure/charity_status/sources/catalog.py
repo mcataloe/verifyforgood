@@ -63,6 +63,33 @@ def default_us_source_catalog(capabilities: Iterable[ProviderCapability]) -> Sou
     )
     catalog.register_source(
         SourceMetadata(
+            source_id="state_business.entity_status",
+            provider_name="state_business",
+            category=SourceCategory.COMPLIANCE,
+            us_only=True,
+            description="State business entity / secretary of state status source.",
+        )
+    )
+    catalog.register_source(
+        SourceMetadata(
+            source_id="usaspending.federal_awards",
+            provider_name="usaspending",
+            category=SourceCategory.FEDERAL_AWARDS,
+            us_only=True,
+            description="USAspending federal awards visibility source.",
+        )
+    )
+    catalog.register_source(
+        SourceMetadata(
+            source_id="ofac.sanctions",
+            provider_name="ofac",
+            category=SourceCategory.RISK,
+            us_only=True,
+            description="OFAC sanctions screening source for nonprofit risk workflows.",
+        )
+    )
+    catalog.register_source(
+        SourceMetadata(
             source_id="mock.profile",
             provider_name="mock_provider",
             category=SourceCategory.IDENTITY,

@@ -194,6 +194,66 @@ variable "enrichment_state_registry_mock_enabled" {
   default     = false
 }
 
+variable "enrichment_state_registry_endpoint" {
+  description = "Optional endpoint for state registry provider adapter."
+  type        = string
+  default     = ""
+}
+
+variable "enrichment_state_business_enabled" {
+  description = "Enable scaffolded state business entity provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_state_business_mock_enabled" {
+  description = "Enable deterministic mock state business entity provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_state_business_endpoint" {
+  description = "Optional endpoint for state business provider adapter."
+  type        = string
+  default     = ""
+}
+
+variable "enrichment_usaspending_enabled" {
+  description = "Enable scaffolded USAspending provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_usaspending_mock_enabled" {
+  description = "Enable deterministic mock USAspending provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_usaspending_endpoint" {
+  description = "Optional endpoint for USAspending provider adapter."
+  type        = string
+  default     = ""
+}
+
+variable "enrichment_ofac_enabled" {
+  description = "Enable scaffolded OFAC sanctions provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_ofac_mock_enabled" {
+  description = "Enable deterministic mock OFAC provider."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_ofac_endpoint" {
+  description = "Optional endpoint for OFAC provider adapter."
+  type        = string
+  default     = ""
+}
+
 variable "search_max_limit" {
   description = "Maximum page size allowed for GET /nonprofits/search."
   type        = number

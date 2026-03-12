@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import urllib.parse
+import urllib.request
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -8,22 +11,18 @@ from charity_status.enrichments.models import EnrichmentProviderResult, Enrichme
 from charity_status.sources import ProviderCapability, SourceCategory
 
 
-class StateRegistryAdapter(ABC):
+class StateBusinessAdapter(ABC):
     @abstractmethod
     def lookup(self, ein: str, organization_name: str | None = None) -> dict[str, Any] | None:
         raise NotImplementedError
 
 
-class StateRegistryApiAdapter(StateRegistryAdapter):
+class StateBusinessApiAdapter(StateBusinessAdapter):
     def __init__(self, endpoint: str, timeout_seconds: int = 5) -> None:
         self._endpoint = endpoint
         self._timeout_seconds = timeout_seconds
 
     def lookup(self, ein: str, organization_name: str | None = None) -> dict[str, Any] | None:
-        import json
-        import urllib.parse
-        import urllib.request
-
         query = f"?ein={urllib.parse.quote(ein)}"
         if organization_name:
             query += f"&name={urllib.parse.quote(organization_name)}"
@@ -31,66 +30,61 @@ class StateRegistryApiAdapter(StateRegistryAdapter):
         try:
             with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 if response.status >= 400:
-                    raise ProviderError(f"State registry lookup failed with status {response.status}")
+                    raise ProviderError(f"State business lookup failed with status {response.status}")
                 payload = json.loads(response.read().decode("utf-8"))
                 return payload if isinstance(payload, dict) else None
         except ProviderError:
             raise
         except Exception as exc:
-            raise ProviderError(f"State registry lookup failed: {exc}") from exc
+            raise ProviderError(f"State business lookup failed: {exc}") from exc
 
 
-class StateRegistryProvider(EnrichmentProvider):
-    def __init__(self, enabled: bool, adapter: StateRegistryAdapter | None = None) -> None:
+class StateBusinessProvider(EnrichmentProvider):
+    def __init__(self, enabled: bool, adapter: StateBusinessAdapter | None = None) -> None:
         self._enabled = enabled
         self._adapter = adapter
 
     @property
     def name(self) -> str:
-        return "state_registry"
+        return "state_business"
 
     def is_enabled(self) -> bool:
         return self._enabled and self._adapter is not None
 
     def capabilities(self) -> list[ProviderCapability]:
-        return [ProviderCapability(provider_name=self.name, categories=[SourceCategory.COMPLIANCE], source_ids=["state_registry.compliance"], us_only=True)]
+        return [ProviderCapability(provider_name=self.name, categories=[SourceCategory.COMPLIANCE], source_ids=["state_business.entity_status"], us_only=True)]
 
     def lookup(self, ein: str, organization_name: str | None = None) -> EnrichmentProviderResult:
         if not self.is_enabled():
             return self.disabled_result()
-
         fetched_at = now_utc_iso()
         try:
             raw = self._adapter.lookup(ein=ein, organization_name=organization_name)
         except Exception as exc:
-            raise ProviderError(f"State registry lookup failed: {exc}") from exc
+            raise ProviderError(f"State business lookup failed: {exc}") from exc
 
         fields = self._normalize(raw or {})
         status = EnrichmentStatus.MATCHED if fields else EnrichmentStatus.NO_MATCH
+        record_id = (raw or {}).get("record_id") if isinstance(raw, dict) else None
         return EnrichmentProviderResult(
             name=self.name,
             status=status,
-            provider_record_id=(raw or {}).get("record_id") if isinstance(raw, dict) else None,
+            provider_record_id=str(record_id) if record_id is not None else None,
             fetched_at=fetched_at,
             fields=fields,
             source_payload=raw if isinstance(raw, dict) else None,
-            source={
-                "record_id": (raw or {}).get("record_id") if isinstance(raw, dict) else None,
-                "fetched_at": fetched_at,
-                "licensed": True,
-                "notes": "State registry provider scaffold via adapter pattern",
-            },
+            source={"record_id": str(record_id) if record_id is not None else None, "fetched_at": fetched_at, "licensed": True, "notes": "State business entity status scaffold"},
             source_records=(
                 [
                     self.build_normalized_source_record(
                         ein=ein,
-                        source_id="state_registry.compliance",
+                        source_id="state_business.entity_status",
                         category=SourceCategory.COMPLIANCE,
-                        description="State registry compliance source",
+                        description="State business entity status source",
                         fetched_at=fetched_at,
                         fields=fields,
-                        record_id=(raw or {}).get("record_id") if isinstance(raw, dict) else None,
-                        expires_at=fields.get("registration_expiration_date"),
+                        record_id=str(record_id) if record_id is not None else None,
+                        expires_at=fields.get("entity_expiration_date"),
                     )
                 ]
                 if fields
@@ -104,9 +98,9 @@ class StateRegistryProvider(EnrichmentProvider):
         if not payload:
             return {}
         return {
-            "registration_status": payload.get("registration_status"),
-            "registration_jurisdiction": payload.get("registration_jurisdiction"),
-            "registration_expiration_date": payload.get("registration_expiration_date"),
-            "solicitation_permitted": payload.get("solicitation_permitted"),
+            "entity_status": payload.get("entity_status"),
+            "entity_jurisdiction": payload.get("entity_jurisdiction"),
+            "entity_expiration_date": payload.get("entity_expiration_date"),
+            "good_standing": payload.get("good_standing"),
             "compliance_flags": payload.get("compliance_flags") or [],
         }

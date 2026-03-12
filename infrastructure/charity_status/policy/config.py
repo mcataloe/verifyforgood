@@ -44,6 +44,14 @@ POLICIES: dict[str, PolicyDefinition] = {
         policy_id="strict_deny",
         rules=[
             PolicyRule(
+                rule_id="deny_sanctions_match",
+                description="Deny when sanctions screening returns a match.",
+                when={"sanctions_match": True},
+                outcome="deny",
+                override_decision=True,
+                priority=110,
+            ),
+            PolicyRule(
                 rule_id="deny_low_score",
                 description="Deny when overall score is below customer floor.",
                 when={"max_overall_score": 64},

@@ -10,6 +10,8 @@ EvidenceCategory = Literal[
     "governance_quality",
     "peer_benchmarking",
     "enrichment",
+    "federal_awards",
+    "risk",
 ]
 EvidencePolarity = Literal["positive", "negative", "warning", "neutral"]
 EvidenceSeverity = Literal["low", "medium", "high"]

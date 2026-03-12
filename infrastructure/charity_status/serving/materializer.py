@@ -23,6 +23,7 @@ def response_to_store_payload(response_payload: dict[str, Any]) -> dict[str, Any
         "policy_evaluation": response_payload.get("policy_evaluation"),
         "final_recommendation": response_payload.get("final_recommendation"),
         "state_compliance": response_payload.get("state_compliance"),
+        "external_signals": response_payload.get("external_signals"),
     }
 
 
@@ -42,6 +43,7 @@ def materialize_profile_item(
         "enrichment": response_payload.get("enrichment"),
         "decision": response_payload.get("decision"),
         "state_compliance": response_payload.get("state_compliance"),
+        "external_signals": response_payload.get("external_signals"),
         "source_data_versions": source_data_versions,
     }
 
@@ -62,6 +64,7 @@ def materialize_profile_item(
         policy_evaluation=response_payload.get("policy_evaluation"),
         final_recommendation=response_payload.get("final_recommendation"),
         state_compliance=response_payload.get("state_compliance"),
+        external_signals=response_payload.get("external_signals"),
         model_version=response_payload.get("score_explanation", {}).get("model_version", "unknown"),
         source_hash=calculate_source_hash(source_input),
         materialized_at=datetime.now(timezone.utc).isoformat(),

@@ -5,6 +5,7 @@ from typing import Any
 
 from charity_status.decision import build_decision
 from charity_status.enrichments.compliance import extract_state_compliance
+from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.evidence import build_evidence
 from charity_status.normalization import compare_names
 from charity_status.policy import evaluate_policy
@@ -79,6 +80,7 @@ def verify_nonprofit(
             "parse_status": filings.get("parse_status"),
         }
     payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
+    payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
 
     decision, extras = build_decision(
         organization=payload["organization"],
@@ -89,6 +91,7 @@ def verify_nonprofit(
         filing_summary=payload.get("filing_summary"),
         enrichment=payload.get("enrichment"),
         state_compliance=payload.get("state_compliance"),
+        external_signals=payload.get("external_signals"),
     )
     payload["decision"] = decision
     payload["audit"] = extras["audit"]
@@ -100,6 +103,7 @@ def verify_nonprofit(
         decision=payload["decision"],
         enrichment=payload.get("enrichment"),
         state_compliance=payload.get("state_compliance"),
+        external_signals=payload.get("external_signals"),
     )
     payload["policy_evaluation"] = evaluate_policy(payload, verification_input.policy_id)
     payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]
