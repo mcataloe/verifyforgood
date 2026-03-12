@@ -37,6 +37,27 @@ Contributor guidance:
 - Route handlers should orchestrate only; avoid source-specific or provider-specific business logic in handlers.
 - If adding auth/quotas, implement adapters behind `AuthContextProvider` and `QuotaMeteringHook` first, then inject.
 
+## Repo Split Scaffolding (Phase 11B)
+
+Phase 11B adds non-breaking scaffolding to make a future public/private split low risk while keeping this repository fully functional today.
+
+New top-level scaffold directories:
+
+- `public-core/` (future open-source packaging boundary)
+- `private-platform/` (future proprietary platform boundary)
+- `infra-deployment/` (future deployment-only boundary)
+
+Migration planning artifacts:
+
+- `split-plan.json`: machine-readable include/exclude mapping for split execution
+- `docs/repo-split-guide.md`: what belongs in public vs private vs infra repos
+
+Important:
+
+- No proprietary code is removed automatically in this phase.
+- Existing runtime and tests continue to use current paths.
+- Core packaging metadata is prepared in `public-core/pyproject.toml` for extraction planning.
+
 ## AWS Data Flow
 
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "charity-status-core"
+version = "0.1.0"
+description = "Deterministic nonprofit verification/scoring core domain logic."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+license = { text = "TBD" }
+authors = [{ name = "Charity Status Contributors" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "License :: Other/Proprietary License",
+  "Operating System :: OS Independent",
+]
+
+[tool.setuptools]
+package-dir = {"" = "../infrastructure"}
+
+[tool.setuptools.packages.find]
+where = ["../infrastructure"]
+include = ["charity_status*"]
+exclude = ["charity_status.platform*", "charity_status.future*"]
