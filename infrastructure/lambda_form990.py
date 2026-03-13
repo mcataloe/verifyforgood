@@ -10,6 +10,7 @@ import boto3
 from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import discover_archives, fetch_index_records
+from charity_status.form990.index import parse_index_records
 from charity_status.form990.irs_page_discovery import (
     IrsYearSource,
     discover_irs_form990_sources,
@@ -378,8 +379,10 @@ def _fetch_with_retries(index_url: str, source_year: str, source_archive: str) -
     return []
 
 
-def _fetch_archive_records_with_retries(catalog: list[dict[str, Any]], archive: Any, source_mode: str) -> list[Any]:
+def _fetch_archive_records_with_retries(catalog: list[dict[str, Any]], archive: Any, source_mode: str, prefer_index: bool = False) -> list[Any]:
     source = _lookup_catalog_item(catalog, archive.source_year, archive.source_archive)
+    if prefer_index and str(archive.index_url or "").strip():
+        return _fetch_with_retries(archive.index_url, archive.source_year, archive.source_archive)
     if source_mode == "irs_page" and str(source.get("zip_url") or "").strip():
         return _fetch_zip_records_with_retries(
             zip_url=str(source.get("zip_url") or "").strip(),
@@ -504,13 +507,26 @@ def _prepare_discovery_selection(service: Form990IngestService, payload: dict[st
         _persist_discovery_state(service.s3, discovered_sources)
 
     all_records = []
+    limit_value = payload.get("limit")
+    remaining_limit: int | None = None
+    if limit_value is not None:
+        try:
+            remaining_limit = max(0, int(limit_value))
+        except (TypeError, ValueError):
+            remaining_limit = None
     for archive in discovered:
-        records = _fetch_archive_records_with_retries(catalog, archive, source_mode=source_mode)
-        all_records.extend(records)
+        records = _fetch_archive_records_with_retries(catalog, archive, source_mode=source_mode, prefer_index=True)
+        record_dicts = _apply_index_filters([_record_to_dict(item) for item in records], {k: v for k, v in payload.items() if k != "limit"})
+        if remaining_limit is not None:
+            if remaining_limit <= 0:
+                break
+            record_dicts = record_dicts[:remaining_limit]
+            remaining_limit -= len(record_dicts)
+        all_records.extend([parse_index_records([item])[0] for item in record_dicts])
     previous_entries = _load_previous_manifest_entries(service.s3)
     new_records, changed_records, unchanged_count = diff_manifest_entries(all_records, previous_entries)
     selected = all_records if mode == "bootstrap" and bool(payload.get("bootstrap_process_all", True)) else (new_records + changed_records)
-    selected_dicts = _apply_index_filters([_record_to_dict(item) for item in selected], payload)
+    selected_dicts = [_record_to_dict(item) for item in selected]
     return {
         "run_id": run_id,
         "mode": mode,

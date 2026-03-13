@@ -68,3 +68,6 @@ venv
 *.tfvars
 */providers-*.tf
 **/*.zip
+
+# Downloads
+downloads

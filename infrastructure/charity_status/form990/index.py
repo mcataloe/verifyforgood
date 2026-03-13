@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from typing import Any
 
@@ -55,17 +56,35 @@ def extract_index_items(payload: Any) -> list[dict[str, Any]]:
 
 
 def _normalize_index_item(item: dict[str, Any]) -> dict[str, Any]:
+    normalized_item = _canonicalize_keys(item)
+    object_id = _first(normalized_item, "irsobjectid", "objectid")
+    xml_url = _first(normalized_item, "xmlurl", "url")
+    if not xml_url and object_id:
+        xml_url = _default_xml_url(str(object_id))
     return {
-        "ein": _first(item, "ein", "EIN"),
-        "tax_year": _first(item, "tax_year", "taxYr", "TaxYr", "tax_year"),
-        "filing_date": _first(item, "filing_date", "filingDt", "FilingDt"),
-        "return_type": _first(item, "return_type", "returnType", "ReturnType"),
-        "irs_object_id": _first(item, "irs_object_id", "object_id", "objectId", "ObjectId"),
-        "xml_url": _first(item, "xml_url", "xmlUrl", "URL", "url"),
-        "source_year": _first(item, "source_year", "SourceYear"),
-        "source_archive": _first(item, "source_archive", "SourceArchive"),
-        "source_signature": _first(item, "source_signature", "SourceSignature"),
+        "ein": _first(normalized_item, "ein"),
+        "tax_year": _first(normalized_item, "taxyear", "taxyr"),
+        "filing_date": _first(normalized_item, "filingdate", "filingdt"),
+        "return_type": _first(normalized_item, "returntype", "formtype"),
+        "irs_object_id": object_id,
+        "xml_url": xml_url,
+        "source_year": _first(normalized_item, "sourceyear"),
+        "source_archive": _first(normalized_item, "sourcearchive"),
+        "source_signature": _first(normalized_item, "sourcesignature"),
     }
+
+
+def _canonicalize_keys(item: dict[str, Any]) -> dict[str, Any]:
+    normalized: dict[str, Any] = {}
+    for key, value in item.items():
+        canonical = _canonical_key(str(key))
+        if canonical and canonical not in normalized and value is not None:
+            normalized[canonical] = value
+    return normalized
+
+
+def _canonical_key(key: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(key).strip().lower())
 
 
 def _first(item: dict[str, Any], *keys: str) -> Any:
@@ -80,3 +99,7 @@ def _to_str(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _default_xml_url(object_id: str) -> str:
+    return f"https://apps.irs.gov/pub/epostcard/cor/{object_id}_public.xml"

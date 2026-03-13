@@ -1,0 +1,84 @@
+Index file for 2025 (CSV)​​​​​ https://apps.irs.gov/pub/epostcard/990/xml/2025/index_2025.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_02A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_03A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_04A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_05A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_06A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_07A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_08A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_09A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_10A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11B.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11C.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11D.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_12A.zip 
+
+
+Index file for 2024 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2024/index_2024.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_01A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_02A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_03A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_04A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_05A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_06A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_07A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_08A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_09A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_10A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_11A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_12A.zip
+
+​​​Index file for 2023 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2023/index_2023.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_01A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_02A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_03A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_04A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_05A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_06A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_07A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_08A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_09A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_10A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_11A.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2023/2023_TEOS_XML_12A.zip
+
+Index file for 2022 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2022/index_2022.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2022/2022_TEOS_XML_01A.zip
+
+Index file for 2021 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2021/index_2021.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2021/2021_TEOS_XML_01A.zip
+
+Index file for 2020 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2020/index_2020.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2020/2020_TEOS_XML_CT1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_2.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_3.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_4.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_5.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_6.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_7.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2020/download990xml_2020_8.zip
+
+Index file for 2019 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2019/index_2019.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2019/2019_TEOS_XML_CT1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_2.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_3.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_4.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_5.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_6.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_7.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2019/download990xml_2019_8.zip
+
+Index file for 2018 (CSV) https://apps.irs.gov/pub/epostcard/990/xml/2018/index_2018.csv
+https://apps.irs.gov/pub/epostcard/990/xml/2018/2018_TEOS_XML_CT1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_1.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_2.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_3.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_4.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_5.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_6.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_7.zip
+https://apps.irs.gov/pub/epostcard/990/xml/2018/download990xml_2018_8.zip

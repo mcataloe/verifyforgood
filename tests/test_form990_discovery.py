@@ -48,6 +48,25 @@ def test_index_csv_row_parsing(monkeypatch):
     assert records[0].source_signature is not None
 
 
+def test_index_csv_positional_row_parsing(monkeypatch):
+    csv_payload = b".EFILE,852780739,202312,2024,MISSION FLIGHT ACADEMY,990EZ,93492348002084,202433489349200208,2024_TEOS_XML_12A\n"
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=60: _FakeResponse(csv_payload),
+    )
+    records = fetch_index_records(
+        index_url="https://apps.irs.gov/pub/epostcard/990/xml/2024/index_2024.csv",
+        source_year="2024",
+        source_archive="index_2024.csv",
+    )
+    assert len(records) == 1
+    assert records[0].ein == "852780739"
+    assert records[0].tax_year == "2024"
+    assert records[0].return_type == "990EZ"
+    assert records[0].irs_object_id == "202433489349200208"
+    assert records[0].xml_url.endswith("202433489349200208_public.xml")
+
+
 def test_manifest_diff_behavior():
     current = [
         Form990IndexRecord(

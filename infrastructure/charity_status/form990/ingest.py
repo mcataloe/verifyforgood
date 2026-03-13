@@ -27,7 +27,7 @@ from charity_status.form990.quality import compute_filing_quality
 from charity_status.form990.relationships import extract_relationship_edges
 from charity_status.form990.storage import manifest_key, normalized_dataset_key, raw_xml_key, to_jsonl
 
-SUPPORTED_RETURN_TYPES = {"990", "FORM_990", "990O"}
+SUPPORTED_RETURN_TYPES = {"990", "FORM_990", "990O", "990EZ", "990PF", "990T"}
 
 
 class Form990IngestService:

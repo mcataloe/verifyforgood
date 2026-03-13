@@ -336,25 +336,76 @@ def test_orchestrated_mode_enqueues_chunks(monkeypatch):
             source_signature="sig",
         )
     ]
-    module.fetch_zip_records = lambda zip_url, source_year, source_archive, timeout_seconds=120, max_xml_file_size_bytes=20971520: [
-        (
-            Form990IndexRecord(
-                ein="123456789",
-                tax_year="2024",
-                filing_date="2025-01-01",
-                return_type="990",
-                irs_object_id="obj-1",
-                xml_url="https://example.org/1.xml",
-                source_year=source_year,
-                source_archive=source_archive,
-                source_signature="sig-1",
-            ),
-            b"<Return/>",
+    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
+        Form990IndexRecord(
+            ein="123456789",
+            tax_year="2024",
+            filing_date="2025-01-01",
+            return_type="990",
+            irs_object_id="obj-1",
+            xml_url="https://example.org/1.xml",
+            source_year=source_year,
+            source_archive=source_archive,
+            source_signature="sig-1",
         )
     ]
+    module.fetch_zip_records = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("zip path should not be used for orchestrated selection"))
     result = module.handler({"mode": "bootstrap", "chunk_size": 1}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
     assert body["chunk_count"] == 1
+    assert len(fake_sqs.messages) == 1
+
+
+def test_orchestrated_mode_applies_ein_filter_before_chunking(monkeypatch):
+    fake_s3 = FakeS3()
+    fake_sqs = FakeSQS()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
+    monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
+    monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
+        module.IrsYearSource(
+            year="2024",
+            archive_name="irs-page-2024-2024",
+            zip_url="https://example.org/2024.zip",
+            index_url="https://example.org/2024.csv",
+            source_page_url=page_url,
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature="sig",
+        )
+    ]
+    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
+        Form990IndexRecord(
+            ein="530196605",
+            tax_year="2024",
+            filing_date="2025-01-01",
+            return_type="990",
+            irs_object_id="obj-redcross",
+            xml_url="https://example.org/redcross.xml",
+            source_year=source_year,
+            source_archive=source_archive,
+            source_signature="sig-redcross",
+        ),
+        Form990IndexRecord(
+            ein="999999999",
+            tax_year="2024",
+            filing_date="2025-01-01",
+            return_type="990",
+            irs_object_id="obj-other",
+            xml_url="https://example.org/other.xml",
+            source_year=source_year,
+            source_archive=source_archive,
+            source_signature="sig-other",
+        ),
+    ]
+    result = module.handler({"mode": "bootstrap", "chunk_size": 10, "ein": "530196605"}, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["selected_records"] == 1
     assert len(fake_sqs.messages) == 1
