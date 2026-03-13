@@ -2,6 +2,7 @@ import importlib
 import json
 import sys
 
+from infrastructure.charity_status.form990.models import Form990IndexRecord
 
 class FakeS3:
     def __init__(self):
@@ -45,7 +46,7 @@ def test_worker_processes_chunk_success(monkeypatch):
         Key=chunk_key,
         Body=json.dumps({"records": [{"ein": "123456789", "tax_year": "2024", "return_type": "990", "irs_object_id": "obj-1"}]}).encode("utf-8"),
     )
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
         "records_processed": len(payload),
         "parsed_count": 0,
         "failed_count": 0,
@@ -68,7 +69,7 @@ def test_worker_chunk_failure_raises_for_retry(monkeypatch):
     chunk_key = "ops/form990-runs/r2/chunks/c2.json"
     fake_s3.put_object(Bucket="test-bucket", Key=chunk_key, Body=json.dumps({"records": [{"ein": "123"}]}).encode("utf-8"))
 
-    def _boom(self, payload, download_raw=True):
+    def _boom(self, payload, download_raw=True, record_downloader=None):
         raise RuntimeError("boom")
 
     module.Form990IngestService.ingest_index_payload = _boom
@@ -123,3 +124,69 @@ def test_worker_processes_source_catalog_chunk_success(monkeypatch):
     stored = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r3/results/c3.json")]["Body"].decode("utf-8"))
     assert stored["task_type"] == "source_download"
     assert stored["result"]["status"] == "success"
+
+
+def test_worker_filing_chunk_uses_zip_backed_loader(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setenv("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990_worker", None)
+    module = importlib.import_module("infrastructure.lambda_form990_worker")
+    chunk_key = "ops/form990-runs/r4/chunks/c4.json"
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=chunk_key,
+        Body=json.dumps(
+            {
+                "task_type": "filing_records",
+                "records": [
+                    {
+                        "ein": "123456789",
+                        "tax_year": "2024",
+                        "return_type": "990",
+                        "filing_date": "2025-01-01",
+                        "irs_object_id": "obj-1",
+                        "xml_url": "https://example.org/obj-1.xml",
+                        "source_year": "2024",
+                    }
+                ],
+                "zip_sources": [],
+            }
+        ).encode("utf-8"),
+    )
+
+    def _ingest(self, payload, download_raw=True, record_downloader=None):
+        assert callable(record_downloader)
+        fallback_bytes, source_ref = record_downloader(
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/obj-1.xml",
+                source_year="2024",
+                source_archive=None,
+                source_signature=None,
+            )
+        )
+        assert fallback_bytes == b"<xml/>"
+        assert source_ref == "https://example.org/obj-1.xml"
+        return {
+            "records_processed": len(payload),
+            "parsed_count": 1,
+            "failed_count": 0,
+            "records": [{"parse_status": "parsed", "raw_s3_key": "form990/raw/123456789/2024/obj-1.xml"}],
+        }
+
+    module.Form990IngestService.ingest_index_payload = _ingest
+    module._update_run_status = lambda *args, **kwargs: None
+    module._write_summary_snapshot = lambda *args, **kwargs: None
+    module.update_filing_state_from_ingest_result = lambda **kwargs: []
+    module.ZipBackedXmlLoader.load = lambda self, record: (b"<xml/>", str(record.xml_url or ""))
+    event = {"Records": [{"body": json.dumps({"run_id": "r4", "chunk_id": "c4", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 1})}]}
+    result = module.handler(event, None)
+    assert result["status"] == "success"

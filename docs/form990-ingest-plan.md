@@ -5,20 +5,20 @@
 - `infrastructure/lambda_form990.py` supports:
   - explicit `records[]` -> direct ingest
   - legacy `index_url` / `index_urls` -> fetch index rows and ingest
-  - discovery mode -> discover source artifacts, persist discovery state/diffs, and select source-stage work
+  - discovery mode -> discover source artifacts, persist discovery state/diffs, persist raw source artifacts, reconcile CSV filing catalog, and select filing work
 - IRS-page discovery lives in `charity_status.form990.irs_page_discovery` and returns per-artifact ZIP/CSV source entries.
 - Discovery state and discovery diff artifacts are already persisted separately from filing manifests.
-- Orchestrated mode currently chunks source-stage work items, but workers only acknowledge them; raw source download persistence has not yet been implemented.
+- Raw source ZIP/CSV download persistence is implemented and tracked via downloaded-source state.
+- Filing reconciliation from downloaded yearly CSV indexes is implemented and tracked via filing catalog/diff/state manifests.
+- Selected filings currently flow through direct `xml_url` download/parse as a temporary bridge; ZIP-member extraction is not yet implemented.
 
 ## 2. Gaps
 
-- Raw IRS ZIP/CSV downloads are not yet persisted as source-of-truth artifacts.
-- Download decisions are not yet based on a dedicated downloaded-source state.
-- The worker path does not yet perform raw source artifact download/persistence.
-- Raw source artifacts, extracted raw XML, and normalized datasets are not yet separated by dedicated storage helpers and prefixes.
-- Terraform does not yet explicitly document and enforce the non-versioned raw-source retention strategy.
-- Filing identity and completion-state rules are still too implicit for reliable incremental CSV reconciliation.
-- The source-catalog flow still lacks a bridge from CSV-selected filings to the existing direct-XML ingest path while ZIP-member extraction remains deferred.
+- CSV-selected filings are not yet resolved to ZIP members in raw IRS ZIP artifacts.
+- Selected filing processing still uses direct XML URL fetch as the primary path instead of ZIP-backed extraction.
+- There is no reusable ZIP member resolver abstraction that maps filing identity (`irs_object_id` first) to archive entries across naming eras.
+- Worker filing chunks are not yet ZIP-aware and do not report ZIP-extraction vs URL-fallback behavior.
+- README does not yet describe the finalized processing order with ZIP-backed selected-filing extraction.
 
 ## 3. Target Flow
 
@@ -41,11 +41,15 @@ This step must not implement:
 - selected filing extraction
 - normalized filing parsing changes
 
-The next implementation step should extend the pipeline to:
+The CSV reconciliation step now extends the pipeline to:
 
 `discovery -> discovery-state persistence/diff -> raw source download/persistence -> downloaded-source state -> CSV filing reconciliation -> selected filing ingest`
 
-Until ZIP-member lookup/extraction is implemented, the downstream processing bridge for selected filings may continue to use the existing `xml_url`-based ingest path, but selection authority must come from the downloaded yearly CSV indexes.
+The next implementation step should extend the pipeline to:
+
+`discovery -> raw source persistence -> CSV diff/reconciliation -> selected filing extraction from ZIP -> normalized parsing`
+
+with explicit fallback to direct XML URL only when ZIP-member resolution fails for a selected filing.
 
 ## 4. Source Catalog Model
 
@@ -159,7 +163,11 @@ Known filename examples the design must support:
   - source-catalog execution must reconcile selected filings from downloaded CSV indexes before downstream ingest
   - inline mode may immediately ingest only the selected filings through the existing direct `xml_url` path
   - orchestrated mode should write chunks containing only selected filings so workers process those selected filings only
-  - ZIP-member extraction remains deferred, so this direct-XML bridge is temporary and should be replaced in the later ZIP-extraction phase
+- In the ZIP extraction phase:
+  - selected filing processing should use raw ZIP artifacts from S3 as the primary XML source
+  - extraction should target only needed XML members for selected filings (not full ZIP parse)
+  - fallback to direct `xml_url` is allowed only when ZIP-member mapping fails and URL is available
+  - inline and worker chunk execution should remain retry-safe and resumable
 
 ## 9. Files to Change
 
@@ -171,6 +179,9 @@ Known filename examples the design must support:
 - `infrastructure/charity_status/form990/source_downloads.py`
 - `infrastructure/charity_status/form990/index.py`
 - `infrastructure/charity_status/form990/filing_reconciliation.py`
+- `infrastructure/charity_status/form990/zip_selected_processing.py`
+- `infrastructure/charity_status/form990/zip_processing.py`
+- `infrastructure/charity_status/form990/ingest.py`
 - `infrastructure/charity_status/form990/storage.py`
 - `infrastructure/charity_status/form990/manifest.py` if source diff helpers belong there
 - Terraform bucket/prefix wiring for raw source artifacts
@@ -187,7 +198,9 @@ Known filename examples the design must support:
 - Raw source key design must preserve history without creating duplicate keys for the same signature.
 - Filing identity fallback must be stable enough to avoid false-positive reprocessing when `irs_object_id` is missing.
 - Completion-state tracking must not regress explicit/legacy direct ingest by causing already-parsed filings to be re-selected indefinitely.
-- The temporary direct-XML bridge must remain clearly scoped so later ZIP extraction can replace it without rewriting reconciliation state.
+- ZIP member resolution may fail for some legacy/malformed entries; fallback behavior must be explicit and observable.
+- ZIP extraction must avoid accidentally scanning/parsing all members for every run, which can regress runtime and cost.
+- Record-to-ZIP mapping heuristics must stay deterministic across TEOS and download990xml/CT1 naming eras.
 
 ## 11. Test Plan
 
@@ -213,3 +226,8 @@ Known filename examples the design must support:
 - mixed-year reconciliation where only inspected years are replaced in latest filing state
 - current + previous year incremental window behavior
 - explicit-records and legacy direct-index backward compatibility after filing state persistence is added
+- selected filing to ZIP member resolution by `irs_object_id` and source metadata hints
+- ZIP subset extraction only for selected filings
+- fallback to direct XML URL when ZIP member cannot be resolved
+- TEOS and legacy ZIP naming-era coverage for resolver behavior
+- worker chunk processing using ZIP-backed extraction path

@@ -8,7 +8,8 @@ from typing import Any
 import boto3
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.filing_reconciliation import update_filing_state_from_ingest_result
-from charity_status.form990.source_downloads import execute_source_download_batch
+from charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state
+from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 
 BUCKET = os.environ.get("BUCKET", "").strip()
@@ -21,6 +22,9 @@ GOVERNANCE_PREFIX = os.environ.get("FORM990_GOVERNANCE_PREFIX", "form990/normali
 QUALITY_PREFIX = os.environ.get("FORM990_QUALITY_PREFIX", "form990/normalized/quality/")
 RELATIONSHIPS_PREFIX = os.environ.get("FORM990_RELATIONSHIPS_PREFIX", "form990/normalized/relationships/")
 FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "300"))
+FORM990_ZIP_FETCH_TIMEOUT_SECONDS = int(os.environ.get("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "120"))
+FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES", str(20 * 1024 * 1024)))
+FORM990_ZIP_URL_FALLBACK_ENABLED = os.environ.get("FORM990_ZIP_URL_FALLBACK_ENABLED", "true").lower() == "true"
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
@@ -80,7 +84,21 @@ def _process_chunk(message: dict[str, Any]) -> None:
     )
     _update_run_status(s3, run_id, "running")
     try:
-        result = service.ingest_index_payload(payload=records, download_raw=True)
+        zip_sources = chunk_payload.get("zip_sources")
+        if not isinstance(zip_sources, list):
+            zip_sources = select_zip_sources_for_records(records, load_downloaded_source_state(s3, BUCKET, MANIFEST_PREFIX))
+        loader = ZipBackedXmlLoader(
+            s3_client=s3,
+            bucket=BUCKET,
+            zip_sources=zip_sources,
+            allow_url_fallback=FORM990_ZIP_URL_FALLBACK_ENABLED,
+            url_timeout_seconds=FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
+            max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+        )
+        result = service.ingest_index_payload(payload=records, download_raw=True, record_downloader=loader.load)
+        result["zip_resolved_count"] = loader.zip_extracted_count
+        result["zip_fallback_url_count"] = loader.url_fallback_count
+        result["zip_unresolved_count"] = loader.unresolved_count
         update_filing_state_from_ingest_result(
             s3_client=s3,
             bucket=BUCKET,

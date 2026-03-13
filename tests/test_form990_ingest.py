@@ -204,3 +204,36 @@ def test_parse_index_records_defaults_xml_url_from_object_id():
     )
     assert len(records) == 1
     assert records[0].xml_url == "https://apps.irs.gov/pub/epostcard/cor/202430239349300918_public.xml"
+
+
+def test_ingest_supports_record_downloader_zip_reference():
+    records = parse_index_records(
+        [
+            {
+                "ein": "123456789",
+                "tax_year": "2024",
+                "filing_date": "2025-01-01",
+                "return_type": "990",
+                "irs_object_id": "obj-zip-1",
+                "xml_url": "https://example.org/obj-zip-1.xml",
+            }
+        ]
+    )
+    s3 = FakeS3()
+    xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
+    result = ingest_form990_records(
+        records=records,
+        bucket="test-bucket",
+        raw_prefix="form990/raw/",
+        metadata_prefix="form990/normalized/metadata/",
+        manifest_prefix="form990/normalized/manifests/",
+        metrics_prefix="form990/normalized/metrics/",
+        governance_prefix="form990/normalized/governance/",
+        quality_prefix="form990/normalized/quality/",
+        relationships_prefix="form990/normalized/relationships/",
+        s3_client=s3,
+        download_raw=True,
+        record_downloader=lambda record: (xml_content, "s3://test-bucket/form990/raw-sources/2024/zip_archive/a#obj-zip-1.xml"),
+    )
+    assert result.parsed_count == 1
+    assert result.records[0]["xml_source_reference"].startswith("s3://test-bucket/form990/raw-sources/")

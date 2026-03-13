@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,7 +53,12 @@ class Form990IngestService:
         self.relationships_prefix = relationships_prefix
         self.s3 = s3_client or boto3.client("s3")
 
-    def ingest_index_payload(self, payload: list[dict[str, Any]], download_raw: bool = False) -> dict[str, Any]:
+    def ingest_index_payload(
+        self,
+        payload: list[dict[str, Any]],
+        download_raw: bool = False,
+        record_downloader: Any | None = None,
+    ) -> dict[str, Any]:
         records = parse_index_records(payload)
         result = ingest_form990_records(
             records=records,
@@ -67,8 +72,15 @@ class Form990IngestService:
             relationships_prefix=self.relationships_prefix,
             s3_client=self.s3,
             download_raw=download_raw,
+            record_downloader=record_downloader,
         )
         return result.to_dict()
+
+
+@dataclass(frozen=True)
+class Form990DownloadedXml:
+    xml_bytes: bytes
+    source_reference: str
 
 
 def ingest_form990_records(
@@ -84,6 +96,7 @@ def ingest_form990_records(
     s3_client: Any,
     download_raw: bool = False,
     downloader: Any | None = None,
+    record_downloader: Any | None = None,
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
@@ -111,7 +124,19 @@ def ingest_form990_records(
             continue
 
         try:
-            xml_bytes = downloader(record.xml_url)
+            source_reference = record.xml_url or ""
+            if record_downloader is not None:
+                downloaded = record_downloader(record)
+                if isinstance(downloaded, Form990DownloadedXml):
+                    xml_bytes = downloaded.xml_bytes
+                    source_reference = downloaded.source_reference or source_reference
+                elif isinstance(downloaded, tuple) and len(downloaded) == 2:
+                    xml_bytes = downloaded[0]
+                    source_reference = str(downloaded[1] or source_reference)
+                else:
+                    xml_bytes = downloaded
+            else:
+                xml_bytes = downloader(record.xml_url)
             raw_key = raw_xml_key(raw_prefix, metadata.ein, metadata.tax_year, metadata.irs_object_id)
             s3_client.put_object(Bucket=bucket, Key=raw_key, Body=xml_bytes)
 
@@ -131,7 +156,7 @@ def ingest_form990_records(
                     amended_return=extracted_meta.get("amended_return"),
                     return_type=extracted_meta.get("return_type") or metadata.return_type,
                     irs_object_id=metadata.irs_object_id,
-                    xml_source_reference=metadata.xml_source_reference,
+                    xml_source_reference=source_reference,
                     raw_s3_key=raw_key,
                     parse_status=Form990ParseStatus.PARSED,
                 ).to_dict(),

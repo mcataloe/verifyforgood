@@ -214,7 +214,7 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
         new_count=1,
     )
     module.update_filing_state_from_ingest_result = lambda **kwargs: []
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
         "status": "success",
         "records_processed": len(payload),
         "parsed_count": len(payload),
@@ -250,7 +250,7 @@ def test_discovery_mode_reports_unchanged_state(monkeypatch):
         "downloads": list(kwargs["sources"]),
     }
     module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     fake_s3.put_object(
         Bucket="test-bucket",
         Key=state_key,
@@ -295,7 +295,7 @@ def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
 
     module.execute_source_download_batch = _unexpected
     module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
 
@@ -314,7 +314,7 @@ def test_policy_config_override_target_years(monkeypatch):
         "downloads": list(kwargs["sources"]),
     }
     module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     result = module.handler(
         {
             "mode": "incremental",
@@ -351,7 +351,7 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
         current_records=[],
         selected_records=[],
     )
-    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
 
     result = module.handler({"mode": "incremental"}, None)
     body = json.loads(result["body"])
@@ -415,13 +415,14 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
-    assert body["stage"] == "csv_reconciliation"
+    assert body["stage"] == "zip_extraction"
     assert body["chunk_count"] == 1
     assert len(fake_sqs.messages) == 1
     payload = json.loads(fake_sqs.messages[0]["MessageBody"])
     chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
     assert chunk_body["task_type"] == "filing_records"
     assert chunk_body["records"][0]["irs_object_id"] == "obj-1"
+    assert len(chunk_body["zip_sources"]) == 0
 
 
 def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):

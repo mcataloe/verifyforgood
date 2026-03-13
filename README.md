@@ -1,4 +1,4 @@
-# Charity Status API
+﻿# Charity Status API
 
 Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
 
@@ -170,7 +170,8 @@ Filing-level reconciliation now runs after raw source persistence:
 - yearly CSV indexes are the authoritative filing catalog for incremental Form 990 selection
 - the reconciler reads the downloaded raw CSV artifacts from S3 and diffs filing rows against latest filing state
 - only new, changed, or incomplete filings are selected for downstream ingest
-- ZIP archives remain the authoritative bulk XML source in the long-term design, but until ZIP-member extraction is implemented the selected filings still flow through the existing direct `xml_url` ingest path
+- selected filings are resolved against raw ZIP source artifacts in S3 and extracted from ZIP members as the primary XML path
+- direct `xml_url` download is used only as fallback when ZIP-member resolution fails and a trustworthy URL is available
 - historical source retention still comes from object keys/manifests, not S3 versioning
 
 Phase 10G ZIP discovery/reconciliation extension:
@@ -204,10 +205,11 @@ Phase 10G ZIP discovery/reconciliation extension:
   - select target years for source and filing work
   - download only source artifacts missing from downloaded-source state or changed by source signature
   - reconcile filing rows from the downloaded yearly CSV indexes
-  - schedule or ingest only the selected new, changed, or incomplete filings
-  - defer ZIP-member lookup/extraction to a later phase
+  - resolve selected filings to ZIP members and extract only required XML entries where feasible
+  - parse only selected filing XML and persist normalized outputs
+  - use URL fallback only when ZIP resolution cannot locate the filing XML
 
-“Already on file” now means the latest filing state contains a complete terminal outcome for that filing:
+"Already on file" now means the latest filing state contains a complete terminal outcome for that filing:
 
 - `parsed` filings are complete only when filing state records the normalized dataset artifact keys written by ingest
 - `unsupported_return_type` is treated as a terminal complete outcome when recorded in filing state
@@ -219,9 +221,9 @@ Phase 10H parallel chunk processing:
   - `inline` (existing single-invocation processing)
   - `orchestrated` (SQS chunking + worker Lambdas)
 - orchestrated flow:
-  - orchestrator discovers source artifacts and writes source-stage chunk definitions to S3
+  - orchestrator discovers sources, reconciles CSV filings, and writes selected filing chunks to S3
   - orchestrator enqueues chunk messages to SQS
-  - worker Lambda downloads and persists raw source artifacts for queued chunks
+  - worker Lambda processes selected filings using ZIP-backed extraction first, then URL fallback when needed
   - per-run/per-chunk artifacts are persisted under:
     - `ops/form990-runs/{run_id}/run.json`
     - `ops/form990-runs/{run_id}/chunks/{chunk_id}.json`

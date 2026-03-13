@@ -153,6 +153,7 @@ def _parse_csv_rows_positional(text: str) -> list[dict[str, Any]]:
         tax_year = str(row[3]).strip()
         return_type = str(row[5]).strip()
         object_id = str(row[7]).strip()
+        source_archive = str(row[8]).strip() if len(row) > 8 else ""
         if not ein:
             continue
         parsed.append(
@@ -162,6 +163,7 @@ def _parse_csv_rows_positional(text: str) -> list[dict[str, Any]]:
                 "ReturnType": return_type or None,
                 "ObjectId": object_id or None,
                 "URL": _default_xml_url(object_id) if object_id else None,
+                "SourceArchive": source_archive or None,
             }
         )
     return parsed

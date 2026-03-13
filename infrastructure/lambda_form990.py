@@ -20,6 +20,7 @@ from charity_status.form990.irs_page_discovery import (
 from charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state, plan_source_downloads
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
 from charity_status.form990.source_catalog import normalize_configured_sources, select_sources_by_years, source_years
+from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key
 
@@ -53,6 +54,7 @@ FORM990_IRS_DOWNLOADS_PAGE_URL = os.environ.get(
 FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "300"))
 FORM990_ZIP_FETCH_TIMEOUT_SECONDS = int(os.environ.get("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "120"))
 FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES", str(20 * 1024 * 1024)))
+FORM990_ZIP_URL_FALLBACK_ENABLED = os.environ.get("FORM990_ZIP_URL_FALLBACK_ENABLED", "true").lower() == "true"
 FORM990_EXECUTION_MODE = os.environ.get("FORM990_EXECUTION_MODE", "inline").strip().lower()
 FORM990_CHUNK_SIZE = int(os.environ.get("FORM990_CHUNK_SIZE", "250"))
 FORM990_WORK_QUEUE_URL = os.environ.get("FORM990_WORK_QUEUE_URL", "").strip()
@@ -126,9 +128,10 @@ def handler(event, context):
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
     prepared = _prepare_discovery_run(service, payload)
     download_manifest = _download_selected_sources(service, prepared)
+    downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
     csv_sources = _resolve_selected_csv_sources(
         selected_sources=prepared["selected_sources"],
-        downloaded_state=load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX),
+        downloaded_state=downloaded_state,
     )
     reconciliation = reconcile_filing_catalog(
         s3_client=service.s3,
@@ -138,8 +141,14 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         csv_sources=csv_sources,
     )
     selected_records = [_record_to_dict(item) for item in reconciliation.selected_records]
+    zip_loader: ZipBackedXmlLoader | None = None
     if selected_records:
-        ingest_result = service.ingest_index_payload(payload=selected_records, download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)))
+        zip_loader = _build_zip_loader(service.s3, selected_records, downloaded_state)
+        ingest_result = service.ingest_index_payload(
+            payload=selected_records,
+            download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)),
+            record_downloader=zip_loader.load if zip_loader else None,
+        )
         update_filing_state_from_ingest_result(
             s3_client=service.s3,
             bucket=BUCKET or "",
@@ -201,6 +210,9 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "processed_records": int(ingest_result.get("records_processed") or 0),
         "parsed_count": int(ingest_result.get("parsed_count") or 0),
         "failed_count": int(ingest_result.get("failed_count") or 0),
+        "zip_resolved_count": int(zip_loader.zip_extracted_count) if zip_loader else 0,
+        "zip_fallback_url_count": int(zip_loader.url_fallback_count) if zip_loader else 0,
+        "zip_unresolved_count": int(zip_loader.unresolved_count) if zip_loader else 0,
         "batch_count": 1 if selected_records else 0,
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
         "manifest_s3_key": ingest_result.get("manifest_s3_key"),
@@ -219,6 +231,8 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         filings_discovered=len(reconciliation.current_records),
         selected_records=len(selected_records),
         parsed_count=int(ingest_result.get("parsed_count") or 0),
+        zip_resolved_count=int(zip_loader.zip_extracted_count) if zip_loader else 0,
+        zip_fallback_url_count=int(zip_loader.url_fallback_count) if zip_loader else 0,
     )
     _persist_ingest_ops_run(service, response, selected_records)
     return response
@@ -231,9 +245,10 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     prepared = _prepare_discovery_run(service, payload)
     run_id = prepared["run_id"]
     download_manifest = _download_selected_sources(service, prepared)
+    downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
     csv_sources = _resolve_selected_csv_sources(
         selected_sources=prepared["selected_sources"],
-        downloaded_state=load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX),
+        downloaded_state=downloaded_state,
     )
     reconciliation = reconcile_filing_catalog(
         s3_client=service.s3,
@@ -243,6 +258,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         csv_sources=csv_sources,
     )
     selected = [_record_to_dict(item) for item in reconciliation.selected_records]
+    zip_sources = select_zip_sources_for_records(selected, downloaded_state)
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
@@ -263,8 +279,9 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
             "chunk_id": chunk_id,
             "chunk_index": chunk_index,
             "task_type": "filing_records",
-            "stage": "csv_reconciliation",
+            "stage": "zip_extraction",
             "records": chunk,
+            "zip_sources": zip_sources,
             "mode": prepared["mode"],
             "source_mode": prepared["source_mode"],
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -312,6 +329,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
         "selected_records": len(selected),
+        "zip_source_count": len(zip_sources),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "chunk_status_counts": {"queued": len(chunks), "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
@@ -337,7 +355,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
 
     return {
         "status": "queued" if chunks else "success",
-        "stage": "csv_reconciliation",
+        "stage": "zip_extraction",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "run_id": run_id,
@@ -359,6 +377,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
         "selected_records": len(selected),
+        "zip_source_count": len(zip_sources),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
@@ -371,8 +390,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filing_state_key": reconciliation.state_key,
         "run_s3_key": ops_run_key,
         "chunks": chunks[:10],
-        "next_stage": "zip_extraction",
-        "next_stage_implemented": False,
+        "next_stage": "normalized_parsing",
+        "next_stage_implemented": True,
     }
 
 
@@ -564,6 +583,20 @@ def _resolve_selected_csv_sources(selected_sources: list[dict[str, Any]], downlo
             continue
         resolved.append({**source, **downloaded})
     return resolved
+
+
+def _build_zip_loader(s3_client: Any, selected_records: list[dict[str, Any]], downloaded_state: list[dict[str, Any]]) -> ZipBackedXmlLoader | None:
+    zip_sources = select_zip_sources_for_records(selected_records, downloaded_state)
+    if not zip_sources:
+        return None
+    return ZipBackedXmlLoader(
+        s3_client=s3_client,
+        bucket=BUCKET or "",
+        zip_sources=zip_sources,
+        allow_url_fallback=FORM990_ZIP_URL_FALLBACK_ENABLED,
+        url_timeout_seconds=FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
+        max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+    )
 
 
 def _resolve_now(payload: dict[str, Any]) -> datetime:

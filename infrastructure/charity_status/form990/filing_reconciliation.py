@@ -111,6 +111,7 @@ def load_csv_catalog_records(s3_client: Any, bucket: str, csv_sources: list[dict
         body = s3_client.get_object(Bucket=bucket, Key=source_key)["Body"].read()
         rows = parse_index_source_payload(source_url, body)
         for record in parse_index_records(rows):
+            archive_hint = str(record.source_archive or "").strip() or None
             records.append(
                 Form990IndexRecord(
                     ein=record.ein,
@@ -120,7 +121,7 @@ def load_csv_catalog_records(s3_client: Any, bucket: str, csv_sources: list[dict
                     irs_object_id=record.irs_object_id,
                     xml_url=record.xml_url,
                     source_year=str(source.get("source_year") or record.source_year or "").strip() or None,
-                    source_archive=str(source.get("source_archive_key") or source.get("source_filename") or "").strip() or None,
+                    source_archive=archive_hint or str(source.get("source_archive_key") or source.get("source_filename") or "").strip() or None,
                     source_signature=filing_signature(record, source),
                 )
             )
