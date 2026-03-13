@@ -9,20 +9,17 @@ from typing import Any
 import boto3
 from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
-from charity_status.form990.discovery import discover_archives, fetch_index_records
-from charity_status.form990.index import parse_index_records
+from charity_status.form990.discovery import fetch_index_records
 from charity_status.form990.irs_page_discovery import (
     IrsYearSource,
     discover_irs_form990_sources,
-    discovery_state_changed,
     discovery_state_payload,
-    sources_to_catalog,
+    diff_source_catalog,
 )
-from charity_status.form990.manifest import diff_manifest_entries, to_manifest_entries
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
-from charity_status.form990.zip_processing import fetch_zip_records
+from charity_status.form990.source_catalog import normalize_configured_sources, select_sources_by_years, source_years
 from charity_status.ops import S3RunStore
-from charity_status.form990.storage import checkpoint_key, discovery_manifest_key, discovery_state_key, filing_manifest_key, state_manifest_key
+from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -107,166 +104,48 @@ def handler(event, context):
 
 
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
-    mode = str(payload.get("mode") or FORM990_RUN_MODE or "incremental").strip().lower()
-    if mode not in {"bootstrap", "incremental"}:
-        raise ValueError("mode must be bootstrap or incremental")
-
-    batch_size = int(payload.get("batch_size") or FORM990_BATCH_SIZE)
-    if batch_size < 1:
-        raise ValueError("batch_size must be >= 1")
-    run_id = str(payload.get("run_id") or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    reconciliation_all_years = bool(payload.get("reconciliation_all_years", False))
-    resume = bool(payload.get("resume", False))
-
-    source_mode = _resolve_source_mode(payload)
-    discovered_sources = _discover_sources(payload, source_mode=source_mode)
-    catalog = sources_to_catalog(discovered_sources) if source_mode == "irs_page" else _resolve_source_catalog(payload)
-    now_dt = _resolve_now(payload)
-    now_year = now_dt.year
-    discovered = discover_archives(catalog, mode="bootstrap", now_year=now_year, reconciliation_all_years=True)
-    discovered_years = sorted({archive.source_year for archive in discovered})
-    _log_structured("form990.discovery.summary", source_mode=source_mode, discovered_years=discovered_years, discovered_archives=len(discovered))
-    policy = _build_policy_config(payload, mode=mode)
-    selected_years, policy_metadata = select_target_years(discovered_years, policy, now=now_dt)
-    _log_structured("form990.discovery.selected_years", selected_years=selected_years, mode=mode, policy_effective_mode=policy_metadata.get("effective_mode"))
-    discovered = [archive for archive in discovered if archive.source_year in set(selected_years)] if selected_years else []
-    if reconciliation_all_years:
-        policy_metadata["effective_mode"] = "reconciliation"
-        policy_metadata["reconciliation_due"] = True
-
-    all_records = []
-    archive_summaries: list[dict[str, Any]] = []
-    if source_mode == "irs_page":
-        _persist_discovery_state(service.s3, discovered_sources)
-
-    for archive in discovered:
-        _log_structured("form990.archive.start", source_year=archive.source_year, source_archive=archive.source_archive, source_mode=source_mode)
-        records = _fetch_archive_records_with_retries(catalog, archive, source_mode=source_mode)
-        all_records.extend(records)
-        archive_manifest = {
-            "run_id": run_id,
-            "source_year": archive.source_year,
-            "source_archive": archive.source_archive,
-            "index_url": archive.index_url,
-            "source_mode": source_mode,
-            "record_count": len(records),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        archive_summaries.append(archive_manifest)
-        _log_structured("form990.archive.complete", source_year=archive.source_year, source_archive=archive.source_archive, record_count=len(records))
-        service.s3.put_object(
-            Bucket=BUCKET,
-            Key=discovery_manifest_key(MANIFEST_PREFIX, run_id=run_id, source_year=archive.source_year, source_archive=archive.source_archive),
-            Body=json.dumps(archive_manifest, sort_keys=True).encode("utf-8"),
-        )
-
-    previous_entries = _load_previous_manifest_entries(service.s3)
-    new_records, changed_records, unchanged_count = diff_manifest_entries(all_records, previous_entries)
-    _log_structured(
-        "form990.reconciliation.summary",
-        total_index_records=len(all_records),
-        new_records=len(new_records),
-        changed_records=len(changed_records),
-        unchanged_records=unchanged_count,
-    )
-    selected = all_records if mode == "bootstrap" and bool(payload.get("bootstrap_process_all", True)) else (new_records + changed_records)
-
-    selected = _apply_index_filters([_record_to_dict(item) for item in selected], payload)
-    start_offset = _resolve_start_offset(service.s3, payload, resume=resume)
-    total_selected = len(selected)
-    selected = selected[start_offset:]
-
-    processed = 0
-    parsed = 0
-    failed = 0
-    batches = 0
-    batch_results: list[dict[str, Any]] = []
-    for idx in range(0, len(selected), batch_size):
-        chunk = selected[idx : idx + batch_size]
-        if not chunk:
-            continue
-        batches += 1
-        ingest_result = service.ingest_index_payload(payload=chunk, download_raw=True)
-        processed += int(ingest_result.get("records_processed") or 0)
-        parsed += int(ingest_result.get("parsed_count") or 0)
-        failed += int(ingest_result.get("failed_count") or 0)
-        manifest_entry = {
-            "run_id": run_id,
-            "batch_index": batches - 1,
-            "chunk_size": len(chunk),
-            "processed": ingest_result.get("records_processed"),
-            "parsed": ingest_result.get("parsed_count"),
-            "failed": ingest_result.get("failed_count"),
-            "filing_records_s3_key": ingest_result.get("filing_records_s3_key"),
-            "metrics_s3_key": ingest_result.get("metrics_s3_key"),
-        }
-        service.s3.put_object(
-            Bucket=BUCKET,
-            Key=filing_manifest_key(MANIFEST_PREFIX, run_id=run_id, batch_index=batches - 1),
-            Body=json.dumps(manifest_entry, sort_keys=True).encode("utf-8"),
-        )
-        _save_checkpoint(
-            service.s3,
-            run_id=run_id,
-            mode=mode,
-            offset=start_offset + idx + len(chunk),
-            total=total_selected,
-            completed=False,
-        )
-        batch_results.append(manifest_entry)
-        _log_structured("form990.batch.complete", batch_index=batches - 1, chunk_size=len(chunk), processed=manifest_entry.get("processed"), failed=manifest_entry.get("failed"))
-
-    _save_checkpoint(
-        service.s3,
-        run_id=run_id,
-        mode=mode,
-        offset=total_selected,
-        total=total_selected,
-        completed=True,
-    )
-    service.s3.put_object(
-        Bucket=BUCKET,
-        Key=state_manifest_key(MANIFEST_PREFIX),
-        Body=json.dumps({"run_id": run_id, "entries": to_manifest_entries(all_records)}, sort_keys=True).encode("utf-8"),
-    )
-    status = "success" if failed == 0 else ("partial_success" if processed > 0 else "failed")
+    prepared = _prepare_discovery_run(service, payload)
     response = {
         "status": "success",
-        "mode": mode,
-        "run_id": run_id,
-        "archives_discovered": len(discovered),
-        "total_index_records": len(all_records),
-        "new_records": len(new_records),
-        "changed_records": len(changed_records),
-        "unchanged_records": unchanged_count,
-        "selected_records": total_selected,
-        "processed_records": processed,
-        "parsed_count": parsed,
-        "failed_count": failed,
-        "batch_count": batches,
-        "affected_eins": sorted({str(item.get("ein") or "").strip() for item in selected if str(item.get("ein") or "").strip()}),
-        "affected_filing_ids": _collect_filing_ids_by_ein(selected),
+        "stage": "source_catalog",
+        "execution_mode": "inline",
+        "mode": prepared["mode"],
+        "run_id": prepared["run_id"],
+        "source_mode": prepared["source_mode"],
+        "source_catalog_count": prepared["source_catalog_count"],
+        "sources_discovered": prepared["source_catalog_count"],
+        "source_years": prepared["source_years"],
+        "new_sources": prepared["new_sources"],
+        "removed_sources": prepared["removed_sources"],
+        "changed_sources": prepared["changed_sources"],
+        "unchanged_sources": prepared["unchanged_sources"],
+        "selected_source_count": prepared["selected_source_count"],
+        "scheduled_source_count": prepared["scheduled_source_count"],
+        "scheduled_sources": prepared["scheduled_sources"][:10],
+        "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
+        "discovery_manifest_key": prepared["discovery_manifest_key"],
+        "discovery_diff_key": prepared["discovery_diff_key"],
+        "policy": prepared["policy"],
+        "next_stage": "source_artifact_fetch",
+        "next_stage_implemented": False,
+        "selected_records": 0,
+        "processed_records": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "batch_count": 0,
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
-        "batches": batch_results,
-        "archives": archive_summaries,
-        "policy": {
-            "mode_requested": mode,
-            "effective_mode": policy_metadata.get("effective_mode"),
-            "target_years": selected_years,
-            "incremental_year_window": policy.incremental_year_window,
-            "reconciliation_enabled": policy.reconciliation_enabled,
-            "reconciliation_cadence_days": policy.reconciliation_cadence_days,
-            "reconciliation_due": policy_metadata.get("reconciliation_due"),
-            "fallback_used": policy_metadata.get("fallback_used"),
-            "resume": resume,
-            "batch_size": batch_size,
-            "retry_count": FORM990_RETRY_COUNT,
-        },
-        "source_mode": source_mode,
     }
-    response["status"] = status
-    _log_structured("form990.run.complete", run_id=run_id, status=status, source_mode=source_mode, processed_records=processed, failed_count=failed)
-    _persist_ingest_ops_run(service, response, selected)
+    _log_structured(
+        "form990.discovery.run.complete",
+        run_id=prepared["run_id"],
+        source_mode=prepared["source_mode"],
+        source_catalog_count=prepared["source_catalog_count"],
+        new_sources=prepared["new_sources"],
+        changed_sources=prepared["changed_sources"],
+        removed_sources=prepared["removed_sources"],
+        scheduled_source_count=prepared["scheduled_source_count"],
+    )
+    _persist_ingest_ops_run(service, response, prepared["scheduled_sources"])
     return response
 
 
@@ -274,9 +153,9 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     if not FORM990_WORK_QUEUE_URL:
         raise ValueError("FORM990_WORK_QUEUE_URL is required for orchestrated execution mode")
 
-    prepared = _prepare_discovery_selection(service, payload)
+    prepared = _prepare_discovery_run(service, payload)
     run_id = prepared["run_id"]
-    selected = prepared["selected"]
+    selected = prepared["scheduled_sources"]
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
@@ -296,7 +175,9 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
             "run_id": run_id,
             "chunk_id": chunk_id,
             "chunk_index": chunk_index,
-            "records": chunk,
+            "task_type": "source_catalog",
+            "stage": "source_catalog",
+            "sources": chunk,
             "mode": prepared["mode"],
             "source_mode": prepared["source_mode"],
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -323,22 +204,28 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
+        "stage": "source_catalog",
         "status": "queued",
         "source_mode": prepared["source_mode"],
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "archives_discovered": prepared["archives_discovered"],
-        "filings_discovered": prepared["total_index_records"],
-        "filings_new": prepared["new_records"],
-        "filings_changed": prepared["changed_records"],
-        "filings_skipped": prepared["unchanged_records"],
-        "selected_records": len(selected),
+        "source_catalog_count": prepared["source_catalog_count"],
+        "sources_discovered": prepared["source_catalog_count"],
+        "source_years": prepared["source_years"],
+        "sources_new": prepared["new_sources"],
+        "sources_removed": prepared["removed_sources"],
+        "sources_changed": prepared["changed_sources"],
+        "sources_unchanged": prepared["unchanged_sources"],
+        "selected_source_count": prepared["selected_source_count"],
+        "scheduled_source_count": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "chunk_status_counts": {"queued": len(chunks), "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
         "policy": prepared["policy"],
+        "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
+        "discovery_manifest_key": prepared["discovery_manifest_key"],
+        "discovery_diff_key": prepared["discovery_diff_key"],
     }
     run_store.write_ingest_run(run_id, run_summary)
-    run_store.write_ingest_filings(run_id, selected)
 
     ops_run_key = f"{prefix}/form990-runs/{run_id}/run.json"
     service.s3.put_object(Bucket=bucket, Key=ops_run_key, Body=json.dumps(run_summary, sort_keys=True).encode("utf-8"))
@@ -350,87 +237,30 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
 
     return {
         "status": "queued",
+        "stage": "source_catalog",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "run_id": run_id,
         "source_mode": prepared["source_mode"],
-        "archives_discovered": prepared["archives_discovered"],
-        "total_index_records": prepared["total_index_records"],
-        "new_records": prepared["new_records"],
-        "changed_records": prepared["changed_records"],
-        "unchanged_records": prepared["unchanged_records"],
-        "selected_records": len(selected),
+        "source_catalog_count": prepared["source_catalog_count"],
+        "sources_discovered": prepared["source_catalog_count"],
+        "source_years": prepared["source_years"],
+        "new_sources": prepared["new_sources"],
+        "removed_sources": prepared["removed_sources"],
+        "changed_sources": prepared["changed_sources"],
+        "unchanged_sources": prepared["unchanged_sources"],
+        "selected_source_count": prepared["selected_source_count"],
+        "scheduled_source_count": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
+        "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
+        "discovery_manifest_key": prepared["discovery_manifest_key"],
+        "discovery_diff_key": prepared["discovery_diff_key"],
         "run_s3_key": ops_run_key,
         "chunks": chunks[:10],
+        "next_stage": "source_artifact_fetch",
+        "next_stage_implemented": False,
     }
-
-
-def _fetch_with_retries(index_url: str, source_year: str, source_archive: str) -> list[Any]:
-    last_error: Exception | None = None
-    for _attempt in range(FORM990_RETRY_COUNT + 1):
-        try:
-            return fetch_index_records(index_url=index_url, source_year=source_year, source_archive=source_archive, timeout_seconds=INDEX_FETCH_TIMEOUT_SECONDS)
-        except Exception as exc:  # pragma: no cover - exercised by retries in runtime
-            last_error = exc
-    if last_error:
-        raise last_error
-    return []
-
-
-def _fetch_archive_records_with_retries(catalog: list[dict[str, Any]], archive: Any, source_mode: str, prefer_index: bool = False) -> list[Any]:
-    source = _lookup_catalog_item(catalog, archive.source_year, archive.source_archive)
-    if prefer_index and str(archive.index_url or "").strip():
-        return _fetch_with_retries(archive.index_url, archive.source_year, archive.source_archive)
-    if source_mode == "irs_page" and str(source.get("zip_url") or "").strip():
-        return _fetch_zip_records_with_retries(
-            zip_url=str(source.get("zip_url") or "").strip(),
-            source_year=archive.source_year,
-            source_archive=archive.source_archive,
-            index_url=archive.index_url,
-        )
-    return _fetch_with_retries(archive.index_url, archive.source_year, archive.source_archive)
-
-
-def _fetch_zip_records_with_retries(zip_url: str, source_year: str, source_archive: str, index_url: str | None = None) -> list[Any]:
-    last_error: Exception | None = None
-    for _attempt in range(FORM990_RETRY_COUNT + 1):
-        try:
-            return _zip_records_to_index_records(
-                zip_url=zip_url,
-                source_year=source_year,
-                source_archive=source_archive,
-                index_url=index_url,
-            )
-        except Exception as exc:  # pragma: no cover - exercised by retries in runtime
-            last_error = exc
-    if last_error:
-        raise last_error
-    return []
-
-
-def _zip_records_to_index_records(zip_url: str, source_year: str, source_archive: str, index_url: str | None = None) -> list[Any]:
-    zipped = fetch_zip_records(
-        zip_url=zip_url,
-        source_year=source_year,
-        source_archive=source_archive,
-        timeout_seconds=FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
-        max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
-    )
-    records = []
-    for record, _xml in zipped:
-        records.append(record)
-    return records
-
-
-def _lookup_catalog_item(catalog: list[dict[str, Any]], source_year: str, source_archive: str) -> dict[str, Any]:
-    for item in catalog:
-        year = str(item.get("year") or item.get("source_year") or "").strip()
-        archive = str(item.get("archive_name") or item.get("source_archive") or "").strip()
-        if year == str(source_year).strip() and archive == str(source_archive).strip():
-            return item
-    return {}
 
 
 def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -463,80 +293,90 @@ def _resolve_execution_mode(payload: dict[str, Any]) -> str:
     return "inline"
 
 
-def _discover_sources(payload: dict[str, Any], source_mode: str) -> list[IrsYearSource]:
-    if source_mode != "irs_page":
-        return []
-    page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()
-    if not page_url:
-        raise ValueError("irs_page source_mode requires irs_downloads_page_url or FORM990_IRS_DOWNLOADS_PAGE_URL")
-    return discover_irs_form990_sources(page_url=page_url, timeout_seconds=INDEX_FETCH_TIMEOUT_SECONDS)
+def _discover_sources(payload: dict[str, Any], source_mode: str, now: datetime) -> list[IrsYearSource]:
+    if source_mode == "irs_page":
+        page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()
+        if not page_url:
+            raise ValueError("irs_page source_mode requires irs_downloads_page_url or FORM990_IRS_DOWNLOADS_PAGE_URL")
+        return discover_irs_form990_sources(page_url=page_url, timeout_seconds=INDEX_FETCH_TIMEOUT_SECONDS, now=now)
+    return normalize_configured_sources(_resolve_source_catalog(payload), now=now)
 
 
-def _persist_discovery_state(s3_client: Any, discovered_sources: list[IrsYearSource]) -> None:
-    if not discovered_sources:
-        return
-    previous = _load_previous_discovery_state(s3_client)
-    if not discovery_state_changed(discovered_sources, previous):
-        _log_structured("form990.discovery.state_unchanged", discovery_sources=len(discovered_sources))
-        return
-    payload = discovery_state_payload(discovered_sources)
-    s3_client.put_object(Bucket=BUCKET, Key=discovery_state_key(MANIFEST_PREFIX), Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
-    _log_structured("form990.discovery.state_updated", discovery_sources=len(discovered_sources), key=discovery_state_key(MANIFEST_PREFIX))
+def _persist_discovery_state(
+    s3_client: Any,
+    *,
+    run_id: str,
+    discovered_sources: list[IrsYearSource],
+    diff_payload: dict[str, Any],
+    now: datetime,
+) -> dict[str, str]:
+    state_payload = discovery_state_payload(discovered_sources, now=now)
+    manifest_key = discovery_manifest_key(MANIFEST_PREFIX, run_id=run_id)
+    diff_key = discovery_diff_key(MANIFEST_PREFIX, run_id=run_id)
+    s3_client.put_object(Bucket=BUCKET, Key=discovery_state_key(MANIFEST_PREFIX), Body=json.dumps(state_payload, sort_keys=True).encode("utf-8"))
+    s3_client.put_object(Bucket=BUCKET, Key=manifest_key, Body=json.dumps(state_payload, sort_keys=True).encode("utf-8"))
+    s3_client.put_object(Bucket=BUCKET, Key=diff_key, Body=json.dumps(diff_payload, sort_keys=True).encode("utf-8"))
+    _log_structured(
+        "form990.discovery.state_persisted",
+        discovery_sources=len(discovered_sources),
+        state_key=discovery_state_key(MANIFEST_PREFIX),
+        manifest_key=manifest_key,
+        diff_key=diff_key,
+    )
+    return {"discovery_manifest_key": manifest_key, "discovery_diff_key": diff_key}
 
 
-def _prepare_discovery_selection(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
+def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
     mode = str(payload.get("mode") or FORM990_RUN_MODE or "incremental").strip().lower()
     if mode not in {"bootstrap", "incremental"}:
         raise ValueError("mode must be bootstrap or incremental")
 
     run_id = str(payload.get("run_id") or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     source_mode = _resolve_source_mode(payload)
-    discovered_sources = _discover_sources(payload, source_mode=source_mode)
-    catalog = sources_to_catalog(discovered_sources) if source_mode == "irs_page" else _resolve_source_catalog(payload)
     now_dt = _resolve_now(payload)
-    discovered = discover_archives(catalog, mode="bootstrap", now_year=now_dt.year, reconciliation_all_years=True)
-    discovered_years = sorted({archive.source_year for archive in discovered})
+    discovered_sources = _discover_sources(payload, source_mode=source_mode, now=now_dt)
+    discovered_years = source_years(discovered_sources)
     policy = _build_policy_config(payload, mode=mode)
     selected_years, policy_metadata = select_target_years(discovered_years, policy, now=now_dt)
-    discovered = [archive for archive in discovered if archive.source_year in set(selected_years)] if selected_years else []
     if bool(payload.get("reconciliation_all_years", False)):
         policy_metadata["effective_mode"] = "reconciliation"
         policy_metadata["reconciliation_due"] = True
 
-    if source_mode == "irs_page":
-        _persist_discovery_state(service.s3, discovered_sources)
-
-    all_records = []
-    limit_value = payload.get("limit")
-    remaining_limit: int | None = None
-    if limit_value is not None:
-        try:
-            remaining_limit = max(0, int(limit_value))
-        except (TypeError, ValueError):
-            remaining_limit = None
-    for archive in discovered:
-        records = _fetch_archive_records_with_retries(catalog, archive, source_mode=source_mode, prefer_index=True)
-        record_dicts = _apply_index_filters([_record_to_dict(item) for item in records], {k: v for k, v in payload.items() if k != "limit"})
-        if remaining_limit is not None:
-            if remaining_limit <= 0:
-                break
-            record_dicts = record_dicts[:remaining_limit]
-            remaining_limit -= len(record_dicts)
-        all_records.extend([parse_index_records([item])[0] for item in record_dicts])
-    previous_entries = _load_previous_manifest_entries(service.s3)
-    new_records, changed_records, unchanged_count = diff_manifest_entries(all_records, previous_entries)
-    selected = all_records if mode == "bootstrap" and bool(payload.get("bootstrap_process_all", True)) else (new_records + changed_records)
-    selected_dicts = [_record_to_dict(item) for item in selected]
+    previous_sources = _load_previous_discovery_state(service.s3)
+    diff = diff_source_catalog(discovered_sources, previous_sources)
+    diff_payload = {
+        "generated_at": now_dt.isoformat(),
+        "run_id": run_id,
+        **diff.to_dict(),
+    }
+    persisted_keys = _persist_discovery_state(
+        service.s3,
+        run_id=run_id,
+        discovered_sources=discovered_sources,
+        diff_payload=diff_payload,
+        now=now_dt,
+    )
+    selected_sources = select_sources_by_years(discovered_sources, set(selected_years))
+    actionable_entries = list(diff.new_sources) + [entry["after"] for entry in diff.changed_sources if isinstance(entry.get("after"), dict)]
+    actionable_ids = {_source_identity(item) for item in actionable_entries if isinstance(item, dict)}
+    actionable_sources = [
+        item.to_dict()
+        for item in selected_sources
+        if _source_identity(item.to_dict()) in actionable_ids
+    ]
     return {
         "run_id": run_id,
         "mode": mode,
         "source_mode": source_mode,
-        "archives_discovered": len(discovered),
-        "total_index_records": len(all_records),
-        "new_records": len(new_records),
-        "changed_records": len(changed_records),
-        "unchanged_records": unchanged_count,
-        "selected": selected_dicts,
+        "source_catalog_count": len(discovered_sources),
+        "source_years": discovered_years,
+        "new_sources": len(diff.new_sources),
+        "removed_sources": len(diff.removed_sources),
+        "changed_sources": len(diff.changed_sources),
+        "unchanged_sources": diff.unchanged_sources,
+        "selected_source_count": len(selected_sources),
+        "scheduled_source_count": len(actionable_sources),
+        "scheduled_sources": actionable_sources,
         "policy": {
             "mode_requested": mode,
             "effective_mode": policy_metadata.get("effective_mode"),
@@ -546,10 +386,11 @@ def _prepare_discovery_selection(service: Form990IngestService, payload: dict[st
             "reconciliation_cadence_days": policy.reconciliation_cadence_days,
             "reconciliation_due": policy_metadata.get("reconciliation_due"),
             "fallback_used": policy_metadata.get("fallback_used"),
-            "resume": bool(payload.get("resume", False)),
-            "batch_size": int(payload.get("batch_size") or FORM990_BATCH_SIZE),
+            "resume": False,
+            "batch_size": 0,
             "retry_count": FORM990_RETRY_COUNT,
         },
+        **persisted_keys,
     }
 
 
@@ -697,6 +538,14 @@ def _collect_filing_ids_by_ein(records: list[dict[str, Any]]) -> dict[str, list[
     return {ein: sorted(values) for ein, values in mapping.items()}
 
 
+def _source_identity(entry: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(entry.get("source_year") or entry.get("year") or "").strip(),
+        str(entry.get("source_kind") or "").strip(),
+        str(entry.get("source_archive_key") or entry.get("archive_name") or entry.get("source_archive") or "").strip(),
+    )
+
+
 def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, Any], selected_records: list[dict[str, Any]]) -> None:
     bucket = OPS_METADATA_BUCKET or BUCKET or ""
     if not bucket:
@@ -705,57 +554,38 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
     if not run_id:
         return
     store = S3RunStore(bucket=bucket, prefix=OPS_METADATA_PREFIX, s3_client=service.s3)
-    years_checked = sorted({str(item.get("source_year") or "") for item in response.get("archives", []) if str(item.get("source_year") or "")})
+    years_checked = [str(year).strip() for year in response.get("source_years", []) if str(year).strip()]
     summary = {
         "ingest_run_id": run_id,
         "mode": response.get("mode"),
+        "stage": response.get("stage"),
         "started_at": None,
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "status": response.get("status"),
         "years_checked": years_checked,
-        "archives_discovered": response.get("archives_discovered"),
-        "index_files_processed": response.get("archives_discovered"),
-        "filings_discovered": response.get("total_index_records"),
-        "filings_new": response.get("new_records"),
-        "filings_changed": response.get("changed_records"),
-        "filings_skipped": response.get("unchanged_records"),
+        "source_catalog_count": response.get("source_catalog_count"),
+        "sources_discovered": response.get("sources_discovered"),
+        "sources_new": response.get("new_sources"),
+        "sources_removed": response.get("removed_sources"),
+        "sources_changed": response.get("changed_sources"),
+        "sources_unchanged": response.get("unchanged_sources"),
+        "scheduled_source_count": response.get("scheduled_source_count"),
+        "filings_discovered": 0,
+        "filings_new": 0,
+        "filings_changed": 0,
+        "filings_skipped": 0,
         "filings_failed": response.get("failed_count"),
-        "affected_ein_count": response.get("affected_ein_count"),
+        "discovery_state_key": response.get("discovery_state_key"),
+        "discovery_manifest_key": response.get("discovery_manifest_key"),
+        "discovery_diff_key": response.get("discovery_diff_key"),
         "checkpoint_key": response.get("checkpoint_key"),
-        "resume_supported": True,
+        "resume_supported": False,
         "safe_error_summary": {"count": int(response.get("failed_count") or 0), "samples": []},
         "policy": response.get("policy"),
     }
     store.write_ingest_run(run_id, summary)
-    filing_items = [
-        {
-            "ein": item.get("ein"),
-            "irs_object_id": item.get("irs_object_id"),
-            "tax_year": item.get("tax_year"),
-            "return_type": item.get("return_type"),
-            "source_year": item.get("source_year"),
-            "source_archive": item.get("source_archive"),
-            "status": "selected",
-            "parse_status": None,
-            "error_code": None,
-        }
-        for item in selected_records
-    ]
-    store.write_ingest_filings(run_id, filing_items)
-
-
-def _load_previous_manifest_entries(s3_client: Any) -> list[dict[str, Any]]:
-    try:
-        response = s3_client.get_object(Bucket=BUCKET, Key=state_manifest_key(MANIFEST_PREFIX))
-        body = response["Body"].read().decode("utf-8")
-        payload = json.loads(body)
-        entries = payload.get("entries")
-        if isinstance(entries, list):
-            return [item for item in entries if isinstance(item, dict)]
-    except Exception:
-        return []
-    return []
-
+    if selected_records:
+        store.write_ingest_filings(run_id, selected_records)
 
 def _load_previous_discovery_state(s3_client: Any) -> list[dict[str, Any]]:
     try:
@@ -768,35 +598,6 @@ def _load_previous_discovery_state(s3_client: Any) -> list[dict[str, Any]]:
     except Exception:
         return []
     return []
-
-
-def _save_checkpoint(s3_client: Any, run_id: str, mode: str, offset: int, total: int, completed: bool) -> None:
-    payload = {
-        "run_id": run_id,
-        "mode": mode,
-        "offset": int(offset),
-        "total_selected": int(total),
-        "completed": bool(completed),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    s3_client.put_object(Bucket=BUCKET, Key=checkpoint_key(MANIFEST_PREFIX), Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
-
-
-def _resolve_start_offset(s3_client: Any, payload: dict[str, Any], resume: bool) -> int:
-    if payload.get("start_offset") is not None:
-        try:
-            return max(0, int(payload.get("start_offset")))
-        except (TypeError, ValueError):
-            return 0
-    if not resume:
-        return 0
-    try:
-        response = s3_client.get_object(Bucket=BUCKET, Key=checkpoint_key(MANIFEST_PREFIX))
-        body = response["Body"].read().decode("utf-8")
-        checkpoint = json.loads(body)
-        return max(0, int(checkpoint.get("offset") or 0))
-    except Exception:
-        return 0
 
 
 def _log_structured(event: str, **fields: Any) -> None:

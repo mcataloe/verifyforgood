@@ -23,11 +23,14 @@ def manifest_key(prefix: str, now: datetime | None = None) -> str:
     return f"{base}/manifest_{ts}.json"
 
 
-def discovery_manifest_key(prefix: str, run_id: str, source_year: str, source_archive: str) -> str:
+def discovery_manifest_key(prefix: str, run_id: str) -> str:
     base = prefix.strip("/")
-    year = (source_year or "unknown_year").strip()
-    archive = (source_archive or "unknown_archive").strip().replace("/", "_")
-    return f"{base}/discovery/{run_id}/{year}/{archive}.json"
+    return f"{base}/discovery/runs/{run_id}/catalog.json"
+
+
+def discovery_diff_key(prefix: str, run_id: str) -> str:
+    base = prefix.strip("/")
+    return f"{base}/discovery/runs/{run_id}/diff.json"
 
 
 def filing_manifest_key(prefix: str, run_id: str, batch_index: int) -> str:

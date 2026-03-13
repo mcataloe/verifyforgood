@@ -1,31 +1,31 @@
 from __future__ import annotations
 
-import hashlib
-import re
 import urllib.parse
 import urllib.request
-from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Any
 
-YEAR_PATTERN = re.compile(r"(20[0-9]{2})")
+from charity_status.form990.source_catalog import (
+    IrsYearSource,
+    SOURCE_KIND_CSV_INDEX,
+    SOURCE_KIND_ZIP_ARCHIVE,
+    build_source_artifact,
+    derive_source_archive_key,
+    derive_source_year,
+    diff_source_catalog,
+    discovery_state_changed,
+    discovery_state_payload,
+    sources_to_catalog,
+)
 
-
-@dataclass(frozen=True)
-class IrsYearSource:
-    year: str
-    archive_name: str
-    zip_url: str | None
-    index_url: str | None
-    source_page_url: str
-    discovered_at: str
-    source_etag: str | None = None
-    source_last_modified: str | None = None
-    source_signature: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+__all__ = [
+    "IrsYearSource",
+    "discover_irs_form990_sources",
+    "diff_source_catalog",
+    "discovery_state_changed",
+    "discovery_state_payload",
+    "sources_to_catalog",
+]
 
 
 class _AnchorParser(HTMLParser):
@@ -75,126 +75,58 @@ def discover_irs_form990_sources(page_url: str, timeout_seconds: int = 60, now: 
     discovered_at = (now or datetime.now(timezone.utc)).isoformat()
     parser = _AnchorParser()
     parser.feed(html)
-    links_by_year = _collect_links_by_year(parser.anchors, base_url=page_url)
 
     sources: list[IrsYearSource] = []
-    for year in sorted(links_by_year.keys()):
-        entries = links_by_year[year]
-        for archive_key in sorted(entries.keys()):
-            urls = entries[archive_key]
-            if not urls.get("zip_url") and not urls.get("index_url"):
-                continue
-            archive_name = f"irs-page-{year}-{archive_key}"
-            signature = _signature_for(
-                year=year,
-                archive_name=archive_name,
-                zip_url=urls.get("zip_url"),
-                index_url=urls.get("index_url"),
-                source_page_url=page_url,
-                etag=etag,
-                last_modified=last_modified,
-            )
-            sources.append(
-                IrsYearSource(
-                    year=year,
-                    archive_name=archive_name,
-                    zip_url=urls.get("zip_url"),
-                    index_url=urls.get("index_url"),
-                    source_page_url=page_url,
-                    discovered_at=discovered_at,
-                    source_etag=etag,
-                    source_last_modified=last_modified,
-                    source_signature=signature,
-                )
-            )
-    return sources
-
-
-def sources_to_catalog(sources: list[IrsYearSource]) -> list[dict[str, Any]]:
-    catalog: list[dict[str, Any]] = []
-    for source in sources:
-        catalog.append(
-            {
-                "year": source.year,
-                "source_year": source.year,
-                "archive_name": source.archive_name,
-                "source_archive": source.archive_name,
-                "index_url": source.index_url,
-                "zip_url": source.zip_url,
-                "source_page_url": source.source_page_url,
-                "source_signature": source.source_signature,
-                "source_etag": source.source_etag,
-                "source_last_modified": source.source_last_modified,
-                "discovered_at": source.discovered_at,
-            }
-        )
-    return catalog
-
-
-def discovery_state_payload(sources: list[IrsYearSource], now: datetime | None = None) -> dict[str, Any]:
-    generated = (now or datetime.now(timezone.utc)).isoformat()
-    return {
-        "generated_at": generated,
-        "count": len(sources),
-        "sources": [item.to_dict() for item in sources],
-    }
-
-
-def discovery_state_changed(current: list[IrsYearSource], previous: list[dict[str, Any]]) -> bool:
-    current_norm = sorted([_state_tuple(item.to_dict()) for item in current])
-    previous_norm = sorted([_state_tuple(item) for item in previous if isinstance(item, dict)])
-    return current_norm != previous_norm
-
-
-def _collect_links_by_year(anchors: list[tuple[str, str]], base_url: str) -> dict[str, dict[str, dict[str, str]]]:
-    by_year: dict[str, dict[str, dict[str, str]]] = {}
-    for raw_href, text in anchors:
-        href = urllib.parse.urljoin(base_url, (raw_href or "").strip())
+    seen: set[tuple[str, str, str]] = set()
+    for raw_href, text in parser.anchors:
+        href = urllib.parse.urljoin(page_url, (raw_href or "").strip())
         if not href:
             continue
         normalized = href.lower()
-        if not (normalized.endswith(".zip") or normalized.endswith(".csv")):
+        if not _looks_like_form990_source(href, text):
             continue
-        year = _extract_year(f"{href} {text}")
+        kind = _source_kind_from_link(normalized, text)
+        if not kind:
+            continue
+        year = derive_source_year(f"{href} {text}")
         if not year:
             continue
-        archive_key = _archive_key_from_link(href, year)
-        year_bucket = by_year.setdefault(year, {})
-        bucket = year_bucket.setdefault(archive_key, {})
-        if normalized.endswith(".zip") and "xml" in normalized:
-            bucket["zip_url"] = href
-        if normalized.endswith(".csv") and ("index" in normalized or "xml" in normalized):
-            bucket["index_url"] = href
-    return by_year
+        filename = href.rstrip("/").split("/")[-1]
+        archive_key = derive_source_archive_key(filename)
+        identity = (year, kind, archive_key)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        sources.append(
+            build_source_artifact(
+                source_year=year,
+                source_kind=kind,
+                source_url=href,
+                source_filename=filename,
+                source_archive_key=archive_key,
+                discovered_at=discovered_at,
+                page_url=page_url,
+                source_etag=etag,
+                source_last_modified=last_modified,
+            )
+        )
+    return sorted(sources, key=lambda source: (source.source_year, source.source_kind, source.source_archive_key, source.source_filename))
 
 
-def _extract_year(value: str) -> str | None:
-    match = YEAR_PATTERN.search(str(value))
-    return match.group(1) if match else None
+def _looks_like_form990_source(href: str, text: str) -> bool:
+    href_lower = href.lower()
+    lowered = f"{href} {text}".lower()
+    if not (href_lower.endswith(".zip") or href_lower.endswith(".csv")):
+        return False
+    if not derive_source_year(lowered):
+        return False
+    return "/990/" in lowered or "form 990" in lowered or "990 xml" in lowered or "epostcard" in lowered
 
 
-def _archive_key_from_link(href: str, year: str) -> str:
-    base = href.rstrip("/").split("/")[-1].lower()
-    stem = base.rsplit(".", 1)[0]
-    normalized = stem.replace("download990xml_", "").replace("index_", "")
-    if year in normalized:
-        suffix = normalized.split(year, 1)[1].strip("_-")
-        if suffix:
-            return f"{year}_{suffix}".replace("-", "_")
-    return normalized.replace("-", "_")
-
-
-def _signature_for(year: str, archive_name: str, zip_url: str | None, index_url: str | None, source_page_url: str, etag: str | None, last_modified: str | None) -> str:
-    parts = [year, archive_name, zip_url or "", index_url or "", source_page_url, etag or "", last_modified or ""]
-    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-    return digest
-
-
-def _state_tuple(entry: dict[str, Any]) -> tuple[str, str, str, str, str]:
-    return (
-        str(entry.get("year") or "").strip(),
-        str(entry.get("archive_name") or "").strip(),
-        str(entry.get("zip_url") or "").strip(),
-        str(entry.get("index_url") or "").strip(),
-        str(entry.get("source_signature") or "").strip(),
-    )
+def _source_kind_from_link(normalized_href: str, text: str) -> str | None:
+    lowered = f"{normalized_href} {text}".lower()
+    if normalized_href.endswith(".csv"):
+        return SOURCE_KIND_CSV_INDEX
+    if normalized_href.endswith(".zip") and ("xml" in lowered or "/990/" in lowered or "epostcard" in lowered):
+        return SOURCE_KIND_ZIP_ARCHIVE
+    return None

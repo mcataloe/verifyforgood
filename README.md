@@ -83,37 +83,74 @@ S3 prefixes (configurable via Terraform variables):
 Operational note:
 
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
-- `lambda_form990` also supports IRS-page discovery mode (`FORM990_SOURCE_MODE=irs_page`) that discovers yearly ZIP/CSV links from the IRS downloads page and reconciles against discovered yearly sources.
+- `lambda_form990` also supports source-catalog-first discovery mode (`FORM990_SOURCE_MODE=irs_page`) that discovers yearly ZIP/CSV artifacts from the IRS downloads page before any later filing-stage work is considered.
 - If neither explicit records nor index URLs are provided, the run is successful but processes `0` records.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
-Phase 10D ingestion orchestration:
+Current discovery-stage architecture:
 
 - supports `mode=bootstrap` and `mode=incremental` (default).
-- discovery uses configured source catalog/index URLs and is resilient to IRS naming variations by extracting year/archive metadata.
-- index diffing against persisted filing-manifest state is the source of truth:
-  - new filings detected by `irs_object_id`
-  - changed filings detected by stable `source_signature`
-  - unchanged filings are skipped
-- does not assume only the latest yearly archive changes.
+- discovery normalizes configured sources and IRS-page links into a common source artifact catalog.
+- source artifacts capture:
+  - source year
+  - source kind (`csv_index` or `zip_archive`)
+  - source URL
+  - source filename
+  - logical archive key
+  - discovery timestamp
+  - source signature
+  - optional source etag / last-modified
+  - page URL
+- discovery persists:
+  - latest discovery state
+  - per-run discovery catalog manifests
+  - per-run discovery diff manifests
+- source diffs classify:
+  - new sources
+  - removed sources
+  - changed sources
+  - unchanged sources
+- orchestrated discovery mode queues source-stage work descriptors for later phases instead of filing-ingest chunks.
+- this phase intentionally stops before:
+  - raw IRS ZIP/CSV download persistence
+  - CSV filing reconciliation
+  - ZIP member extraction
+  - normalized filing parsing from discovered source artifacts
+
+Known supported discovery filename patterns include:
+
+- `index_{year}.csv`
+- `{year}_TEOS_XML_01A.zip`
+- `{year}_TEOS_XML_11B.zip`
+- `{year}_TEOS_XML_11C.zip`
+- `{year}_TEOS_XML_11D.zip`
+- `{year}_TEOS_XML_CT1.zip`
+- `download990xml_{year}_{n}.zip`
+
+Later phases will extend the same flow to:
+
+- persist raw IRS ZIP/CSV source objects
+- reconcile CSV index catalogs
+- extract selected filings from ZIP archives
+- parse and normalize filing XML
+
+Historical notes on the pre-refactor filing-stage flow:
+
+- older discovery-mode behavior fetched filing-level records immediately after discovery.
 - persists:
-  - per-archive discovery manifests
-  - per-batch filing manifests
-  - checkpoint state for resumability
-  - latest filing-manifest state for deterministic incremental diffs
-- incremental default behavior focuses on current + previous year unless reconciliation over all years is explicitly enabled.
+  - explicit-record and legacy direct-ingest manifests still follow the existing filing-manifest flow when those entry paths are used.
 
 Phase 10G scheduling/reconciliation hardening:
 
 - policy-driven target-year selection with explicit modes:
   - `bootstrap`
   - `incremental`
-  - reconciliation (periodic full-year scan when due)
+  - reconciliation (policy-driven full-year source discovery when due)
 - incremental defaults to scanning current + previous year (`form990_incremental_year_window=2`)
 - configurable reconciliation cadence (`form990_reconciliation_cadence_days`) and enablement toggle
 - explicit target-year override supported (`form990_target_years`)
 - safe fallback behavior when year metadata is missing/malformed
-- no-op behavior remains deterministic when manifests/index state are unchanged
+- no-op behavior remains deterministic when discovery state is unchanged
 - policy metadata is included in run output and ops run visibility for diagnostics
 
 Recommended schedules:
@@ -125,31 +162,35 @@ Recommended schedules:
   - less frequent incremental schedule (for example every few days)
   - reconciliation disabled or manual-only unless explicitly needed
 
-Index diffing remains source of truth:
+Filing-level reconciliation is deferred to later phases:
 
-- no assumption that only the latest archive changes
-- new/changed filings are driven by per-filing manifest signature diffing across discovered archives/years
+- the CSV index will become the authoritative filing catalog in a later phase
+- ZIP archives will become the authoritative bulk XML source in a later phase
+- this repository step does not yet perform filing diffing from discovered source artifacts
 
 Phase 10G ZIP discovery/reconciliation extension:
 
 - new source mode: `configured` (existing behavior) or `irs_page`
 - in `irs_page` mode, Lambda discovers yearly links from:
   - `FORM990_IRS_DOWNLOADS_PAGE_URL` (default: IRS Form 990 downloads page)
-- discovery keeps multiple archive parts per year (for example year-part variants such as `12A`, `12B`) rather than collapsing to a single yearly link
-- discovery captures per-year metadata:
-  - year
-  - zip URL
-  - index URL (when present)
+- discovery keeps multiple source artifacts per year rather than collapsing to a single yearly link
+- discovery captures per-source metadata:
+  - source year
+  - source kind
+  - source URL
+  - source filename
+  - source archive key
   - source page URL
   - discovery timestamp
   - source signature / page etag / last-modified (when available)
 - discovery state is persisted separately from filing-manifest state:
   - discovery state: `form990/normalized/manifests/discovery/state/latest_sources.json`
-  - filing manifest state: `form990/normalized/manifests/state/latest_filing_manifest.json`
-- incremental reconciliation behavior:
+  - discovery run manifest: `form990/normalized/manifests/discovery/runs/{run_id}/catalog.json`
+  - discovery diff manifest: `form990/normalized/manifests/discovery/runs/{run_id}/diff.json`
+- current incremental behavior:
   - detect source changes at discovery layer
-  - detect filing-level new/changed records via existing `irs_object_id + source_signature` manifest diff
-  - unchanged filings are skipped
+  - select target years for next-stage source work
+  - stop before raw artifact fetch or filing reconciliation
 
 Phase 10H parallel chunk processing:
 
@@ -157,9 +198,9 @@ Phase 10H parallel chunk processing:
   - `inline` (existing single-invocation processing)
   - `orchestrated` (SQS chunking + worker Lambdas)
 - orchestrated flow:
-  - orchestrator discovers/selects filings and writes chunk definitions to S3
+  - orchestrator discovers source artifacts and writes source-stage chunk definitions to S3
   - orchestrator enqueues chunk messages to SQS
-  - worker Lambda processes chunks in parallel
+  - worker Lambda acknowledges source-stage chunks for later phases
   - per-run/per-chunk artifacts are persisted under:
     - `ops/form990-runs/{run_id}/run.json`
     - `ops/form990-runs/{run_id}/chunks/{chunk_id}.json`

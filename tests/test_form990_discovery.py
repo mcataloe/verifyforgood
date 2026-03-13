@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from infrastructure.charity_status.form990.discovery import discover_archives, fetch_index_records
 from infrastructure.charity_status.form990.manifest import diff_manifest_entries
+from infrastructure.charity_status.form990.source_catalog import normalize_configured_sources
 from infrastructure.charity_status.form990.models import Form990IndexRecord
 
 
@@ -98,3 +99,15 @@ def test_manifest_diff_behavior():
     assert len(changed_records) == 1
     assert changed_records[0].irs_object_id == "a"
     assert unchanged == 0
+
+
+def test_configured_source_catalog_backward_compatibility():
+    sources = normalize_configured_sources(
+        [
+            {"year": "2024", "index_url": "https://example.org/index_2024.csv"},
+            {"source_year": "2024", "zip_url": "https://example.org/2024_TEOS_XML_11B.zip", "archive_name": "2024_teos_xml_11b"},
+        ]
+    )
+    assert len(sources) == 2
+    assert sources[0].source_year == "2024"
+    assert {item.source_kind for item in sources} == {"csv_index", "zip_archive"}

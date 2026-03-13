@@ -1,9 +1,9 @@
 import importlib
 import json
-import pathlib
 import sys
 
 from infrastructure.charity_status.form990.models import Form990IndexRecord
+from infrastructure.charity_status.form990.source_catalog import Form990SourceArtifact, normalize_configured_sources
 
 
 class FakeS3:
@@ -53,10 +53,27 @@ def _load_module(monkeypatch):
     return module, fake_s3
 
 
+def _source(
+    *,
+    source_year: str,
+    source_kind: str,
+    source_url: str,
+    source_archive_key: str,
+) -> Form990SourceArtifact:
+    return Form990SourceArtifact(
+        source_year=source_year,
+        source_kind=source_kind,
+        source_url=source_url,
+        source_filename=source_url.rstrip("/").split("/")[-1],
+        source_archive_key=source_archive_key,
+        discovered_at="2026-01-01T00:00:00+00:00",
+        source_signature=f"sig-{source_archive_key}",
+        page_url="https://www.irs.gov/charities-non-profits/form-990-series-downloads",
+    )
+
+
 def test_lambda_form990_success(monkeypatch):
     module, _ = _load_module(monkeypatch)
-    xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_text(encoding="utf-8")
-
     event = {
         "records": [
             {
@@ -140,130 +157,53 @@ def test_lambda_form990_index_filters_by_ein_and_limit(monkeypatch):
     assert body["records"][0]["ein"] == "987654321"
 
 
-def test_incremental_noop_when_no_changes(monkeypatch):
-    module, _ = _load_module(monkeypatch)
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: []
-    result = module.handler({"mode": "incremental", "reconciliation_all_years": True, "source_catalog": [{"year": "2024", "index_url": "https://example.org/2024.json"}]}, None)
+def test_discovery_mode_persists_source_catalog_and_diff(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    module.fetch_index_records = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("filing fetch should not run in discovery stage"))
+
+    result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
+
     assert result["statusCode"] == 200
-    assert body["selected_records"] == 0
+    assert body["stage"] == "source_catalog"
+    assert body["source_catalog_count"] == 1
+    assert body["new_sources"] == 1
+    assert body["changed_sources"] == 0
     assert body["processed_records"] == 0
+    assert ("test-bucket", body["discovery_state_key"]) in fake_s3.store
+    assert ("test-bucket", body["discovery_manifest_key"]) in fake_s3.store
+    assert ("test-bucket", body["discovery_diff_key"]) in fake_s3.store
 
 
-def test_incremental_processes_new_filings(monkeypatch):
-    module, _ = _load_module(monkeypatch)
-
-    def _records(index_url, source_year, source_archive, timeout_seconds=60):
-        return [
-            Form990IndexRecord(
-                ein="123456789",
-                tax_year="2024",
-                filing_date="2025-01-01",
-                return_type="990",
-                irs_object_id="obj-new",
-                xml_url="https://example.org/new.xml",
-                source_year="2024",
-                source_archive="a",
-                source_signature="sig-new",
-            )
-        ]
-
-    module.fetch_index_records = _records
-    result = module.handler({"mode": "incremental", "reconciliation_all_years": True, "source_catalog": [{"year": "2024", "index_url": "https://example.org/2024.json"}]}, None)
-    body = json.loads(result["body"])
-    assert result["statusCode"] == 200
-    assert body["new_records"] == 1
-    assert body["processed_records"] == 1
-
-
-def test_incremental_processes_changed_signature(monkeypatch):
+def test_discovery_mode_reports_unchanged_state(monkeypatch):
     module, fake_s3 = _load_module(monkeypatch)
+    state_key = module.discovery_state_key(module.MANIFEST_PREFIX)
+    existing = normalize_configured_sources([{"year": "2024", "index_url": "https://example.org/index_2024.csv"}])[0].to_dict()
     fake_s3.put_object(
         Bucket="test-bucket",
-        Key=module.state_manifest_key(module.MANIFEST_PREFIX),
-        Body=json.dumps({"entries": [{"irs_object_id": "obj-1", "source_signature": "sig-old"}]}).encode("utf-8"),
+        Key=state_key,
+        Body=json.dumps({"sources": [existing]}).encode("utf-8"),
     )
 
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
-        Form990IndexRecord(
-            ein="123456789",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-1",
-            xml_url="https://example.org/new.xml",
-            source_year="2024",
-            source_archive="a",
-            source_signature="sig-new",
-        )
-    ]
-    result = module.handler({"mode": "incremental", "reconciliation_all_years": True, "source_catalog": [{"year": "2024", "index_url": "https://example.org/2024.json"}]}, None)
+    result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
-    assert result["statusCode"] == 200
-    assert body["changed_records"] == 1
-    assert body["processed_records"] == 1
 
-
-def test_resume_checkpoint_behavior(monkeypatch):
-    module, fake_s3 = _load_module(monkeypatch)
-    fake_s3.put_object(
-        Bucket="test-bucket",
-        Key=module.checkpoint_key(module.MANIFEST_PREFIX),
-        Body=json.dumps({"offset": 1}).encode("utf-8"),
-    )
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
-        Form990IndexRecord(
-            ein="111111111",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-1",
-            xml_url="https://example.org/1.xml",
-            source_year="2024",
-            source_archive="a",
-            source_signature="sig-1",
-        ),
-        Form990IndexRecord(
-            ein="222222222",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-2",
-            xml_url="https://example.org/2.xml",
-            source_year="2024",
-            source_archive="a",
-            source_signature="sig-2",
-        ),
-    ]
-    result = module.handler({"mode": "bootstrap", "resume": True, "source_catalog": [{"year": "2024", "index_url": "https://example.org/2024.json"}]}, None)
-    body = json.loads(result["body"])
     assert result["statusCode"] == 200
-    assert body["selected_records"] == 2
-    assert body["processed_records"] == 1
+    assert body["new_sources"] == 0
+    assert body["changed_sources"] == 0
+    assert body["removed_sources"] == 0
+    assert body["unchanged_sources"] == 1
 
 
 def test_policy_config_override_target_years(monkeypatch):
     module, _ = _load_module(monkeypatch)
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
-        Form990IndexRecord(
-            ein="111111111",
-            tax_year=source_year,
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id=f"obj-{source_year}",
-            xml_url="https://example.org/x.xml",
-            source_year=source_year,
-            source_archive=source_archive,
-            source_signature=f"sig-{source_year}",
-        )
-    ]
     result = module.handler(
         {
             "mode": "incremental",
             "target_years": ["2023"],
             "source_catalog": [
-                {"year": "2022", "index_url": "https://example.org/2022.json"},
-                {"year": "2023", "index_url": "https://example.org/2023.json"},
+                {"year": "2022", "index_url": "https://example.org/index_2022.csv"},
+                {"year": "2023", "index_url": "https://example.org/index_2023.csv"},
             ],
         },
         None,
@@ -271,50 +211,29 @@ def test_policy_config_override_target_years(monkeypatch):
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["policy"]["target_years"] == ["2023"]
+    assert body["selected_source_count"] == 1
 
 
-def test_irs_page_source_mode_uses_zip_discovery(monkeypatch):
+def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
     module, _ = _load_module(monkeypatch)
     monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
 
-    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
-        module.IrsYearSource(
-            year="2024",
-            archive_name="irs-page-2024-2024_12a",
-            zip_url="https://example.org/2024.zip",
-            index_url="https://example.org/2024.csv",
-            source_page_url=page_url,
-            discovered_at="2026-01-01T00:00:00+00:00",
-            source_signature="discovery-sig",
-        )
-    ]
-    module.fetch_zip_records = lambda zip_url, source_year, source_archive, timeout_seconds=120, max_xml_file_size_bytes=20971520: [
-        (
-            Form990IndexRecord(
-                ein="123456789",
-                tax_year="2024",
-                filing_date="2025-01-01",
-                return_type="990",
-                irs_object_id="obj-zip-1",
-                xml_url=f"{zip_url}#obj-zip-1.xml",
-                source_year=source_year,
-                source_archive=source_archive,
-                source_signature="zip-sig-1",
-            ),
-            b"<Return/>",
-        )
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
+        _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
+        _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
 
-    result = module.handler({"mode": "incremental", "reconciliation_all_years": True}, None)
+    result = module.handler({"mode": "incremental"}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["source_mode"] == "irs_page"
-    assert body["processed_records"] == 1
+    assert body["source_catalog_count"] == 2
+    assert body["scheduled_source_count"] == 2
 
 
-def test_orchestrated_mode_enqueues_chunks(monkeypatch):
+def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     fake_s3 = FakeS3()
     fake_sqs = FakeSQS()
     monkeypatch.setenv("BUCKET", "test-bucket")
@@ -325,40 +244,20 @@ def test_orchestrated_mode_enqueues_chunks(monkeypatch):
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
 
-    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
-        module.IrsYearSource(
-            year="2024",
-            archive_name="irs-page-2024-2024_12a",
-            zip_url="https://example.org/2024.zip",
-            index_url="https://example.org/2024.csv",
-            source_page_url=page_url,
-            discovered_at="2026-01-01T00:00:00+00:00",
-            source_signature="sig",
-        )
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
+        _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
+        _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
-        Form990IndexRecord(
-            ein="123456789",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-1",
-            xml_url="https://example.org/1.xml",
-            source_year=source_year,
-            source_archive=source_archive,
-            source_signature="sig-1",
-        )
-    ]
-    module.fetch_zip_records = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("zip path should not be used for orchestrated selection"))
     result = module.handler({"mode": "bootstrap", "chunk_size": 1}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
-    assert body["chunk_count"] == 1
-    assert len(fake_sqs.messages) == 1
+    assert body["stage"] == "source_catalog"
+    assert body["chunk_count"] == 2
+    assert len(fake_sqs.messages) == 2
 
 
-def test_orchestrated_mode_applies_ein_filter_before_chunking(monkeypatch):
+def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):
     fake_s3 = FakeS3()
     fake_sqs = FakeSQS()
     monkeypatch.setenv("BUCKET", "test-bucket")
@@ -369,43 +268,13 @@ def test_orchestrated_mode_applies_ein_filter_before_chunking(monkeypatch):
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
 
-    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60: [
-        module.IrsYearSource(
-            year="2024",
-            archive_name="irs-page-2024-2024",
-            zip_url="https://example.org/2024.zip",
-            index_url="https://example.org/2024.csv",
-            source_page_url=page_url,
-            discovered_at="2026-01-01T00:00:00+00:00",
-            source_signature="sig",
-        )
+    module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
+        _source(source_year="2023", source_kind="csv_index", source_url="https://example.org/index_2023.csv", source_archive_key="index_2023"),
+        _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
     ]
-    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
-        Form990IndexRecord(
-            ein="530196605",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-redcross",
-            xml_url="https://example.org/redcross.xml",
-            source_year=source_year,
-            source_archive=source_archive,
-            source_signature="sig-redcross",
-        ),
-        Form990IndexRecord(
-            ein="999999999",
-            tax_year="2024",
-            filing_date="2025-01-01",
-            return_type="990",
-            irs_object_id="obj-other",
-            xml_url="https://example.org/other.xml",
-            source_year=source_year,
-            source_archive=source_archive,
-            source_signature="sig-other",
-        ),
-    ]
-    result = module.handler({"mode": "bootstrap", "chunk_size": 10, "ein": "530196605"}, None)
+    result = module.handler({"mode": "incremental", "target_years": ["2023"], "chunk_size": 10}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
-    assert body["selected_records"] == 1
+    assert body["selected_source_count"] == 1
+    assert body["chunk_count"] == 1
     assert len(fake_sqs.messages) == 1

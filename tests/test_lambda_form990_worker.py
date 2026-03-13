@@ -77,3 +77,25 @@ def test_worker_chunk_failure_raises_for_retry(monkeypatch):
     except RuntimeError:
         pass
     assert ("test-bucket", "ops/form990-runs/r2/results/c2.json") in fake_s3.store
+
+
+def test_worker_processes_source_catalog_chunk_success(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990_worker", None)
+    module = importlib.import_module("infrastructure.lambda_form990_worker")
+    chunk_key = "ops/form990-runs/r3/chunks/c3.json"
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=chunk_key,
+        Body=json.dumps({"task_type": "source_catalog", "sources": [{"source_year": "2024", "source_kind": "csv_index"}]}).encode("utf-8"),
+    )
+    event = {"Records": [{"body": json.dumps({"run_id": "r3", "chunk_id": "c3", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 1})}]}
+    result = module.handler(event, None)
+    assert result["status"] == "success"
+    stored = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r3/results/c3.json")].decode("utf-8"))
+    assert stored["task_type"] == "source_catalog"
+    assert stored["result"]["status"] == "deferred"
