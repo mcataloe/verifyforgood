@@ -124,6 +124,19 @@ def test_lambda_form990_invalid_records_payload(monkeypatch):
     assert "records must be an array" in body["message"]
 
 
+def test_lambda_form990_rejects_invalid_runtime_config(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_CHUNK_SIZE", "0")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+    result = module.handler({}, None)
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 500
+    assert "FORM990_CHUNK_SIZE must be > 0" in body["message"]
+
+
 def test_lambda_form990_json_body(monkeypatch):
     module, _ = _load_module(monkeypatch)
 

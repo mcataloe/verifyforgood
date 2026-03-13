@@ -4,7 +4,7 @@ import io
 import zipfile
 
 from infrastructure.charity_status.form990.models import Form990IndexRecord
-from infrastructure.charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
+from infrastructure.charity_status.form990.zip_selected_processing import MalformedZipArchiveError, ZipBackedXmlLoader, select_zip_sources_for_records
 
 
 class FakeS3:
@@ -152,6 +152,34 @@ def test_select_zip_sources_for_records_filters_by_year():
     )
     assert len(selected) == 1
     assert selected[0]["source_archive_key"] == "2024_teos_xml_11b"
+
+
+def test_zip_loader_raises_explicit_error_for_malformed_zip():
+    s3 = FakeS3()
+    zip_key = "form990/raw-sources/2024/zip_archive/2024_teos_xml_11b/sig/2024_TEOS_XML_11B.zip"
+    s3.put_object(Bucket="test-bucket", Key=zip_key, Body=b"not-a-zip")
+    loader = ZipBackedXmlLoader(
+        s3_client=s3,
+        bucket="test-bucket",
+        zip_sources=[_source(year="2024", archive_key="2024_teos_xml_11b", s3_key=zip_key)],
+        allow_url_fallback=False,
+    )
+    record = Form990IndexRecord(
+        ein="123456789",
+        tax_year="2024",
+        filing_date="2025-01-01",
+        return_type="990",
+        irs_object_id="obj-2",
+        xml_url="https://example.org/obj-2.xml",
+        source_year="2024",
+        source_archive="2024_TEOS_XML_11B",
+        source_signature="sig",
+    )
+    try:
+        loader.load(record)
+        assert False, "expected malformed zip error"
+    except MalformedZipArchiveError:
+        pass
 
 
 class _FakeResponse:

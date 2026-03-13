@@ -57,6 +57,21 @@ def test_worker_processes_chunk_success(monkeypatch):
     assert ("test-bucket", "ops/form990-runs/r1/results/c1.json") in fake_s3.store
 
 
+def test_worker_rejects_invalid_runtime_config(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "0")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990_worker", None)
+    module = importlib.import_module("infrastructure.lambda_form990_worker")
+    event = {"Records": [{"body": json.dumps({})}]}
+    try:
+        module.handler(event, None)
+        assert False, "expected config validation failure"
+    except ValueError as exc:
+        assert "FORM990_ZIP_FETCH_TIMEOUT_SECONDS must be > 0" in str(exc)
+
+
 def test_worker_chunk_failure_raises_for_retry(monkeypatch):
     fake_s3 = FakeS3()
     monkeypatch.setenv("BUCKET", "test-bucket")
@@ -80,6 +95,8 @@ def test_worker_chunk_failure_raises_for_retry(monkeypatch):
     except RuntimeError:
         pass
     assert ("test-bucket", "ops/form990-runs/r2/results/c2.json") in fake_s3.store
+    failure = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r2/results/c2.json")]["Body"].decode("utf-8"))
+    assert failure["error_type"] == "processing_error"
 
 
 def test_worker_processes_source_catalog_chunk_success(monkeypatch):
@@ -188,5 +205,27 @@ def test_worker_filing_chunk_uses_zip_backed_loader(monkeypatch):
     module.update_filing_state_from_ingest_result = lambda **kwargs: []
     module.ZipBackedXmlLoader.load = lambda self, record: (b"<xml/>", str(record.xml_url or ""))
     event = {"Records": [{"body": json.dumps({"run_id": "r4", "chunk_id": "c4", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 1})}]}
+    result = module.handler(event, None)
+    assert result["status"] == "success"
+
+
+def test_worker_skips_chunk_when_result_already_succeeded(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990_worker", None)
+    module = importlib.import_module("infrastructure.lambda_form990_worker")
+    chunk_key = "ops/form990-runs/r5/chunks/c5.json"
+    result_key = "ops/form990-runs/r5/results/c5.json"
+    fake_s3.put_object(Bucket="test-bucket", Key=chunk_key, Body=json.dumps({"records": [{"ein": "123"}]}).encode("utf-8"))
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=result_key,
+        Body=json.dumps({"status": "succeeded", "result": {"records_processed": 1}}).encode("utf-8"),
+    )
+    module.Form990IngestService.ingest_index_payload = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not run"))
+    event = {"Records": [{"body": json.dumps({"run_id": "r5", "chunk_id": "c5", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 2})}]}
     result = module.handler(event, None)
     assert result["status"] == "success"

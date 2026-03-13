@@ -31,6 +31,7 @@ resource "aws_iam_role_policy" "lambda_data_access" {
     Version = "2012-10-17"
     Statement = [
       {
+        # TODO: Narrow this to least-privilege resource actions per Form 990 stage.
         Action = [
           "s3:*",
           "sqs:*",

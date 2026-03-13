@@ -122,3 +122,29 @@ def test_execute_source_download_batch_writes_manifest():
     manifest_body = s3.store[("test-bucket", "form990/normalized/manifests/source-download/runs/run3/batch_00004.json")]["Body"]
     payload = json.loads(manifest_body.decode("utf-8"))
     assert payload["downloaded_count"] == 1
+
+
+def test_execute_source_download_batch_retries_transient_download_errors():
+    s3 = FakeS3()
+    attempts = {"count": 0}
+
+    def _flaky(source_url, timeout_seconds):
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise TimeoutError("temporary timeout")
+        return (b"ok", "text/plain")
+
+    manifest = execute_source_download_batch(
+        sources=[_source("csv_index", "https://example.org/index_2024.csv", "index_2024", "index_2024.csv")],
+        bucket="test-bucket",
+        raw_source_prefix="form990/raw-sources/",
+        manifest_prefix="form990/normalized/manifests/",
+        s3_client=s3,
+        run_id="run4",
+        batch_index=0,
+        timeout_seconds=10,
+        downloader=_flaky,
+        max_attempts=3,
+    )
+    assert manifest["downloaded_count"] == 1
+    assert attempts["count"] == 3

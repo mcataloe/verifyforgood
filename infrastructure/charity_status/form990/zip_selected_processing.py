@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
 import os
 import urllib.request
 import zipfile
 from dataclasses import dataclass
 from typing import Any
 
+from charity_status.form990.hardening import is_transient_network_error, retry_call
 from charity_status.form990.models import Form990IndexRecord
 from charity_status.form990.source_catalog import derive_source_archive_key
 
+LOGGER = logging.getLogger(__name__)
+
+
+class ZipMemberNotFoundError(RuntimeError):
+    pass
+
+
+class MalformedZipArchiveError(RuntimeError):
+    pass
 
 @dataclass(frozen=True)
 class ZipResolution:
@@ -47,12 +59,35 @@ class ZipBackedXmlLoader:
             xml_bytes = self._read_member_xml(resolution.zip_source, resolution.member_name)
             self.zip_extracted_count += 1
             reference = f"s3://{self.bucket}/{resolution.zip_source.get('raw_source_s3_key')}#{resolution.member_name}"
+            _log_structured(
+                "form990.zip.resolve_hit",
+                source_year=record.source_year,
+                source_archive=record.source_archive,
+                irs_object_id=record.irs_object_id,
+                member_name=resolution.member_name,
+            )
             return xml_bytes, reference
         if self.allow_url_fallback and record.xml_url:
             self.url_fallback_count += 1
-            return _download_xml_url(record.xml_url, timeout_seconds=self.url_timeout_seconds), record.xml_url
+            _log_structured(
+                "form990.zip.resolve_miss_fallback_url",
+                source_year=record.source_year,
+                source_archive=record.source_archive,
+                irs_object_id=record.irs_object_id,
+                xml_url=record.xml_url,
+            )
+            return (
+                _download_xml_url(record.xml_url, timeout_seconds=self.url_timeout_seconds),
+                record.xml_url,
+            )
         self.unresolved_count += 1
-        raise RuntimeError(f"unable to resolve filing XML for object_id={record.irs_object_id or 'unknown'}")
+        _log_structured(
+            "form990.zip.resolve_miss_no_fallback",
+            source_year=record.source_year,
+            source_archive=record.source_archive,
+            irs_object_id=record.irs_object_id,
+        )
+        raise ZipMemberNotFoundError(f"unable to resolve filing XML for object_id={record.irs_object_id or 'unknown'}")
 
     def resolve(self, record: Form990IndexRecord) -> ZipResolution | None:
         object_id = _record_object_id(record)
@@ -92,25 +127,31 @@ class ZipBackedXmlLoader:
             return self._zip_member_indexes[source_key]
         payload = self._zip_blob(source)
         mapping: dict[str, str] = {}
-        with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
-            for member in archive.infolist():
-                if member.is_dir() or not member.filename.lower().endswith(".xml"):
-                    continue
-                if member.file_size > self.max_xml_file_size_bytes:
-                    continue
-                member_object_id = _member_object_id(member.filename)
-                if member_object_id and member_object_id not in mapping:
-                    mapping[member_object_id] = member.filename
+        try:
+            with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
+                for member in archive.infolist():
+                    if member.is_dir() or not member.filename.lower().endswith(".xml"):
+                        continue
+                    if member.file_size > self.max_xml_file_size_bytes:
+                        continue
+                    member_object_id = _member_object_id(member.filename)
+                    if member_object_id and member_object_id not in mapping:
+                        mapping[member_object_id] = member.filename
+        except zipfile.BadZipFile as exc:
+            raise MalformedZipArchiveError(f"bad zip archive at {source_key}") from exc
         self._zip_member_indexes[source_key] = mapping
         return mapping
 
     def _read_member_xml(self, source: dict[str, Any], member_name: str) -> bytes:
         payload = self._zip_blob(source)
-        with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
-            info = archive.getinfo(member_name)
-            if info.file_size > self.max_xml_file_size_bytes:
-                raise RuntimeError(f"xml member exceeds max size for {member_name}")
-            return archive.read(member_name)
+        try:
+            with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
+                info = archive.getinfo(member_name)
+                if info.file_size > self.max_xml_file_size_bytes:
+                    raise RuntimeError(f"xml member exceeds max size for {member_name}")
+                return archive.read(member_name)
+        except zipfile.BadZipFile as exc:
+            raise MalformedZipArchiveError(f"bad zip archive while reading member {member_name}") from exc
 
     def _zip_blob(self, source: dict[str, Any]) -> bytes:
         source_key = str(source.get("raw_source_s3_key") or "").strip()
@@ -185,8 +226,19 @@ def _zip_source_sort_key(entry: dict[str, Any]) -> tuple[str, str, str]:
 
 
 def _download_xml_url(xml_url: str, timeout_seconds: int) -> bytes:
-    request = urllib.request.Request(xml_url, method="GET")
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-        if response.status >= 400:
-            raise RuntimeError(f"download failed with status {response.status}")
-        return response.read()
+    def _fetch() -> bytes:
+        request = urllib.request.Request(xml_url, method="GET")
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            if response.status >= 400:
+                raise RuntimeError(f"download failed with status {response.status}")
+            return response.read()
+
+    return retry_call(_fetch, max_attempts=3, is_retryable=is_transient_network_error)
+
+
+def _log_structured(event: str, **fields: Any) -> None:
+    payload = {"event": event, **fields}
+    try:
+        LOGGER.info(json.dumps(payload, sort_keys=True))
+    except Exception:
+        LOGGER.info("%s %s", event, fields)

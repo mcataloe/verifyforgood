@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
+from charity_status.form990.hardening import is_transient_network_error, retry_call
 from charity_status.form990.storage import raw_source_key, source_download_manifest_key, source_download_state_entry_key, source_download_state_prefix
+
+LOGGER = logging.getLogger(__name__)
 
 
 def plan_source_downloads(selected_sources: list[dict[str, Any]], downloaded_state_entries: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -36,6 +40,12 @@ def plan_source_downloads(selected_sources: list[dict[str, Any]], downloaded_sta
             continue
         to_download.append(dict(source))
 
+    _log_structured(
+        "form990.source_download.plan",
+        selected_sources=len(selected_sources),
+        to_download=len(to_download),
+        skipped=len(skipped),
+    )
     return {"to_download": to_download, "skipped": skipped}
 
 
@@ -49,6 +59,7 @@ def execute_source_download_batch(
     run_id: str,
     batch_index: int,
     timeout_seconds: int,
+    max_attempts: int = 3,
     downloader: Any | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -60,7 +71,12 @@ def execute_source_download_batch(
         if not isinstance(source, dict):
             continue
         downloaded_at = datetime.now(timezone.utc).isoformat()
-        body, content_type = downloader(str(source.get("source_url") or ""), timeout_seconds=timeout_seconds)
+        source_url = str(source.get("source_url") or "")
+        body, content_type = retry_call(
+            lambda: downloader(source_url, timeout_seconds=timeout_seconds),
+            max_attempts=max_attempts,
+            is_retryable=is_transient_network_error,
+        )
         raw_key = raw_source_key(
             raw_source_prefix,
             str(source.get("source_year") or ""),
@@ -95,6 +111,14 @@ def execute_source_download_batch(
             str(source.get("source_archive_key") or ""),
         )
         s3_client.put_object(Bucket=bucket, Key=state_entry_key, Body=json.dumps(_state_entry(result), sort_keys=True).encode("utf-8"))
+        _log_structured(
+            "form990.source_download.completed",
+            source_year=source.get("source_year"),
+            source_kind=source.get("source_kind"),
+            source_archive_key=source.get("source_archive_key"),
+            content_length=len(body),
+            raw_source_s3_key=raw_key,
+        )
 
     manifest = {
         "generated_at": now_dt.isoformat(),
@@ -106,6 +130,13 @@ def execute_source_download_batch(
     }
     manifest_key = source_download_manifest_key(manifest_prefix, run_id=run_id, batch_index=batch_index)
     s3_client.put_object(Bucket=bucket, Key=manifest_key, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
+    _log_structured(
+        "form990.source_download.batch_complete",
+        run_id=run_id,
+        batch_index=batch_index,
+        downloaded_count=len(results),
+        manifest_key=manifest_key,
+    )
     return {"manifest_key": manifest_key, **manifest}
 
 
@@ -138,6 +169,14 @@ def download_source_bytes(source_url: str, timeout_seconds: int) -> tuple[bytes,
             raise RuntimeError(f"source download failed with status {response.status}")
         content_type = response.headers.get("Content-Type")
         return response.read(), content_type
+
+
+def _log_structured(event: str, **fields: Any) -> None:
+    payload = {"event": event, **fields}
+    try:
+        LOGGER.info(json.dumps(payload, sort_keys=True))
+    except Exception:
+        LOGGER.info("%s %s", event, fields)
 
 
 def _metadata_for_source(source: dict[str, Any], *, downloaded_at: str) -> dict[str, str]:

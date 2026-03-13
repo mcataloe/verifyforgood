@@ -11,6 +11,7 @@ from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import fetch_index_records
 from charity_status.form990.filing_reconciliation import reconcile_filing_catalog, update_filing_state_from_ingest_result
+from charity_status.form990.hardening import classify_error, validate_runtime_config
 from charity_status.form990.irs_page_discovery import (
     IrsYearSource,
     discover_irs_form990_sources,
@@ -67,6 +68,9 @@ def handler(event, context):
     del context
     if not BUCKET:
         return error_response(500, "BUCKET environment variable is required")
+    config_errors = _validate_handler_config()
+    if config_errors:
+        return error_response(500, "; ".join(config_errors))
 
     try:
         payload = _parse_event_payload(event)
@@ -116,6 +120,12 @@ def handler(event, context):
 
     try:
         execution_mode = _resolve_execution_mode(payload)
+        _log_structured(
+            "form990.run.start",
+            execution_mode=execution_mode,
+            source_mode=str(payload.get("source_mode") or FORM990_SOURCE_MODE),
+            mode=str(payload.get("mode") or FORM990_RUN_MODE),
+        )
         if execution_mode == "orchestrated":
             result = _run_discovery_orchestrated(service, payload)
         else:
@@ -123,6 +133,9 @@ def handler(event, context):
         return json_response(200, result)
     except ValueError as exc:
         return error_response(400, str(exc))
+    except Exception as exc:
+        _log_structured("form990.run.failed", error_type=classify_error(exc), error=str(exc))
+        return error_response(500, "Form 990 ingest failed")
 
 
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
@@ -217,6 +230,7 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
         "manifest_s3_key": ingest_result.get("manifest_s3_key"),
     }
+    _write_checkpoint(service.s3, response)
     _log_structured(
         "form990.discovery.run.complete",
         run_id=prepared["run_id"],
@@ -351,6 +365,17 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         Bucket=bucket,
         Key=f"{prefix}/form990-runs/{run_id}/summary.json",
         Body=json.dumps({"ingest_run_id": run_id, "chunk_count": len(chunks), "status": "queued"}, sort_keys=True).encode("utf-8"),
+    )
+    _write_checkpoint(
+        service.s3,
+        {
+            "run_id": run_id,
+            "stage": "zip_extraction",
+            "status": "queued" if chunks else "success",
+            "chunk_count": len(chunks),
+            "selected_records": len(selected),
+            "filing_state_key": reconciliation.state_key,
+        },
     )
 
     return {
@@ -493,6 +518,19 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
     downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
     download_plan = plan_source_downloads(selected_source_dicts, downloaded_state)
     actionable_sources = download_plan["to_download"]
+    _log_structured(
+        "form990.discovery.prepare",
+        run_id=run_id,
+        mode=mode,
+        source_mode=source_mode,
+        sources_discovered=len(discovered_sources),
+        new_sources=len(diff.new_sources),
+        changed_sources=len(diff.changed_sources),
+        removed_sources=len(diff.removed_sources),
+        selected_source_count=len(selected_sources),
+        scheduled_source_count=len(actionable_sources),
+        skipped_source_count=len(download_plan["skipped"]),
+    )
     return {
         "run_id": run_id,
         "mode": mode,
@@ -596,6 +634,37 @@ def _build_zip_loader(s3_client: Any, selected_records: list[dict[str, Any]], do
         allow_url_fallback=FORM990_ZIP_URL_FALLBACK_ENABLED,
         url_timeout_seconds=FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
         max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+    )
+
+
+def _write_checkpoint(s3_client: Any, payload: dict[str, Any]) -> None:
+    checkpoint_payload = {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        **payload,
+    }
+    s3_client.put_object(
+        Bucket=BUCKET,
+        Key=checkpoint_key(MANIFEST_PREFIX),
+        Body=json.dumps(checkpoint_payload, sort_keys=True).encode("utf-8"),
+    )
+
+
+def _validate_handler_config() -> list[str]:
+    return validate_runtime_config(
+        required_text={
+            "BUCKET": BUCKET,
+            "FORM990_MANIFEST_PREFIX": MANIFEST_PREFIX,
+            "FORM990_METADATA_PREFIX": METADATA_PREFIX,
+            "FORM990_RAW_PREFIX": RAW_PREFIX,
+            "FORM990_RAW_SOURCE_PREFIX": RAW_SOURCE_PREFIX,
+        },
+        positive_ints={
+            "FORM990_INDEX_FETCH_TIMEOUT_SECONDS": INDEX_FETCH_TIMEOUT_SECONDS,
+            "FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS": FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+            "FORM990_ZIP_FETCH_TIMEOUT_SECONDS": FORM990_ZIP_FETCH_TIMEOUT_SECONDS,
+            "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES": FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+            "FORM990_CHUNK_SIZE": FORM990_CHUNK_SIZE,
+        },
     )
 
 

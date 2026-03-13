@@ -165,6 +165,26 @@ Recommended schedules:
   - less frequent incremental schedule (for example every few days)
   - reconciliation disabled or manual-only unless explicitly needed
 
+Operational run guidance:
+
+- initial bootstrap:
+  - run `mode=bootstrap` with `source_mode=irs_page`
+  - verify discovery/source-download/filing manifests are written before enabling scheduled runs
+  - expect larger first-run ZIP extraction and normalization volume
+- incremental cadence:
+  - run `mode=incremental` daily (or equivalent cadence) with current+previous year window
+  - let CSV reconciliation select only new/changed/incomplete filings
+- reconciliation behavior:
+  - periodic reconciliation should be enabled for full-year drift correction
+  - reconciliation updates filing state for inspected years while preserving other years
+- raw source storage strategy:
+  - preserve historical raw IRS ZIP/CSV copies via object key strategy
+  - do not rely on S3 versioning for raw IRS source retention
+- failure and retry expectations:
+  - transient source/XML download failures are retried automatically
+  - malformed ZIP/XML and ZIP-member misses are recorded explicitly
+  - worker chunk retries are resumable; succeeded chunks are short-circuited to avoid duplicate processing
+
 Filing-level reconciliation now runs after raw source persistence:
 
 - yearly CSV indexes are the authoritative filing catalog for incremental Form 990 selection

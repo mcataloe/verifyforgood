@@ -10,15 +10,14 @@
 - Discovery state and discovery diff artifacts are already persisted separately from filing manifests.
 - Raw source ZIP/CSV download persistence is implemented and tracked via downloaded-source state.
 - Filing reconciliation from downloaded yearly CSV indexes is implemented and tracked via filing catalog/diff/state manifests.
-- Selected filings currently flow through direct `xml_url` download/parse as a temporary bridge; ZIP-member extraction is not yet implemented.
+- Selected filings are now resolved/extracted from raw ZIP artifacts first, with explicit URL fallback only when ZIP-member resolution fails.
 
 ## 2. Gaps
 
-- CSV-selected filings are not yet resolved to ZIP members in raw IRS ZIP artifacts.
-- Selected filing processing still uses direct XML URL fetch as the primary path instead of ZIP-backed extraction.
-- There is no reusable ZIP member resolver abstraction that maps filing identity (`irs_object_id` first) to archive entries across naming eras.
-- Worker filing chunks are not yet ZIP-aware and do not report ZIP-extraction vs URL-fallback behavior.
-- README does not yet describe the finalized processing order with ZIP-backed selected-filing extraction.
+- Structured observability is still thin across discovery/download/reconciliation/ZIP extraction and worker chunk lifecycle.
+- Retry/error categorization is not explicit enough for transient download failures, malformed ZIPs, ZIP-miss fallbacks, and chunk retries.
+- Resume behavior is present but needs hardening for chunk idempotency and clearer checkpoints.
+- Runtime configuration validation and infrastructure/IAM operational assumptions need explicit guardrails and documentation.
 
 ## 3. Target Flow
 
@@ -50,6 +49,12 @@ The next implementation step should extend the pipeline to:
 `discovery -> raw source persistence -> CSV diff/reconciliation -> selected filing extraction from ZIP -> normalized parsing`
 
 with explicit fallback to direct XML URL only when ZIP-member resolution fails for a selected filing.
+
+The current hardening step focuses on production safety for the implemented flow:
+
+`discovery -> raw source persistence -> CSV diff/reconciliation -> selected filing extraction from ZIP -> normalized parsing`
+
+including structured logging, explicit retries/error handling, resumability/idempotency, configuration validation, and operational documentation.
 
 ## 4. Source Catalog Model
 
@@ -201,6 +206,7 @@ Known filename examples the design must support:
 - ZIP member resolution may fail for some legacy/malformed entries; fallback behavior must be explicit and observable.
 - ZIP extraction must avoid accidentally scanning/parsing all members for every run, which can regress runtime and cost.
 - Record-to-ZIP mapping heuristics must stay deterministic across TEOS and download990xml/CT1 naming eras.
+- Current Terraform IAM policy is intentionally broad (`s3:*`, `sqs:*`) and should be narrowed in a follow-up least-privilege hardening effort.
 
 ## 11. Test Plan
 
@@ -231,3 +237,9 @@ Known filename examples the design must support:
 - fallback to direct XML URL when ZIP member cannot be resolved
 - TEOS and legacy ZIP naming-era coverage for resolver behavior
 - worker chunk processing using ZIP-backed extraction path
+- structured logging and stage counters for discovery/download/reconciliation/ZIP extraction
+- transient-download retry behavior (source and fallback URL paths)
+- malformed ZIP handling with explicit error categorization
+- chunk resume/idempotency behavior when result artifact already exists
+- partial worker failure handling and run summary consistency
+- configuration validation guardrails for required env vars and sane numeric defaults
