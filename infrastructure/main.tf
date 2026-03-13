@@ -1,6 +1,7 @@
 locals {
   domain_name                          = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
   source_data_prefix_normalized        = "${trim(var.source_data_prefix, "/")}/"
+  form990_raw_source_prefix_normalized = "${trim(var.form990_raw_source_prefix, "/")}/"
   form990_raw_prefix_normalized        = "${trim(var.form990_raw_prefix, "/")}/"
   form990_metadata_prefix_normalized   = "${trim(var.form990_metadata_prefix, "/")}/"
   form990_manifest_prefix_normalized   = "${trim(var.form990_manifest_prefix, "/")}/"

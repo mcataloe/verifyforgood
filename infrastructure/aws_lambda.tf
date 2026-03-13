@@ -270,6 +270,7 @@ resource "aws_lambda_function" "form990_ingest" {
     variables = {
       BUCKET                    = aws_s3_bucket.irs_data.bucket
       FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
       FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
       FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
       FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
@@ -291,6 +292,7 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
       FORM990_SOURCE_MODE       = var.form990_source_mode
       FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
       FORM990_EXECUTION_MODE   = "inline"
@@ -331,6 +333,7 @@ resource "aws_lambda_function" "form990_orchestrator" {
     variables = {
       BUCKET                    = aws_s3_bucket.irs_data.bucket
       FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
       FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
       FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
       FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
@@ -352,6 +355,7 @@ resource "aws_lambda_function" "form990_orchestrator" {
       FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
       FORM990_SOURCE_MODE       = var.form990_source_mode
       FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
       FORM990_EXECUTION_MODE    = var.form990_execution_mode
@@ -379,12 +383,14 @@ resource "aws_lambda_function" "form990_worker" {
     variables = {
       BUCKET                    = aws_s3_bucket.irs_data.bucket
       FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
       FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
       FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
       FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
       FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
       FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
       FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
+      FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       OPS_METADATA_BUCKET       = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX       = var.ops_metadata_prefix
     }

@@ -11,15 +11,19 @@ class FakeS3:
         self.puts = []
         self.store = {}
 
-    def put_object(self, Bucket, Key, Body):
-        self.puts.append({"Bucket": Bucket, "Key": Key, "Body": Body})
-        self.store[(Bucket, Key)] = Body
+    def put_object(self, Bucket, Key, Body, **kwargs):
+        self.puts.append({"Bucket": Bucket, "Key": Key, "Body": Body, **kwargs})
+        self.store[(Bucket, Key)] = {"Body": Body, **kwargs}
 
     def get_object(self, Bucket, Key):
         if (Bucket, Key) not in self.store:
             raise KeyError(Key)
-        body = self.store[(Bucket, Key)]
+        body = self.store[(Bucket, Key)]["Body"]
         return {"Body": _Body(body)}
+
+    def list_objects_v2(self, Bucket, Prefix):
+        keys = [{"Key": key} for (b, key), value in self.store.items() if b == Bucket and key.startswith(Prefix)]
+        return {"Contents": keys}
 
 
 class FakeSQS:
@@ -45,6 +49,7 @@ def _load_module(monkeypatch):
     fake_s3 = FakeS3()
     monkeypatch.setenv("BUCKET", "test-bucket")
     monkeypatch.setenv("FORM990_RAW_PREFIX", "form990/raw/")
+    monkeypatch.setenv("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
     monkeypatch.setenv("FORM990_METADATA_PREFIX", "form990/normalized/metadata/")
     monkeypatch.setenv("FORM990_MANIFEST_PREFIX", "form990/normalized/manifests/")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3)
@@ -157,28 +162,40 @@ def test_lambda_form990_index_filters_by_ein_and_limit(monkeypatch):
     assert body["records"][0]["ein"] == "987654321"
 
 
-def test_discovery_mode_persists_source_catalog_and_diff(monkeypatch):
+def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
     module, fake_s3 = _load_module(monkeypatch)
-    module.fetch_index_records = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("filing fetch should not run in discovery stage"))
+    module.fetch_index_records = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("filing fetch should not run in source download stage"))
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": [{**kwargs["sources"][0], "status": "downloaded", "raw_source_s3_key": "form990/raw-sources/2024/csv_index/index_2024/sig/index_2024.csv"}] if kwargs["sources"] else [],
+    }
 
-    result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
+    result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
-    assert body["stage"] == "source_catalog"
+    assert body["stage"] == "source_artifact_fetch"
     assert body["source_catalog_count"] == 1
     assert body["new_sources"] == 1
     assert body["changed_sources"] == 0
+    assert body["downloaded_source_count"] == 1
     assert body["processed_records"] == 0
     assert ("test-bucket", body["discovery_state_key"]) in fake_s3.store
     assert ("test-bucket", body["discovery_manifest_key"]) in fake_s3.store
     assert ("test-bucket", body["discovery_diff_key"]) in fake_s3.store
+    assert body["source_download_manifest_key"].endswith("batch_00000.json")
 
 
 def test_discovery_mode_reports_unchanged_state(monkeypatch):
     module, fake_s3 = _load_module(monkeypatch)
     state_key = module.discovery_state_key(module.MANIFEST_PREFIX)
     existing = normalize_configured_sources([{"year": "2024", "index_url": "https://example.org/index_2024.csv"}])[0].to_dict()
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
     fake_s3.put_object(
         Bucket="test-bucket",
         Key=state_key,
@@ -195,8 +212,50 @@ def test_discovery_mode_reports_unchanged_state(monkeypatch):
     assert body["unchanged_sources"] == 1
 
 
+def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    existing = normalize_configured_sources([{"year": "2024", "index_url": "https://example.org/index_2024.csv"}])[0].to_dict()
+    download_state_key = module.source_download_state_prefix(module.MANIFEST_PREFIX) + "/2024/csv_index/index_2024.json"
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=download_state_key,
+        Body=json.dumps(
+            {
+                "source_year": "2024",
+                "source_kind": "csv_index",
+                "source_url": existing["source_url"],
+                "source_filename": existing["source_filename"],
+                "source_archive_key": existing["source_archive_key"],
+                "source_signature": existing["source_signature"],
+                "raw_source_s3_key": "form990/raw-sources/2024/csv_index/index_2024/sig/index_2024.csv",
+                "downloaded_at": "2026-01-01T00:00:00+00:00",
+            }
+        ).encode("utf-8"),
+    )
+    called = {"value": False}
+
+    def _unexpected(**kwargs):
+        called["value"] = True
+        return {"manifest_key": "k", "downloaded_count": 0, "downloads": []}
+
+    module.execute_source_download_batch = _unexpected
+    result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert called["value"] is False
+    assert body["scheduled_source_count"] == 0
+    assert body["skipped_source_count"] == 1
+    assert body["downloaded_source_count"] == 0
+
+
 def test_policy_config_override_target_years(monkeypatch):
     module, _ = _load_module(monkeypatch)
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
     result = module.handler(
         {
             "mode": "incremental",
@@ -224,6 +283,11 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
         _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
 
     result = module.handler({"mode": "incremental"}, None)
     body = json.loads(result["body"])
@@ -231,6 +295,7 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
     assert body["source_mode"] == "irs_page"
     assert body["source_catalog_count"] == 2
     assert body["scheduled_source_count"] == 2
+    assert body["downloaded_source_count"] == 2
 
 
 def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
@@ -252,9 +317,12 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
-    assert body["stage"] == "source_catalog"
+    assert body["stage"] == "source_artifact_fetch"
     assert body["chunk_count"] == 2
     assert len(fake_sqs.messages) == 2
+    payload = json.loads(fake_sqs.messages[0]["MessageBody"])
+    chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
+    assert chunk_body["task_type"] == "source_download"
 
 
 def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):

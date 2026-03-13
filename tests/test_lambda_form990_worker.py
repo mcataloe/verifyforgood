@@ -7,13 +7,13 @@ class FakeS3:
     def __init__(self):
         self.store = {}
 
-    def put_object(self, Bucket, Key, Body):
-        self.store[(Bucket, Key)] = Body
+    def put_object(self, Bucket, Key, Body, **kwargs):
+        self.store[(Bucket, Key)] = {"Body": Body, **kwargs}
 
     def get_object(self, Bucket, Key):
         if (Bucket, Key) not in self.store:
             raise KeyError(Key)
-        return {"Body": _Body(self.store[(Bucket, Key)])}
+        return {"Body": _Body(self.store[(Bucket, Key)]["Body"])}
 
     def list_objects_v2(self, Bucket, Prefix):
         keys = [{"Key": key} for (b, key), _body in self.store.items() if b == Bucket and key.startswith(Prefix)]
@@ -35,6 +35,7 @@ def test_worker_processes_chunk_success(monkeypatch):
     monkeypatch.setenv("BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setenv("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3)
     sys.modules.pop("infrastructure.lambda_form990_worker", None)
     module = importlib.import_module("infrastructure.lambda_form990_worker")
@@ -60,6 +61,7 @@ def test_worker_chunk_failure_raises_for_retry(monkeypatch):
     monkeypatch.setenv("BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setenv("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3)
     sys.modules.pop("infrastructure.lambda_form990_worker", None)
     module = importlib.import_module("infrastructure.lambda_form990_worker")
@@ -84,6 +86,7 @@ def test_worker_processes_source_catalog_chunk_success(monkeypatch):
     monkeypatch.setenv("BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
     monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setenv("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3)
     sys.modules.pop("infrastructure.lambda_form990_worker", None)
     module = importlib.import_module("infrastructure.lambda_form990_worker")
@@ -91,11 +94,32 @@ def test_worker_processes_source_catalog_chunk_success(monkeypatch):
     fake_s3.put_object(
         Bucket="test-bucket",
         Key=chunk_key,
-        Body=json.dumps({"task_type": "source_catalog", "sources": [{"source_year": "2024", "source_kind": "csv_index"}]}).encode("utf-8"),
+        Body=json.dumps(
+            {
+                "task_type": "source_download",
+                "chunk_index": 0,
+                "sources": [
+                    {
+                        "source_year": "2024",
+                        "source_kind": "csv_index",
+                        "source_url": "https://example.org/index_2024.csv",
+                        "source_filename": "index_2024.csv",
+                        "source_archive_key": "index_2024",
+                        "source_signature": "sig-1",
+                        "page_url": "https://example.org/page",
+                    }
+                ],
+            }
+        ).encode("utf-8"),
     )
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/r3/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
     event = {"Records": [{"body": json.dumps({"run_id": "r3", "chunk_id": "c3", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 1})}]}
     result = module.handler(event, None)
     assert result["status"] == "success"
-    stored = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r3/results/c3.json")].decode("utf-8"))
-    assert stored["task_type"] == "source_catalog"
-    assert stored["result"]["status"] == "deferred"
+    stored = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r3/results/c3.json")]["Body"].decode("utf-8"))
+    assert stored["task_type"] == "source_download"
+    assert stored["result"]["status"] == "success"

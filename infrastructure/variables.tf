@@ -20,6 +20,12 @@ variable "form990_raw_prefix" {
   default     = "form990/raw/"
 }
 
+variable "form990_raw_source_prefix" {
+  description = "S3 prefix for raw IRS Form 990 source artifacts (original CSV and ZIP downloads)."
+  type        = string
+  default     = "form990/raw-sources/"
+}
+
 variable "form990_metadata_prefix" {
   description = "S3 prefix for normalized Form 990 metadata records."
   type        = string

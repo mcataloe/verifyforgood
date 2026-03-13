@@ -73,6 +73,7 @@ Important:
 
 S3 prefixes (configurable via Terraform variables):
 
+- raw IRS source artifacts: `form990/raw-sources/`
 - raw XML: `form990/raw/`
 - normalized filings: `form990/normalized/metadata/`
 - derived metrics: `form990/normalized/metrics/`
@@ -105,14 +106,17 @@ Current discovery-stage architecture:
   - latest discovery state
   - per-run discovery catalog manifests
   - per-run discovery diff manifests
+- raw source persistence stores original IRS artifacts unchanged under a dedicated prefix separate from extracted filing XML.
+- raw source object keys preserve history by including stable source identity plus source signature; the bucket does not rely on S3 versioning for historical retention.
+- latest downloaded-source state is stored as per-source state entries so the pipeline can skip already persisted artifacts with unchanged signatures.
 - source diffs classify:
   - new sources
   - removed sources
   - changed sources
   - unchanged sources
-- orchestrated discovery mode queues source-stage work descriptors for later phases instead of filing-ingest chunks.
+- inline mode downloads required raw ZIP/CSV artifacts immediately after discovery.
+- orchestrated mode queues raw source download work items instead of filing-ingest chunks.
 - this phase intentionally stops before:
-  - raw IRS ZIP/CSV download persistence
   - CSV filing reconciliation
   - ZIP member extraction
   - normalized filing parsing from discovered source artifacts
@@ -129,7 +133,6 @@ Known supported discovery filename patterns include:
 
 Later phases will extend the same flow to:
 
-- persist raw IRS ZIP/CSV source objects
 - reconcile CSV index catalogs
 - extract selected filings from ZIP archives
 - parse and normalize filing XML
@@ -187,10 +190,18 @@ Phase 10G ZIP discovery/reconciliation extension:
   - discovery state: `form990/normalized/manifests/discovery/state/latest_sources.json`
   - discovery run manifest: `form990/normalized/manifests/discovery/runs/{run_id}/catalog.json`
   - discovery diff manifest: `form990/normalized/manifests/discovery/runs/{run_id}/diff.json`
+- raw source downloads are persisted separately from extracted filing XML:
+  - raw IRS source artifacts: `form990/raw-sources/{year}/{source_kind}/{archive_key}/{source_signature}/{filename}`
+  - downloaded-source state: `form990/normalized/manifests/source-download/state/latest/{year}/{source_kind}/{archive_key}.json`
+  - source download manifests: `form990/normalized/manifests/source-download/runs/{run_id}/batch_{batch_index}.json`
+- versioning note:
+  - raw IRS source history is preserved by object key strategy and manifests
+  - S3 bucket versioning is intentionally not used for these large ZIP/CSV artifacts to avoid duplicate-version storage bloat
 - current incremental behavior:
   - detect source changes at discovery layer
   - select target years for next-stage source work
-  - stop before raw artifact fetch or filing reconciliation
+  - download only source artifacts missing from downloaded-source state or changed by source signature
+  - stop before filing reconciliation or XML extraction
 
 Phase 10H parallel chunk processing:
 
@@ -200,7 +211,7 @@ Phase 10H parallel chunk processing:
 - orchestrated flow:
   - orchestrator discovers source artifacts and writes source-stage chunk definitions to S3
   - orchestrator enqueues chunk messages to SQS
-  - worker Lambda acknowledges source-stage chunks for later phases
+  - worker Lambda downloads and persists raw source artifacts for queued chunks
   - per-run/per-chunk artifacts are persisted under:
     - `ops/form990-runs/{run_id}/run.json`
     - `ops/form990-runs/{run_id}/chunks/{chunk_id}.json`

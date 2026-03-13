@@ -16,13 +16,15 @@ from charity_status.form990.irs_page_discovery import (
     discovery_state_payload,
     diff_source_catalog,
 )
+from charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state, plan_source_downloads
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
 from charity_status.form990.source_catalog import normalize_configured_sources, select_sources_by_years, source_years
 from charity_status.ops import S3RunStore
-from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key
+from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
+RAW_SOURCE_PREFIX = os.environ.get("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
 METADATA_PREFIX = os.environ.get("FORM990_METADATA_PREFIX", "form990/normalized/metadata/")
 MANIFEST_PREFIX = os.environ.get("FORM990_MANIFEST_PREFIX", "form990/normalized/manifests/")
 METRICS_PREFIX = os.environ.get("FORM990_METRICS_PREFIX", "form990/normalized/metrics/")
@@ -47,6 +49,7 @@ FORM990_IRS_DOWNLOADS_PAGE_URL = os.environ.get(
     "FORM990_IRS_DOWNLOADS_PAGE_URL",
     "https://www.irs.gov/charities-non-profits/form-990-series-downloads",
 ).strip()
+FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "300"))
 FORM990_ZIP_FETCH_TIMEOUT_SECONDS = int(os.environ.get("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "120"))
 FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES", str(20 * 1024 * 1024)))
 FORM990_EXECUTION_MODE = os.environ.get("FORM990_EXECUTION_MODE", "inline").strip().lower()
@@ -105,9 +108,22 @@ def handler(event, context):
 
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
     prepared = _prepare_discovery_run(service, payload)
+    if prepared["scheduled_sources"]:
+        download_manifest = execute_source_download_batch(
+            sources=prepared["scheduled_sources"],
+            bucket=BUCKET or "",
+            raw_source_prefix=RAW_SOURCE_PREFIX,
+            manifest_prefix=MANIFEST_PREFIX,
+            s3_client=service.s3,
+            run_id=prepared["run_id"],
+            batch_index=0,
+            timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+        )
+    else:
+        download_manifest = {"manifest_key": None, "downloaded_count": 0, "downloads": []}
     response = {
         "status": "success",
-        "stage": "source_catalog",
+        "stage": "source_artifact_fetch",
         "execution_mode": "inline",
         "mode": prepared["mode"],
         "run_id": prepared["run_id"],
@@ -122,11 +138,15 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "selected_source_count": prepared["selected_source_count"],
         "scheduled_source_count": prepared["scheduled_source_count"],
         "scheduled_sources": prepared["scheduled_sources"][:10],
+        "skipped_source_count": prepared["skipped_source_count"],
+        "downloaded_source_count": download_manifest.get("downloaded_count", 0),
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
+        "source_download_manifest_key": download_manifest.get("manifest_key"),
+        "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
         "policy": prepared["policy"],
-        "next_stage": "source_artifact_fetch",
+        "next_stage": "csv_reconciliation",
         "next_stage_implemented": False,
         "selected_records": 0,
         "processed_records": 0,
@@ -144,8 +164,10 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         changed_sources=prepared["changed_sources"],
         removed_sources=prepared["removed_sources"],
         scheduled_source_count=prepared["scheduled_source_count"],
+        skipped_source_count=prepared["skipped_source_count"],
+        downloaded_source_count=download_manifest.get("downloaded_count", 0),
     )
-    _persist_ingest_ops_run(service, response, prepared["scheduled_sources"])
+    _persist_ingest_ops_run(service, response, download_manifest.get("downloads", []))
     return response
 
 
@@ -175,8 +197,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
             "run_id": run_id,
             "chunk_id": chunk_id,
             "chunk_index": chunk_index,
-            "task_type": "source_catalog",
-            "stage": "source_catalog",
+            "task_type": "source_download",
+            "stage": "source_artifact_fetch",
             "sources": chunk,
             "mode": prepared["mode"],
             "source_mode": prepared["source_mode"],
@@ -204,7 +226,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
-        "stage": "source_catalog",
+        "stage": "source_artifact_fetch",
         "status": "queued",
         "source_mode": prepared["source_mode"],
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -216,6 +238,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "sources_changed": prepared["changed_sources"],
         "sources_unchanged": prepared["unchanged_sources"],
         "selected_source_count": prepared["selected_source_count"],
+        "skipped_source_count": prepared["skipped_source_count"],
         "scheduled_source_count": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
@@ -224,6 +247,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
+        "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
     }
     run_store.write_ingest_run(run_id, run_summary)
 
@@ -237,7 +261,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
 
     return {
         "status": "queued",
-        "stage": "source_catalog",
+        "stage": "source_artifact_fetch",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "run_id": run_id,
@@ -250,15 +274,17 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "changed_sources": prepared["changed_sources"],
         "unchanged_sources": prepared["unchanged_sources"],
         "selected_source_count": prepared["selected_source_count"],
+        "skipped_source_count": prepared["skipped_source_count"],
         "scheduled_source_count": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
+        "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
         "run_s3_key": ops_run_key,
         "chunks": chunks[:10],
-        "next_stage": "source_artifact_fetch",
+        "next_stage": "csv_reconciliation",
         "next_stage_implemented": False,
     }
 
@@ -357,13 +383,10 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         now=now_dt,
     )
     selected_sources = select_sources_by_years(discovered_sources, set(selected_years))
-    actionable_entries = list(diff.new_sources) + [entry["after"] for entry in diff.changed_sources if isinstance(entry.get("after"), dict)]
-    actionable_ids = {_source_identity(item) for item in actionable_entries if isinstance(item, dict)}
-    actionable_sources = [
-        item.to_dict()
-        for item in selected_sources
-        if _source_identity(item.to_dict()) in actionable_ids
-    ]
+    selected_source_dicts = [item.to_dict() for item in selected_sources]
+    downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
+    download_plan = plan_source_downloads(selected_source_dicts, downloaded_state)
+    actionable_sources = download_plan["to_download"]
     return {
         "run_id": run_id,
         "mode": mode,
@@ -375,8 +398,10 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         "changed_sources": len(diff.changed_sources),
         "unchanged_sources": diff.unchanged_sources,
         "selected_source_count": len(selected_sources),
+        "skipped_source_count": len(download_plan["skipped"]),
         "scheduled_source_count": len(actionable_sources),
         "scheduled_sources": actionable_sources,
+        "skipped_sources": download_plan["skipped"],
         "policy": {
             "mode_requested": mode,
             "effective_mode": policy_metadata.get("effective_mode"),
@@ -525,27 +550,6 @@ def _record_to_dict(record: Any) -> dict[str, Any]:
     }
 
 
-def _collect_filing_ids_by_ein(records: list[dict[str, Any]]) -> dict[str, list[str]]:
-    mapping: dict[str, set[str]] = {}
-    for row in records:
-        if not isinstance(row, dict):
-            continue
-        ein = str(row.get("ein") or "").strip()
-        filing_id = str(row.get("irs_object_id") or "").strip()
-        if not ein or not filing_id:
-            continue
-        mapping.setdefault(ein, set()).add(filing_id)
-    return {ein: sorted(values) for ein, values in mapping.items()}
-
-
-def _source_identity(entry: dict[str, Any]) -> tuple[str, str, str]:
-    return (
-        str(entry.get("source_year") or entry.get("year") or "").strip(),
-        str(entry.get("source_kind") or "").strip(),
-        str(entry.get("source_archive_key") or entry.get("archive_name") or entry.get("source_archive") or "").strip(),
-    )
-
-
 def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, Any], selected_records: list[dict[str, Any]]) -> None:
     bucket = OPS_METADATA_BUCKET or BUCKET or ""
     if not bucket:
@@ -570,6 +574,8 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "sources_changed": response.get("changed_sources"),
         "sources_unchanged": response.get("unchanged_sources"),
         "scheduled_source_count": response.get("scheduled_source_count"),
+        "skipped_source_count": response.get("skipped_source_count"),
+        "downloaded_source_count": response.get("downloaded_source_count"),
         "filings_discovered": 0,
         "filings_new": 0,
         "filings_changed": 0,
@@ -578,6 +584,8 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "discovery_state_key": response.get("discovery_state_key"),
         "discovery_manifest_key": response.get("discovery_manifest_key"),
         "discovery_diff_key": response.get("discovery_diff_key"),
+        "source_download_manifest_key": response.get("source_download_manifest_key"),
+        "source_download_state_prefix": response.get("source_download_state_prefix"),
         "checkpoint_key": response.get("checkpoint_key"),
         "resume_supported": False,
         "safe_error_summary": {"count": int(response.get("failed_count") or 0), "samples": []},

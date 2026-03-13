@@ -33,6 +33,11 @@ output "form990_raw_s3_prefix" {
   value       = local.form990_raw_prefix_normalized
 }
 
+output "form990_raw_source_s3_prefix" {
+  description = "S3 prefix for raw IRS Form 990 source artifacts (original CSV and ZIP files)."
+  value       = local.form990_raw_source_prefix_normalized
+}
+
 output "form990_metadata_s3_prefix" {
   description = "S3 prefix for normalized Form 990 metadata JSONL."
   value       = local.form990_metadata_prefix_normalized

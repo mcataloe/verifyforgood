@@ -7,16 +7,19 @@ from typing import Any
 
 import boto3
 from charity_status.form990 import Form990IngestService
+from charity_status.form990.source_downloads import execute_source_download_batch
 from charity_status.ops import S3RunStore
 
 BUCKET = os.environ.get("BUCKET", "").strip()
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
+RAW_SOURCE_PREFIX = os.environ.get("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
 METADATA_PREFIX = os.environ.get("FORM990_METADATA_PREFIX", "form990/normalized/metadata/")
 MANIFEST_PREFIX = os.environ.get("FORM990_MANIFEST_PREFIX", "form990/normalized/manifests/")
 METRICS_PREFIX = os.environ.get("FORM990_METRICS_PREFIX", "form990/normalized/metrics/")
 GOVERNANCE_PREFIX = os.environ.get("FORM990_GOVERNANCE_PREFIX", "form990/normalized/governance/")
 QUALITY_PREFIX = os.environ.get("FORM990_QUALITY_PREFIX", "form990/normalized/quality/")
 RELATIONSHIPS_PREFIX = os.environ.get("FORM990_RELATIONSHIPS_PREFIX", "form990/normalized/relationships/")
+FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "300"))
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 
@@ -46,8 +49,8 @@ def _process_chunk(message: dict[str, Any]) -> None:
     started_at = datetime.now(timezone.utc).isoformat()
     chunk_payload = _get_json(s3, chunk_bucket, chunk_key)
     task_type = str(chunk_payload.get("task_type") or "filing_records").strip().lower()
-    if task_type == "source_catalog":
-        _process_source_catalog_chunk(
+    if task_type in {"source_catalog", "source_download"}:
+        _process_source_download_chunk(
             s3=s3,
             run_id=run_id,
             chunk_id=chunk_id,
@@ -113,7 +116,7 @@ def _process_chunk(message: dict[str, Any]) -> None:
         raise
 
 
-def _process_source_catalog_chunk(
+def _process_source_download_chunk(
     *,
     s3: Any,
     run_id: str,
@@ -126,29 +129,63 @@ def _process_source_catalog_chunk(
 ) -> None:
     sources = chunk_payload.get("sources")
     if not isinstance(sources, list):
-        raise ValueError("source catalog chunk payload sources must be an array")
+        raise ValueError("source download chunk payload sources must be an array")
 
     _update_run_status(s3, run_id, "running")
-    completed_at = datetime.now(timezone.utc).isoformat()
-    payload = {
-        "run_id": run_id,
-        "chunk_id": chunk_id,
-        "status": "succeeded",
-        "task_type": "source_catalog",
-        "attempt": attempt,
-        "started_at": started_at,
-        "completed_at": completed_at,
-        "result": {
-            "stage": "source_catalog",
-            "status": "deferred",
-            "sources_recorded": len(sources),
-            "next_stage": "source_artifact_fetch",
-            "next_stage_implemented": False,
-        },
-    }
-    s3.put_object(Bucket=chunk_bucket, Key=result_key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
-    _update_run_status(s3, run_id, "succeeded")
-    _write_summary_snapshot(s3, run_id, chunk_bucket)
+    try:
+        download_manifest = execute_source_download_batch(
+            sources=sources,
+            bucket=BUCKET,
+            raw_source_prefix=RAW_SOURCE_PREFIX,
+            manifest_prefix=MANIFEST_PREFIX,
+            s3_client=s3,
+            run_id=run_id,
+            batch_index=int(chunk_payload.get("chunk_index") or 0),
+            timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+        )
+        completed_at = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "run_id": run_id,
+            "chunk_id": chunk_id,
+            "status": "succeeded",
+            "task_type": "source_download",
+            "attempt": attempt,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "result": {
+                "stage": "source_artifact_fetch",
+                "status": "success",
+                "downloaded_count": download_manifest.get("downloaded_count", 0),
+                "source_download_manifest_key": download_manifest.get("manifest_key"),
+                "next_stage": "csv_reconciliation",
+                "next_stage_implemented": False,
+            },
+        }
+        s3.put_object(Bucket=chunk_bucket, Key=result_key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+        _update_run_status(s3, run_id, "succeeded")
+        _write_summary_snapshot(s3, run_id, chunk_bucket)
+    except Exception as exc:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        s3.put_object(
+            Bucket=chunk_bucket,
+            Key=result_key,
+            Body=json.dumps(
+                {
+                    "run_id": run_id,
+                    "chunk_id": chunk_id,
+                    "status": "failed",
+                    "task_type": "source_download",
+                    "attempt": attempt,
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "error": str(exc),
+                },
+                sort_keys=True,
+            ).encode("utf-8"),
+        )
+        _update_run_status(s3, run_id, "failed")
+        _write_summary_snapshot(s3, run_id, chunk_bucket)
+        raise
 
 
 def _update_run_status(s3: Any, run_id: str, status: str) -> None:
