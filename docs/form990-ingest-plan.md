@@ -17,6 +17,8 @@
 - The worker path does not yet perform raw source artifact download/persistence.
 - Raw source artifacts, extracted raw XML, and normalized datasets are not yet separated by dedicated storage helpers and prefixes.
 - Terraform does not yet explicitly document and enforce the non-versioned raw-source retention strategy.
+- Filing identity and completion-state rules are still too implicit for reliable incremental CSV reconciliation.
+- The source-catalog flow still lacks a bridge from CSV-selected filings to the existing direct-XML ingest path while ZIP-member extraction remains deferred.
 
 ## 3. Target Flow
 
@@ -38,6 +40,12 @@ This step must not implement:
 - CSV filing reconciliation
 - selected filing extraction
 - normalized filing parsing changes
+
+The next implementation step should extend the pipeline to:
+
+`discovery -> discovery-state persistence/diff -> raw source download/persistence -> downloaded-source state -> CSV filing reconciliation -> selected filing ingest`
+
+Until ZIP-member lookup/extraction is implemented, the downstream processing bridge for selected filings may continue to use the existing `xml_url`-based ingest path, but selection authority must come from the downloaded yearly CSV indexes.
 
 ## 4. Source Catalog Model
 
@@ -99,7 +107,41 @@ Known filename examples the design must support:
   - raw source S3 key
 - If the source-data bucket is managed in Terraform here, versioning must be explicitly disabled or suspended for the bucket used for raw IRS source downloads. Historical retention must come from object naming, not bucket versioning.
 
-## 7. Execution and Backward Compatibility
+## 7. Filing Reconciliation
+
+- Yearly CSV indexes are the authoritative filing catalog for incremental Form 990 selection.
+- CSV reconciliation must read the persisted raw CSV source artifacts already downloaded for the selected years.
+- CSV row parsing must normalize the IRS shapes already observed in the repo:
+  - header-based CSV rows (`EIN`, `TaxYr`, `FilingDt`, `ReturnType`, `ObjectId`, `URL`)
+  - upper-snake variations (`TAX_YR`, `FILING_DT`, `OBJECT_ID`, `XML_URL`)
+  - positional export rows beginning with `.EFILE`
+- Filing identity should prioritize `irs_object_id` when present and otherwise fall back to a deterministic composite of:
+  - `ein`
+  - `tax_year`
+  - `return_type`
+  - `filing_date`
+  - `source_year`
+  - `source_archive`
+- Filing change detection should use a CSV-derived filing signature built from the normalized filing metadata, not from ZIP contents.
+- Filing state must be persisted separately from source discovery/download state and must track, per filing:
+  - filing identity
+  - filing signature
+  - normalized filing metadata from CSV
+  - whether the raw source CSV was present
+  - whether raw filing XML has been extracted/persisted
+  - whether normalized outputs are complete
+  - latest parse status / terminal outcome
+- Completion criteria must be explicit:
+  - `parsed` filings are complete only when the filing state records the normalized dataset artifact keys written by ingest
+  - terminal non-parse outcomes such as `unsupported_return_type` may be treated as complete when explicitly recorded in filing state
+  - `index_only`, missing-output, or failed parse states are incomplete and must be re-selected
+- Reconciliation should replace filing state for the years inspected in the current run while preserving prior state for years not inspected.
+- Per-run reconciliation artifacts should include:
+  - the CSV-derived filing catalog seen for that run
+  - the filing diff summary (`new`, `changed`, `unchanged`, `incomplete`)
+  - the selected filing set scheduled for downstream processing
+
+## 8. Execution and Backward Compatibility
 
 - Explicit `records[]` ingest remains supported.
 - Legacy `index_url` / `index_urls` direct ingest remains supported when callers use that legacy entry path.
@@ -112,8 +154,14 @@ Known filename examples the design must support:
   - inline mode should download and persist those source artifacts directly
   - orchestrated mode should queue raw source download work items
   - filing parsing still remains out of scope
+- In the CSV reconciliation phase:
+  - explicit `records[]` and legacy direct `index_url` entry paths remain unchanged
+  - source-catalog execution must reconcile selected filings from downloaded CSV indexes before downstream ingest
+  - inline mode may immediately ingest only the selected filings through the existing direct `xml_url` path
+  - orchestrated mode should write chunks containing only selected filings so workers process those selected filings only
+  - ZIP-member extraction remains deferred, so this direct-XML bridge is temporary and should be replaced in the later ZIP-extraction phase
 
-## 8. Files to Change
+## 9. Files to Change
 
 - `infrastructure/lambda_form990.py`
 - `infrastructure/lambda_form990_worker.py`
@@ -121,13 +169,15 @@ Known filename examples the design must support:
 - `infrastructure/charity_status/form990/discovery.py`
 - `infrastructure/charity_status/form990/source_catalog.py`
 - `infrastructure/charity_status/form990/source_downloads.py`
+- `infrastructure/charity_status/form990/index.py`
+- `infrastructure/charity_status/form990/filing_reconciliation.py`
 - `infrastructure/charity_status/form990/storage.py`
 - `infrastructure/charity_status/form990/manifest.py` if source diff helpers belong there
 - Terraform bucket/prefix wiring for raw source artifacts
 - tests covering discovery, Lambda flow, storage, and worker behavior
 - `README.md`
 
-## 9. Risks
+## 10. Risks
 
 - Discovery-mode responses will change because this phase no longer performs filing ingestion after discovery.
 - Existing tests that assume discovery mode ingests filings will need to be updated to the new phase boundary.
@@ -135,8 +185,11 @@ Known filename examples the design must support:
 - Configured source catalog compatibility must be preserved for old `year/index_url` entries.
 - Download state must be independent from discovery state to avoid incorrectly skipping never-downloaded but unchanged sources.
 - Raw source key design must preserve history without creating duplicate keys for the same signature.
+- Filing identity fallback must be stable enough to avoid false-positive reprocessing when `irs_object_id` is missing.
+- Completion-state tracking must not regress explicit/legacy direct ingest by causing already-parsed filings to be re-selected indefinitely.
+- The temporary direct-XML bridge must remain clearly scoped so later ZIP extraction can replace it without rewriting reconciliation state.
 
-## 10. Test Plan
+## 11. Test Plan
 
 - IRS-page discovery of CSV and ZIP links across mixed filename patterns
 - multiple ZIP artifacts within the same year
@@ -151,3 +204,12 @@ Known filename examples the design must support:
 - orchestrated raw source download queueing behavior
 - worker compatibility with raw source download work items
 - Terraform/infrastructure coverage for versioning-disabled expectations where feasible
+- CSV row normalization across header-based, upper-snake, and positional IRS index shapes
+- filing identity generation and filing-signature diff behavior
+- new CSV rows selected for processing
+- unchanged CSV rows skipped
+- changed CSV rows selected for reprocessing
+- incomplete or missing normalized-output state causing a filing to be re-selected
+- mixed-year reconciliation where only inspected years are replaced in latest filing state
+- current + previous year incremental window behavior
+- explicit-records and legacy direct-index backward compatibility after filing state persistence is added

@@ -45,6 +45,20 @@ class _Body:
         return str(self._value).encode("utf-8")
 
 
+class _ReconciliationResult:
+    def __init__(self, *, current_records=None, selected_records=None, new_count=0, changed_count=0, unchanged_count=0, incomplete_count=0):
+        self.current_records = tuple(current_records or [])
+        self.selected_records = tuple(selected_records or [])
+        self.latest_state_entries = ()
+        self.new_count = new_count
+        self.changed_count = changed_count
+        self.unchanged_count = unchanged_count
+        self.incomplete_count = incomplete_count
+        self.catalog_key = "form990/normalized/manifests/filings/run1/catalog.json"
+        self.diff_key = "form990/normalized/manifests/filings/run1/diff.json"
+        self.state_key = "form990/normalized/manifests/state/latest_filing_manifest.json"
+
+
 def _load_module(monkeypatch):
     fake_s3 = FakeS3()
     monkeypatch.setenv("BUCKET", "test-bucket")
@@ -170,17 +184,56 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
         "downloaded_count": len(kwargs["sources"]),
         "downloads": [{**kwargs["sources"][0], "status": "downloaded", "raw_source_s3_key": "form990/raw-sources/2024/csv_index/index_2024/sig/index_2024.csv"}] if kwargs["sources"] else [],
     }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
+        current_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/obj-1.xml",
+                source_year="2024",
+                source_archive="index_2024",
+                source_signature="sig-1",
+            )
+        ],
+        selected_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/obj-1.xml",
+                source_year="2024",
+                source_archive="index_2024",
+                source_signature="sig-1",
+            )
+        ],
+        new_count=1,
+    )
+    module.update_filing_state_from_ingest_result = lambda **kwargs: []
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {
+        "status": "success",
+        "records_processed": len(payload),
+        "parsed_count": len(payload),
+        "failed_count": 0,
+        "manifest_s3_key": "form990/normalized/manifests/manifest_20260101T000000Z.json",
+        "records": [{"parse_status": "parsed", "raw_s3_key": "form990/raw/123456789/2024/obj-1.xml"}],
+    }
 
     result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
-    assert body["stage"] == "source_artifact_fetch"
+    assert body["stage"] == "csv_reconciliation"
     assert body["source_catalog_count"] == 1
     assert body["new_sources"] == 1
     assert body["changed_sources"] == 0
     assert body["downloaded_source_count"] == 1
-    assert body["processed_records"] == 0
+    assert body["selected_records"] == 1
+    assert body["processed_records"] == 1
     assert ("test-bucket", body["discovery_state_key"]) in fake_s3.store
     assert ("test-bucket", body["discovery_manifest_key"]) in fake_s3.store
     assert ("test-bucket", body["discovery_diff_key"]) in fake_s3.store
@@ -196,6 +249,8 @@ def test_discovery_mode_reports_unchanged_state(monkeypatch):
         "downloaded_count": len(kwargs["sources"]),
         "downloads": list(kwargs["sources"]),
     }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     fake_s3.put_object(
         Bucket="test-bucket",
         Key=state_key,
@@ -239,6 +294,8 @@ def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
         return {"manifest_key": "k", "downloaded_count": 0, "downloads": []}
 
     module.execute_source_download_batch = _unexpected
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
     body = json.loads(result["body"])
 
@@ -256,6 +313,8 @@ def test_policy_config_override_target_years(monkeypatch):
         "downloaded_count": len(kwargs["sources"]),
         "downloads": list(kwargs["sources"]),
     }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     result = module.handler(
         {
             "mode": "incremental",
@@ -288,6 +347,11 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
         "downloaded_count": len(kwargs["sources"]),
         "downloads": list(kwargs["sources"]),
     }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
+        current_records=[],
+        selected_records=[],
+    )
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
 
     result = module.handler({"mode": "incremental"}, None)
     body = json.loads(result["body"])
@@ -313,16 +377,51 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
         _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
+        current_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/obj-1.xml",
+                source_year="2024",
+                source_archive="index_2024",
+                source_signature="sig-1",
+            )
+        ],
+        selected_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2024",
+                filing_date="2025-01-01",
+                return_type="990",
+                irs_object_id="obj-1",
+                xml_url="https://example.org/obj-1.xml",
+                source_year="2024",
+                source_archive="index_2024",
+                source_signature="sig-1",
+            )
+        ],
+        new_count=1,
+    )
     result = module.handler({"mode": "bootstrap", "chunk_size": 1}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
-    assert body["stage"] == "source_artifact_fetch"
-    assert body["chunk_count"] == 2
-    assert len(fake_sqs.messages) == 2
+    assert body["stage"] == "csv_reconciliation"
+    assert body["chunk_count"] == 1
+    assert len(fake_sqs.messages) == 1
     payload = json.loads(fake_sqs.messages[0]["MessageBody"])
     chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
-    assert chunk_body["task_type"] == "source_download"
+    assert chunk_body["task_type"] == "filing_records"
+    assert chunk_body["records"][0]["irs_object_id"] == "obj-1"
 
 
 def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):
@@ -340,6 +439,40 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
         _source(source_year="2023", source_kind="csv_index", source_url="https://example.org/index_2023.csv", source_archive_key="index_2023"),
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
     ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
+        current_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2023",
+                filing_date="2024-01-01",
+                return_type="990",
+                irs_object_id="obj-2023",
+                xml_url="https://example.org/obj-2023.xml",
+                source_year="2023",
+                source_archive="index_2023",
+                source_signature="sig-2023",
+            )
+        ],
+        selected_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2023",
+                filing_date="2024-01-01",
+                return_type="990",
+                irs_object_id="obj-2023",
+                xml_url="https://example.org/obj-2023.xml",
+                source_year="2023",
+                source_archive="index_2023",
+                source_signature="sig-2023",
+            )
+        ],
+        new_count=1,
+    )
     result = module.handler({"mode": "incremental", "target_years": ["2023"], "chunk_size": 10}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200

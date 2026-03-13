@@ -10,6 +10,7 @@ import boto3
 from charity_status.api import error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import fetch_index_records
+from charity_status.form990.filing_reconciliation import reconcile_filing_catalog, update_filing_state_from_ingest_result
 from charity_status.form990.irs_page_discovery import (
     IrsYearSource,
     discover_irs_form990_sources,
@@ -20,7 +21,7 @@ from charity_status.form990.source_downloads import execute_source_download_batc
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
 from charity_status.form990.source_catalog import normalize_configured_sources, select_sources_by_years, source_years
 from charity_status.ops import S3RunStore
-from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix
+from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -85,6 +86,14 @@ def handler(event, context):
         if not isinstance(explicit_records, list):
             return error_response(400, "records must be an array")
         result = service.ingest_index_payload(payload=explicit_records, download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)))
+        update_filing_state_from_ingest_result(
+            s3_client=service.s3,
+            bucket=BUCKET or "",
+            manifest_prefix=MANIFEST_PREFIX,
+            input_records=explicit_records,
+            ingest_result=result,
+        )
+        result["filing_state_key"] = state_manifest_key(MANIFEST_PREFIX)
         return json_response(200, result)
 
     # Backward-compatible path: when callers provide index_url(s) without orchestration mode,
@@ -93,6 +102,14 @@ def handler(event, context):
         legacy_records = _load_legacy_index_records(payload)
         if legacy_records:
             result = service.ingest_index_payload(payload=legacy_records, download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)))
+            update_filing_state_from_ingest_result(
+                s3_client=service.s3,
+                bucket=BUCKET or "",
+                manifest_prefix=MANIFEST_PREFIX,
+                input_records=legacy_records,
+                ingest_result=result,
+            )
+            result["filing_state_key"] = state_manifest_key(MANIFEST_PREFIX)
             return json_response(200, result)
 
     try:
@@ -108,22 +125,45 @@ def handler(event, context):
 
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:
     prepared = _prepare_discovery_run(service, payload)
-    if prepared["scheduled_sources"]:
-        download_manifest = execute_source_download_batch(
-            sources=prepared["scheduled_sources"],
-            bucket=BUCKET or "",
-            raw_source_prefix=RAW_SOURCE_PREFIX,
-            manifest_prefix=MANIFEST_PREFIX,
+    download_manifest = _download_selected_sources(service, prepared)
+    csv_sources = _resolve_selected_csv_sources(
+        selected_sources=prepared["selected_sources"],
+        downloaded_state=load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX),
+    )
+    reconciliation = reconcile_filing_catalog(
+        s3_client=service.s3,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+        run_id=prepared["run_id"],
+        csv_sources=csv_sources,
+    )
+    selected_records = [_record_to_dict(item) for item in reconciliation.selected_records]
+    if selected_records:
+        ingest_result = service.ingest_index_payload(payload=selected_records, download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)))
+        update_filing_state_from_ingest_result(
             s3_client=service.s3,
-            run_id=prepared["run_id"],
-            batch_index=0,
-            timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+            bucket=BUCKET or "",
+            manifest_prefix=MANIFEST_PREFIX,
+            input_records=selected_records,
+            ingest_result=ingest_result,
         )
     else:
-        download_manifest = {"manifest_key": None, "downloaded_count": 0, "downloads": []}
+        ingest_result = {
+            "status": "success",
+            "records_processed": 0,
+            "parsed_count": 0,
+            "failed_count": 0,
+            "manifest_s3_key": None,
+            "filing_records_s3_key": None,
+            "metrics_s3_key": None,
+            "governance_s3_key": None,
+            "quality_s3_key": None,
+            "relationships_s3_key": None,
+            "records": [],
+        }
     response = {
-        "status": "success",
-        "stage": "source_artifact_fetch",
+        "status": str(ingest_result.get("status") or "success"),
+        "stage": "csv_reconciliation",
         "execution_mode": "inline",
         "mode": prepared["mode"],
         "run_id": prepared["run_id"],
@@ -145,15 +185,25 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "discovery_diff_key": prepared["discovery_diff_key"],
         "source_download_manifest_key": download_manifest.get("manifest_key"),
         "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
+        "filing_catalog_key": reconciliation.catalog_key,
+        "filing_diff_key": reconciliation.diff_key,
+        "filing_state_key": reconciliation.state_key,
+        "filings_discovered": len(reconciliation.current_records),
+        "filings_new": reconciliation.new_count,
+        "filings_changed": reconciliation.changed_count,
+        "filings_incomplete": reconciliation.incomplete_count,
+        "filings_skipped": reconciliation.unchanged_count,
         "policy": prepared["policy"],
-        "next_stage": "csv_reconciliation",
+        "next_stage": "zip_extraction",
         "next_stage_implemented": False,
-        "selected_records": 0,
-        "processed_records": 0,
-        "parsed_count": 0,
-        "failed_count": 0,
-        "batch_count": 0,
+        "selected_records": len(selected_records),
+        "selected_filings": selected_records[:10],
+        "processed_records": int(ingest_result.get("records_processed") or 0),
+        "parsed_count": int(ingest_result.get("parsed_count") or 0),
+        "failed_count": int(ingest_result.get("failed_count") or 0),
+        "batch_count": 1 if selected_records else 0,
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
+        "manifest_s3_key": ingest_result.get("manifest_s3_key"),
     }
     _log_structured(
         "form990.discovery.run.complete",
@@ -166,8 +216,11 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         scheduled_source_count=prepared["scheduled_source_count"],
         skipped_source_count=prepared["skipped_source_count"],
         downloaded_source_count=download_manifest.get("downloaded_count", 0),
+        filings_discovered=len(reconciliation.current_records),
+        selected_records=len(selected_records),
+        parsed_count=int(ingest_result.get("parsed_count") or 0),
     )
-    _persist_ingest_ops_run(service, response, download_manifest.get("downloads", []))
+    _persist_ingest_ops_run(service, response, selected_records)
     return response
 
 
@@ -177,7 +230,19 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
 
     prepared = _prepare_discovery_run(service, payload)
     run_id = prepared["run_id"]
-    selected = prepared["scheduled_sources"]
+    download_manifest = _download_selected_sources(service, prepared)
+    csv_sources = _resolve_selected_csv_sources(
+        selected_sources=prepared["selected_sources"],
+        downloaded_state=load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX),
+    )
+    reconciliation = reconcile_filing_catalog(
+        s3_client=service.s3,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+        run_id=prepared["run_id"],
+        csv_sources=csv_sources,
+    )
+    selected = [_record_to_dict(item) for item in reconciliation.selected_records]
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
@@ -197,9 +262,9 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
             "run_id": run_id,
             "chunk_id": chunk_id,
             "chunk_index": chunk_index,
-            "task_type": "source_download",
-            "stage": "source_artifact_fetch",
-            "sources": chunk,
+            "task_type": "filing_records",
+            "stage": "csv_reconciliation",
+            "records": chunk,
             "mode": prepared["mode"],
             "source_mode": prepared["source_mode"],
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -226,8 +291,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
-        "stage": "source_artifact_fetch",
-        "status": "queued",
+        "stage": "csv_reconciliation",
+        "status": "queued" if chunks else "success",
         "source_mode": prepared["source_mode"],
         "started_at": datetime.now(timezone.utc).isoformat(),
         "source_catalog_count": prepared["source_catalog_count"],
@@ -239,7 +304,14 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "sources_unchanged": prepared["unchanged_sources"],
         "selected_source_count": prepared["selected_source_count"],
         "skipped_source_count": prepared["skipped_source_count"],
-        "scheduled_source_count": len(selected),
+        "scheduled_source_count": prepared["scheduled_source_count"],
+        "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "filings_discovered": len(reconciliation.current_records),
+        "filings_new": reconciliation.new_count,
+        "filings_changed": reconciliation.changed_count,
+        "filings_incomplete": reconciliation.incomplete_count,
+        "filings_skipped": reconciliation.unchanged_count,
+        "selected_records": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "chunk_status_counts": {"queued": len(chunks), "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
@@ -247,7 +319,11 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
+        "source_download_manifest_key": download_manifest.get("manifest_key"),
         "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
+        "filing_catalog_key": reconciliation.catalog_key,
+        "filing_diff_key": reconciliation.diff_key,
+        "filing_state_key": reconciliation.state_key,
     }
     run_store.write_ingest_run(run_id, run_summary)
 
@@ -260,8 +336,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     )
 
     return {
-        "status": "queued",
-        "stage": "source_artifact_fetch",
+        "status": "queued" if chunks else "success",
+        "stage": "csv_reconciliation",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "run_id": run_id,
@@ -275,16 +351,27 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "unchanged_sources": prepared["unchanged_sources"],
         "selected_source_count": prepared["selected_source_count"],
         "skipped_source_count": prepared["skipped_source_count"],
-        "scheduled_source_count": len(selected),
+        "scheduled_source_count": prepared["scheduled_source_count"],
+        "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "filings_discovered": len(reconciliation.current_records),
+        "filings_new": reconciliation.new_count,
+        "filings_changed": reconciliation.changed_count,
+        "filings_incomplete": reconciliation.incomplete_count,
+        "filings_skipped": reconciliation.unchanged_count,
+        "selected_records": len(selected),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
+        "source_download_manifest_key": download_manifest.get("manifest_key"),
         "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
+        "filing_catalog_key": reconciliation.catalog_key,
+        "filing_diff_key": reconciliation.diff_key,
+        "filing_state_key": reconciliation.state_key,
         "run_s3_key": ops_run_key,
         "chunks": chunks[:10],
-        "next_stage": "csv_reconciliation",
+        "next_stage": "zip_extraction",
         "next_stage_implemented": False,
     }
 
@@ -398,6 +485,7 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         "changed_sources": len(diff.changed_sources),
         "unchanged_sources": diff.unchanged_sources,
         "selected_source_count": len(selected_sources),
+        "selected_sources": selected_source_dicts,
         "skipped_source_count": len(download_plan["skipped"]),
         "scheduled_source_count": len(actionable_sources),
         "scheduled_sources": actionable_sources,
@@ -435,6 +523,47 @@ def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConf
         last_reconciliation_at=str(payload.get("last_reconciliation_at") or FORM990_LAST_RECONCILIATION_AT or "") or None,
         force_reconciliation=bool(payload.get("force_reconciliation", False)),
     )
+
+
+def _download_selected_sources(service: Form990IngestService, prepared: dict[str, Any]) -> dict[str, Any]:
+    if not prepared["scheduled_sources"]:
+        return {"manifest_key": None, "downloaded_count": 0, "downloads": []}
+    return execute_source_download_batch(
+        sources=prepared["scheduled_sources"],
+        bucket=BUCKET or "",
+        raw_source_prefix=RAW_SOURCE_PREFIX,
+        manifest_prefix=MANIFEST_PREFIX,
+        s3_client=service.s3,
+        run_id=prepared["run_id"],
+        batch_index=0,
+        timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+    )
+
+
+def _resolve_selected_csv_sources(selected_sources: list[dict[str, Any]], downloaded_state: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    downloaded_by_identity = {
+        (
+            str(item.get("source_year") or "").strip(),
+            str(item.get("source_kind") or "").strip(),
+            str(item.get("source_archive_key") or "").strip(),
+        ): item
+        for item in downloaded_state
+        if isinstance(item, dict)
+    }
+    resolved: list[dict[str, Any]] = []
+    for source in selected_sources:
+        if not isinstance(source, dict) or str(source.get("source_kind") or "").strip() != "csv_index":
+            continue
+        identity = (
+            str(source.get("source_year") or "").strip(),
+            str(source.get("source_kind") or "").strip(),
+            str(source.get("source_archive_key") or "").strip(),
+        )
+        downloaded = downloaded_by_identity.get(identity)
+        if not downloaded or not downloaded.get("raw_source_s3_key"):
+            continue
+        resolved.append({**source, **downloaded})
+    return resolved
 
 
 def _resolve_now(payload: dict[str, Any]) -> datetime:
@@ -576,16 +705,20 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "scheduled_source_count": response.get("scheduled_source_count"),
         "skipped_source_count": response.get("skipped_source_count"),
         "downloaded_source_count": response.get("downloaded_source_count"),
-        "filings_discovered": 0,
-        "filings_new": 0,
-        "filings_changed": 0,
-        "filings_skipped": 0,
+        "filings_discovered": response.get("filings_discovered"),
+        "filings_new": response.get("filings_new"),
+        "filings_changed": response.get("filings_changed"),
+        "filings_incomplete": response.get("filings_incomplete"),
+        "filings_skipped": response.get("filings_skipped"),
         "filings_failed": response.get("failed_count"),
         "discovery_state_key": response.get("discovery_state_key"),
         "discovery_manifest_key": response.get("discovery_manifest_key"),
         "discovery_diff_key": response.get("discovery_diff_key"),
         "source_download_manifest_key": response.get("source_download_manifest_key"),
         "source_download_state_prefix": response.get("source_download_state_prefix"),
+        "filing_catalog_key": response.get("filing_catalog_key"),
+        "filing_diff_key": response.get("filing_diff_key"),
+        "filing_state_key": response.get("filing_state_key"),
         "checkpoint_key": response.get("checkpoint_key"),
         "resume_supported": False,
         "safe_error_summary": {"count": int(response.get("failed_count") or 0), "samples": []},

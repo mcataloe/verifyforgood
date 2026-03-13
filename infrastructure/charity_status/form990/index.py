@@ -33,7 +33,19 @@ def fetch_index_payload(index_url: str, timeout_seconds: int = 60) -> list[dict[
     with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
         if response.status >= 400:
             raise RuntimeError(f"index download failed with status {response.status}")
-        payload = json.loads(response.read().decode("utf-8"))
+        payload = response.read()
+    return parse_index_source_payload(index_url, payload)
+
+
+def parse_index_source_payload(index_url: str, body: bytes) -> list[dict[str, Any]]:
+    lower_url = index_url.lower()
+    if lower_url.endswith(".csv"):
+        return _parse_csv_rows(body)
+    text = body.decode("utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return _parse_csv_rows(body)
     return extract_index_items(payload)
 
 
@@ -103,3 +115,53 @@ def _to_str(value: Any) -> str | None:
 
 def _default_xml_url(object_id: str) -> str:
     return f"https://apps.irs.gov/pub/epostcard/cor/{object_id}_public.xml"
+
+
+def _parse_csv_rows(body: bytes) -> list[dict[str, Any]]:
+    import csv
+    import io
+
+    text = body.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text))
+    rows = [dict(row) for row in reader]
+    if _rows_look_valid(rows):
+        return rows
+    return _parse_csv_rows_positional(text)
+
+
+def _rows_look_valid(rows: list[dict[str, Any]]) -> bool:
+    if not rows:
+        return False
+    sample = rows[0]
+    keys = {str(key).strip().lower() for key in sample.keys()}
+    expected = {"ein", "taxyr", "tax_yr", "returntype", "return_type", "objectid", "object_id", "url", "xml_url"}
+    return len(keys.intersection(expected)) >= 2
+
+
+def _parse_csv_rows_positional(text: str) -> list[dict[str, Any]]:
+    import csv
+    import io
+
+    parsed: list[dict[str, Any]] = []
+    for row in csv.reader(io.StringIO(text)):
+        if len(row) < 8:
+            continue
+        first = str(row[0]).strip()
+        if not first or not first.startswith("."):
+            continue
+        ein = str(row[1]).strip()
+        tax_year = str(row[3]).strip()
+        return_type = str(row[5]).strip()
+        object_id = str(row[7]).strip()
+        if not ein:
+            continue
+        parsed.append(
+            {
+                "EIN": ein,
+                "TaxYr": tax_year or None,
+                "ReturnType": return_type or None,
+                "ObjectId": object_id or None,
+                "URL": _default_xml_url(object_id) if object_id else None,
+            }
+        )
+    return parsed

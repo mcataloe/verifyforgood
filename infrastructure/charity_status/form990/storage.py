@@ -38,6 +38,16 @@ def filing_manifest_key(prefix: str, run_id: str, batch_index: int) -> str:
     return f"{base}/filings/{run_id}/batch_{batch_index:05d}.json"
 
 
+def filing_catalog_key(prefix: str, run_id: str) -> str:
+    base = prefix.strip("/")
+    return f"{base}/filings/{run_id}/catalog.json"
+
+
+def filing_diff_key(prefix: str, run_id: str) -> str:
+    base = prefix.strip("/")
+    return f"{base}/filings/{run_id}/diff.json"
+
+
 def checkpoint_key(prefix: str) -> str:
     base = prefix.strip("/")
     return f"{base}/checkpoint/latest.json"

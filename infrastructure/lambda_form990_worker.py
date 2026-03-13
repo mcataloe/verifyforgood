@@ -7,6 +7,7 @@ from typing import Any
 
 import boto3
 from charity_status.form990 import Form990IngestService
+from charity_status.form990.filing_reconciliation import update_filing_state_from_ingest_result
 from charity_status.form990.source_downloads import execute_source_download_batch
 from charity_status.ops import S3RunStore
 
@@ -80,11 +81,19 @@ def _process_chunk(message: dict[str, Any]) -> None:
     _update_run_status(s3, run_id, "running")
     try:
         result = service.ingest_index_payload(payload=records, download_raw=True)
+        update_filing_state_from_ingest_result(
+            s3_client=s3,
+            bucket=BUCKET,
+            manifest_prefix=MANIFEST_PREFIX,
+            input_records=records,
+            ingest_result=result,
+        )
         completed_at = datetime.now(timezone.utc).isoformat()
         result_payload = {
             "run_id": run_id,
             "chunk_id": chunk_id,
             "status": "succeeded",
+            "task_type": task_type,
             "attempt": attempt,
             "started_at": started_at,
             "completed_at": completed_at,
@@ -103,6 +112,7 @@ def _process_chunk(message: dict[str, Any]) -> None:
                     "run_id": run_id,
                     "chunk_id": chunk_id,
                     "status": "failed",
+                    "task_type": task_type,
                     "attempt": attempt,
                     "started_at": started_at,
                     "completed_at": completed_at,

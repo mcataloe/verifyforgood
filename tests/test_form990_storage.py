@@ -4,6 +4,8 @@ from infrastructure.charity_status.form990.storage import (
     checkpoint_key,
     discovery_diff_key,
     discovery_manifest_key,
+    filing_catalog_key,
+    filing_diff_key,
     filing_manifest_key,
     manifest_key,
     normalized_metadata_key,
@@ -28,6 +30,8 @@ def test_storage_key_generation_is_stable():
     assert source_download_manifest_key("form990/normalized/manifests/", "run1", 3) == "form990/normalized/manifests/source-download/runs/run1/batch_00003.json"
     assert source_download_state_prefix("form990/normalized/manifests/") == "form990/normalized/manifests/source-download/state/latest"
     assert source_download_state_entry_key("form990/normalized/manifests/", "2024", "csv_index", "index_2024") == "form990/normalized/manifests/source-download/state/latest/2024/csv_index/index_2024.json"
+    assert filing_catalog_key("form990/normalized/manifests/", "run1") == "form990/normalized/manifests/filings/run1/catalog.json"
+    assert filing_diff_key("form990/normalized/manifests/", "run1") == "form990/normalized/manifests/filings/run1/diff.json"
     assert filing_manifest_key("form990/normalized/manifests/", "run1", 3) == "form990/normalized/manifests/filings/run1/batch_00003.json"
     assert checkpoint_key("form990/normalized/manifests/") == "form990/normalized/manifests/checkpoint/latest.json"
     assert state_manifest_key("form990/normalized/manifests/") == "form990/normalized/manifests/state/latest_filing_manifest.json"

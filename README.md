@@ -165,11 +165,13 @@ Recommended schedules:
   - less frequent incremental schedule (for example every few days)
   - reconciliation disabled or manual-only unless explicitly needed
 
-Filing-level reconciliation is deferred to later phases:
+Filing-level reconciliation now runs after raw source persistence:
 
-- the CSV index will become the authoritative filing catalog in a later phase
-- ZIP archives will become the authoritative bulk XML source in a later phase
-- this repository step does not yet perform filing diffing from discovered source artifacts
+- yearly CSV indexes are the authoritative filing catalog for incremental Form 990 selection
+- the reconciler reads the downloaded raw CSV artifacts from S3 and diffs filing rows against latest filing state
+- only new, changed, or incomplete filings are selected for downstream ingest
+- ZIP archives remain the authoritative bulk XML source in the long-term design, but until ZIP-member extraction is implemented the selected filings still flow through the existing direct `xml_url` ingest path
+- historical source retention still comes from object keys/manifests, not S3 versioning
 
 Phase 10G ZIP discovery/reconciliation extension:
 
@@ -199,9 +201,17 @@ Phase 10G ZIP discovery/reconciliation extension:
   - S3 bucket versioning is intentionally not used for these large ZIP/CSV artifacts to avoid duplicate-version storage bloat
 - current incremental behavior:
   - detect source changes at discovery layer
-  - select target years for next-stage source work
+  - select target years for source and filing work
   - download only source artifacts missing from downloaded-source state or changed by source signature
-  - stop before filing reconciliation or XML extraction
+  - reconcile filing rows from the downloaded yearly CSV indexes
+  - schedule or ingest only the selected new, changed, or incomplete filings
+  - defer ZIP-member lookup/extraction to a later phase
+
+“Already on file” now means the latest filing state contains a complete terminal outcome for that filing:
+
+- `parsed` filings are complete only when filing state records the normalized dataset artifact keys written by ingest
+- `unsupported_return_type` is treated as a terminal complete outcome when recorded in filing state
+- `index_only`, failed, or missing-artifact states are incomplete and are re-selected on later CSV reconciliation runs
 
 Phase 10H parallel chunk processing:
 
