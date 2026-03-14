@@ -1,15 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source = "hashicorp/aws"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
 locals {
   domain_name                             = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
   source_data_prefix_normalized           = "${trim(var.source_data_prefix, "/")}/"
