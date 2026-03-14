@@ -13,14 +13,19 @@ from charity_status.form990.discovery import fetch_index_records
 from charity_status.form990.filing_reconciliation import reconcile_filing_catalog, update_filing_state_from_ingest_result
 from charity_status.form990.hardening import classify_error, validate_runtime_config
 from charity_status.form990.irs_page_discovery import (
-    IrsYearSource,
     discover_irs_form990_sources,
-    discovery_state_payload,
-    diff_source_catalog,
 )
 from charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state, plan_source_downloads
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
-from charity_status.form990.source_catalog import normalize_configured_sources, select_sources_by_years, source_years
+from charity_status.form990.source_catalog import (
+    Form990SourceArtifact,
+    discovery_state_payload,
+    diff_source_catalog,
+    normalize_configured_sources,
+    select_sources_by_years,
+    source_years,
+)
+from charity_status.form990.static_source_discovery import discover_static_form990_sources
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key
@@ -47,7 +52,7 @@ FORM990_RECONCILIATION_ENABLED = os.environ.get("FORM990_RECONCILIATION_ENABLED"
 FORM990_RECONCILIATION_CADENCE_DAYS = int(os.environ.get("FORM990_RECONCILIATION_CADENCE_DAYS", "30"))
 FORM990_TARGET_YEARS = os.environ.get("FORM990_TARGET_YEARS", "").strip()
 FORM990_LAST_RECONCILIATION_AT = os.environ.get("FORM990_LAST_RECONCILIATION_AT", "").strip()
-FORM990_SOURCE_MODE = os.environ.get("FORM990_SOURCE_MODE", "configured").strip().lower()
+FORM990_SOURCE_MODE = os.environ.get("FORM990_SOURCE_MODE", "static_manifest").strip().lower()
 FORM990_IRS_DOWNLOADS_PAGE_URL = os.environ.get(
     "FORM990_IRS_DOWNLOADS_PAGE_URL",
     "https://www.irs.gov/charities-non-profits/form-990-series-downloads",
@@ -437,10 +442,37 @@ def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _resolve_source_mode(payload: dict[str, Any]) -> str:
-    mode = str(payload.get("source_mode") or FORM990_SOURCE_MODE or "configured").strip().lower()
-    if mode in {"configured", "irs_page"}:
-        return mode
-    return "configured"
+    explicit_mode = str(payload.get("source_mode") or "").strip().lower()
+    if explicit_mode in {"configured", "irs_page", "static_manifest"}:
+        return explicit_mode
+
+    env_mode = str(FORM990_SOURCE_MODE or "static_manifest").strip().lower()
+    if _has_manual_source_inputs(payload):
+        return "configured"
+    if env_mode in {"configured", "irs_page", "static_manifest"}:
+        if env_mode == "static_manifest":
+            return env_mode
+        if env_mode in {"configured", "irs_page"} and not FORM990_SOURCE_CATALOG_JSON and not INDEX_URL and not INDEX_URLS:
+            return env_mode
+        if env_mode == "configured":
+            return "configured"
+    if FORM990_SOURCE_CATALOG_JSON or INDEX_URL or INDEX_URLS:
+        return "configured"
+    return "static_manifest"
+
+
+def _has_manual_source_inputs(payload: dict[str, Any]) -> bool:
+    if isinstance(payload.get("source_catalog"), list):
+        return True
+    if _extract_index_urls(payload):
+        return True
+    if FORM990_SOURCE_CATALOG_JSON:
+        try:
+            parsed = json.loads(FORM990_SOURCE_CATALOG_JSON)
+        except json.JSONDecodeError:
+            return bool(INDEX_URL or INDEX_URLS)
+        return isinstance(parsed, list) and any(isinstance(item, dict) for item in parsed)
+    return False
 
 
 def _resolve_execution_mode(payload: dict[str, Any]) -> str:
@@ -450,8 +482,11 @@ def _resolve_execution_mode(payload: dict[str, Any]) -> str:
     return "inline"
 
 
-def _discover_sources(payload: dict[str, Any], source_mode: str, now: datetime) -> list[IrsYearSource]:
+def _discover_sources(payload: dict[str, Any], source_mode: str, now: datetime) -> list[Form990SourceArtifact]:
+    if source_mode == "static_manifest":
+        return discover_static_form990_sources(now=now)
     if source_mode == "irs_page":
+        # Legacy compatibility path only. Normal runtime discovery uses the repo-backed static manifest.
         page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()
         if not page_url:
             raise ValueError("irs_page source_mode requires irs_downloads_page_url or FORM990_IRS_DOWNLOADS_PAGE_URL")
@@ -463,7 +498,7 @@ def _persist_discovery_state(
     s3_client: Any,
     *,
     run_id: str,
-    discovered_sources: list[IrsYearSource],
+    discovered_sources: list[Form990SourceArtifact],
     diff_payload: dict[str, Any],
     now: datetime,
 ) -> dict[str, str]:

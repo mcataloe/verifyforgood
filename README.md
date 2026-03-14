@@ -84,14 +84,16 @@ S3 prefixes (configurable via Terraform variables):
 Operational note:
 
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
-- `lambda_form990` also supports source-catalog-first discovery mode (`FORM990_SOURCE_MODE=irs_page`) that discovers yearly ZIP/CSV artifacts from the IRS downloads page before any later filing-stage work is considered.
-- If neither explicit records nor index URLs are provided, the run is successful but processes `0` records.
+- `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
+- `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
+- If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
 Current discovery-stage architecture:
 
 - supports `mode=bootstrap` and `mode=incremental` (default).
-- discovery normalizes configured sources and IRS-page links into a common source artifact catalog.
+- normal runtime discovery is deterministic and repo-backed; it normalizes the static manifest into the same source artifact catalog previously used for configured sources and IRS-page links.
+- the static manifest is authoritative because scraping/parsing the IRS downloads HTML page proved unreliable for newest-year discovery.
 - source artifacts capture:
   - source year
   - source kind (`csv_index` or `zip_archive`)
@@ -168,7 +170,7 @@ Recommended schedules:
 Operational run guidance:
 
 - initial bootstrap:
-  - run `mode=bootstrap` with `source_mode=irs_page`
+  - run `mode=bootstrap` with the default `source_mode=static_manifest` (or omit `source_mode`)
   - verify discovery/source-download/filing manifests are written before enabling scheduled runs
   - expect larger first-run ZIP extraction and normalization volume
 - incremental cadence:
@@ -196,9 +198,10 @@ Filing-level reconciliation now runs after raw source persistence:
 
 Phase 10G ZIP discovery/reconciliation extension:
 
-- new source mode: `configured` (existing behavior) or `irs_page`
-- in `irs_page` mode, Lambda discovers yearly links from:
-  - `FORM990_IRS_DOWNLOADS_PAGE_URL` (default: IRS Form 990 downloads page)
+- source modes:
+  - `static_manifest` (default): parse the checked-in `infrastructure/charity_status/form990/Form990Links.txt` manifest
+  - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
+  - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
 - discovery keeps multiple source artifacts per year rather than collapsing to a single yearly link
 - discovery captures per-source metadata:
   - source year
@@ -977,8 +980,8 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 
 Form 990 mode configuration additions:
 
-- `form990_source_mode`: `configured` or `irs_page`
-- `form990_irs_downloads_page_url`: IRS discovery page URL
+- `form990_source_mode`: `static_manifest` (default), `configured`, or `irs_page` (legacy)
+- `form990_irs_downloads_page_url`: IRS discovery page URL used only for legacy `irs_page` mode
 - `form990_zip_fetch_timeout_seconds`: ZIP download timeout
 - `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit
 - `form990_execution_mode`: `inline` or `orchestrated`
@@ -992,16 +995,30 @@ Form 990 mode configuration additions:
 
 Lambda event examples:
 
-Configured/default mode (backward compatible):
+Default static-manifest mode:
+
+```json
+{
+  "mode": "incremental"
+}
+```
+
+Manual configured mode:
 
 ```json
 {
   "mode": "incremental",
-  "source_mode": "configured"
+  "source_mode": "configured",
+  "source_catalog": [
+    {
+      "year": "2024",
+      "index_url": "https://example.org/index_2024.csv"
+    }
+  ]
 }
 ```
 
-IRS-page discovery mode:
+Legacy IRS-page discovery mode:
 
 ```json
 {
@@ -1019,7 +1036,6 @@ Orchestrated mode:
 {
   "mode": "incremental",
   "execution_mode": "orchestrated",
-  "source_mode": "irs_page",
   "target_years": ["2024"],
   "chunk_size": 250
 }
@@ -1030,7 +1046,6 @@ Safe dev smoke test:
 ```json
 {
   "mode": "incremental",
-  "source_mode": "irs_page",
   "target_years": ["2024"],
   "eins": ["123456789"],
   "limit": 5,

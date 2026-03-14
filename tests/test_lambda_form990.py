@@ -253,6 +253,35 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
     assert body["source_download_manifest_key"].endswith("batch_00000.json")
 
 
+def test_static_manifest_is_default_discovery_mode(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.discover_static_form990_sources = lambda now=None: [
+        _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
+        _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
+    ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["source_mode"] == "static_manifest"
+    assert body["source_catalog_count"] == 2
+    assert body["scheduled_source_count"] == 2
+
+
 def test_discovery_mode_reports_unchanged_state(monkeypatch):
     module, fake_s3 = _load_module(monkeypatch)
     state_key = module.discovery_state_key(module.MANIFEST_PREFIX)
@@ -274,6 +303,57 @@ def test_discovery_mode_reports_unchanged_state(monkeypatch):
     body = json.loads(result["body"])
 
     assert result["statusCode"] == 200
+    assert body["new_sources"] == 0
+    assert body["changed_sources"] == 0
+    assert body["removed_sources"] == 0
+    assert body["unchanged_sources"] == 1
+
+
+def test_static_manifest_mode_reports_unchanged_state(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    state_key = module.discovery_state_key(module.MANIFEST_PREFIX)
+    existing = _source(
+        source_year="2024",
+        source_kind="csv_index",
+        source_url="https://example.org/index_2024.csv",
+        source_archive_key="index_2024",
+    ).to_dict()
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=state_key,
+        Body=json.dumps({"sources": [existing]}).encode("utf-8"),
+    )
+    module.discover_static_form990_sources = lambda now=None: [
+        Form990SourceArtifact(
+            source_year="2024",
+            source_kind="csv_index",
+            source_url="https://example.org/index_2024.csv",
+            source_filename="index_2024.csv",
+            source_archive_key="index_2024",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature=existing["source_signature"],
+            page_url=existing["page_url"],
+        )
+    ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["source_mode"] == "static_manifest"
     assert body["new_sources"] == 0
     assert body["changed_sources"] == 0
     assert body["removed_sources"] == 0
@@ -319,6 +399,31 @@ def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
     assert body["downloaded_source_count"] == 0
 
 
+def test_manual_source_catalog_preserves_configured_flow(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.discover_static_form990_sources = lambda now=None: (_ for _ in ()).throw(AssertionError("static discovery should not run for manual catalogs"))
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["source_mode"] == "configured"
+    assert body["source_catalog_count"] == 1
+
+
 def test_policy_config_override_target_years(monkeypatch):
     module, _ = _load_module(monkeypatch)
     module.execute_source_download_batch = lambda **kwargs: {
@@ -347,10 +452,6 @@ def test_policy_config_override_target_years(monkeypatch):
 
 def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
     module, _ = _load_module(monkeypatch)
-    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
-    sys.modules.pop("infrastructure.lambda_form990", None)
-    module = importlib.import_module("infrastructure.lambda_form990")
-
     module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
         _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
@@ -366,7 +467,7 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
     )
     module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
 
-    result = module.handler({"mode": "incremental"}, None)
+    result = module.handler({"mode": "incremental", "source_mode": "irs_page"}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["source_mode"] == "irs_page"
@@ -379,7 +480,6 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     fake_s3 = FakeS3()
     fake_sqs = FakeSQS()
     monkeypatch.setenv("BUCKET", "test-bucket")
-    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
     monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
     monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
@@ -424,7 +524,7 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
         ],
         new_count=1,
     )
-    result = module.handler({"mode": "bootstrap", "chunk_size": 1}, None)
+    result = module.handler({"mode": "bootstrap", "chunk_size": 1, "source_mode": "irs_page"}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
@@ -442,7 +542,6 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
     fake_s3 = FakeS3()
     fake_sqs = FakeSQS()
     monkeypatch.setenv("BUCKET", "test-bucket")
-    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
     monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
     monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
     monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
@@ -487,9 +586,43 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
         ],
         new_count=1,
     )
-    result = module.handler({"mode": "incremental", "target_years": ["2023"], "chunk_size": 10}, None)
+    result = module.handler({"mode": "incremental", "target_years": ["2023"], "chunk_size": 10, "source_mode": "irs_page"}, None)
     body = json.loads(result["body"])
     assert result["statusCode"] == 200
     assert body["selected_source_count"] == 1
     assert body["chunk_count"] == 1
     assert len(fake_sqs.messages) == 1
+
+
+def test_legacy_index_url_path_bypasses_static_manifest(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    called = {"fetch": 0}
+    module.discover_static_form990_sources = lambda now=None: (_ for _ in ()).throw(AssertionError("static discovery should not run for legacy direct ingest"))
+    module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
+        called.__setitem__("fetch", called["fetch"] + 1) or
+        Form990IndexRecord(
+            ein="123456789",
+            tax_year="2023",
+            filing_date="2024-05-15",
+            return_type="990",
+            irs_object_id="obj-1",
+            xml_url="https://example.org/obj-1.xml",
+            source_year=source_year,
+            source_archive=source_archive,
+            source_signature="sig-1",
+        )
+    ]
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": len(payload),
+        "parsed_count": len(payload),
+        "failed_count": 0,
+        "records": [{"ein": item["ein"], "parse_status": "index_only"} for item in payload],
+    }
+
+    result = module.handler({"index_url": "https://example.org/index.json", "download_raw": False}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert called["fetch"] == 1
+    assert body["records_processed"] == 1

@@ -1,7 +1,8 @@
 {
-    "models": "GPT-5.4", //can also be GPT-5.3-Codex", "GPT-5.2-Codex", "GPT-5.2", "GPT-5.1-Codex-Max", "GPT-5.1-Codex-Mini"
-    "reasoning": "Medium", //can also be "Low", "High", "Extra High"
-    "is_ide_context": true,
-    "is_plan_mode": true,
-    "speed": "fast" //can also be "standard"
+    "model_name": "GPT-5.4", //can also be GPT-5.3-Codex", "GPT-5.2-Codex", "GPT-5.2", "GPT-5.1-Codex-Max", "GPT-5.1-Codex-Mini"
+    "reasoning_level": "Medium", //can also be "Low", "High", "Extra High"
+    "enable_repo_context": true,
+    "execution_mode": "implement", //can also be "plan", "explain"
+    "execution_speed": "fast", //can also be "standard"
+    "filesystem_access": "full-access" //can also be "default"
 }

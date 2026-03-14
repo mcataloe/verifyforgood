@@ -147,13 +147,13 @@ variable "form990_last_reconciliation_at" {
 }
 
 variable "form990_source_mode" {
-  description = "Form 990 source discovery mode: configured (existing index/source_catalog flow) or irs_page."
+  description = "Form 990 source discovery mode: static_manifest (repo-backed default), configured (manual index/source_catalog flow), or irs_page (legacy compatibility)."
   type        = string
-  default     = "configured"
+  default     = "static_manifest"
 }
 
 variable "form990_irs_downloads_page_url" {
-  description = "IRS Form 990 downloads landing page URL used when form990_source_mode=irs_page."
+  description = "IRS Form 990 downloads landing page URL used only when form990_source_mode=irs_page."
   type        = string
   default     = "https://www.irs.gov/charities-non-profits/form-990-series-downloads"
 }

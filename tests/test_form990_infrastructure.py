@@ -20,6 +20,15 @@ def test_form990_lambda_envs_include_required_paths_and_queue():
     assert "FORM990_WORK_QUEUE_URL" in content
 
 
+def test_form990_source_mode_defaults_to_static_manifest():
+    content = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
+    assert 'default     = "static_manifest"' in content
+
+
+def test_form990_static_manifest_is_packaged_with_form990_code():
+    assert Path("infrastructure/charity_status/form990/Form990Links.txt").exists()
+
+
 def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
     content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
     assert '"s3:*"' in content
