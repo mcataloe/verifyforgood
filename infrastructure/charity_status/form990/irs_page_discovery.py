@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Legacy compatibility discovery for explicit irs_page mode only."""
+
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone

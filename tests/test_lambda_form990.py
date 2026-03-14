@@ -137,6 +137,37 @@ def test_lambda_form990_rejects_invalid_runtime_config(monkeypatch):
     assert "FORM990_CHUNK_SIZE must be > 0" in body["message"]
 
 
+def test_lambda_form990_rejects_invalid_source_mode_config(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "invalid")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    result = module.handler({}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 500
+    assert "FORM990_SOURCE_MODE must be one of configured, static_manifest, or irs_page" in body["message"]
+
+
+def test_lambda_form990_rejects_blank_legacy_irs_page_url_config(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "irs_page")
+    monkeypatch.setenv("FORM990_IRS_DOWNLOADS_PAGE_URL", "")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    result = module.handler({}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 500
+    assert "FORM990_IRS_DOWNLOADS_PAGE_URL is required when FORM990_SOURCE_MODE=irs_page" in body["message"]
+
+
 def test_lambda_form990_json_body(monkeypatch):
     module, _ = _load_module(monkeypatch)
 
@@ -312,6 +343,30 @@ def test_static_manifest_generation_toggle_is_passed_to_discovery(monkeypatch):
     assert captured["enable_next_year_generation"] is False
 
 
+def test_static_manifest_missing_returns_clear_operational_error(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: (_ for _ in ()).throw(FileNotFoundError("missing manifest"))
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 500
+    assert "Form 990 static manifest is missing" in body["message"]
+
+
+def test_static_manifest_malformed_returns_clear_operational_error(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: (_ for _ in ()).throw(
+        ValueError("Form 990 static manifest did not contain any parseable CSV or ZIP source URLs")
+    )
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 500
+    assert "Form 990 static manifest is malformed" in body["message"]
+
+
 def test_discovery_mode_reports_unchanged_state(monkeypatch):
     module, fake_s3 = _load_module(monkeypatch)
     state_key = module.discovery_state_key(module.MANIFEST_PREFIX)
@@ -452,6 +507,16 @@ def test_manual_source_catalog_preserves_configured_flow(monkeypatch):
     assert result["statusCode"] == 200
     assert body["source_mode"] == "configured"
     assert body["source_catalog_count"] == 1
+
+
+def test_lambda_form990_rejects_invalid_request_source_mode(monkeypatch):
+    module, _ = _load_module(monkeypatch)
+
+    result = module.handler({"mode": "incremental", "source_mode": "unsupported"}, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 400
+    assert "source_mode must be one of configured, static_manifest, or irs_page" in body["message"]
 
 
 def test_policy_config_override_target_years(monkeypatch):

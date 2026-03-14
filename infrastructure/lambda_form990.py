@@ -68,6 +68,11 @@ FORM990_WORK_QUEUE_URL = os.environ.get("FORM990_WORK_QUEUE_URL", "").strip()
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 LOGGER = logging.getLogger(__name__)
+VALID_FORM990_SOURCE_MODES = {"configured", "irs_page", "static_manifest"}
+
+
+class Form990OperationalError(RuntimeError):
+    pass
 
 
 def handler(event, context):
@@ -139,6 +144,9 @@ def handler(event, context):
         return json_response(200, result)
     except ValueError as exc:
         return error_response(400, str(exc))
+    except Form990OperationalError as exc:
+        _log_structured("form990.run.failed", error_type="operational_error", error=str(exc))
+        return error_response(500, str(exc))
     except Exception as exc:
         _log_structured("form990.run.failed", error_type=classify_error(exc), error=str(exc))
         return error_response(500, "Form 990 ingest failed")
@@ -444,13 +452,17 @@ def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _resolve_source_mode(payload: dict[str, Any]) -> str:
     explicit_mode = str(payload.get("source_mode") or "").strip().lower()
-    if explicit_mode in {"configured", "irs_page", "static_manifest"}:
+    if explicit_mode:
+        if explicit_mode not in VALID_FORM990_SOURCE_MODES:
+            raise ValueError(
+                "source_mode must be one of configured, static_manifest, or irs_page"
+            )
         return explicit_mode
 
     env_mode = str(FORM990_SOURCE_MODE or "static_manifest").strip().lower()
     if _has_manual_source_inputs(payload):
         return "configured"
-    if env_mode in {"configured", "irs_page", "static_manifest"}:
+    if env_mode in VALID_FORM990_SOURCE_MODES:
         if env_mode == "static_manifest":
             return env_mode
         if env_mode in {"configured", "irs_page"} and not FORM990_SOURCE_CATALOG_JSON and not INDEX_URL and not INDEX_URLS:
@@ -485,10 +497,17 @@ def _resolve_execution_mode(payload: dict[str, Any]) -> str:
 
 def _discover_sources(payload: dict[str, Any], source_mode: str, now: datetime) -> list[Form990SourceArtifact]:
     if source_mode == "static_manifest":
-        return discover_static_form990_sources(
-            now=now,
-            enable_next_year_generation=FORM990_ENABLE_NEXT_YEAR_GENERATION,
-        )
+        try:
+            return discover_static_form990_sources(
+                now=now,
+                enable_next_year_generation=FORM990_ENABLE_NEXT_YEAR_GENERATION,
+            )
+        except FileNotFoundError as exc:
+            raise Form990OperationalError(
+                "Form 990 static manifest is missing; expected infrastructure/charity_status/form990/Form990Links.txt in the deployed package"
+            ) from exc
+        except ValueError as exc:
+            raise Form990OperationalError(f"Form 990 static manifest is malformed: {exc}") from exc
     if source_mode == "irs_page":
         # Legacy compatibility path only. Normal runtime discovery uses the repo-backed static manifest.
         page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()
@@ -689,7 +708,7 @@ def _write_checkpoint(s3_client: Any, payload: dict[str, Any]) -> None:
 
 
 def _validate_handler_config() -> list[str]:
-    return validate_runtime_config(
+    errors = validate_runtime_config(
         required_text={
             "BUCKET": BUCKET,
             "FORM990_MANIFEST_PREFIX": MANIFEST_PREFIX,
@@ -705,6 +724,11 @@ def _validate_handler_config() -> list[str]:
             "FORM990_CHUNK_SIZE": FORM990_CHUNK_SIZE,
         },
     )
+    if FORM990_SOURCE_MODE not in VALID_FORM990_SOURCE_MODES:
+        errors.append("FORM990_SOURCE_MODE must be one of configured, static_manifest, or irs_page")
+    if FORM990_SOURCE_MODE == "irs_page" and not FORM990_IRS_DOWNLOADS_PAGE_URL:
+        errors.append("FORM990_IRS_DOWNLOADS_PAGE_URL is required when FORM990_SOURCE_MODE=irs_page")
+    return errors
 
 
 def _resolve_now(payload: dict[str, Any]) -> datetime:

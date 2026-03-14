@@ -73,6 +73,9 @@ def _parse_manifest_text(text: str, now: datetime | None = None) -> list[Form990
         )
         artifacts.append(artifact)
 
+    if not artifacts:
+        raise ValueError("Form 990 static manifest did not contain any parseable CSV or ZIP source URLs")
+
     return _dedupe_and_sort_sources(artifacts)
 
 

@@ -146,6 +146,18 @@ def test_discover_static_form990_sources_can_disable_next_year_generation(tmp_pa
     assert all(item.page_url == STATIC_MANIFEST_PAGE_URL for item in sources)
 
 
+def test_discover_static_form990_sources_rejects_malformed_manifest(tmp_path: Path):
+    manifest_path = tmp_path / "Form990Links.txt"
+    manifest_path.write_text("this file does not contain any supported source urls", encoding="utf-8")
+
+    try:
+        discover_static_form990_sources(manifest_path=manifest_path)
+    except ValueError as exc:
+        assert "did not contain any parseable CSV or ZIP source URLs" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("expected malformed manifest to raise ValueError")
+
+
 def test_generated_sources_flow_through_selection_and_diff(tmp_path: Path):
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     manifest_path = tmp_path / "Form990Links.txt"

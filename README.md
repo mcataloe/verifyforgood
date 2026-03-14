@@ -203,6 +203,8 @@ Phase 10G ZIP discovery/reconciliation extension:
   - `static_manifest` (default): parse the checked-in `infrastructure/charity_status/form990/Form990Links.txt` manifest
   - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
   - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
+- static-manifest validation:
+  - runtime fails fast if the packaged `Form990Links.txt` manifest is missing or cannot be parsed into supported CSV/ZIP source artifacts
 - static-manifest next-year behavior:
   - when enabled, the parser clones only the latest explicit TEOS-era year into a single next year
   - example: if `2025` is the highest explicit TEOS year, the runtime also synthesizes `2026` `index_2026.csv` plus the matching `2026_TEOS_XML_*` ZIP set
@@ -1025,7 +1027,7 @@ Manual configured mode:
 }
 ```
 
-Legacy IRS-page discovery mode:
+Legacy IRS-page discovery mode (compatibility only):
 
 ```json
 {
