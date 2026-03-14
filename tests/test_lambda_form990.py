@@ -255,7 +255,7 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
 
 def test_static_manifest_is_default_discovery_mode(monkeypatch):
     module, _ = _load_module(monkeypatch)
-    module.discover_static_form990_sources = lambda now=None: [
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: [
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
         _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
@@ -280,6 +280,36 @@ def test_static_manifest_is_default_discovery_mode(monkeypatch):
     assert body["source_mode"] == "static_manifest"
     assert body["source_catalog_count"] == 2
     assert body["scheduled_source_count"] == 2
+
+
+def test_static_manifest_generation_toggle_is_passed_to_discovery(monkeypatch):
+    monkeypatch.setenv("FORM990_ENABLE_NEXT_YEAR_GENERATION", "false")
+    module, _ = _load_module(monkeypatch)
+    captured = {}
+
+    def _discover(now=None, enable_next_year_generation=True):
+        captured["enable_next_year_generation"] = enable_next_year_generation
+        return [_source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024")]
+
+    module.discover_static_form990_sources = _discover
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": len(kwargs["sources"]),
+        "downloads": list(kwargs["sources"]),
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler({"mode": "incremental"}, None)
+
+    assert result["statusCode"] == 200
+    assert captured["enable_next_year_generation"] is False
 
 
 def test_discovery_mode_reports_unchanged_state(monkeypatch):
@@ -323,7 +353,7 @@ def test_static_manifest_mode_reports_unchanged_state(monkeypatch):
         Key=state_key,
         Body=json.dumps({"sources": [existing]}).encode("utf-8"),
     )
-    module.discover_static_form990_sources = lambda now=None: [
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: [
         Form990SourceArtifact(
             source_year="2024",
             source_kind="csv_index",
@@ -401,7 +431,7 @@ def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
 
 def test_manual_source_catalog_preserves_configured_flow(monkeypatch):
     module, _ = _load_module(monkeypatch)
-    module.discover_static_form990_sources = lambda now=None: (_ for _ in ()).throw(AssertionError("static discovery should not run for manual catalogs"))
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: (_ for _ in ()).throw(AssertionError("static discovery should not run for manual catalogs"))
     module.execute_source_download_batch = lambda **kwargs: {
         "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
         "downloaded_count": len(kwargs["sources"]),
@@ -597,7 +627,7 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
 def test_legacy_index_url_path_bypasses_static_manifest(monkeypatch):
     module, _ = _load_module(monkeypatch)
     called = {"fetch": 0}
-    module.discover_static_form990_sources = lambda now=None: (_ for _ in ()).throw(AssertionError("static discovery should not run for legacy direct ingest"))
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: (_ for _ in ()).throw(AssertionError("static discovery should not run for legacy direct ingest"))
     module.fetch_index_records = lambda index_url, source_year, source_archive, timeout_seconds=60: [
         called.__setitem__("fetch", called["fetch"] + 1) or
         Form990IndexRecord(

@@ -86,6 +86,7 @@ Operational note:
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
 - `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
 - `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
+- static discovery can also synthesize one next-year TEOS source set from the latest explicit TEOS year in the manifest so the pipeline can keep pace when the checked-in manifest lags by one year.
 - If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
@@ -202,6 +203,11 @@ Phase 10G ZIP discovery/reconciliation extension:
   - `static_manifest` (default): parse the checked-in `infrastructure/charity_status/form990/Form990Links.txt` manifest
   - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
   - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
+- static-manifest next-year behavior:
+  - when enabled, the parser clones only the latest explicit TEOS-era year into a single next year
+  - example: if `2025` is the highest explicit TEOS year, the runtime also synthesizes `2026` `index_2026.csv` plus the matching `2026_TEOS_XML_*` ZIP set
+  - generated entries are marked with `generated://form990-next-year/...` in `page_url` so they remain backward-compatible but distinguishable from explicit manifest rows
+  - disable with `FORM990_ENABLE_NEXT_YEAR_GENERATION=false` / Terraform `form990_enable_next_year_generation = false`
 - discovery keeps multiple source artifacts per year rather than collapsing to a single yearly link
 - discovery captures per-source metadata:
   - source year
@@ -981,6 +987,7 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 Form 990 mode configuration additions:
 
 - `form990_source_mode`: `static_manifest` (default), `configured`, or `irs_page` (legacy)
+- `form990_enable_next_year_generation`: enable or disable one-year-ahead TEOS source synthesis for static-manifest discovery
 - `form990_irs_downloads_page_url`: IRS discovery page URL used only for legacy `irs_page` mode
 - `form990_zip_fetch_timeout_seconds`: ZIP download timeout
 - `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit

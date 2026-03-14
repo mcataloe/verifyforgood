@@ -16,6 +16,7 @@ def test_form990_lambda_envs_include_required_paths_and_queue():
     content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
     assert "FORM990_RAW_SOURCE_PREFIX" in content
     assert "FORM990_MANIFEST_PREFIX" in content
+    assert "FORM990_ENABLE_NEXT_YEAR_GENERATION" in content
     assert "OPS_METADATA_BUCKET" in content
     assert "FORM990_WORK_QUEUE_URL" in content
 
@@ -23,6 +24,13 @@ def test_form990_lambda_envs_include_required_paths_and_queue():
 def test_form990_source_mode_defaults_to_static_manifest():
     content = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
     assert 'default     = "static_manifest"' in content
+
+
+def test_form990_next_year_generation_defaults_enabled():
+    content = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
+    assert 'variable "form990_enable_next_year_generation"' in content
+    section = content.split('variable "form990_enable_next_year_generation"', 1)[1].split('variable "', 1)[0]
+    assert "default     = true" in section
 
 
 def test_form990_static_manifest_is_packaged_with_form990_code():

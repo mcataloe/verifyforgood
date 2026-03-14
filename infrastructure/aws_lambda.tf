@@ -291,6 +291,7 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_TARGET_YEARS      = var.form990_target_years
       FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
       FORM990_SOURCE_MODE       = var.form990_source_mode
+      FORM990_ENABLE_NEXT_YEAR_GENERATION = tostring(var.form990_enable_next_year_generation)
       FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
@@ -354,6 +355,7 @@ resource "aws_lambda_function" "form990_orchestrator" {
       FORM990_TARGET_YEARS      = var.form990_target_years
       FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
       FORM990_SOURCE_MODE       = var.form990_source_mode
+      FORM990_ENABLE_NEXT_YEAR_GENERATION = tostring(var.form990_enable_next_year_generation)
       FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
       FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)

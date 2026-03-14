@@ -26,6 +26,7 @@ form990_reconciliation_cadence_days = 30
 form990_target_years       = ""
 form990_last_reconciliation_at = ""
 form990_source_mode        = "static_manifest"
+form990_enable_next_year_generation = true
 form990_irs_downloads_page_url = "https://www.irs.gov/charities-non-profits/form-990-series-downloads"
 form990_zip_fetch_timeout_seconds = 120
 form990_zip_max_xml_file_size_bytes = 20971520

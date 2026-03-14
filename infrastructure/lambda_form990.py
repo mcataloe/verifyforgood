@@ -53,6 +53,7 @@ FORM990_RECONCILIATION_CADENCE_DAYS = int(os.environ.get("FORM990_RECONCILIATION
 FORM990_TARGET_YEARS = os.environ.get("FORM990_TARGET_YEARS", "").strip()
 FORM990_LAST_RECONCILIATION_AT = os.environ.get("FORM990_LAST_RECONCILIATION_AT", "").strip()
 FORM990_SOURCE_MODE = os.environ.get("FORM990_SOURCE_MODE", "static_manifest").strip().lower()
+FORM990_ENABLE_NEXT_YEAR_GENERATION = os.environ.get("FORM990_ENABLE_NEXT_YEAR_GENERATION", "true").lower() == "true"
 FORM990_IRS_DOWNLOADS_PAGE_URL = os.environ.get(
     "FORM990_IRS_DOWNLOADS_PAGE_URL",
     "https://www.irs.gov/charities-non-profits/form-990-series-downloads",
@@ -484,7 +485,10 @@ def _resolve_execution_mode(payload: dict[str, Any]) -> str:
 
 def _discover_sources(payload: dict[str, Any], source_mode: str, now: datetime) -> list[Form990SourceArtifact]:
     if source_mode == "static_manifest":
-        return discover_static_form990_sources(now=now)
+        return discover_static_form990_sources(
+            now=now,
+            enable_next_year_generation=FORM990_ENABLE_NEXT_YEAR_GENERATION,
+        )
     if source_mode == "irs_page":
         # Legacy compatibility path only. Normal runtime discovery uses the repo-backed static manifest.
         page_url = str(payload.get("irs_downloads_page_url") or FORM990_IRS_DOWNLOADS_PAGE_URL or "").strip()

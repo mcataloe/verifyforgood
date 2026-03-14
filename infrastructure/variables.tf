@@ -152,6 +152,12 @@ variable "form990_source_mode" {
   default     = "static_manifest"
 }
 
+variable "form990_enable_next_year_generation" {
+  description = "Allow static Form 990 discovery to synthesize a single next-year TEOS source set from the latest explicit manifest year."
+  type        = bool
+  default     = true
+}
+
 variable "form990_irs_downloads_page_url" {
   description = "IRS Form 990 downloads landing page URL used only when form990_source_mode=irs_page."
   type        = string
