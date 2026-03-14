@@ -23,6 +23,9 @@ data "archive_file" "ingest_zip_from_file" {
     ".terraform/**",
     "build/**",
     "__pycache__/**",
+    "terraform.tfstate",
+    "terraform.tfstate.*",
+    ".terraform.tfstate.lock.info",
     "charity_status/form990/**",
     "charity_status/query/**",
     "charity_status/normalization/**",
@@ -74,6 +77,9 @@ data "archive_file" "query_zip" {
     ".terraform/**",
     "build/**",
     "__pycache__/**",
+    "terraform.tfstate",
+    "terraform.tfstate.*",
+    ".terraform.tfstate.lock.info",
     "charity_status/ingest/**",
     "charity_status/form990/**",
     "charity_status/future/**",
@@ -102,42 +108,42 @@ resource "aws_lambda_function" "query" {
 
   environment {
     variables = {
-      DATABASE                   = aws_glue_catalog_database.eo_bmf.name
-      TABLE                      = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP                  = aws_athena_workgroup.eo_bmf.name
-      FORM990_FILINGS_TABLE      = aws_glue_catalog_table.form990_metadata.name
-      FORM990_METRICS_TABLE      = aws_glue_catalog_table.form990_metrics.name
-      FORM990_GOVERNANCE_TABLE   = aws_glue_catalog_table.form990_governance.name
-      FORM990_QUALITY_TABLE      = aws_glue_catalog_table.form990_quality.name
-      ENRICHMENT_MOCK_ENABLED    = tostring(var.enrichment_mock_enabled)
-      ENRICHMENT_CANDID_ENABLED  = tostring(var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENDPOINT = var.enrichment_candid_endpoint
-      ENRICHMENT_CANDID_API_KEY  = var.enrichment_candid_api_key
-      ENRICHMENT_TIMEOUT_SECONDS = tostring(var.enrichment_timeout_seconds)
-      ENRICHMENT_STATE_REGISTRY_ENABLED = tostring(var.enrichment_state_registry_enabled)
+      DATABASE                               = aws_glue_catalog_database.eo_bmf.name
+      TABLE                                  = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                              = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE                  = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
       ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
-      ENRICHMENT_STATE_REGISTRY_ENDPOINT = var.enrichment_state_registry_endpoint
-      ENRICHMENT_STATE_BUSINESS_ENABLED = tostring(var.enrichment_state_business_enabled)
+      ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
       ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
-      ENRICHMENT_STATE_BUSINESS_ENDPOINT = var.enrichment_state_business_endpoint
-      ENRICHMENT_USASPENDING_ENABLED = tostring(var.enrichment_usaspending_enabled)
-      ENRICHMENT_USASPENDING_MOCK_ENABLED = tostring(var.enrichment_usaspending_mock_enabled)
-      ENRICHMENT_USASPENDING_ENDPOINT = var.enrichment_usaspending_endpoint
-      ENRICHMENT_OFAC_ENABLED = tostring(var.enrichment_ofac_enabled)
-      ENRICHMENT_OFAC_MOCK_ENABLED = tostring(var.enrichment_ofac_mock_enabled)
-      ENRICHMENT_OFAC_ENDPOINT = var.enrichment_ofac_endpoint
-      PROFILE_TABLE_NAME         = aws_dynamodb_table.profiles.name
-      APP_ENV                    = var.environment
-      SERVING_DDB_ENABLED        = tostring(var.serving_dynamodb_enabled)
-      BATCH_VERIFY_MAX_SIZE      = tostring(var.batch_verify_max_size)
-      SEARCH_MAX_LIMIT           = tostring(var.search_max_limit)
-      SEARCH_DEFAULT_LIMIT       = tostring(var.search_default_limit)
-      API_AUTH_ENABLED           = tostring(var.api_auth_enabled)
-      API_KEY_RECORDS_JSON       = var.api_key_records_json
-      OAUTH_M2M_ENABLED          = tostring(var.oauth_m2m_enabled)
-      OAUTH_TOKEN_RECORDS_JSON   = var.oauth_token_records_json
-      OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX        = var.ops_metadata_prefix
+      ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
+      ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
+      ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
+      ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
+      ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint
+      PROFILE_TABLE_NAME                     = aws_dynamodb_table.profiles.name
+      APP_ENV                                = var.environment
+      SERVING_DDB_ENABLED                    = tostring(var.serving_dynamodb_enabled)
+      BATCH_VERIFY_MAX_SIZE                  = tostring(var.batch_verify_max_size)
+      SEARCH_MAX_LIMIT                       = tostring(var.search_max_limit)
+      SEARCH_DEFAULT_LIMIT                   = tostring(var.search_default_limit)
+      API_AUTH_ENABLED                       = tostring(var.api_auth_enabled)
+      API_KEY_RECORDS_JSON                   = var.api_key_records_json
+      OAUTH_M2M_ENABLED                      = tostring(var.oauth_m2m_enabled)
+      OAUTH_TOKEN_RECORDS_JSON               = var.oauth_token_records_json
+      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
     }
   }
 }
@@ -155,6 +161,9 @@ data "archive_file" "refresh_zip" {
     ".terraform/**",
     "build/**",
     "__pycache__/**",
+    "terraform.tfstate",
+    "terraform.tfstate.*",
+    ".terraform.tfstate.lock.info",
     "charity_status/ingest/**",
     "charity_status/future/**",
     "lambda_ingest.py",
@@ -186,41 +195,41 @@ resource "aws_lambda_function" "refresh" {
 
   environment {
     variables = {
-      DATABASE                         = aws_glue_catalog_database.eo_bmf.name
-      TABLE                            = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP                        = aws_athena_workgroup.eo_bmf.name
-      FORM990_FILINGS_TABLE            = aws_glue_catalog_table.form990_metadata.name
-      FORM990_METRICS_TABLE            = aws_glue_catalog_table.form990_metrics.name
-      FORM990_GOVERNANCE_TABLE         = aws_glue_catalog_table.form990_governance.name
-      FORM990_QUALITY_TABLE            = aws_glue_catalog_table.form990_quality.name
-      ENRICHMENT_MOCK_ENABLED          = tostring(var.enrichment_mock_enabled)
-      ENRICHMENT_CANDID_ENABLED        = tostring(var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENDPOINT       = var.enrichment_candid_endpoint
-      ENRICHMENT_CANDID_API_KEY        = var.enrichment_candid_api_key
-      ENRICHMENT_TIMEOUT_SECONDS       = tostring(var.enrichment_timeout_seconds)
-      ENRICHMENT_STATE_REGISTRY_ENABLED = tostring(var.enrichment_state_registry_enabled)
+      DATABASE                               = aws_glue_catalog_database.eo_bmf.name
+      TABLE                                  = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                              = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE                  = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
       ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
-      ENRICHMENT_STATE_REGISTRY_ENDPOINT = var.enrichment_state_registry_endpoint
-      ENRICHMENT_STATE_BUSINESS_ENABLED = tostring(var.enrichment_state_business_enabled)
+      ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
       ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
-      ENRICHMENT_STATE_BUSINESS_ENDPOINT = var.enrichment_state_business_endpoint
-      ENRICHMENT_USASPENDING_ENABLED = tostring(var.enrichment_usaspending_enabled)
-      ENRICHMENT_USASPENDING_MOCK_ENABLED = tostring(var.enrichment_usaspending_mock_enabled)
-      ENRICHMENT_USASPENDING_ENDPOINT = var.enrichment_usaspending_endpoint
-      ENRICHMENT_OFAC_ENABLED = tostring(var.enrichment_ofac_enabled)
-      ENRICHMENT_OFAC_MOCK_ENABLED = tostring(var.enrichment_ofac_mock_enabled)
-      ENRICHMENT_OFAC_ENDPOINT = var.enrichment_ofac_endpoint
-      PROFILE_TABLE_NAME               = aws_dynamodb_table.profiles.name
-      APP_ENV                          = var.environment
-      REFRESH_MODE                     = var.refresh_mode
-      REFRESH_BATCH_SIZE               = tostring(var.refresh_batch_size)
-      FORCE_REFRESH                    = tostring(var.refresh_force)
-      REFRESH_SOURCE_DETECTION_ENABLED = tostring(var.refresh_source_detection_enabled)
-      BOOTSTRAP_NONPROD_OVERRIDE       = tostring(var.bootstrap_nonprod_override)
-      BOOTSTRAP_START_AFTER_EIN        = var.bootstrap_start_after_ein
-      BOOTSTRAP_MAX_BATCHES_PER_RUN    = tostring(var.bootstrap_max_batches_per_run)
-      OPS_METADATA_BUCKET              = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX              = var.ops_metadata_prefix
+      ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
+      ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
+      ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
+      ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
+      ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint
+      PROFILE_TABLE_NAME                     = aws_dynamodb_table.profiles.name
+      APP_ENV                                = var.environment
+      REFRESH_MODE                           = var.refresh_mode
+      REFRESH_BATCH_SIZE                     = tostring(var.refresh_batch_size)
+      FORCE_REFRESH                          = tostring(var.refresh_force)
+      REFRESH_SOURCE_DETECTION_ENABLED       = tostring(var.refresh_source_detection_enabled)
+      BOOTSTRAP_NONPROD_OVERRIDE             = tostring(var.bootstrap_nonprod_override)
+      BOOTSTRAP_START_AFTER_EIN              = var.bootstrap_start_after_ein
+      BOOTSTRAP_MAX_BATCHES_PER_RUN          = tostring(var.bootstrap_max_batches_per_run)
+      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
     }
   }
 }
@@ -232,11 +241,14 @@ resource "aws_lambda_function" "refresh" {
 data "archive_file" "form990_zip" {
   type        = "zip"
   source_dir  = path.module
-  output_path = "${path.module}/form990.zip"
+  output_path = "${path.module}/build/form990.zip"
   excludes = [
     ".terraform/**",
     "build/**",
     "__pycache__/**",
+    "terraform.tfstate",
+    "terraform.tfstate.*",
+    ".terraform.tfstate.lock.info",
     "charity_status/query/**",
     "charity_status/normalization/**",
     "charity_status/scoring/**",
@@ -268,38 +280,38 @@ resource "aws_lambda_function" "form990_ingest" {
 
   environment {
     variables = {
-      BUCKET                    = aws_s3_bucket.irs_data.bucket
-      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
-      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
-      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
-      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
-      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
-      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
-      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
-      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
-      FORM990_INDEX_URL         = var.form990_index_url
-      FORM990_INDEX_URLS        = var.form990_index_urls
-      FORM990_INDEX_FETCH_TIMEOUT_SECONDS = tostring(var.form990_index_fetch_timeout_seconds)
-      FORM990_DEFAULT_DOWNLOAD_RAW = tostring(var.form990_default_download_raw)
-      FORM990_RUN_MODE          = var.form990_run_mode
-      FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
-      FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
-      FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
-      FORM990_INCREMENTAL_YEAR_WINDOW = tostring(var.form990_incremental_year_window)
-      FORM990_RECONCILIATION_ENABLED = tostring(var.form990_reconciliation_enabled)
-      FORM990_RECONCILIATION_CADENCE_DAYS = tostring(var.form990_reconciliation_cadence_days)
-      FORM990_TARGET_YEARS      = var.form990_target_years
-      FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
-      FORM990_SOURCE_MODE       = var.form990_source_mode
-      FORM990_ENABLE_NEXT_YEAR_GENERATION = tostring(var.form990_enable_next_year_generation)
-      FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      BUCKET                                  = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX                      = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX               = local.form990_raw_source_prefix_normalized
+      FORM990_METADATA_PREFIX                 = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX                 = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX                  = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX               = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX                  = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX            = local.form990_relationships_prefix_normalized
+      FORM990_INDEX_URL                       = var.form990_index_url
+      FORM990_INDEX_URLS                      = var.form990_index_urls
+      FORM990_INDEX_FETCH_TIMEOUT_SECONDS     = tostring(var.form990_index_fetch_timeout_seconds)
+      FORM990_DEFAULT_DOWNLOAD_RAW            = tostring(var.form990_default_download_raw)
+      FORM990_RUN_MODE                        = var.form990_run_mode
+      FORM990_BATCH_SIZE                      = tostring(var.form990_batch_size)
+      FORM990_RETRY_COUNT                     = tostring(var.form990_retry_count)
+      FORM990_SOURCE_CATALOG_JSON             = var.form990_source_catalog_json
+      FORM990_INCREMENTAL_YEAR_WINDOW         = tostring(var.form990_incremental_year_window)
+      FORM990_RECONCILIATION_ENABLED          = tostring(var.form990_reconciliation_enabled)
+      FORM990_RECONCILIATION_CADENCE_DAYS     = tostring(var.form990_reconciliation_cadence_days)
+      FORM990_TARGET_YEARS                    = var.form990_target_years
+      FORM990_LAST_RECONCILIATION_AT          = var.form990_last_reconciliation_at
+      FORM990_SOURCE_MODE                     = var.form990_source_mode
+      FORM990_ENABLE_NEXT_YEAR_GENERATION     = tostring(var.form990_enable_next_year_generation)
+      FORM990_IRS_DOWNLOADS_PAGE_URL          = var.form990_irs_downloads_page_url
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
-      FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
-      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
-      FORM990_EXECUTION_MODE   = "inline"
-      FORM990_CHUNK_SIZE       = tostring(var.form990_chunk_size)
-      OPS_METADATA_BUCKET        = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX        = var.ops_metadata_prefix
+      FORM990_ZIP_FETCH_TIMEOUT_SECONDS       = tostring(var.form990_zip_fetch_timeout_seconds)
+      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES     = tostring(var.form990_zip_max_xml_file_size_bytes)
+      FORM990_EXECUTION_MODE                  = "inline"
+      FORM990_CHUNK_SIZE                      = tostring(var.form990_chunk_size)
+      OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }
   }
 }
@@ -332,50 +344,50 @@ resource "aws_lambda_function" "form990_orchestrator" {
 
   environment {
     variables = {
-      BUCKET                    = aws_s3_bucket.irs_data.bucket
-      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
-      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
-      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
-      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
-      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
-      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
-      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
-      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
-      FORM990_INDEX_URL         = var.form990_index_url
-      FORM990_INDEX_URLS        = var.form990_index_urls
-      FORM990_INDEX_FETCH_TIMEOUT_SECONDS = tostring(var.form990_index_fetch_timeout_seconds)
-      FORM990_DEFAULT_DOWNLOAD_RAW = tostring(var.form990_default_download_raw)
-      FORM990_RUN_MODE          = var.form990_run_mode
-      FORM990_BATCH_SIZE        = tostring(var.form990_batch_size)
-      FORM990_RETRY_COUNT       = tostring(var.form990_retry_count)
-      FORM990_SOURCE_CATALOG_JSON = var.form990_source_catalog_json
-      FORM990_INCREMENTAL_YEAR_WINDOW = tostring(var.form990_incremental_year_window)
-      FORM990_RECONCILIATION_ENABLED = tostring(var.form990_reconciliation_enabled)
-      FORM990_RECONCILIATION_CADENCE_DAYS = tostring(var.form990_reconciliation_cadence_days)
-      FORM990_TARGET_YEARS      = var.form990_target_years
-      FORM990_LAST_RECONCILIATION_AT = var.form990_last_reconciliation_at
-      FORM990_SOURCE_MODE       = var.form990_source_mode
-      FORM990_ENABLE_NEXT_YEAR_GENERATION = tostring(var.form990_enable_next_year_generation)
-      FORM990_IRS_DOWNLOADS_PAGE_URL = var.form990_irs_downloads_page_url
+      BUCKET                                  = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX                      = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX               = local.form990_raw_source_prefix_normalized
+      FORM990_METADATA_PREFIX                 = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX                 = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX                  = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX               = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX                  = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX            = local.form990_relationships_prefix_normalized
+      FORM990_INDEX_URL                       = var.form990_index_url
+      FORM990_INDEX_URLS                      = var.form990_index_urls
+      FORM990_INDEX_FETCH_TIMEOUT_SECONDS     = tostring(var.form990_index_fetch_timeout_seconds)
+      FORM990_DEFAULT_DOWNLOAD_RAW            = tostring(var.form990_default_download_raw)
+      FORM990_RUN_MODE                        = var.form990_run_mode
+      FORM990_BATCH_SIZE                      = tostring(var.form990_batch_size)
+      FORM990_RETRY_COUNT                     = tostring(var.form990_retry_count)
+      FORM990_SOURCE_CATALOG_JSON             = var.form990_source_catalog_json
+      FORM990_INCREMENTAL_YEAR_WINDOW         = tostring(var.form990_incremental_year_window)
+      FORM990_RECONCILIATION_ENABLED          = tostring(var.form990_reconciliation_enabled)
+      FORM990_RECONCILIATION_CADENCE_DAYS     = tostring(var.form990_reconciliation_cadence_days)
+      FORM990_TARGET_YEARS                    = var.form990_target_years
+      FORM990_LAST_RECONCILIATION_AT          = var.form990_last_reconciliation_at
+      FORM990_SOURCE_MODE                     = var.form990_source_mode
+      FORM990_ENABLE_NEXT_YEAR_GENERATION     = tostring(var.form990_enable_next_year_generation)
+      FORM990_IRS_DOWNLOADS_PAGE_URL          = var.form990_irs_downloads_page_url
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
-      FORM990_ZIP_FETCH_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
-      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = tostring(var.form990_zip_max_xml_file_size_bytes)
-      FORM990_EXECUTION_MODE    = var.form990_execution_mode
-      FORM990_CHUNK_SIZE        = tostring(var.form990_chunk_size)
-      FORM990_WORK_QUEUE_URL    = aws_sqs_queue.form990_work_queue.url
-      OPS_METADATA_BUCKET       = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX       = var.ops_metadata_prefix
+      FORM990_ZIP_FETCH_TIMEOUT_SECONDS       = tostring(var.form990_zip_fetch_timeout_seconds)
+      FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES     = tostring(var.form990_zip_max_xml_file_size_bytes)
+      FORM990_EXECUTION_MODE                  = var.form990_execution_mode
+      FORM990_CHUNK_SIZE                      = tostring(var.form990_chunk_size)
+      FORM990_WORK_QUEUE_URL                  = aws_sqs_queue.form990_work_queue.url
+      OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }
   }
 }
 
 resource "aws_lambda_function" "form990_worker" {
-  function_name = "irs_form990_worker"
-  handler       = "lambda_form990_worker.handler"
-  runtime       = "python3.11"
-  role          = aws_iam_role.lambda_role.arn
-  timeout       = var.form990_worker_timeout_seconds
-  memory_size   = var.form990_worker_memory_size_mb
+  function_name                  = "irs_form990_worker"
+  handler                        = "lambda_form990_worker.handler"
+  runtime                        = "python3.11"
+  role                           = aws_iam_role.lambda_role.arn
+  timeout                        = var.form990_worker_timeout_seconds
+  memory_size                    = var.form990_worker_memory_size_mb
   reserved_concurrent_executions = var.form990_worker_reserved_concurrency > 0 ? var.form990_worker_reserved_concurrency : null
 
   filename         = data.archive_file.form990_zip.output_path
@@ -383,18 +395,18 @@ resource "aws_lambda_function" "form990_worker" {
 
   environment {
     variables = {
-      BUCKET                    = aws_s3_bucket.irs_data.bucket
-      FORM990_RAW_PREFIX        = local.form990_raw_prefix_normalized
-      FORM990_RAW_SOURCE_PREFIX = local.form990_raw_source_prefix_normalized
-      FORM990_METADATA_PREFIX   = local.form990_metadata_prefix_normalized
-      FORM990_MANIFEST_PREFIX   = local.form990_manifest_prefix_normalized
-      FORM990_METRICS_PREFIX    = local.form990_metrics_prefix_normalized
-      FORM990_GOVERNANCE_PREFIX = local.form990_governance_prefix_normalized
-      FORM990_QUALITY_PREFIX    = local.form990_quality_prefix_normalized
-      FORM990_RELATIONSHIPS_PREFIX = local.form990_relationships_prefix_normalized
+      BUCKET                                  = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_PREFIX                      = local.form990_raw_prefix_normalized
+      FORM990_RAW_SOURCE_PREFIX               = local.form990_raw_source_prefix_normalized
+      FORM990_METADATA_PREFIX                 = local.form990_metadata_prefix_normalized
+      FORM990_MANIFEST_PREFIX                 = local.form990_manifest_prefix_normalized
+      FORM990_METRICS_PREFIX                  = local.form990_metrics_prefix_normalized
+      FORM990_GOVERNANCE_PREFIX               = local.form990_governance_prefix_normalized
+      FORM990_QUALITY_PREFIX                  = local.form990_quality_prefix_normalized
+      FORM990_RELATIONSHIPS_PREFIX            = local.form990_relationships_prefix_normalized
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
-      OPS_METADATA_BUCKET       = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX       = var.ops_metadata_prefix
+      OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }
   }
 }

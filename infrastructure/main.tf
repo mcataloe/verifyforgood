@@ -1,18 +1,30 @@
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
 locals {
-  domain_name                          = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
-  source_data_prefix_normalized        = "${trim(var.source_data_prefix, "/")}/"
-  form990_raw_source_prefix_normalized = "${trim(var.form990_raw_source_prefix, "/")}/"
-  form990_raw_prefix_normalized        = "${trim(var.form990_raw_prefix, "/")}/"
-  form990_metadata_prefix_normalized   = "${trim(var.form990_metadata_prefix, "/")}/"
-  form990_manifest_prefix_normalized   = "${trim(var.form990_manifest_prefix, "/")}/"
-  form990_metrics_prefix_normalized    = "${trim(var.form990_metrics_prefix, "/")}/"
-  form990_governance_prefix_normalized = "${trim(var.form990_governance_prefix, "/")}/"
-  form990_quality_prefix_normalized    = "${trim(var.form990_quality_prefix, "/")}/"
+  domain_name                             = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
+  source_data_prefix_normalized           = "${trim(var.source_data_prefix, "/")}/"
+  form990_raw_source_prefix_normalized    = "${trim(var.form990_raw_source_prefix, "/")}/"
+  form990_raw_prefix_normalized           = "${trim(var.form990_raw_prefix, "/")}/"
+  form990_metadata_prefix_normalized      = "${trim(var.form990_metadata_prefix, "/")}/"
+  form990_manifest_prefix_normalized      = "${trim(var.form990_manifest_prefix, "/")}/"
+  form990_metrics_prefix_normalized       = "${trim(var.form990_metrics_prefix, "/")}/"
+  form990_governance_prefix_normalized    = "${trim(var.form990_governance_prefix, "/")}/"
+  form990_quality_prefix_normalized       = "${trim(var.form990_quality_prefix, "/")}/"
   form990_relationships_prefix_normalized = "${trim(var.form990_relationships_prefix, "/")}/"
-  source_data_bucket_name              = "${var.base_name}-irs-source-data-bucket"
-  athena_results_bucket_name           = "${var.base_name}-athena-results"
-  profile_table_name                   = "${var.base_name}-${var.environment}-profiles"
-  glue_database_name                   = "${var.base_name}_irs_db"
+  source_data_bucket_name                 = "${var.base_name}-irs-source-data-bucket"
+  athena_results_bucket_name              = "${var.base_name}-athena-results"
+  profile_table_name                      = "${var.base_name}-${var.environment}-profiles"
+  glue_database_name                      = "${var.base_name}_irs_db"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
