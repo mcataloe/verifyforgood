@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from charity_status.enrichments import EvaluationContext
+from charity_status.enrichments import EvaluationContext, annotate_integration_evaluation_payload
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.query.nonprofit_lookup import map_nonprofit_record
@@ -28,7 +28,9 @@ def get_nonprofit_sources_view(
     )
     providers = enrichment.get("providers") or []
     failures = enrichment.get("failures") or []
-    integration_evaluation = enrichment.get("integration_evaluation") or _legacy_integration_evaluation(providers, failures)
+    integration_evaluation = annotate_integration_evaluation_payload(
+        enrichment.get("integration_evaluation") or _legacy_integration_evaluation(providers, failures)
+    )
 
     sources = _to_sources(
         providers=providers,
@@ -190,6 +192,9 @@ def _to_sources(
                 "tenant_enabled": state.get("tenant_enabled"),
                 "required_for_eligibility": state.get("required_for_eligibility"),
                 "integration_id": integration_id,
+                "evaluation_effect": state.get("evaluation_effect"),
+                "explanation_code": state.get("explanation_code"),
+                "explanation": state.get("explanation"),
             }
         )
     return entries

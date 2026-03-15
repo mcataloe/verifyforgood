@@ -9,7 +9,11 @@ from .models import (
     OrganizationIntegrationSetting,
     OrganizationIntegrationSettings,
     TenantIntegrationSetting,
+    annotate_integration_evaluation_payload,
+    build_integration_policy_summary,
+    explain_integration_state,
     integration_id_display_name,
+    integration_id_label,
     normalize_integration_id,
 )
 from .registry import ProviderRegistry
@@ -32,6 +36,9 @@ __all__ = [
     "OrganizationIntegrationSetting",
     "OrganizationIntegrationSettings",
     "TenantIntegrationSetting",
+    "annotate_integration_evaluation_payload",
+    "build_integration_policy_summary",
+    "explain_integration_state",
     "ProviderRegistry",
     "OrganizationIntegrationSettingsResolver",
     "TenantIntegrationSettingsResolver",
@@ -39,5 +46,6 @@ __all__ = [
     "load_tenant_integration_settings",
     "normalize_integration_id",
     "integration_id_display_name",
+    "integration_id_label",
     "EnrichmentService",
 ]

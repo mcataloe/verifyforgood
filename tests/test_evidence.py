@@ -120,3 +120,95 @@ def test_evidence_flow_with_source_catalog_enrichment_payload():
     assert status == 200
     assert "source_catalog" in payload["enrichment"]
     assert payload["evidence"]["model_version"] == payload["score_explanation"]["model_version"]
+
+
+def test_evidence_explains_optional_integration_without_penalty():
+    baseline_status, baseline_payload = verify_nonprofit(
+        _client(),
+        VerificationInput(ein="123456789"),
+        enrichment_service=SimpleNamespace(
+            enrich=lambda ein, organization_name=None, evaluation_context=None: SimpleNamespace(
+                to_dict=lambda: {"providers": [], "failures": []}
+            )
+        ),
+    )
+    status, payload = verify_nonprofit(
+        _client(),
+        VerificationInput(ein="123456789"),
+        enrichment_service=SimpleNamespace(
+            enrich=lambda ein, organization_name=None, evaluation_context=None: SimpleNamespace(
+                to_dict=lambda: {
+                    "providers": [],
+                    "failures": [],
+                    "integration_evaluation": {
+                        "integrations": [
+                            {
+                                "integration_id": "candid",
+                                "offered": True,
+                                "credentials_present": True,
+                                "tenant_enabled": True,
+                                "required_for_eligibility": False,
+                                "attempted": True,
+                                "availability_status": "no_match",
+                                "requirement_status": "not_required",
+                                "driver": "live",
+                            }
+                        ],
+                        "attempted_integrations": ["candid"],
+                        "used_integrations": [],
+                        "required_unmet_integrations": [],
+                        "failure_integrations": [],
+                    },
+                }
+            )
+        ),
+    )
+
+    assert baseline_status == 200
+    assert status == 200
+    assert payload["decision"]["status"] == baseline_payload["decision"]["status"]
+    assert payload["score_explanation"]["integration_policy"]["status"] == "neutral"
+    assert payload["integration_evaluation"]["explanations"][0]["code"] == "integration_optional_and_skipped"
+    factor = next(item for item in payload["evidence"]["factors"] if item["key"] == "integration_policy:candid")
+    assert factor["polarity"] == "neutral"
+
+
+def test_evidence_explains_required_integration_unavailable():
+    status, payload = verify_nonprofit(
+        _client(),
+        VerificationInput(ein="123456789"),
+        enrichment_service=SimpleNamespace(
+            enrich=lambda ein, organization_name=None, evaluation_context=None: SimpleNamespace(
+                to_dict=lambda: {
+                    "providers": [],
+                    "failures": [],
+                    "integration_evaluation": {
+                        "integrations": [
+                            {
+                                "integration_id": "candid",
+                                "offered": True,
+                                "credentials_present": False,
+                                "tenant_enabled": True,
+                                "required_for_eligibility": True,
+                                "attempted": False,
+                                "availability_status": "missing_credentials",
+                                "requirement_status": "unmet",
+                                "driver": "live",
+                            }
+                        ],
+                        "attempted_integrations": [],
+                        "used_integrations": [],
+                        "required_unmet_integrations": ["candid"],
+                        "failure_integrations": [],
+                    },
+                }
+            )
+        ),
+    )
+
+    assert status == 200
+    assert payload["decision"]["status"] == "manual_review"
+    assert payload["score_explanation"]["integration_policy"]["status"] == "required_unavailable"
+    assert payload["integration_evaluation"]["explanations"][0]["code"] == "integration_required_but_unavailable"
+    factor = next(item for item in payload["evidence"]["factors"] if item["key"] == "integration_policy:candid")
+    assert factor["polarity"] == "warning"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from charity_status.enrichments import EvaluationContext
+from charity_status.enrichments import EvaluationContext, annotate_integration_evaluation_payload, build_integration_policy_summary
 from charity_status.decision import build_decision
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
@@ -147,7 +147,16 @@ def apply_evaluation_overlay(
         enrichment = {"providers": [], "failures": [], "integration_evaluation": _default_integration_evaluation(context)}
 
     payload["enrichment"] = enrichment
-    payload["integration_evaluation"] = enrichment.get("integration_evaluation") or _legacy_integration_evaluation(enrichment, context)
+    payload["integration_evaluation"] = annotate_integration_evaluation_payload(
+        enrichment.get("integration_evaluation") or _legacy_integration_evaluation(enrichment, context)
+    )
+    payload["score_explanation"] = {
+        **(payload.get("score_explanation") or {}),
+        "integration_policy": {
+            **build_integration_policy_summary(payload["integration_evaluation"]),
+            "explanations": payload["integration_evaluation"].get("explanations") or [],
+        },
+    }
     if (
         not (payload["integration_evaluation"].get("attempted_integrations") or [])
         and not context.has_non_default_integrations()

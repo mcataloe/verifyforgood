@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from charity_status.enrichments import annotate_integration_evaluation_payload
 from charity_status.evidence.models import Evidence, EvidenceFactor, EvidenceRuleResult, EvidenceSource
 
 
@@ -33,11 +34,12 @@ def build_evidence(
     federal_awards = external.get("federal_awards") or {}
     enrichment_failures = enrichment_payload.get("failures", []) or []
     enrichment_providers = enrichment_payload.get("providers", []) or []
-    integration_payload = integration_evaluation or {}
+    integration_payload = annotate_integration_evaluation_payload(integration_evaluation)
     integration_states = integration_payload.get("integrations", []) or []
     attempted_integrations = set(str(item) for item in integration_payload.get("attempted_integrations", []) or [])
     used_integrations = set(str(item) for item in integration_payload.get("used_integrations", []) or [])
     required_unmet_integrations = integration_payload.get("required_unmet_integrations", []) or []
+    failure_integrations = set(str(item) for item in integration_payload.get("failure_integrations", []) or [])
 
     factors.append(
         EvidenceFactor(
@@ -155,10 +157,10 @@ def build_evidence(
         EvidenceFactor(
             key="enrichment_failures",
             category="enrichment",
-            polarity="warning" if enrichment_failures else "positive",
-            severity="medium" if enrichment_failures else "low",
+            polarity="warning" if failure_integrations & set(required_unmet_integrations) else "neutral",
+            severity="medium" if failure_integrations & set(required_unmet_integrations) else "low",
             value=len(enrichment_failures),
-            message="External enrichment failures are tracked but do not break core scoring.",
+            message="Third-party integration failures are recorded for auditability. Optional failures do not penalize evaluation unless requirement or policy settings make them material.",
         )
     )
     factors.append(
@@ -171,6 +173,19 @@ def build_evidence(
             message="Required third-party integrations that were unavailable or returned no match.",
         )
     )
+
+    for explanation in integration_payload.get("explanations", []) or []:
+        effect = str(explanation.get("effect") or "neutral")
+        factors.append(
+            EvidenceFactor(
+                key=f"integration_policy:{explanation.get('integration_id')}",
+                category="enrichment",
+                polarity="positive" if effect == "positive" else "warning" if effect == "warning" else "neutral",
+                severity="medium" if effect == "warning" else "low",
+                value=explanation.get("availability_status"),
+                message=str(explanation.get("message") or ""),
+            )
+        )
 
     source_set = set(str(source) for source in data_sources)
     sources.append(EvidenceSource(source="irs_eo_bmf_athena", used="irs_eo_bmf_athena" in source_set, detail="Core EO/BMF source"))

@@ -74,10 +74,83 @@ def test_decision_insufficient_data():
 def test_decision_enrichment_failure_flag():
     args = list(_base_inputs())
     args[6] = {"providers": [], "failures": [{"provider": "candid", "error": "timeout"}]}
-    decision, extras = build_decision(*args)
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "tenant_enabled": True,
+                    "required_for_eligibility": False,
+                    "attempted": True,
+                    "availability_status": "failed",
+                    "requirement_status": "not_required",
+                }
+            ],
+            "attempted_integrations": ["candid"],
+            "used_integrations": [],
+            "required_unmet_integrations": [],
+            "failure_integrations": ["candid"],
+        },
+    )
 
-    assert "enrichment_provider_failures" in decision["risk_flags"]
+    assert "enrichment_provider_failures" not in decision["risk_flags"]
+    assert decision["status"] == "approve"
     assert extras["audit"]["enrichments_used"] is False
+    assert extras["audit"]["failure_integrations"] == ["candid"]
+
+
+def test_decision_ignores_not_offered_optional_integrations():
+    args = list(_base_inputs())
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "tenant_enabled": False,
+                    "required_for_eligibility": False,
+                    "attempted": False,
+                    "availability_status": "not_offered",
+                    "requirement_status": "not_required",
+                }
+            ],
+            "attempted_integrations": [],
+            "used_integrations": [],
+            "required_unmet_integrations": [],
+            "failure_integrations": [],
+        },
+    )
+
+    assert decision["status"] == "approve"
+    assert extras["audit"]["integration_policy"]["status"] == "neutral"
+    assert extras["audit"]["integration_explanations"][0]["code"] == "integration_not_offered"
+
+
+def test_decision_ignores_integrations_disabled_for_organization():
+    args = list(_base_inputs())
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "tenant_enabled": False,
+                    "required_for_eligibility": False,
+                    "attempted": False,
+                    "availability_status": "tenant_disabled",
+                    "requirement_status": "not_required",
+                }
+            ],
+            "attempted_integrations": [],
+            "used_integrations": [],
+            "required_unmet_integrations": [],
+            "failure_integrations": [],
+        },
+    )
+
+    assert decision["status"] == "approve"
+    assert extras["audit"]["integration_explanations"][0]["code"] == "integration_disabled_for_organization"
 
 
 def test_decision_manual_review_when_required_integrations_unmet():
@@ -102,3 +175,55 @@ def test_decision_manual_review_when_required_integrations_unmet():
     assert decision["status"] == "manual_review"
     assert "required_integration_unavailable" in decision["risk_flags"]
     assert extras["audit"]["required_unmet_integrations"] == ["candid"]
+
+
+def test_decision_optional_no_match_does_not_penalize():
+    args = list(_base_inputs())
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "tenant_enabled": True,
+                    "required_for_eligibility": False,
+                    "attempted": True,
+                    "availability_status": "no_match",
+                    "requirement_status": "not_required",
+                }
+            ],
+            "attempted_integrations": ["candid"],
+            "used_integrations": [],
+            "required_unmet_integrations": [],
+            "failure_integrations": [],
+        },
+    )
+
+    assert decision["status"] == "approve"
+    assert extras["summary"]["integration_policy_status"] == "neutral"
+
+
+def test_decision_successful_integration_marks_policy_as_evaluated():
+    args = list(_base_inputs())
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "tenant_enabled": True,
+                    "required_for_eligibility": False,
+                    "attempted": True,
+                    "availability_status": "matched",
+                    "requirement_status": "not_required",
+                }
+            ],
+            "attempted_integrations": ["candid"],
+            "used_integrations": ["candid"],
+            "required_unmet_integrations": [],
+            "failure_integrations": [],
+        },
+    )
+
+    assert decision["status"] == "approve"
+    assert extras["audit"]["integration_policy"]["status"] == "evaluated"

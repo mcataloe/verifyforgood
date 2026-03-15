@@ -25,6 +25,11 @@ INTEGRATION_ID_DISPLAY_NAMES = {
     "charity_navigator": "charityNavigator",
 }
 
+INTEGRATION_ID_LABELS = {
+    "candid": "Candid",
+    "charity_navigator": "Charity Navigator",
+}
+
 
 def normalize_integration_id(value: str | None) -> str:
     candidate = str(value or "").strip()
@@ -36,6 +41,15 @@ def normalize_integration_id(value: str | None) -> str:
 def integration_id_display_name(integration_id: str) -> str:
     normalized = normalize_integration_id(integration_id)
     return INTEGRATION_ID_DISPLAY_NAMES.get(normalized, normalized)
+
+
+def integration_id_label(integration_id: str) -> str:
+    normalized = normalize_integration_id(integration_id)
+    if not normalized:
+        return "Integration"
+    if normalized in INTEGRATION_ID_LABELS:
+        return INTEGRATION_ID_LABELS[normalized]
+    return normalized.replace("_", " ").title()
 
 
 @dataclass(frozen=True)
@@ -187,6 +201,17 @@ class IntegrationState:
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        explanation = explain_integration_state(
+            {
+                "integration_id": self.integration_id,
+                "tenant_enabled": self.tenant_enabled,
+                "required_for_eligibility": self.required_for_eligibility,
+                "attempted": self.attempted,
+                "availability_status": self.availability_status,
+                "requirement_status": self.requirement_status,
+                "credentials_present": self.credentials_present,
+            }
+        )
         payload = {
             "integration_id": self.integration_id,
             "offered": self.offered,
@@ -197,6 +222,9 @@ class IntegrationState:
             "availability_status": self.availability_status,
             "requirement_status": self.requirement_status,
             "driver": self.driver,
+            "evaluation_effect": explanation["effect"],
+            "explanation_code": explanation["code"],
+            "explanation": explanation["message"],
         }
         if self.provider_name is not None:
             payload["provider_name"] = self.provider_name
@@ -234,13 +262,14 @@ class IntegrationEvaluation:
         ]
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "integrations": [state.to_dict() for state in self.integrations],
             "attempted_integrations": self.attempted_integrations(),
             "used_integrations": self.used_integrations(),
             "required_unmet_integrations": self.required_unmet_integrations(),
             "failure_integrations": self.failure_integrations(),
         }
+        return annotate_integration_evaluation_payload(payload)
 
 
 @dataclass(frozen=True)
@@ -265,3 +294,127 @@ class EnrichmentAggregateResult:
 
 def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def annotate_integration_evaluation_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    base = dict(payload or {})
+    annotated_integrations: list[dict[str, Any]] = []
+    for raw_state in base.get("integrations", []) or []:
+        if not isinstance(raw_state, dict):
+            continue
+        explanation = explain_integration_state(raw_state)
+        annotated_state = {
+            **raw_state,
+            "evaluation_effect": raw_state.get("evaluation_effect") or explanation["effect"],
+            "explanation_code": raw_state.get("explanation_code") or explanation["code"],
+            "explanation": raw_state.get("explanation") or explanation["message"],
+        }
+        annotated_integrations.append(annotated_state)
+
+    annotated = {
+        **base,
+        "integrations": annotated_integrations,
+    }
+    explanations = [
+        {
+            "integration_id": str(item.get("integration_id") or ""),
+            "effect": str(item.get("evaluation_effect") or "neutral"),
+            "code": str(item.get("explanation_code") or ""),
+            "message": str(item.get("explanation") or ""),
+            "availability_status": str(item.get("availability_status") or ""),
+        }
+        for item in annotated_integrations
+        if str(item.get("integration_id") or "").strip()
+    ]
+    annotated["explanations"] = explanations
+    annotated["summary"] = build_integration_policy_summary(annotated)
+    return annotated
+
+
+def build_integration_policy_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
+    evaluation = payload or {}
+    explanations = evaluation.get("explanations") or []
+    integrations = evaluation.get("integrations") or []
+    attempted_integrations = evaluation.get("attempted_integrations") or []
+    used_integrations = evaluation.get("used_integrations") or []
+    required_unmet_integrations = evaluation.get("required_unmet_integrations") or []
+
+    status = "neutral"
+    if required_unmet_integrations:
+        status = "required_unavailable"
+    elif used_integrations:
+        status = "evaluated"
+
+    return {
+        "status": status,
+        "configured_count": len(integrations),
+        "attempted_count": len(attempted_integrations),
+        "successful_count": len(used_integrations),
+        "required_unmet_count": len(required_unmet_integrations),
+        "neutral_count": len([item for item in explanations if item.get("effect") == "neutral"]),
+        "warning_count": len([item for item in explanations if item.get("effect") == "warning"]),
+    }
+
+
+def explain_integration_state(state: dict[str, Any]) -> dict[str, str]:
+    integration_id = normalize_integration_id(str(state.get("integration_id") or ""))
+    label = integration_id_label(integration_id)
+    availability_status = str(state.get("availability_status") or "")
+    required = bool(state.get("required_for_eligibility"))
+    attempted = bool(state.get("attempted"))
+
+    if availability_status == "not_offered":
+        return {
+            "code": "integration_not_offered",
+            "effect": "neutral",
+            "message": f"{label} is not offered by this platform deployment and was excluded from evaluation.",
+        }
+    if availability_status == "tenant_disabled":
+        return {
+            "code": "integration_disabled_for_organization",
+            "effect": "neutral",
+            "message": f"{label} is disabled for this organization and was ignored during evaluation.",
+        }
+    if required and str(state.get("requirement_status") or "") == "unmet":
+        if availability_status == "no_match":
+            detail = "no vendor record was available"
+        elif availability_status == "failed":
+            detail = "the integration could not be evaluated successfully"
+        elif availability_status == "missing_credentials":
+            detail = "platform credentials or configuration are unavailable"
+        else:
+            detail = "the integration was unavailable"
+        return {
+            "code": "integration_required_but_unavailable",
+            "effect": "warning",
+            "message": f"{label} is required for evaluation, but {detail}.",
+        }
+    if attempted and availability_status == "matched":
+        return {
+            "code": "integration_successfully_evaluated",
+            "effect": "positive",
+            "message": f"{label} was successfully evaluated and contributed available third-party data.",
+        }
+    if availability_status == "no_match":
+        return {
+            "code": "integration_optional_and_skipped",
+            "effect": "neutral",
+            "message": f"{label} is optional for this organization; no vendor data was found and evaluation continued without penalty.",
+        }
+    if availability_status == "missing_credentials":
+        return {
+            "code": "integration_optional_and_skipped",
+            "effect": "neutral",
+            "message": f"{label} is optional for this organization; platform credentials or configuration are unavailable and evaluation continued without penalty.",
+        }
+    if availability_status == "failed":
+        return {
+            "code": "integration_optional_and_skipped",
+            "effect": "neutral",
+            "message": f"{label} is optional for this organization; vendor data could not be retrieved and evaluation continued without penalty.",
+        }
+    return {
+        "code": "integration_optional_and_skipped",
+        "effect": "neutral",
+        "message": f"{label} remained optional and had no effect on evaluation.",
+    }

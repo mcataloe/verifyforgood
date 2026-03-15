@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from charity_status.enrichments import annotate_integration_evaluation_payload, build_integration_policy_summary
+
 
 def build_decision(
     organization: dict[str, Any],
@@ -63,16 +65,13 @@ def build_decision(
     if confidence == "low":
         risk_flags.append("low_score_confidence")
 
-    integration_evaluation = integration_evaluation or {}
+    integration_evaluation = annotate_integration_evaluation_payload(integration_evaluation)
+    integration_policy = integration_evaluation.get("summary") or build_integration_policy_summary(integration_evaluation)
     enrichment_failures = (enrichment or {}).get("failures", [])
     failure_integrations = integration_evaluation.get("failure_integrations") or []
     required_unmet_integrations = integration_evaluation.get("required_unmet_integrations") or []
     used_integrations = integration_evaluation.get("used_integrations") or []
     attempted_integrations = integration_evaluation.get("attempted_integrations") or []
-    if failure_integrations or enrichment_failures:
-        risk_flags.append("enrichment_provider_failures")
-        manual_review_codes.append("provider_data_conflict_or_failure")
-        manual_review_notes.append("One or more enrichment providers failed")
     if required_unmet_integrations:
         risk_flags.append("required_integration_unavailable")
         manual_review_codes.append("required_integration_unavailable")
@@ -178,6 +177,9 @@ def build_decision(
         "enrichments_used": bool(used_integrations),
         "attempted_integrations": attempted_integrations,
         "used_integrations": used_integrations,
+        "failure_integrations": failure_integrations,
+        "integration_explanations": integration_evaluation.get("explanations") or [],
+        "integration_policy": integration_policy,
         "required_unmet_integrations": required_unmet_integrations,
         "decision_basis": {
             "eligibility": eligibility,
@@ -185,6 +187,8 @@ def build_decision(
             "decision_status": status,
             "manual_review_reason_codes": decision["manual_review"]["reason_codes"],
             "state_compliance_flags_count": len(compliance_flags),
+            "integration_policy_status": integration_policy.get("status"),
+            "enrichment_failure_count": len(failure_integrations) or len(enrichment_failures),
         },
     }
 
@@ -194,6 +198,7 @@ def build_decision(
         "eligibility_status": "ELIGIBLE_WITH_REVIEW" if status in {"approve_with_review", "manual_review"} else ("INELIGIBLE" if status == "deny" else "ELIGIBLE"),
         "overall_score": overall,
         "decision_status": status,
+        "integration_policy_status": integration_policy.get("status"),
     }
 
     return decision, {"audit": audit, "summary": summary}

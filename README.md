@@ -405,6 +405,8 @@ Hard rules:
 - If status is not active, eligibility is `INELIGIBLE` and overall score is capped conservatively.
 - If revoked hard-rule conditions are present, eligibility is `INELIGIBLE` and overall cap is stricter.
 - Missing 990 data never fails requests; scoring falls back and explanation states EO/BMF-only mode.
+- Missing optional third-party vendor data does not change score calculation or deny the organization by default.
+- Third-party integration policy is surfaced additively in `score_explanation.integration_policy`; scoring remains neutral unless a required integration or explicit customer policy changes the recommendation.
 
 ## External Enrichments (Phase 5A)
 
@@ -435,8 +437,18 @@ Response behavior:
   - `integration_evaluation.attempted_integrations[]`
   - `integration_evaluation.used_integrations[]`
   - `integration_evaluation.required_unmet_integrations[]`
-- Provider errors, integrations not offered by the deployment, tenant-disabled integrations, missing credentials, or no matches do not fail core nonprofit verification by default.
-- Missing third-party vendor data is neutral unless the tenant explicitly marks that integration as required for eligibility evaluation.
+  - `integration_evaluation.explanations[]` with explicit explanation entries for platform availability, organization enablement, optional skips, required-unavailable states, and successful evaluations
+  - `score_explanation.integration_policy` with summary status/counts plus the evaluation explanations
+- Provider errors, integrations not offered by the deployment, organization-disabled integrations, missing credentials, or no matches do not fail core nonprofit verification by default unless the integration is explicitly required or a customer policy acts on those signals.
+- Missing third-party vendor data is neutral unless the organization explicitly marks that integration as required for eligibility evaluation.
+
+Default evaluation policy behavior:
+
+- platform integration not offered: ignored with zero effect
+- integration offered but disabled for the organization: ignored with zero effect
+- integration enabled but optional: missing vendor data is informational only and does not cause denial or score penalty
+- integration enabled and required: unavailable/no-match vendor data can downgrade the default decision to `manual_review`, and customer policy may further act on that state explicitly
+- successful integration evaluation: available third-party data is reflected in the explanation output and any source-specific summaries
 
 Canonical enrichment fields are optional and include source attribution:
 
@@ -838,6 +850,9 @@ Response fields:
   - `driver`
   - `tenant_enabled`
   - `required_for_eligibility`
+  - `evaluation_effect` (`neutral`, `warning`, `positive`)
+  - `explanation_code`
+  - `explanation`
 - `failures[]` (provider-level failures from enrichment run)
 
 ### `GET /nonprofits/{ein}/sources/{source_name}`
