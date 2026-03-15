@@ -1,5 +1,6 @@
 from charity_status.serving.hash import calculate_source_hash
 from charity_status.serving.keys import profile_pk, profile_sk
+from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
 
 
 def test_dynamodb_key_generation():
@@ -8,7 +9,7 @@ def test_dynamodb_key_generation():
 
 
 def test_source_hash_deterministic_ordering():
-    a = {"model_version": "2.0.0", "verification": {"irs_status": "active", "tax_deductible": True}}
-    b = {"verification": {"tax_deductible": True, "irs_status": "active"}, "model_version": "2.0.0"}
+    a = {"model_version": SCORING_MODEL_VERSION, "verification": {"irs_status": "active", "tax_deductible": True}}
+    b = {"verification": {"tax_deductible": True, "irs_status": "active"}, "model_version": SCORING_MODEL_VERSION}
 
     assert calculate_source_hash(a) == calculate_source_hash(b)

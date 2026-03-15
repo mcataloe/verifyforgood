@@ -5,6 +5,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from charity_status.scoring import SCORING_MODEL_VERSION
 
 
 def _load_module():
@@ -71,12 +72,12 @@ def test_lookup_hit_path_returns_materialized_profile():
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
             "verification": {"irs_status": "active"},
             "scores": {"overall": 88},
-            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False},
-            "model_version": "2.0.0",
+            "score_explanation": {"model_version": SCORING_MODEL_VERSION, "peer_benchmarking_used": False},
+            "model_version": SCORING_MODEL_VERSION,
             "decision": {"status": "approve"},
-            "audit": {"model_version": "2.0.0"},
+            "audit": {"model_version": SCORING_MODEL_VERSION},
             "summary": {"decision_status": "approve"},
-            "evidence": {"model_version": "2.0.0", "factors": []},
+            "evidence": {"model_version": SCORING_MODEL_VERSION, "factors": []},
             "state_compliance": {"registration_status": "active", "compliance_flags": []},
         }
     )
@@ -88,8 +89,41 @@ def test_lookup_hit_path_returns_materialized_profile():
     assert result["statusCode"] == 200
     assert body["organization"]["name"] == "Cached Org"
     assert body["scores"]["overall"] == 88
-    assert body["evidence"]["model_version"] == "2.0.0"
+    assert body["evidence"]["model_version"] == SCORING_MODEL_VERSION
     assert body["state_compliance"]["registration_status"] == "active"
+
+
+def test_lookup_hit_path_refreshes_stale_materialized_profile():
+    module = _load_module()
+    put_calls = []
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Cached Org"},
+            "verification": {"irs_status": "unknown"},
+            "scores": {"overall": 45},
+            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False, "eligibility": "INELIGIBLE", "factors": {"active_status": False}},
+            "model_version": "2.0.0",
+            "decision": {"status": "deny"},
+            "audit": {"model_version": "2.0.0"},
+            "summary": {"decision_status": "deny"},
+            "evidence": {"model_version": "2.0.0", "factors": []},
+        },
+        put_profile=lambda item: put_calls.append(item),
+    )
+    module.athena_client = _mock_client(record=_sample_record("Fresh Org", status="01"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Fresh Org"
+    assert body["verification"]["irs_status"] == "active"
+    assert len(put_calls) == 1
+    assert put_calls[0]["model_version"] == SCORING_MODEL_VERSION
 
 
 def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
@@ -212,12 +246,12 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
             "verification": {"irs_status": "active"},
             "scores": {"overall": Decimal("88.5")},
-            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False},
-            "model_version": "2.0.0",
+            "score_explanation": {"model_version": SCORING_MODEL_VERSION, "peer_benchmarking_used": False},
+            "model_version": SCORING_MODEL_VERSION,
             "decision": {"status": "approve"},
-            "audit": {"model_version": "2.0.0"},
+            "audit": {"model_version": SCORING_MODEL_VERSION},
             "summary": {"decision_status": "approve"},
-            "evidence": {"model_version": "2.0.0", "factors": []},
+            "evidence": {"model_version": SCORING_MODEL_VERSION, "factors": []},
             "state_compliance": {"registration_status": "active", "compliance_flags": []},
         }
     )
@@ -252,12 +286,12 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
             "verification": {"irs_status": "active", "recent_990_on_file": True},
             "scores": {"overall": 88},
-            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False, "eligibility": "ELIGIBLE", "factors": {}},
-            "model_version": "2.0.0",
+            "score_explanation": {"model_version": SCORING_MODEL_VERSION, "peer_benchmarking_used": False, "eligibility": "ELIGIBLE", "factors": {}},
+            "model_version": SCORING_MODEL_VERSION,
             "decision": {"status": "approve", "risk_flags": [], "manual_review": {"reason_codes": []}},
-            "audit": {"model_version": "2.0.0"},
+            "audit": {"model_version": SCORING_MODEL_VERSION},
             "summary": {"decision_status": "approve"},
-            "evidence": {"model_version": "2.0.0", "factors": []},
+            "evidence": {"model_version": SCORING_MODEL_VERSION, "factors": []},
             "state_compliance": {"registration_status": "active", "compliance_flags": []},
         }
     )
@@ -517,12 +551,12 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
             "verification": {"irs_status": "active"},
             "scores": {"overall": 88},
-            "score_explanation": {"model_version": "2.0.0"},
-            "model_version": "2.0.0",
+            "score_explanation": {"model_version": SCORING_MODEL_VERSION},
+            "model_version": SCORING_MODEL_VERSION,
             "decision": {"status": "approve"},
-            "audit": {"model_version": "2.0.0"},
+            "audit": {"model_version": SCORING_MODEL_VERSION},
             "summary": {"decision_status": "approve"},
-            "evidence": {"model_version": "2.0.0", "factors": []},
+            "evidence": {"model_version": SCORING_MODEL_VERSION, "factors": []},
             "state_compliance": {"registration_status": "active", "compliance_flags": []},
         },
         put_profile=lambda item: None,
@@ -897,7 +931,7 @@ def test_ops_refresh_runs_listing_and_not_found():
 def test_ops_pipeline_status_lookup_and_not_found():
     module = _load_module()
     module.OPS_METADATA_BUCKET = "test-bucket"
-    module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": "2.0.0", "environment": "dev"})
+    module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": SCORING_MODEL_VERSION, "environment": "dev"})
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=100: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [{"refresh_run_id": "ref-1", "status": "completed"}],
         get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}],

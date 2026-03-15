@@ -52,6 +52,7 @@ from charity_status.query.source_views import (
     get_nonprofit_sources_view,
 )
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
+from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
 
@@ -364,7 +365,7 @@ def handler(event, context):
 
         if method == "GET":
             cached = _load_cached_profile(normalized_ein)
-            if cached is not None:
+            if cached is not None and _cached_profile_is_current(cached):
                 if policy_id_required(verification_input) or evaluation_context.has_non_default_integrations() or not cached.get("integration_evaluation"):
                     cached = apply_evaluation_overlay(
                         payload=cached,
@@ -759,7 +760,7 @@ def _verify_single_item(
     context = evaluation_context or EvaluationContext()
     if provided_name is None:
         cached = _load_cached_profile(normalized_ein)
-        if cached is not None:
+        if cached is not None and _cached_profile_is_current(cached):
             if policy_id or context.has_non_default_integrations() or not cached.get("integration_evaluation"):
                 cached = apply_evaluation_overlay(
                     payload=cached,
@@ -800,6 +801,11 @@ def _parse_bool(value: Any, default: bool) -> bool:
     if candidate in {"false", "0", "no"}:
         return False
     raise ValueError("active_only must be a boolean")
+
+
+def _cached_profile_is_current(payload: dict[str, Any]) -> bool:
+    cached_version = str(((payload.get("score_explanation") or {}).get("model_version") or (payload.get("model") or {}).get("version") or "")).strip()
+    return cached_version == SCORING_MODEL_VERSION
 
 
 def _load_cached_profile(ein: str) -> dict | None:

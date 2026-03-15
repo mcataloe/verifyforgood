@@ -5,6 +5,8 @@ from typing import Any
 
 from charity_status.scoring.weighting_profiles import resolve_weighting_profile
 
+SCORING_MODEL_VERSION = "2.0.1"
+
 
 @dataclass(frozen=True)
 class ScoreResult:
@@ -148,7 +150,7 @@ def calculate_v1_scores(
     notes.append("No third-party enrichment provider data included")
 
     explanation = {
-        "model_version": "2.0.0",
+        "model_version": SCORING_MODEL_VERSION,
         "score_data_sources": data_sources,
         "confidence": confidence,
         "factors": factors,

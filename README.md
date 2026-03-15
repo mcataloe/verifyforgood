@@ -604,7 +604,7 @@ Failure tolerance:
 
 ## Peer Benchmarking (Phase 5B)
 
-Model version `2.0.0` adds optional peer-group benchmarking for fairer interpretation of selected metrics.
+Model version `2.0.1` adds optional peer-group benchmarking for fairer interpretation of selected metrics and normalizes alternate IRS status code formats before scoring/materialization.
 
 Peer-group dimensions:
 
@@ -1223,6 +1223,7 @@ Environment-aware behavior:
 - Non-production (`env != prod`): no eager preload, lazy/on-demand materialization only.
 - If DynamoDB is empty, request still works via Athena/source assembly.
 - First request for an EIN may be slower; repeat requests are faster via DynamoDB hit path.
+- Read-through GETs bypass stale cached profiles when the stored `model_version` lags the current scoring model version.
 
 ## Materialization Refresh (Phase D2)
 

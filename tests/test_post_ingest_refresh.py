@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from charity_status.serving.post_ingest_refresh import PostIngestRefreshConfig, refresh_from_ingest_output
+from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
 
 
 class InMemoryStore:
@@ -23,12 +24,12 @@ def _payload(score: int = 80, decision_status: str = "approve", eligibility: str
         "organization": {"ein": "12-3456789", "name": "Org"},
         "verification": {"irs_status": "active", "recent_990_on_file": True},
         "scores": {"overall": score},
-        "score_explanation": {"model_version": "2.0.0", "score_data_sources": ["eo_bmf"], "eligibility": eligibility, "factors": {"stale_filing_days": 100}},
+        "score_explanation": {"model_version": SCORING_MODEL_VERSION, "score_data_sources": ["eo_bmf"], "eligibility": eligibility, "factors": {"stale_filing_days": 100}},
         "filing_summary": {"tax_year": "2024"},
         "enrichment": {"providers": [], "failures": []},
         "decision": {"status": decision_status, "risk_flags": []},
         "summary": {"decision_status": decision_status},
-        "audit": {"model_version": "2.0.0"},
+        "audit": {"model_version": SCORING_MODEL_VERSION},
         "state_compliance": {"registration_status": "active", "compliance_flags": []},
         "external_signals": {},
         "policy_evaluation": {"policy_id": "default", "final_recommendation": decision_status},

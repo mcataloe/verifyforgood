@@ -630,7 +630,7 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
     assert chunk_body["task_type"] == "filing_records"
     assert chunk_body["records"][0]["irs_object_id"] == "obj-1"
-    assert len(chunk_body["zip_sources"]) == 0
+    assert "zip_sources" not in chunk_body
 
 
 def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):

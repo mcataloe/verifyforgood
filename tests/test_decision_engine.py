@@ -1,4 +1,5 @@
 from infrastructure.charity_status.decision.engine import build_decision
+from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
 
 
 def _base_inputs():
@@ -6,7 +7,7 @@ def _base_inputs():
     verification = {"irs_status": "active", "tax_deductible": True, "recent_990_on_file": True}
     scores = {"overall": 82}
     score_explanation = {
-        "model_version": "2.0.0",
+        "model_version": SCORING_MODEL_VERSION,
         "score_data_sources": ["irs_eo_bmf_athena", "irs_form_990_xml"],
         "eligibility": "ELIGIBLE",
         "peer_benchmarking_used": True,
@@ -32,7 +33,7 @@ def test_decision_approve():
 
     assert decision["status"] == "approve"
     assert "irs_active" in decision["reasons"]
-    assert extras["audit"]["model_version"] == "2.0.0"
+    assert extras["audit"]["model_version"] == SCORING_MODEL_VERSION
     assert extras["summary"]["decision_status"] == "approve"
 
 

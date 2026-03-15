@@ -50,18 +50,30 @@ _NTEE_CATEGORY_MAP = {
 }
 
 
-def _clean(value: str | None) -> str | None:
+def _clean(value: object | None) -> str | None:
     if value is None:
         return None
-    cleaned = value.strip()
+    cleaned = str(value).strip()
     return cleaned if cleaned else None
 
 
-def map_irs_status(value: str | None) -> str:
+def _normalize_code(value: object | None) -> str | None:
     cleaned = _clean(value)
     if not cleaned:
-        return "unknown"
+        return None
+
     normalized = cleaned.lower()
+    if normalized.isdigit():
+        return str(int(normalized))
+    if normalized.endswith(".0") and normalized[:-2].isdigit():
+        return str(int(normalized[:-2]))
+    return normalized
+
+
+def map_irs_status(value: object | None) -> str:
+    normalized = _normalize_code(value)
+    if not normalized:
+        return "unknown"
     if normalized in _STATUS_ACTIVE:
         return "active"
     if normalized in _STATUS_INACTIVE:
@@ -69,11 +81,10 @@ def map_irs_status(value: str | None) -> str:
     return "unknown"
 
 
-def map_deductibility(value: str | None) -> bool | None:
-    cleaned = _clean(value)
-    if not cleaned:
+def map_deductibility(value: object | None) -> bool | None:
+    normalized = _normalize_code(value)
+    if not normalized:
         return None
-    normalized = cleaned.lower()
     if normalized in _DEDUCTIBILITY_TRUE:
         return True
     if normalized in _DEDUCTIBILITY_FALSE:
@@ -81,14 +92,14 @@ def map_deductibility(value: str | None) -> bool | None:
     return None
 
 
-def map_entity_type(subsection: str | None) -> str | None:
+def map_entity_type(subsection: object | None) -> str | None:
     cleaned = _clean(subsection)
     if not cleaned:
         return None
     return _SUBSECTION_MAP.get(cleaned, cleaned)
 
 
-def map_ntee_category(ntee_cd: str | None) -> str | None:
+def map_ntee_category(ntee_cd: object | None) -> str | None:
     cleaned = _clean(ntee_cd)
     if not cleaned:
         return None
@@ -96,7 +107,7 @@ def map_ntee_category(ntee_cd: str | None) -> str | None:
     return _NTEE_CATEGORY_MAP.get(prefix, cleaned)
 
 
-def recent_990_on_file(tax_period: str | None, years_back: int = 3) -> bool | None:
+def recent_990_on_file(tax_period: object | None, years_back: int = 3) -> bool | None:
     cleaned = _clean(tax_period)
     if not cleaned:
         return None

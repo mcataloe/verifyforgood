@@ -285,8 +285,6 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         run_id=prepared["run_id"],
         csv_sources=csv_sources,
     )
-    selected = [_record_to_dict(item) for item in reconciliation.selected_records]
-    zip_sources = select_zip_sources_for_records(selected, downloaded_state)
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
@@ -295,43 +293,45 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     bucket = OPS_METADATA_BUCKET or BUCKET or ""
     prefix = OPS_METADATA_PREFIX.strip("/") or "ops"
     chunks = []
-    for idx in range(0, len(selected), chunk_size):
-        chunk = selected[idx : idx + chunk_size]
-        if not chunk:
+    chunk: list[dict[str, Any]] = []
+    chunk_index = 0
+    for record in reconciliation.selected_records:
+        chunk.append(_record_to_dict(record))
+        if len(chunk) < chunk_size:
             continue
-        chunk_index = idx // chunk_size
-        chunk_id = f"{run_id}-{chunk_index:05d}"
-        chunk_key = f"{prefix}/form990-runs/{run_id}/chunks/{chunk_id}.json"
-        chunk_payload = {
-            "run_id": run_id,
-            "chunk_id": chunk_id,
-            "chunk_index": chunk_index,
-            "task_type": "filing_records",
-            "stage": "zip_extraction",
-            "records": chunk,
-            "zip_sources": zip_sources,
-            "mode": prepared["mode"],
-            "source_mode": prepared["source_mode"],
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        service.s3.put_object(Bucket=bucket, Key=chunk_key, Body=json.dumps(chunk_payload, sort_keys=True).encode("utf-8"))
-        queue.send_message(
-            QueueUrl=FORM990_WORK_QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "run_id": run_id,
-                    "chunk_id": chunk_id,
-                    "chunk_index": chunk_index,
-                    "chunk_s3_bucket": bucket,
-                    "chunk_s3_key": chunk_key,
-                    "attempt": 1,
-                },
-                sort_keys=True,
-            ),
+        chunks.append(
+            _queue_filing_records_chunk(
+                service=service,
+                queue=queue,
+                bucket=bucket,
+                prefix=prefix,
+                run_id=run_id,
+                chunk_index=chunk_index,
+                records=chunk,
+                mode=prepared["mode"],
+                source_mode=prepared["source_mode"],
+            )
         )
-        chunks.append({"chunk_id": chunk_id, "chunk_index": chunk_index, "record_count": len(chunk), "chunk_s3_key": chunk_key})
+        chunk = []
+        chunk_index += 1
+    if chunk:
+        chunks.append(
+            _queue_filing_records_chunk(
+                service=service,
+                queue=queue,
+                bucket=bucket,
+                prefix=prefix,
+                run_id=run_id,
+                chunk_index=chunk_index,
+                records=chunk,
+                mode=prepared["mode"],
+                source_mode=prepared["source_mode"],
+            )
+        )
 
     run_store = S3RunStore(bucket=bucket, prefix=prefix, s3_client=service.s3)
+    selected_count = len(reconciliation.selected_records)
+    zip_source_count = _count_zip_sources_for_records(reconciliation.selected_records, downloaded_state)
     run_summary = {
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
@@ -356,8 +356,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_changed": reconciliation.changed_count,
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
-        "selected_records": len(selected),
-        "zip_source_count": len(zip_sources),
+        "selected_records": selected_count,
+        "zip_source_count": zip_source_count,
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "chunk_status_counts": {"queued": len(chunks), "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
@@ -387,7 +387,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
             "stage": "zip_extraction",
             "status": "queued" if chunks else "success",
             "chunk_count": len(chunks),
-            "selected_records": len(selected),
+            "selected_records": selected_count,
             "filing_state_key": reconciliation.state_key,
         },
     )
@@ -415,8 +415,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_changed": reconciliation.changed_count,
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
-        "selected_records": len(selected),
-        "zip_source_count": len(zip_sources),
+        "selected_records": selected_count,
+        "zip_source_count": zip_source_count,
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
@@ -432,6 +432,49 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "next_stage": "normalized_parsing",
         "next_stage_implemented": True,
     }
+
+
+def _queue_filing_records_chunk(
+    *,
+    service: Form990IngestService,
+    queue: Any,
+    bucket: str,
+    prefix: str,
+    run_id: str,
+    chunk_index: int,
+    records: list[dict[str, Any]],
+    mode: str,
+    source_mode: str,
+) -> dict[str, Any]:
+    chunk_id = f"{run_id}-{chunk_index:05d}"
+    chunk_key = f"{prefix}/form990-runs/{run_id}/chunks/{chunk_id}.json"
+    chunk_payload = {
+        "run_id": run_id,
+        "chunk_id": chunk_id,
+        "chunk_index": chunk_index,
+        "task_type": "filing_records",
+        "stage": "zip_extraction",
+        "records": records,
+        "mode": mode,
+        "source_mode": source_mode,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    service.s3.put_object(Bucket=bucket, Key=chunk_key, Body=json.dumps(chunk_payload, sort_keys=True).encode("utf-8"))
+    queue.send_message(
+        QueueUrl=FORM990_WORK_QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "run_id": run_id,
+                "chunk_id": chunk_id,
+                "chunk_index": chunk_index,
+                "chunk_s3_bucket": bucket,
+                "chunk_s3_key": chunk_key,
+                "attempt": 1,
+            },
+            sort_keys=True,
+        ),
+    )
+    return {"chunk_id": chunk_id, "chunk_index": chunk_index, "record_count": len(records), "chunk_s3_key": chunk_key}
 
 
 def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -842,6 +885,24 @@ def _record_to_dict(record: Any) -> dict[str, Any]:
         "source_archive": record.source_archive,
         "source_signature": record.source_signature,
     }
+
+
+def _count_zip_sources_for_records(records: tuple[Any, ...], downloaded_source_state: list[dict[str, Any]]) -> int:
+    source_years = {
+        str(record.source_year or "").strip()
+        for record in records
+        if str(record.source_year or "").strip()
+    }
+    return len(
+        [
+            entry
+            for entry in downloaded_source_state
+            if isinstance(entry, dict)
+            and str(entry.get("source_kind") or "").strip() == "zip_archive"
+            and entry.get("raw_source_s3_key")
+            and str(entry.get("source_year") or "").strip() in source_years
+        ]
+    )
 
 
 def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, Any], selected_records: list[dict[str, Any]]) -> None:

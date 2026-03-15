@@ -43,3 +43,20 @@ def test_map_nonprofit_record_unknown_codes_fallback():
     assert payload["verification"]["entity_type"] == "77"
     assert payload["verification"]["ntee_category"] == "International and Foreign Affairs"
     assert payload["verification"]["recent_990_on_file"] is None
+
+
+def test_map_nonprofit_record_accepts_padded_numeric_status_codes():
+    row = {
+        "name": "Padded Status Org",
+        "state": "DC",
+        "status": "01",
+        "deductibility": "01",
+        "subsection": "03",
+        "ntee_cd": "P20",
+        "tax_period": "202412",
+    }
+
+    payload = map_nonprofit_record("123456789", row).to_dict()
+
+    assert payload["verification"]["irs_status"] == "active"
+    assert payload["verification"]["tax_deductible"] is True

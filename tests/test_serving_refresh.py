@@ -5,6 +5,7 @@ from typing import Any
 from charity_status.serving.change_events import build_change_event
 from charity_status.serving.compare import compare_materialized_items
 from charity_status.serving.refresh import RefreshConfig, refresh_materialized_profiles
+from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
 import pytest
 
 
@@ -55,7 +56,7 @@ def test_existing_item_unchanged_skip_write():
     config = RefreshConfig(environment="dev", mode="refresh_changed")
 
     def build(ein: str) -> dict[str, Any]:
-        return _payload(model_version="2.0.0", score=91)
+        return _payload(model_version=SCORING_MODEL_VERSION, score=91)
 
     refresh_materialized_profiles(config, ["123456789"], store, build)
     result = refresh_materialized_profiles(config, ["123456789"], store, build)
@@ -83,7 +84,7 @@ def test_changed_model_version_updates_write():
     config = RefreshConfig(environment="dev", mode="refresh_changed")
 
     refresh_materialized_profiles(config, ["123456789"], store, lambda ein: _payload(model_version="1.0.0"))
-    result = refresh_materialized_profiles(config, ["123456789"], store, lambda ein: _payload(model_version="2.0.0"))
+    result = refresh_materialized_profiles(config, ["123456789"], store, lambda ein: _payload(model_version=SCORING_MODEL_VERSION))
 
     assert result["written"] == 1
     assert result["updated"] == 1
@@ -150,7 +151,7 @@ def test_nonprod_default_avoids_bulk_source_detection():
 def test_compare_changed_hash_and_model_paths():
     existing = {"source_hash": "abc", "model_version": "1.0.0"}
     assert compare_materialized_items(existing, {"source_hash": "xyz", "model_version": "1.0.0"}).reason == "source_hash_changed"
-    assert compare_materialized_items(existing, {"source_hash": "abc", "model_version": "2.0.0"}).reason == "model_version_changed"
+    assert compare_materialized_items(existing, {"source_hash": "abc", "model_version": SCORING_MODEL_VERSION}).reason == "model_version_changed"
 
 
 def test_change_event_unchanged_record_returns_none():

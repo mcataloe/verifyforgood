@@ -1,4 +1,4 @@
-from infrastructure.charity_status.scoring.calculator import calculate_v1_scores
+from infrastructure.charity_status.scoring.calculator import SCORING_MODEL_VERSION, calculate_v1_scores
 import pytest
 
 
@@ -57,7 +57,7 @@ def test_v2_scores_with_990_and_peer_benchmarking():
         peer_stats=peer_stats,
     )
 
-    assert result.explanation["model_version"] == "2.0.0"
+    assert result.explanation["model_version"] == SCORING_MODEL_VERSION
     assert result.explanation["peer_benchmarking_used"] is True
     assert result.explanation["peer_group_size"] == 120
     assert "program_expense_ratio" in result.explanation["benchmarked_metrics"]
