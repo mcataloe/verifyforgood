@@ -895,6 +895,53 @@ Response fields:
   - `status` (`available` or `unavailable`)
   - `source`
 
+### `GET /organizations/integrations`
+
+Returns the current organization-level third-party integration settings for the authenticated workspace/account context.
+
+Response fields:
+
+- `workspace_id`
+- `account_id`
+- `source` (`default` or `stored`)
+- `updated_at` (when settings were previously persisted)
+- `integrations.candid.enabled`
+- `integrations.candid.requiredForEvaluation`
+- `integrations.charityNavigator.enabled`
+- `integrations.charityNavigator.requiredForEvaluation`
+
+Organizations without persisted settings return backward-compatible defaults:
+
+- `enabled=false`
+- `requiredForEvaluation=false`
+
+### `PUT /organizations/integrations`
+
+Updates organization-level third-party integration settings for the authenticated workspace/account context.
+
+Request body:
+
+```json
+{
+  "integrations": {
+    "candid": {
+      "enabled": true,
+      "requiredForEvaluation": false
+    },
+    "charityNavigator": {
+      "enabled": false,
+      "requiredForEvaluation": false
+    }
+  }
+}
+```
+
+Validation:
+
+- `requiredForEvaluation=true` with `enabled=false` returns `400`; the API does not silently enable the integration
+- unsupported integration ids return `400`
+- omitted integrations preserve their current values; unspecified organizations continue to default to disabled/not required
+
 ## Operational Endpoints (Phase 10F)
 
 Operational diagnostics are exposed on a separate read-only surface under `/ops/*`:

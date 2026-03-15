@@ -12,6 +12,7 @@ locals {
   source_data_bucket_name                 = "${var.base_name}-irs-source-data-bucket"
   athena_results_bucket_name              = "${var.base_name}-athena-results"
   profile_table_name                      = "${var.base_name}-${var.environment}-profiles"
+  organization_settings_table_name        = "${var.base_name}-${var.environment}-organization-settings"
   glue_database_name                      = "${var.base_name}_irs_db"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
@@ -305,6 +306,36 @@ resource "aws_dynamodb_table" "profiles" {
   attribute {
     name = "sk"
     type = "S"
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_dynamodb_table" "organization_settings" {
+  name         = local.organization_settings_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "account_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "account_lookup"
+    hash_key        = "account_id"
+    projection_type = "ALL"
   }
 
   tags = local.common_tags

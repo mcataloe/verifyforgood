@@ -44,11 +44,16 @@ resource "aws_iam_role_policy" "lambda_data_access" {
       {
         Action = [
           "dynamodb:GetItem",
+          "dynamodb:Query",
           "dynamodb:PutItem",
           "dynamodb:UpdateItem"
         ]
-        Effect   = "Allow"
-        Resource = aws_dynamodb_table.profiles.arn
+        Effect = "Allow"
+        Resource = [
+          aws_dynamodb_table.profiles.arn,
+          aws_dynamodb_table.organization_settings.arn,
+          "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
+        ]
       }
     ]
   })

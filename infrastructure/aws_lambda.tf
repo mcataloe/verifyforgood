@@ -158,6 +158,7 @@ resource "aws_lambda_function" "query" {
       OAUTH_TOKEN_RECORDS_JSON                         = var.oauth_token_records_json
       ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
       TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
+      ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     }

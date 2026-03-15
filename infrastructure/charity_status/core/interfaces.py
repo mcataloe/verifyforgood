@@ -46,3 +46,11 @@ class QuotaMeteringHook(Protocol):
 
     def on_response(self, auth_context: AuthContext, route_key: str, status_code: int) -> None:
         ...
+
+
+class OrganizationIntegrationSettingsStoreAdapter(Protocol):
+    def get_settings(self, *, workspace_id: str | None, account_id: str | None) -> dict[str, Any] | None:
+        ...
+
+    def put_settings(self, item: dict[str, Any]) -> None:
+        ...

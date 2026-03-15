@@ -4,6 +4,8 @@ import sys
 from decimal import Decimal
 from types import SimpleNamespace
 
+from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+
 
 def _load_module():
     sys.modules.pop("infrastructure.lambda_query", None)
@@ -282,6 +284,124 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
     assert result["statusCode"] == 200
     assert body["integration_evaluation"]["required_unmet_integrations"] == ["candid"]
     assert body["decision"]["status"] == "manual_review"
+
+
+def test_get_organization_integrations_returns_current_settings():
+    module = _load_module()
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore(
+        [
+            {
+                "workspace_id": "ws_1",
+                "account_id": "acct_1",
+                "integrations": {
+                    "candid": {"enabled": True, "requiredForEvaluation": False},
+                },
+            }
+        ]
+    )
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(subject="tenant", scopes=("verify:read",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {"httpMethod": "GET", "resource": "/organizations/integrations", "path": "/organizations/integrations", "headers": {}}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["workspace_id"] == "ws_1"
+    assert body["integrations"]["candid"]["enabled"] is True
+    assert body["integrations"]["charityNavigator"]["enabled"] is False
+
+
+def test_put_organization_integrations_updates_settings():
+    module = _load_module()
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {
+        "httpMethod": "PUT",
+        "resource": "/organizations/integrations",
+        "path": "/organizations/integrations",
+        "headers": {},
+        "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": True}}}),
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["source"] == "stored"
+    assert body["integrations"]["candid"]["requiredForEvaluation"] is True
+
+    fetched = module.organization_integration_settings_store.get_settings(workspace_id="ws_1", account_id="acct_1")
+    assert fetched["integrations"]["candid"]["enabled"] is True
+
+
+def test_put_organization_integrations_rejects_required_disabled():
+    module = _load_module()
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {
+        "httpMethod": "PUT",
+        "resource": "/organizations/integrations",
+        "path": "/organizations/integrations",
+        "headers": {},
+        "body": json.dumps({"integrations": {"candid": {"enabled": False, "requiredForEvaluation": True}}}),
+    }
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 400
+    assert "requiredForEvaluation" in body["message"]
 
 
 def test_post_verify_batch_all_success():

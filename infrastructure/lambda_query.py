@@ -10,8 +10,15 @@ import boto3
 from charity_status.api import error_response, json_response
 from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
-from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
-from charity_status.enrichments import EvaluationContext, OrganizationIntegrationSettingsResolver, load_organization_integration_settings
+from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
+from charity_status.enrichments import (
+    DynamoOrganizationIntegrationSettingsStore,
+    EvaluationContext,
+    OrganizationIntegrationSettingsResolver,
+    OrganizationIntegrationSettingsService,
+    OrganizationIntegrationSettingsValidationError,
+    load_organization_integration_settings,
+)
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.platform import (
@@ -74,6 +81,7 @@ FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
 PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
+ORGANIZATION_SETTINGS_TABLE_NAME = os.environ.get("ORGANIZATION_SETTINGS_TABLE_NAME", "").strip()
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = _env_bool("SERVING_DDB_ENABLED")
 BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
@@ -98,6 +106,8 @@ quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: InMemoryUsageStore | None = None
 ops_run_store: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
+organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
+organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -206,6 +216,15 @@ def _get_ops_run_store() -> Any | None:
     return ops_run_store
 
 
+def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
+    global organization_integration_settings_store
+    if not ORGANIZATION_SETTINGS_TABLE_NAME:
+        return None
+    if organization_integration_settings_store is None:
+        organization_integration_settings_store = DynamoOrganizationIntegrationSettingsStore(table_name=ORGANIZATION_SETTINGS_TABLE_NAME)
+    return organization_integration_settings_store
+
+
 def _get_tenant_integration_settings_resolver() -> OrganizationIntegrationSettingsResolver:
     global tenant_integration_settings_resolver
     if tenant_integration_settings_resolver is None:
@@ -216,8 +235,18 @@ def _get_tenant_integration_settings_resolver() -> OrganizationIntegrationSettin
     return tenant_integration_settings_resolver
 
 
+def _get_organization_integration_settings_service() -> OrganizationIntegrationSettingsService:
+    global organization_integration_settings_service
+    if organization_integration_settings_service is None:
+        organization_integration_settings_service = OrganizationIntegrationSettingsService(
+            fallback_resolver=_get_tenant_integration_settings_resolver(),
+            store=_get_organization_integration_settings_store(),
+        )
+    return organization_integration_settings_service
+
+
 def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
-    return _get_tenant_integration_settings_resolver().resolve(
+    return _get_organization_integration_settings_service().resolve_context(
         workspace_id=getattr(auth_context, "workspace_id", None),
         account_id=getattr(auth_context, "account_id", None),
     )
@@ -250,6 +279,15 @@ def handler(event, context):
                 auth_context.metadata["batch_items_count"] = str(total)
         except Exception:
             pass
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_integrations_request(event, method):
+        try:
+            response = _handle_organization_integrations_request(event, auth_context)
+        except OrganizationIntegrationSettingsValidationError as exc:
+            response = error_response(400, str(exc))
+        except AuthorizationError as exc:
+            response = error_response(exc.status_code, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
 
@@ -365,6 +403,14 @@ def handler(event, context):
         response = error_response(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
         return response
+    except AuthorizationError as exc:
+        response = error_response(exc.status_code, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, exc.status_code)
+        return response
+    except OrganizationIntegrationSettingsValidationError as exc:
+        response = error_response(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
     except AthenaQueryTimeout as exc:
         response = json_response(504, {"message": str(exc)})
         _get_quota_metering_hook().on_response(auth_context, route_key, 504)
@@ -465,6 +511,39 @@ def _is_ops_request(event: dict, method: str) -> bool:
     return resource.startswith("/ops/") or path.startswith("/ops/")
 
 
+def _is_organization_integrations_request(event: dict, method: str) -> bool:
+    if method not in {"GET", "PUT"}:
+        return False
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return resource.endswith("/organizations/integrations") or path.endswith("/organizations/integrations")
+
+
+def _handle_organization_integrations_request(event: dict, auth_context: Any) -> dict[str, Any]:
+    workspace_id, account_id = _require_organization_context(auth_context)
+    service = _get_organization_integration_settings_service()
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method == "GET":
+        document = service.get_settings(workspace_id=workspace_id, account_id=account_id)
+        return json_response(200, document.to_dict())
+
+    body = event.get("body")
+    if not body:
+        return error_response(400, "Request body is required")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return error_response(400, "Request body must be valid JSON")
+    if not isinstance(payload, dict):
+        return error_response(400, "Request body must be a JSON object")
+    document = service.update_settings(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        payload=payload,
+    )
+    return json_response(200, document.to_dict())
+
+
 def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
     run_store = _get_ops_run_store()
     if run_store is None:
@@ -537,6 +616,14 @@ def _extract_source_name(event: dict) -> str:
     if marker in path:
         return path.split(marker, 1)[1].strip("/")
     raise ValueError("source_name is required")
+
+
+def _require_organization_context(auth_context: Any) -> tuple[str | None, str | None]:
+    workspace_id = getattr(auth_context, "workspace_id", None)
+    account_id = getattr(auth_context, "account_id", None)
+    if not workspace_id and not account_id:
+        raise AuthorizationError("Organization settings endpoints require authenticated workspace or account context")
+    return workspace_id, account_id
 
 
 def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:

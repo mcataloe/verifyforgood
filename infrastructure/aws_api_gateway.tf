@@ -79,6 +79,18 @@ resource "aws_api_gateway_resource" "verify_batch" {
   path_part   = "batch"
 }
 
+resource "aws_api_gateway_resource" "organizations" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  path_part   = "organizations"
+}
+
+resource "aws_api_gateway_resource" "organizations_integrations" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.organizations.id
+  path_part   = "integrations"
+}
+
 resource "aws_api_gateway_resource" "ops" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
@@ -289,6 +301,20 @@ resource "aws_api_gateway_method" "post_verify_batch" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_organizations_integrations" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.organizations_integrations.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "put_organizations_integrations" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.organizations_integrations.id
+  http_method   = "PUT"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "get_ops_ingest_runs" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.ops_ingest_runs.id
@@ -342,6 +368,24 @@ resource "aws_api_gateway_integration" "lambda_verify_batch_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.verify_batch.id
   http_method             = aws_api_gateway_method.post_verify_batch.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_organizations_integrations_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.organizations_integrations.id
+  http_method             = aws_api_gateway_method.get_organizations_integrations.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_put_organizations_integrations_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.organizations_integrations.id
+  http_method             = aws_api_gateway_method.put_organizations_integrations.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -426,6 +470,8 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_filings_integration,
     aws_api_gateway_integration.lambda_verify_integration,
     aws_api_gateway_integration.lambda_verify_batch_integration,
+    aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
+    aws_api_gateway_integration.lambda_put_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_nonprofits_search_integration,
     aws_api_gateway_integration.lambda_nonprofits_sources_integration,
     aws_api_gateway_integration.lambda_nonprofits_source_name_integration,

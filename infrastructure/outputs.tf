@@ -62,3 +62,8 @@ output "profiles_dynamodb_table_name" {
   description = "DynamoDB table for materialized nonprofit serving profiles."
   value       = aws_dynamodb_table.profiles.name
 }
+
+output "organization_settings_dynamodb_table_name" {
+  description = "DynamoDB table for organization-level integration settings."
+  value       = aws_dynamodb_table.organization_settings.name
+}
