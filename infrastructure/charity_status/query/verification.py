@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from charity_status.enrichments import EvaluationContext
 from charity_status.decision import build_decision
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
@@ -26,6 +27,7 @@ def verify_nonprofit(
     client: Any,
     verification_input: VerificationInput,
     enrichment_service: Any | None = None,
+    evaluation_context: EvaluationContext | None = None,
 ) -> tuple[int, dict[str, Any]]:
     query_execution_id, record = client.lookup_nonprofit(verification_input.ein, subsection=verification_input.subsection)
 
@@ -63,14 +65,6 @@ def verify_nonprofit(
     payload["score_explanation"] = score_result.explanation
     payload["name_verification"] = name_check
     payload["queryExecutionId"] = query_execution_id
-    if enrichment_service is not None:
-        enrichment = enrichment_service.enrich(
-            ein=verification_input.ein,
-            organization_name=mapped.organization.get("name"),
-        )
-        payload["enrichment"] = enrichment.to_dict()
-    else:
-        payload["enrichment"] = {"providers": [], "failures": []}
     if filings:
         payload["filing_summary"] = {
             "tax_year": filings.get("tax_year"),
@@ -79,34 +73,13 @@ def verify_nonprofit(
             "amended": _to_bool(filings.get("amended_return")),
             "parse_status": filings.get("parse_status"),
         }
-    payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
-    payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
-
-    decision, extras = build_decision(
-        organization=payload["organization"],
-        verification=payload["verification"],
-        scores=payload["scores"],
-        score_explanation=payload["score_explanation"],
-        name_verification=payload["name_verification"],
-        filing_summary=payload.get("filing_summary"),
-        enrichment=payload.get("enrichment"),
-        state_compliance=payload.get("state_compliance"),
-        external_signals=payload.get("external_signals"),
+    payload = apply_evaluation_overlay(
+        payload=payload,
+        policy_id=verification_input.policy_id,
+        enrichment_service=enrichment_service,
+        evaluation_context=evaluation_context,
+        ein=verification_input.ein,
     )
-    payload["decision"] = decision
-    payload["audit"] = extras["audit"]
-    payload["summary"] = extras["summary"]
-    payload["evidence"] = build_evidence(
-        verification=payload["verification"],
-        scores=payload["scores"],
-        score_explanation=payload["score_explanation"],
-        decision=payload["decision"],
-        enrichment=payload.get("enrichment"),
-        state_compliance=payload.get("state_compliance"),
-        external_signals=payload.get("external_signals"),
-    )
-    payload["policy_evaluation"] = evaluate_policy(payload, verification_input.policy_id)
-    payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]
     return 200, payload
 
 
@@ -147,3 +120,174 @@ def _to_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def apply_evaluation_overlay(
+    *,
+    payload: dict[str, Any],
+    policy_id: str | None,
+    enrichment_service: Any | None,
+    evaluation_context: EvaluationContext | None = None,
+    ein: str | None = None,
+) -> dict[str, Any]:
+    context = evaluation_context or EvaluationContext()
+    organization_name = ((payload.get("organization") or {}).get("name"))
+    subject_ein = str(ein or (payload.get("organization") or {}).get("ein") or "")
+    existing_state_compliance = payload.get("state_compliance") or {}
+    existing_external_signals = payload.get("external_signals") or {}
+
+    if enrichment_service is not None and subject_ein:
+        enrichment = _enrich_payload(
+            enrichment_service=enrichment_service,
+            ein=subject_ein,
+            organization_name=organization_name,
+            evaluation_context=context,
+        )
+    else:
+        enrichment = {"providers": [], "failures": [], "integration_evaluation": _default_integration_evaluation(context)}
+
+    payload["enrichment"] = enrichment
+    payload["integration_evaluation"] = enrichment.get("integration_evaluation") or _legacy_integration_evaluation(enrichment, context)
+    if (
+        not (payload["integration_evaluation"].get("attempted_integrations") or [])
+        and not context.has_non_default_integrations()
+        and (existing_state_compliance or existing_external_signals)
+    ):
+        payload["state_compliance"] = existing_state_compliance
+        payload["external_signals"] = existing_external_signals
+    else:
+        payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
+        payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
+
+    decision, extras = build_decision(
+        organization=payload["organization"],
+        verification=payload["verification"],
+        scores=payload["scores"],
+        score_explanation=payload["score_explanation"],
+        name_verification=payload.get("name_verification") or {},
+        filing_summary=payload.get("filing_summary"),
+        enrichment=payload.get("enrichment"),
+        state_compliance=payload.get("state_compliance"),
+        external_signals=payload.get("external_signals"),
+        integration_evaluation=payload.get("integration_evaluation"),
+    )
+    payload["decision"] = decision
+    payload["audit"] = extras["audit"]
+    payload["summary"] = extras["summary"]
+    payload["evidence"] = build_evidence(
+        verification=payload["verification"],
+        scores=payload["scores"],
+        score_explanation=payload["score_explanation"],
+        decision=payload["decision"],
+        enrichment=payload.get("enrichment"),
+        state_compliance=payload.get("state_compliance"),
+        external_signals=payload.get("external_signals"),
+        integration_evaluation=payload.get("integration_evaluation"),
+    )
+    payload["policy_evaluation"] = evaluate_policy(payload, policy_id)
+    payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]
+    return payload
+
+
+def _default_integration_evaluation(context: EvaluationContext) -> dict[str, Any]:
+    integrations = []
+    required_unmet = []
+    for integration_id in context.integration_ids():
+        setting = context.setting_for(integration_id)
+        state = {
+            "integration_id": integration_id,
+            "offered": False,
+            "credentials_present": False,
+            "tenant_enabled": setting.enabled,
+            "required_for_eligibility": setting.required_for_eligibility,
+            "attempted": False,
+            "availability_status": "not_offered",
+            "requirement_status": "unmet" if setting.required_for_eligibility else "not_required",
+            "driver": "none",
+        }
+        integrations.append(state)
+        if setting.required_for_eligibility:
+            required_unmet.append(integration_id)
+    return {
+        "integrations": integrations,
+        "attempted_integrations": [],
+        "used_integrations": [],
+        "required_unmet_integrations": required_unmet,
+        "failure_integrations": [],
+    }
+
+
+def _legacy_integration_evaluation(enrichment: dict[str, Any], context: EvaluationContext) -> dict[str, Any]:
+    providers = enrichment.get("providers") or []
+    failures = enrichment.get("failures") or []
+    integrations = []
+    attempted = []
+    used = []
+    failure_integrations = []
+
+    for provider in providers:
+        integration_id = _provider_integration_id(provider)
+        status = str(provider.get("status") or "")
+        attempted.append(integration_id)
+        if status == "matched":
+            used.append(integration_id)
+        if status == "failed":
+            failure_integrations.append(integration_id)
+        integrations.append(
+            {
+                "integration_id": integration_id,
+                "offered": True,
+                "credentials_present": status != "disabled",
+                "tenant_enabled": True,
+                "required_for_eligibility": False,
+                "attempted": status != "disabled",
+                "availability_status": status or "unknown",
+                "requirement_status": "not_required",
+                "driver": _provider_driver(provider),
+                "provider_name": provider.get("name"),
+                "error": provider.get("error"),
+            }
+        )
+
+    if providers:
+        return {
+            "integrations": integrations,
+            "attempted_integrations": sorted(set(attempted)),
+            "used_integrations": sorted(set(used)),
+            "required_unmet_integrations": [],
+            "failure_integrations": sorted(set(failure_integrations)),
+        }
+    return _default_integration_evaluation(context)
+
+
+def _enrich_payload(
+    *,
+    enrichment_service: Any,
+    ein: str,
+    organization_name: str | None,
+    evaluation_context: EvaluationContext,
+) -> dict[str, Any]:
+    try:
+        result = enrichment_service.enrich(
+            ein=ein,
+            organization_name=organization_name,
+            evaluation_context=evaluation_context,
+        )
+    except TypeError:
+        result = enrichment_service.enrich(ein=ein, organization_name=organization_name)
+    return result.to_dict()
+
+
+def _provider_integration_id(provider: dict[str, Any]) -> str:
+    name = str(provider.get("integration_id") or provider.get("name") or "").strip()
+    if name.endswith("_mock"):
+        return name.removesuffix("_mock")
+    return name
+
+
+def _provider_driver(provider: dict[str, Any]) -> str:
+    driver = str(provider.get("driver") or "").strip()
+    if driver:
+        return driver
+    name = str(provider.get("name") or "")
+    return "mock" if name.endswith("_mock") or name == "mock_provider" else "live"

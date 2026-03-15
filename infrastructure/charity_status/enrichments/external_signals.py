@@ -26,23 +26,23 @@ def extract_external_signals(enrichment: dict[str, Any] | None) -> dict[str, Any
         },
     }
     for provider in providers:
-        name = str(provider.get("name") or "")
+        name = str(provider.get("integration_id") or provider.get("name") or "")
         fields = provider.get("fields") or {}
-        if name in {"state_business", "state_business_mock"} and fields:
+        if name == "state_business" and fields:
             signals["state_business"] = {
                 "entity_status": fields.get("entity_status"),
                 "good_standing": fields.get("good_standing"),
                 "compliance_flags": fields.get("compliance_flags") or [],
                 "source": name,
             }
-        elif name in {"usaspending", "usaspending_mock"} and fields:
+        elif name == "usaspending" and fields:
             signals["federal_awards"] = {
                 "award_count": fields.get("award_count"),
                 "total_obligations_usd": fields.get("total_obligations_usd"),
                 "latest_award_date": fields.get("latest_award_date"),
                 "source": name,
             }
-        elif name in {"ofac", "ofac_mock"} and fields:
+        elif name == "ofac" and fields:
             signals["sanctions"] = {
                 "sanctions_match": bool(fields.get("sanctions_match")),
                 "sanctions_lists": fields.get("sanctions_lists") or [],

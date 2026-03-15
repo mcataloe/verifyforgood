@@ -13,6 +13,7 @@ def build_decision(
     enrichment: dict[str, Any] | None,
     state_compliance: dict[str, Any] | None = None,
     external_signals: dict[str, Any] | None = None,
+    integration_evaluation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     reasons: list[str] = []
     risk_flags: list[str] = []
@@ -62,11 +63,20 @@ def build_decision(
     if confidence == "low":
         risk_flags.append("low_score_confidence")
 
+    integration_evaluation = integration_evaluation or {}
     enrichment_failures = (enrichment or {}).get("failures", [])
-    if enrichment_failures:
+    failure_integrations = integration_evaluation.get("failure_integrations") or []
+    required_unmet_integrations = integration_evaluation.get("required_unmet_integrations") or []
+    used_integrations = integration_evaluation.get("used_integrations") or []
+    attempted_integrations = integration_evaluation.get("attempted_integrations") or []
+    if failure_integrations or enrichment_failures:
         risk_flags.append("enrichment_provider_failures")
         manual_review_codes.append("provider_data_conflict_or_failure")
         manual_review_notes.append("One or more enrichment providers failed")
+    if required_unmet_integrations:
+        risk_flags.append("required_integration_unavailable")
+        manual_review_codes.append("required_integration_unavailable")
+        manual_review_notes.append("One or more required third-party integrations were unavailable or returned no match")
 
     compliance_flags = (state_compliance or {}).get("compliance_flags") or []
     registration_status = (state_compliance or {}).get("registration_status")
@@ -118,6 +128,9 @@ def build_decision(
         status = "manual_review"
         next_actions.append("request manual review")
         next_actions.append("obtain latest supporting documents")
+    elif required_unmet_integrations:
+        status = "manual_review"
+        next_actions.append("request manual review")
     elif manual_review_codes:
         status = "approve_with_review"
         next_actions.append("request manual review")
@@ -162,7 +175,10 @@ def build_decision(
         "peer_group": score_explanation.get("peer_group"),
         "peer_group_size": score_explanation.get("peer_group_size"),
         "weighting_profile": score_explanation.get("weighting_profile"),
-        "enrichments_used": bool((enrichment or {}).get("providers")),
+        "enrichments_used": bool(used_integrations),
+        "attempted_integrations": attempted_integrations,
+        "used_integrations": used_integrations,
+        "required_unmet_integrations": required_unmet_integrations,
         "decision_basis": {
             "eligibility": eligibility,
             "overall_score": overall,

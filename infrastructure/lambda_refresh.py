@@ -21,6 +21,21 @@ from charity_status.serving import (
 )
 from charity_status.serving.change_detection import normalize_mode, parse_explicit_eins
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() == "true"
+
+
+def _env_optional_bool(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.lower() == "true"
+
+
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
 WORKGROUP = os.environ.get("WORKGROUP")
@@ -29,22 +44,28 @@ FORM990_METRICS_TABLE = os.environ.get("FORM990_METRICS_TABLE", "form990_metrics
 FORM990_GOVERNANCE_TABLE = os.environ.get("FORM990_GOVERNANCE_TABLE", "form990_governance")
 FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality")
 
-ENRICHMENT_MOCK_ENABLED = os.environ.get("ENRICHMENT_MOCK_ENABLED", "false").lower() == "true"
-ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false").lower() == "true"
+ENRICHMENT_MOCK_OFFERED = _env_optional_bool("ENRICHMENT_MOCK_OFFERED")
+ENRICHMENT_MOCK_ENABLED = _env_bool("ENRICHMENT_MOCK_ENABLED")
+ENRICHMENT_CANDID_OFFERED = _env_optional_bool("ENRICHMENT_CANDID_OFFERED")
+ENRICHMENT_CANDID_ENABLED = _env_bool("ENRICHMENT_CANDID_ENABLED")
 ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
 ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
-ENRICHMENT_STATE_REGISTRY_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENABLED", "false").lower() == "true"
-ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_REGISTRY_OFFERED = _env_optional_bool("ENRICHMENT_STATE_REGISTRY_OFFERED")
+ENRICHMENT_STATE_REGISTRY_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_ENABLED")
+ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED")
 ENRICHMENT_STATE_REGISTRY_ENDPOINT = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT")
-ENRICHMENT_STATE_BUSINESS_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENABLED", "false").lower() == "true"
-ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_BUSINESS_OFFERED = _env_optional_bool("ENRICHMENT_STATE_BUSINESS_OFFERED")
+ENRICHMENT_STATE_BUSINESS_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_ENABLED")
+ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED")
 ENRICHMENT_STATE_BUSINESS_ENDPOINT = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT")
-ENRICHMENT_USASPENDING_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_ENABLED", "false").lower() == "true"
-ENRICHMENT_USASPENDING_MOCK_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_USASPENDING_OFFERED = _env_optional_bool("ENRICHMENT_USASPENDING_OFFERED")
+ENRICHMENT_USASPENDING_ENABLED = _env_bool("ENRICHMENT_USASPENDING_ENABLED")
+ENRICHMENT_USASPENDING_MOCK_ENABLED = _env_bool("ENRICHMENT_USASPENDING_MOCK_ENABLED")
 ENRICHMENT_USASPENDING_ENDPOINT = os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT")
-ENRICHMENT_OFAC_ENABLED = os.environ.get("ENRICHMENT_OFAC_ENABLED", "false").lower() == "true"
-ENRICHMENT_OFAC_MOCK_ENABLED = os.environ.get("ENRICHMENT_OFAC_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_OFAC_OFFERED = _env_optional_bool("ENRICHMENT_OFAC_OFFERED")
+ENRICHMENT_OFAC_ENABLED = _env_bool("ENRICHMENT_OFAC_ENABLED")
+ENRICHMENT_OFAC_MOCK_ENABLED = _env_bool("ENRICHMENT_OFAC_MOCK_ENABLED")
 ENRICHMENT_OFAC_ENDPOINT = os.environ.get("ENRICHMENT_OFAC_ENDPOINT")
 
 APP_ENV = os.environ.get("APP_ENV", "dev")
@@ -94,20 +115,26 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
                 form990_metrics_table=FORM990_METRICS_TABLE,
                 form990_governance_table=FORM990_GOVERNANCE_TABLE,
                 form990_quality_table=FORM990_QUALITY_TABLE,
+                enrichment_mock_offered=ENRICHMENT_MOCK_OFFERED,
                 enrichment_mock_enabled=ENRICHMENT_MOCK_ENABLED,
+                enrichment_candid_offered=ENRICHMENT_CANDID_OFFERED,
                 enrichment_candid_enabled=ENRICHMENT_CANDID_ENABLED,
                 enrichment_candid_api_key=ENRICHMENT_CANDID_API_KEY,
                 enrichment_candid_endpoint=ENRICHMENT_CANDID_ENDPOINT,
                 enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                enrichment_state_registry_offered=ENRICHMENT_STATE_REGISTRY_OFFERED,
                 enrichment_state_registry_enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
                 enrichment_state_registry_mock_enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED,
                 enrichment_state_registry_endpoint=ENRICHMENT_STATE_REGISTRY_ENDPOINT,
+                enrichment_state_business_offered=ENRICHMENT_STATE_BUSINESS_OFFERED,
                 enrichment_state_business_enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
                 enrichment_state_business_mock_enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED,
                 enrichment_state_business_endpoint=ENRICHMENT_STATE_BUSINESS_ENDPOINT,
+                enrichment_usaspending_offered=ENRICHMENT_USASPENDING_OFFERED,
                 enrichment_usaspending_enabled=ENRICHMENT_USASPENDING_ENABLED,
                 enrichment_usaspending_mock_enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED,
                 enrichment_usaspending_endpoint=ENRICHMENT_USASPENDING_ENDPOINT,
+                enrichment_ofac_offered=ENRICHMENT_OFAC_OFFERED,
                 enrichment_ofac_enabled=ENRICHMENT_OFAC_ENABLED,
                 enrichment_ofac_mock_enabled=ENRICHMENT_OFAC_MOCK_ENABLED,
                 enrichment_ofac_endpoint=ENRICHMENT_OFAC_ENDPOINT,

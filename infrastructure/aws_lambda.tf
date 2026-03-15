@@ -115,20 +115,26 @@ resource "aws_lambda_function" "query" {
       FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
       FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
       FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_OFFERED                = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
       ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_OFFERED              = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
       ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
       ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
       ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
       ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_OFFERED      = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
       ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
       ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
       ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_OFFERED      = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
       ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
       ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
       ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_OFFERED         = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
       ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
       ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
       ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_OFFERED                = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
       ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
       ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint
@@ -142,6 +148,7 @@ resource "aws_lambda_function" "query" {
       API_KEY_RECORDS_JSON                   = var.api_key_records_json
       OAUTH_M2M_ENABLED                      = tostring(var.oauth_m2m_enabled)
       OAUTH_TOKEN_RECORDS_JSON               = var.oauth_token_records_json
+      TENANT_INTEGRATION_SETTINGS_JSON       = var.tenant_integration_settings_json
       OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
     }
@@ -202,20 +209,26 @@ resource "aws_lambda_function" "refresh" {
       FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
       FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
       FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
+      ENRICHMENT_MOCK_OFFERED                = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
       ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_OFFERED              = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
       ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
       ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
       ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
       ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_OFFERED      = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
       ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
       ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
       ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_OFFERED      = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
       ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
       ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
       ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_OFFERED         = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
       ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
       ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
       ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_OFFERED                = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
       ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
       ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint

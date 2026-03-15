@@ -21,6 +21,7 @@ def extract_state_compliance(enrichment: dict[str, Any] | None) -> dict[str, Any
 
     for provider in providers:
         fields = provider.get("fields") or {}
+        integration_id = str(provider.get("integration_id") or provider.get("name") or "")
         if not isinstance(fields, dict):
             continue
         if not any(key in fields for key in COMPLIANCE_KEYS):
@@ -30,7 +31,7 @@ def extract_state_compliance(enrichment: dict[str, Any] | None) -> dict[str, Any
         all_flags.extend(normalized_flags)
         matches.append(
             {
-                "provider": provider.get("name"),
+                "provider": integration_id or provider.get("name"),
                 "registration_status": fields.get("registration_status"),
                 "registration_jurisdiction": fields.get("registration_jurisdiction"),
                 "registration_expiration_date": fields.get("registration_expiration_date"),

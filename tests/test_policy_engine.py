@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from charity_status.policy import evaluate_policy
+from charity_status.policy.engine import _match_condition
 
 
 def _base_payload() -> dict:
@@ -19,6 +20,13 @@ def _base_payload() -> dict:
             "manual_review": {"reason_codes": []},
         },
         "enrichment": {"providers": [], "failures": []},
+        "integration_evaluation": {
+            "integrations": [],
+            "attempted_integrations": [],
+            "used_integrations": [],
+            "required_unmet_integrations": [],
+            "failure_integrations": [],
+        },
     }
 
 
@@ -69,3 +77,17 @@ def test_named_policy_manual_review_when_compliance_flag_present():
     payload["state_compliance"]["compliance_flags"] = ["state_registration_expiring_soon"]
     result = evaluate_policy(payload, "strict_manual")
     assert result["final_recommendation"] == "manual_review"
+
+
+def test_policy_matches_required_integrations_missing_condition():
+    payload = _base_payload()
+    payload["integration_evaluation"]["required_unmet_integrations"] = ["candid"]
+    assert _match_condition("required_integrations_missing_gt", 0, payload) is True
+    assert _match_condition("required_integrations_missing_in", ["candid"], payload) is True
+
+
+def test_policy_condition_helper_supports_integration_failure_and_required_missing():
+    payload = _base_payload()
+    payload["integration_evaluation"]["required_unmet_integrations"] = ["candid"]
+    payload["integration_evaluation"]["failure_integrations"] = ["ofac"]
+    assert _match_condition("integration_failures_in", ["ofac"], payload) is True

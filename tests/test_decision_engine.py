@@ -78,3 +78,27 @@ def test_decision_enrichment_failure_flag():
 
     assert "enrichment_provider_failures" in decision["risk_flags"]
     assert extras["audit"]["enrichments_used"] is False
+
+
+def test_decision_manual_review_when_required_integrations_unmet():
+    args = list(_base_inputs())
+    decision, extras = build_decision(
+        *args,
+        integration_evaluation={
+            "integrations": [
+                {
+                    "integration_id": "candid",
+                    "required_for_eligibility": True,
+                    "availability_status": "not_offered",
+                }
+            ],
+            "attempted_integrations": [],
+            "used_integrations": [],
+            "required_unmet_integrations": ["candid"],
+            "failure_integrations": [],
+        },
+    )
+
+    assert decision["status"] == "manual_review"
+    assert "required_integration_unavailable" in decision["risk_flags"]
+    assert extras["audit"]["required_unmet_integrations"] == ["candid"]

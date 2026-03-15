@@ -14,6 +14,7 @@ def build_evidence(
     enrichment: dict[str, Any] | None,
     state_compliance: dict[str, Any] | None = None,
     external_signals: dict[str, Any] | None = None,
+    integration_evaluation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     factors: list[EvidenceFactor] = []
     sources: list[EvidenceSource] = []
@@ -32,6 +33,11 @@ def build_evidence(
     federal_awards = external.get("federal_awards") or {}
     enrichment_failures = enrichment_payload.get("failures", []) or []
     enrichment_providers = enrichment_payload.get("providers", []) or []
+    integration_payload = integration_evaluation or {}
+    integration_states = integration_payload.get("integrations", []) or []
+    attempted_integrations = set(str(item) for item in integration_payload.get("attempted_integrations", []) or [])
+    used_integrations = set(str(item) for item in integration_payload.get("used_integrations", []) or [])
+    required_unmet_integrations = integration_payload.get("required_unmet_integrations", []) or []
 
     factors.append(
         EvidenceFactor(
@@ -155,18 +161,41 @@ def build_evidence(
             message="External enrichment failures are tracked but do not break core scoring.",
         )
     )
+    factors.append(
+        EvidenceFactor(
+            key="required_integrations_missing",
+            category="enrichment",
+            polarity="warning" if required_unmet_integrations else "neutral",
+            severity="high" if required_unmet_integrations else "low",
+            value=len(required_unmet_integrations),
+            message="Required third-party integrations that were unavailable or returned no match.",
+        )
+    )
 
     source_set = set(str(source) for source in data_sources)
     sources.append(EvidenceSource(source="irs_eo_bmf_athena", used="irs_eo_bmf_athena" in source_set, detail="Core EO/BMF source"))
     sources.append(EvidenceSource(source="irs_form_990_xml", used="irs_form_990_xml" in source_set, detail="Form 990 derived enrichments"))
 
     for provider in enrichment_providers:
-        name = str(provider.get("provider") or provider.get("name") or "unknown_provider")
-        sources.append(EvidenceSource(source=f"enrichment:{name}", used=True))
+        name = str(provider.get("integration_id") or provider.get("name") or "unknown_provider")
+        sources.append(EvidenceSource(source=f"enrichment:{name}", used=name in used_integrations, detail=f"status={provider.get('status')}"))
 
     for failure in enrichment_failures:
-        name = str(failure.get("provider") or "unknown_provider")
+        name = str(failure.get("integration_id") or failure.get("provider") or "unknown_provider")
         sources.append(EvidenceSource(source=f"enrichment:{name}", used=False, detail="Provider failure"))
+    for state in integration_states:
+        integration_id = str(state.get("integration_id") or "")
+        if not integration_id or integration_id in attempted_integrations:
+            continue
+        if not state.get("tenant_enabled") and not state.get("required_for_eligibility"):
+            continue
+        sources.append(
+            EvidenceSource(
+                source=f"enrichment:{integration_id}",
+                used=False,
+                detail=f"status={state.get('availability_status')}",
+            )
+        )
     if compliance.get("source", {}).get("provider"):
         sources.append(EvidenceSource(source=f"state_compliance:{compliance['source']['provider']}", used=True))
     if sanctions.get("source"):
@@ -214,6 +243,14 @@ def build_evidence(
             passed=len(enrichment_failures) == 0,
             severity="low",
             detail=f"failures={len(enrichment_failures)}",
+        )
+    )
+    rule_results.append(
+        EvidenceRuleResult(
+            rule="required_integrations_satisfied",
+            passed=len(required_unmet_integrations) == 0,
+            severity="high",
+            detail=f"required_unmet={len(required_unmet_integrations)}",
         )
     )
     rule_results.append(

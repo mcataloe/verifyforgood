@@ -63,6 +63,7 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
     decision = payload.get("decision") or {}
     source_record = payload.get("source_record") or {}
     enrichment = payload.get("enrichment") or {}
+    integration_evaluation = payload.get("integration_evaluation") or {}
     state_compliance = payload.get("state_compliance") or {}
     external_signals = payload.get("external_signals") or {}
     risk_flags = set((decision.get("risk_flags") or []))
@@ -87,8 +88,23 @@ def _match_condition(key: str, expected: Any, payload: dict[str, Any]) -> bool:
         )
         return bool(actual) is bool(expected)
     if key == "enrichment_failures_gt":
-        failures = enrichment.get("failures") or []
-        return len(failures) > int(expected)
+        failures = integration_evaluation.get("failure_integrations") or []
+        if not failures:
+            failures = [
+                str(item.get("integration_id") or item.get("provider") or "")
+                for item in (enrichment.get("failures") or [])
+                if isinstance(item, dict)
+            ]
+        return len([item for item in failures if item]) > int(expected)
+    if key == "required_integrations_missing_gt":
+        missing = integration_evaluation.get("required_unmet_integrations") or []
+        return len(missing) > int(expected)
+    if key == "required_integrations_missing_in":
+        missing = set(str(item) for item in (integration_evaluation.get("required_unmet_integrations") or []))
+        return any(str(item) in missing for item in expected)
+    if key == "integration_failures_in":
+        failures = set(str(item) for item in (integration_evaluation.get("failure_integrations") or []))
+        return any(str(item) in failures for item in expected)
     if key == "state_in":
         return str(verification.get("state")) in set(str(v) for v in expected)
     if key == "subsection_in":

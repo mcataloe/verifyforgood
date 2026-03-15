@@ -20,6 +20,7 @@ class MaterializedProfile:
     source_data_versions: dict[str, Any]
     latest_filing: dict[str, Any] | None = None
     enrichment: dict[str, Any] | None = None
+    integration_evaluation: dict[str, Any] | None = None
     decision: dict[str, Any] | None = None
     summary: dict[str, Any] | None = None
     audit: dict[str, Any] | None = None
@@ -48,6 +49,8 @@ class MaterializedProfile:
             item["latest_filing"] = self.latest_filing
         if self.enrichment is not None:
             item["enrichment"] = self.enrichment
+        if self.integration_evaluation is not None:
+            item["integration_evaluation"] = self.integration_evaluation
         if self.decision is not None:
             item["decision"] = self.decision
         if self.summary is not None:

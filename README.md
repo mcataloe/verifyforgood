@@ -429,9 +429,14 @@ Included providers:
 Response behavior:
 
 - Query responses may include:
-  - `enrichment.providers[]` with provider-specific normalized fields
+  - `enrichment.providers[]` with provider-specific normalized fields for attempted integrations only
   - `enrichment.failures[]` for provider call failures
-- Provider errors, disabled providers, missing credentials, or no matches do not fail core nonprofit verification.
+  - `integration_evaluation.integrations[]` with logical integration availability and requirement state
+  - `integration_evaluation.attempted_integrations[]`
+  - `integration_evaluation.used_integrations[]`
+  - `integration_evaluation.required_unmet_integrations[]`
+- Provider errors, integrations not offered by the deployment, tenant-disabled integrations, missing credentials, or no matches do not fail core nonprofit verification by default.
+- Missing third-party vendor data is neutral unless the tenant explicitly marks that integration as required for eligibility evaluation.
 
 Canonical enrichment fields are optional and include source attribution:
 
@@ -453,13 +458,47 @@ State compliance enrichment fields (when available):
 
 Configuration (Terraform variables):
 
+- `enrichment_mock_offered`
 - `enrichment_mock_enabled`
+- `enrichment_candid_offered`
 - `enrichment_candid_enabled`
 - `enrichment_candid_endpoint`
 - `enrichment_candid_api_key`
 - `enrichment_timeout_seconds`
+- `enrichment_state_registry_offered`
 - `enrichment_state_registry_enabled`
 - `enrichment_state_registry_mock_enabled`
+- `enrichment_state_business_offered`
+- `enrichment_state_business_enabled`
+- `enrichment_state_business_mock_enabled`
+- `enrichment_usaspending_offered`
+- `enrichment_usaspending_enabled`
+- `enrichment_usaspending_mock_enabled`
+- `enrichment_ofac_offered`
+- `enrichment_ofac_enabled`
+- `enrichment_ofac_mock_enabled`
+- `tenant_integration_settings_json`
+
+Tenant integration settings are env-backed JSON keyed by `workspace_id` with `account_id` fallback:
+
+```json
+[
+  {
+    "workspace_id": "ws_123",
+    "account_id": "acct_123",
+    "integrations": {
+      "candid": { "enabled": true, "required_for_eligibility": false },
+      "charity_navigator": { "enabled": false, "required_for_eligibility": false }
+    }
+  }
+]
+```
+
+Resolution defaults:
+
+- no integrations enabled
+- no integrations required
+- no third-party provider calls attempted unless both the deployment offers the integration and the tenant enables it
 
 ## U.S. Source Catalog (Phase 10A)
 
@@ -675,6 +714,7 @@ Terraform/env settings:
 - `api_key_records_json`
 - `oauth_m2m_enabled`
 - `oauth_token_records_json`
+- `tenant_integration_settings_json`
 
 Local dev note:
 
@@ -762,11 +802,14 @@ Response fields:
 - `organization` (`ein`, `name`, `state`)
 - `sources[]`:
   - `source_name`
-  - `status` (`matched`, `unavailable`, `error`, etc.)
+  - `status` (`matched`, `no_match`, `missing_credentials`, `tenant_disabled`, `not_offered`, `failed`, etc.)
   - `normalized_data`
   - `attribution` (`record_id`, `licensed`, `notes`)
   - `freshness.retrieved_at`
   - `error` (when provider had an error)
+  - `driver`
+  - `tenant_enabled`
+  - `required_for_eligibility`
 - `failures[]` (provider-level failures from enrichment run)
 
 ### `GET /nonprofits/{ein}/sources/{source_name}`
@@ -775,6 +818,7 @@ Returns one normalized source entry for the EIN.
 
 - `404` when source is unsupported/not present for that EIN
 - `200` with `source` payload when available
+- Legacy `_mock` source aliases are still accepted for direct lookups, but logical source names are returned in collection responses.
 
 ### `GET /nonprofits/{ein}/compliance`
 
@@ -901,6 +945,8 @@ Supported condition types include:
 - stale filing days
 - missing governance disclosures
 - enrichment failures
+- required integrations missing
+- specific integration failures
 - state/subsection/cause filters (when present)
 
 Response additions:
@@ -952,6 +998,7 @@ Returns filing summaries:
 
 - Deterministic, rules-based scoring only; no black-box ML.
 - No paid third-party enrichment providers integrated.
+- `charity_navigator` is recognized as a logical tenant-configurable integration id, but no live adapter is implemented yet.
 - Extraction is schema-tolerant and conservative; unavailable fields remain `null`.
 
 ## Local Development

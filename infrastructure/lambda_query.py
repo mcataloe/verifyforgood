@@ -11,6 +11,7 @@ from charity_status.api import error_response, json_response
 from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
+from charity_status.enrichments import EvaluationContext, TenantIntegrationSettingsResolver, load_tenant_integration_settings
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.platform import (
@@ -26,7 +27,7 @@ from charity_status.platform import (
 )
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
-from charity_status.query import VerificationInput, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from charity_status.query import VerificationInput, apply_evaluation_overlay, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
 from charity_status.query.ops_views import (
     get_ingest_run,
     get_ingest_run_filings,
@@ -46,6 +47,21 @@ from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() == "true"
+
+
+def _env_optional_bool(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.lower() == "true"
+
+
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
 WORKGROUP = os.environ.get("WORKGROUP")
@@ -54,35 +70,42 @@ FORM990_METRICS_TABLE = os.environ.get("FORM990_METRICS_TABLE", "form990_metrics
 FORM990_GOVERNANCE_TABLE = os.environ.get("FORM990_GOVERNANCE_TABLE", "form990_governance")
 FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality")
 
-ENRICHMENT_MOCK_ENABLED = os.environ.get("ENRICHMENT_MOCK_ENABLED", "false").lower() == "true"
-ENRICHMENT_CANDID_ENABLED = os.environ.get("ENRICHMENT_CANDID_ENABLED", "false").lower() == "true"
+ENRICHMENT_MOCK_OFFERED = _env_optional_bool("ENRICHMENT_MOCK_OFFERED")
+ENRICHMENT_MOCK_ENABLED = _env_bool("ENRICHMENT_MOCK_ENABLED")
+ENRICHMENT_CANDID_OFFERED = _env_optional_bool("ENRICHMENT_CANDID_OFFERED")
+ENRICHMENT_CANDID_ENABLED = _env_bool("ENRICHMENT_CANDID_ENABLED")
 ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
 ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
-ENRICHMENT_STATE_REGISTRY_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENABLED", "false").lower() == "true"
-ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_REGISTRY_OFFERED = _env_optional_bool("ENRICHMENT_STATE_REGISTRY_OFFERED")
+ENRICHMENT_STATE_REGISTRY_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_ENABLED")
+ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED")
 ENRICHMENT_STATE_REGISTRY_ENDPOINT = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT")
-ENRICHMENT_STATE_BUSINESS_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENABLED", "false").lower() == "true"
-ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = os.environ.get("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_STATE_BUSINESS_OFFERED = _env_optional_bool("ENRICHMENT_STATE_BUSINESS_OFFERED")
+ENRICHMENT_STATE_BUSINESS_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_ENABLED")
+ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED")
 ENRICHMENT_STATE_BUSINESS_ENDPOINT = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT")
-ENRICHMENT_USASPENDING_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_ENABLED", "false").lower() == "true"
-ENRICHMENT_USASPENDING_MOCK_ENABLED = os.environ.get("ENRICHMENT_USASPENDING_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_USASPENDING_OFFERED = _env_optional_bool("ENRICHMENT_USASPENDING_OFFERED")
+ENRICHMENT_USASPENDING_ENABLED = _env_bool("ENRICHMENT_USASPENDING_ENABLED")
+ENRICHMENT_USASPENDING_MOCK_ENABLED = _env_bool("ENRICHMENT_USASPENDING_MOCK_ENABLED")
 ENRICHMENT_USASPENDING_ENDPOINT = os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT")
-ENRICHMENT_OFAC_ENABLED = os.environ.get("ENRICHMENT_OFAC_ENABLED", "false").lower() == "true"
-ENRICHMENT_OFAC_MOCK_ENABLED = os.environ.get("ENRICHMENT_OFAC_MOCK_ENABLED", "false").lower() == "true"
+ENRICHMENT_OFAC_OFFERED = _env_optional_bool("ENRICHMENT_OFAC_OFFERED")
+ENRICHMENT_OFAC_ENABLED = _env_bool("ENRICHMENT_OFAC_ENABLED")
+ENRICHMENT_OFAC_MOCK_ENABLED = _env_bool("ENRICHMENT_OFAC_MOCK_ENABLED")
 ENRICHMENT_OFAC_ENDPOINT = os.environ.get("ENRICHMENT_OFAC_ENDPOINT")
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
-SERVING_DDB_ENABLED = os.environ.get("SERVING_DDB_ENABLED", "false").lower() == "true"
+SERVING_DDB_ENABLED = _env_bool("SERVING_DDB_ENABLED")
 BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
 SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
 SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
-API_AUTH_ENABLED = os.environ.get("API_AUTH_ENABLED", "false").lower() == "true"
+API_AUTH_ENABLED = _env_bool("API_AUTH_ENABLED")
 API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
-OAUTH_M2M_ENABLED = os.environ.get("OAUTH_M2M_ENABLED", "false").lower() == "true"
+OAUTH_M2M_ENABLED = _env_bool("OAUTH_M2M_ENABLED")
 OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
+TENANT_INTEGRATION_SETTINGS_JSON = os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", "")
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -91,6 +114,7 @@ auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: InMemoryUsageStore | None = None
 ops_run_store: Any | None = None
+tenant_integration_settings_resolver: TenantIntegrationSettingsResolver | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -124,20 +148,26 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
                 form990_metrics_table=FORM990_METRICS_TABLE,
                 form990_governance_table=FORM990_GOVERNANCE_TABLE,
                 form990_quality_table=FORM990_QUALITY_TABLE,
+                enrichment_mock_offered=ENRICHMENT_MOCK_OFFERED,
                 enrichment_mock_enabled=ENRICHMENT_MOCK_ENABLED,
+                enrichment_candid_offered=ENRICHMENT_CANDID_OFFERED,
                 enrichment_candid_enabled=ENRICHMENT_CANDID_ENABLED,
                 enrichment_candid_api_key=ENRICHMENT_CANDID_API_KEY,
                 enrichment_candid_endpoint=ENRICHMENT_CANDID_ENDPOINT,
                 enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                enrichment_state_registry_offered=ENRICHMENT_STATE_REGISTRY_OFFERED,
                 enrichment_state_registry_enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
                 enrichment_state_registry_mock_enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED,
                 enrichment_state_registry_endpoint=ENRICHMENT_STATE_REGISTRY_ENDPOINT,
+                enrichment_state_business_offered=ENRICHMENT_STATE_BUSINESS_OFFERED,
                 enrichment_state_business_enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
                 enrichment_state_business_mock_enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED,
                 enrichment_state_business_endpoint=ENRICHMENT_STATE_BUSINESS_ENDPOINT,
+                enrichment_usaspending_offered=ENRICHMENT_USASPENDING_OFFERED,
                 enrichment_usaspending_enabled=ENRICHMENT_USASPENDING_ENABLED,
                 enrichment_usaspending_mock_enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED,
                 enrichment_usaspending_endpoint=ENRICHMENT_USASPENDING_ENDPOINT,
+                enrichment_ofac_offered=ENRICHMENT_OFAC_OFFERED,
                 enrichment_ofac_enabled=ENRICHMENT_OFAC_ENABLED,
                 enrichment_ofac_mock_enabled=ENRICHMENT_OFAC_MOCK_ENABLED,
                 enrichment_ofac_endpoint=ENRICHMENT_OFAC_ENDPOINT,
@@ -192,6 +222,20 @@ def _get_ops_run_store() -> Any | None:
     return ops_run_store
 
 
+def _get_tenant_integration_settings_resolver() -> TenantIntegrationSettingsResolver:
+    global tenant_integration_settings_resolver
+    if tenant_integration_settings_resolver is None:
+        tenant_integration_settings_resolver = load_tenant_integration_settings(TENANT_INTEGRATION_SETTINGS_JSON)
+    return tenant_integration_settings_resolver
+
+
+def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
+    return _get_tenant_integration_settings_resolver().resolve(
+        workspace_id=getattr(auth_context, "workspace_id", None),
+        account_id=getattr(auth_context, "account_id", None),
+    )
+
+
 def handler(event, context):
     route_key = _route_key(event or {})
     try:
@@ -203,6 +247,7 @@ def handler(event, context):
         return error_response(exc.status_code, str(exc))
     except QuotaExceededError as exc:
         return error_response(exc.status_code, str(exc))
+    evaluation_context = _resolve_evaluation_context(auth_context)
     method = (event.get("httpMethod") or "GET").upper()
     if _is_ops_request(event, method):
         status_code, payload = _handle_ops_request(event)
@@ -210,7 +255,7 @@ def handler(event, context):
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
         return response
     if method == "POST" and _is_batch_verify_request(event):
-        response = _handle_batch_verify(event)
+        response = _handle_batch_verify(event, evaluation_context=evaluation_context)
         try:
             body = json.loads(response.get("body") or "{}")
             total = ((body.get("batch_summary") or {}).get("total"))
@@ -245,6 +290,7 @@ def handler(event, context):
                 _get_enrichment_service(),
                 normalized_ein,
                 subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
             )
             response = json_response(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -257,6 +303,7 @@ def handler(event, context):
                 normalized_ein,
                 source_name=source_name,
                 subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
             )
             response = json_response(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -267,6 +314,7 @@ def handler(event, context):
                 _get_enrichment_service(),
                 normalized_ein,
                 subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
             )
             response = json_response(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -277,6 +325,7 @@ def handler(event, context):
                 _get_enrichment_service(),
                 normalized_ein,
                 subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
             )
             response = json_response(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -291,6 +340,14 @@ def handler(event, context):
         if method == "GET":
             cached = _load_cached_profile(normalized_ein)
             if cached is not None:
+                if policy_id_required(verification_input) or evaluation_context.has_non_default_integrations() or not cached.get("integration_evaluation"):
+                    cached = apply_evaluation_overlay(
+                        payload=cached,
+                        policy_id=verification_input.policy_id,
+                        enrichment_service=_get_enrichment_service(),
+                        evaluation_context=evaluation_context,
+                        ein=normalized_ein,
+                    )
                 response = json_response(200, cached)
                 _get_quota_metering_hook().on_response(auth_context, route_key, 200)
                 return response
@@ -306,8 +363,9 @@ def handler(event, context):
             _get_athena_client(),
             verification_input,
             enrichment_service=_get_enrichment_service(),
+            evaluation_context=evaluation_context,
         )
-        if status_code == 200 and method == "GET":
+        if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
         response = json_response(status_code, payload)
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -527,7 +585,7 @@ def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
     )
 
 
-def _handle_batch_verify(event: dict) -> dict[str, Any]:
+def _handle_batch_verify(event: dict, evaluation_context: EvaluationContext) -> dict[str, Any]:
     try:
         body = event.get("body")
         if not body:
@@ -553,7 +611,7 @@ def _handle_batch_verify(event: dict) -> dict[str, Any]:
     error_counts: Counter[str] = Counter()
 
     for index, row in enumerate(items_input):
-        item_result = _process_batch_item(index, row)
+        item_result = _process_batch_item(index, row, evaluation_context=evaluation_context)
         results.append(item_result)
         status_counts[item_result["status"]] += 1
         if item_result["status"] == "ok":
@@ -573,7 +631,7 @@ def _handle_batch_verify(event: dict) -> dict[str, Any]:
     return json_response(200, {"batch_summary": summary, "items": results})
 
 
-def _process_batch_item(index: int, row: Any) -> dict[str, Any]:
+def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationContext) -> dict[str, Any]:
     if not isinstance(row, dict):
         return {"index": index, "status": "error", "error_code": "invalid_item", "message": "Item must be an object"}
 
@@ -594,7 +652,7 @@ def _process_batch_item(index: int, row: Any) -> dict[str, Any]:
 
     try:
         normalized_ein = normalize_ein(str(ein))
-        payload = _verify_single_item(normalized_ein, provided_name, policy_id, weighting_profile)
+        payload = _verify_single_item(normalized_ein, provided_name, policy_id, weighting_profile, evaluation_context)
         return {
             "index": index,
             "ein": normalized_ein,
@@ -622,13 +680,20 @@ def _verify_single_item(
     provided_name: str | None,
     policy_id: str | None,
     weighting_profile: str | None = None,
+    evaluation_context: EvaluationContext | None = None,
 ) -> dict[str, Any]:
+    context = evaluation_context or EvaluationContext()
     if provided_name is None:
         cached = _load_cached_profile(normalized_ein)
         if cached is not None:
-            if policy_id:
-                cached["policy_evaluation"] = evaluate_policy(cached, policy_id)
-                cached["final_recommendation"] = cached["policy_evaluation"]["final_recommendation"]
+            if policy_id or context.has_non_default_integrations() or not cached.get("integration_evaluation"):
+                cached = apply_evaluation_overlay(
+                    payload=cached,
+                    policy_id=policy_id,
+                    enrichment_service=_get_enrichment_service(),
+                    evaluation_context=context,
+                    ein=normalized_ein,
+                )
             return cached
 
     verification_input = VerificationInput(
@@ -641,6 +706,7 @@ def _verify_single_item(
         _get_athena_client(),
         verification_input,
         enrichment_service=_get_enrichment_service(),
+        evaluation_context=context,
     )
     if status_code != 200:
         raise ValueError(payload.get("message") or "Verification failed")
@@ -685,6 +751,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
         "state_compliance": item.get("state_compliance"),
         "external_signals": item.get("external_signals"),
+        "integration_evaluation": item.get("integration_evaluation"),
     }
 
 
@@ -704,3 +771,7 @@ def _materialize_profile(ein: str, payload: dict) -> None:
     )
     MaterializedProfileWriter(store).write_if_needed(ein=ein, item=item)
 from charity_status.ops import S3RunStore
+
+
+def policy_id_required(verification_input: VerificationInput) -> bool:
+    return bool(verification_input.policy_id)

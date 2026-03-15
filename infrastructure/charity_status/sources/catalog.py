@@ -43,60 +43,54 @@ class SourceCatalog:
 
 def default_us_source_catalog(capabilities: Iterable[ProviderCapability]) -> SourceCatalog:
     catalog = SourceCatalog(us_only=True)
-    catalog.register_source(
-        SourceMetadata(
+    known_sources = {
+        "candid.profile": SourceMetadata(
             source_id="candid.profile",
             provider_name="candid",
             category=SourceCategory.TRANSPARENCY,
             us_only=True,
             description="Candid transparency/profile enrichment source (scaffolded).",
-        )
-    )
-    catalog.register_source(
-        SourceMetadata(
+        ),
+        "state_registry.compliance": SourceMetadata(
             source_id="state_registry.compliance",
             provider_name="state_registry",
             category=SourceCategory.COMPLIANCE,
             us_only=True,
             description="State charity registration/compliance source (adapter scaffold).",
-        )
-    )
-    catalog.register_source(
-        SourceMetadata(
+        ),
+        "state_business.entity_status": SourceMetadata(
             source_id="state_business.entity_status",
             provider_name="state_business",
             category=SourceCategory.COMPLIANCE,
             us_only=True,
             description="State business entity / secretary of state status source.",
-        )
-    )
-    catalog.register_source(
-        SourceMetadata(
+        ),
+        "usaspending.federal_awards": SourceMetadata(
             source_id="usaspending.federal_awards",
             provider_name="usaspending",
             category=SourceCategory.FEDERAL_AWARDS,
             us_only=True,
             description="USAspending federal awards visibility source.",
-        )
-    )
-    catalog.register_source(
-        SourceMetadata(
+        ),
+        "ofac.sanctions": SourceMetadata(
             source_id="ofac.sanctions",
             provider_name="ofac",
             category=SourceCategory.RISK,
             us_only=True,
             description="OFAC sanctions screening source for nonprofit risk workflows.",
-        )
-    )
-    catalog.register_source(
-        SourceMetadata(
+        ),
+        "mock.profile": SourceMetadata(
             source_id="mock.profile",
             provider_name="mock_provider",
             category=SourceCategory.IDENTITY,
             us_only=True,
             description="Deterministic mock profile source for tests/development.",
-        )
-    )
+        ),
+    }
     for capability in capabilities:
+        for source_id in capability.source_ids:
+            source = known_sources.get(source_id)
+            if source is not None:
+                catalog.register_source(source)
         catalog.register_capability(capability)
     return catalog

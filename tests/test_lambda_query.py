@@ -228,6 +228,62 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
     assert body["scores"]["overall"] == 88.5
 
 
+def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
+    monkeypatch.setenv(
+        "TENANT_INTEGRATION_SETTINGS_JSON",
+        json.dumps(
+            [
+                {
+                    "workspace_id": "ws_1",
+                    "integrations": {
+                        "candid": {"enabled": True, "required_for_eligibility": True}
+                    },
+                }
+            ]
+        ),
+    )
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = True
+    module.PROFILE_TABLE_NAME = "profiles"
+    module.profile_store = SimpleNamespace(
+        get_profile=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Cached Org"},
+            "verification": {"irs_status": "active", "recent_990_on_file": True},
+            "scores": {"overall": 88},
+            "score_explanation": {"model_version": "2.0.0", "peer_benchmarking_used": False, "eligibility": "ELIGIBLE", "factors": {}},
+            "model_version": "2.0.0",
+            "decision": {"status": "approve", "risk_flags": [], "manual_review": {"reason_codes": []}},
+            "audit": {"model_version": "2.0.0"},
+            "summary": {"decision_status": "approve"},
+            "evidence": {"model_version": "2.0.0", "factors": []},
+            "state_compliance": {"registration_status": "active", "compliance_flags": []},
+        }
+    )
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(subject="tenant", scopes=(), metadata={}, workspace_id="ws_1", account_id="acct_1")
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
+    result = module.handler(event, None)
+    body = json.loads(result["body"])
+
+    assert result["statusCode"] == 200
+    assert body["integration_evaluation"]["required_unmet_integrations"] == ["candid"]
+    assert body["decision"]["status"] == "manual_review"
+
+
 def test_post_verify_batch_all_success():
     module = _load_module()
     module.SERVING_DDB_ENABLED = False

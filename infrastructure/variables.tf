@@ -271,10 +271,24 @@ variable "enrichment_mock_enabled" {
   default     = false
 }
 
+variable "enrichment_mock_offered" {
+  description = "Whether the deployment offers the deterministic mock enrichment provider."
+  type        = bool
+  default     = null
+  nullable    = true
+}
+
 variable "enrichment_candid_enabled" {
   description = "Enable Candid enrichment provider integration."
   type        = bool
   default     = false
+}
+
+variable "enrichment_candid_offered" {
+  description = "Whether the deployment offers the Candid integration."
+  type        = bool
+  default     = null
+  nullable    = true
 }
 
 variable "enrichment_candid_endpoint" {
@@ -368,6 +382,13 @@ variable "enrichment_state_registry_enabled" {
   default     = false
 }
 
+variable "enrichment_state_registry_offered" {
+  description = "Whether the deployment offers the state registry integration."
+  type        = bool
+  default     = null
+  nullable    = true
+}
+
 variable "enrichment_state_registry_mock_enabled" {
   description = "Enable deterministic mock state registry compliance provider."
   type        = bool
@@ -384,6 +405,13 @@ variable "enrichment_state_business_enabled" {
   description = "Enable scaffolded state business entity provider."
   type        = bool
   default     = false
+}
+
+variable "enrichment_state_business_offered" {
+  description = "Whether the deployment offers the state business integration."
+  type        = bool
+  default     = null
+  nullable    = true
 }
 
 variable "enrichment_state_business_mock_enabled" {
@@ -404,6 +432,13 @@ variable "enrichment_usaspending_enabled" {
   default     = false
 }
 
+variable "enrichment_usaspending_offered" {
+  description = "Whether the deployment offers the USAspending integration."
+  type        = bool
+  default     = null
+  nullable    = true
+}
+
 variable "enrichment_usaspending_mock_enabled" {
   description = "Enable deterministic mock USAspending provider."
   type        = bool
@@ -420,6 +455,13 @@ variable "enrichment_ofac_enabled" {
   description = "Enable scaffolded OFAC sanctions provider."
   type        = bool
   default     = false
+}
+
+variable "enrichment_ofac_offered" {
+  description = "Whether the deployment offers the OFAC integration."
+  type        = bool
+  default     = null
+  nullable    = true
 }
 
 variable "enrichment_ofac_mock_enabled" {
@@ -470,6 +512,12 @@ variable "oauth_token_records_json" {
   type        = string
   default     = "[]"
   sensitive   = true
+}
+
+variable "tenant_integration_settings_json" {
+  description = "JSON array of tenant/workspace third-party integration settings keyed by workspace_id/account_id."
+  type        = string
+  default     = "[]"
 }
 
 variable "ops_metadata_prefix" {

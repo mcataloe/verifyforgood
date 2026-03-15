@@ -1,3 +1,4 @@
+from charity_status.enrichments import EvaluationContext, TenantIntegrationSetting
 from charity_status.platform.runtime import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
 
 
@@ -36,3 +37,46 @@ def test_build_enrichment_service_from_runtime_config():
     payload = result.to_dict()
     assert "providers" in payload
     assert "source_catalog" in payload
+
+
+def test_build_enrichment_service_defaults_to_no_offered_integrations():
+    service = build_enrichment_service(
+        RefreshRuntimeConfig(
+            database="db",
+            table="table",
+            workgroup=None,
+            form990_filings_table="f1",
+            form990_metrics_table="f2",
+            form990_governance_table="f3",
+            form990_quality_table="f4",
+        )
+    )
+    payload = service.enrich("123456789").to_dict()
+    assert payload["providers"] == []
+    assert payload["integration_evaluation"]["integrations"] == []
+    assert payload["source_catalog"]["provider_capabilities"] == []
+
+
+def test_build_enrichment_service_distinguishes_offered_from_credentials():
+    service = build_enrichment_service(
+        RefreshRuntimeConfig(
+            database="db",
+            table="table",
+            workgroup=None,
+            form990_filings_table="f1",
+            form990_metrics_table="f2",
+            form990_governance_table="f3",
+            form990_quality_table="f4",
+            enrichment_candid_offered=True,
+            enrichment_candid_enabled=True,
+        )
+    )
+    payload = service.enrich(
+        "123456789",
+        evaluation_context=EvaluationContext(
+            integration_settings={"candid": TenantIntegrationSetting(enabled=True, required_for_eligibility=True)}
+        ),
+    ).to_dict()
+    assert payload["providers"] == []
+    assert payload["integration_evaluation"]["required_unmet_integrations"] == ["candid"]
+    assert payload["integration_evaluation"]["integrations"][0]["availability_status"] == "missing_credentials"
