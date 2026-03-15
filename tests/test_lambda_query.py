@@ -230,13 +230,13 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
 
 def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
     monkeypatch.setenv(
-        "TENANT_INTEGRATION_SETTINGS_JSON",
+        "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
         json.dumps(
             [
                 {
                     "workspace_id": "ws_1",
                     "integrations": {
-                        "candid": {"enabled": True, "required_for_eligibility": True}
+                        "candid": {"enabled": True, "requiredForEvaluation": True}
                     },
                 }
             ]

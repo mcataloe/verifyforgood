@@ -11,7 +11,7 @@ from charity_status.api import error_response, json_response
 from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
-from charity_status.enrichments import EvaluationContext, TenantIntegrationSettingsResolver, load_tenant_integration_settings
+from charity_status.enrichments import EvaluationContext, OrganizationIntegrationSettingsResolver, load_organization_integration_settings
 from charity_status.enrichments.compliance import extract_state_compliance
 from charity_status.enrichments.external_signals import extract_external_signals
 from charity_status.platform import (
@@ -23,6 +23,7 @@ from charity_status.platform import (
     build_athena_client,
     build_enrichment_service,
     load_api_key_store,
+    load_platform_integrations_config,
     load_oauth_token_store,
 )
 from charity_status.normalization import EINValidationError, normalize_ein
@@ -70,29 +71,8 @@ FORM990_METRICS_TABLE = os.environ.get("FORM990_METRICS_TABLE", "form990_metrics
 FORM990_GOVERNANCE_TABLE = os.environ.get("FORM990_GOVERNANCE_TABLE", "form990_governance")
 FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality")
 
-ENRICHMENT_MOCK_OFFERED = _env_optional_bool("ENRICHMENT_MOCK_OFFERED")
-ENRICHMENT_MOCK_ENABLED = _env_bool("ENRICHMENT_MOCK_ENABLED")
-ENRICHMENT_CANDID_OFFERED = _env_optional_bool("ENRICHMENT_CANDID_OFFERED")
-ENRICHMENT_CANDID_ENABLED = _env_bool("ENRICHMENT_CANDID_ENABLED")
-ENRICHMENT_CANDID_API_KEY = os.environ.get("ENRICHMENT_CANDID_API_KEY")
-ENRICHMENT_CANDID_ENDPOINT = os.environ.get("ENRICHMENT_CANDID_ENDPOINT")
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
-ENRICHMENT_STATE_REGISTRY_OFFERED = _env_optional_bool("ENRICHMENT_STATE_REGISTRY_OFFERED")
-ENRICHMENT_STATE_REGISTRY_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_ENABLED")
-ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED")
-ENRICHMENT_STATE_REGISTRY_ENDPOINT = os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT")
-ENRICHMENT_STATE_BUSINESS_OFFERED = _env_optional_bool("ENRICHMENT_STATE_BUSINESS_OFFERED")
-ENRICHMENT_STATE_BUSINESS_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_ENABLED")
-ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = _env_bool("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED")
-ENRICHMENT_STATE_BUSINESS_ENDPOINT = os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT")
-ENRICHMENT_USASPENDING_OFFERED = _env_optional_bool("ENRICHMENT_USASPENDING_OFFERED")
-ENRICHMENT_USASPENDING_ENABLED = _env_bool("ENRICHMENT_USASPENDING_ENABLED")
-ENRICHMENT_USASPENDING_MOCK_ENABLED = _env_bool("ENRICHMENT_USASPENDING_MOCK_ENABLED")
-ENRICHMENT_USASPENDING_ENDPOINT = os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT")
-ENRICHMENT_OFAC_OFFERED = _env_optional_bool("ENRICHMENT_OFAC_OFFERED")
-ENRICHMENT_OFAC_ENABLED = _env_bool("ENRICHMENT_OFAC_ENABLED")
-ENRICHMENT_OFAC_MOCK_ENABLED = _env_bool("ENRICHMENT_OFAC_MOCK_ENABLED")
-ENRICHMENT_OFAC_ENDPOINT = os.environ.get("ENRICHMENT_OFAC_ENDPOINT")
+PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = _env_bool("SERVING_DDB_ENABLED")
@@ -105,7 +85,10 @@ OAUTH_M2M_ENABLED = _env_bool("OAUTH_M2M_ENABLED")
 OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
-TENANT_INTEGRATION_SETTINGS_JSON = os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", "")
+ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
+    "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
+    os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
+)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -114,7 +97,7 @@ auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: InMemoryUsageStore | None = None
 ops_run_store: Any | None = None
-tenant_integration_settings_resolver: TenantIntegrationSettingsResolver | None = None
+tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -148,29 +131,30 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
                 form990_metrics_table=FORM990_METRICS_TABLE,
                 form990_governance_table=FORM990_GOVERNANCE_TABLE,
                 form990_quality_table=FORM990_QUALITY_TABLE,
-                enrichment_mock_offered=ENRICHMENT_MOCK_OFFERED,
-                enrichment_mock_enabled=ENRICHMENT_MOCK_ENABLED,
-                enrichment_candid_offered=ENRICHMENT_CANDID_OFFERED,
-                enrichment_candid_enabled=ENRICHMENT_CANDID_ENABLED,
-                enrichment_candid_api_key=ENRICHMENT_CANDID_API_KEY,
-                enrichment_candid_endpoint=ENRICHMENT_CANDID_ENDPOINT,
+                platform_integrations=PLATFORM_INTEGRATIONS,
                 enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
-                enrichment_state_registry_offered=ENRICHMENT_STATE_REGISTRY_OFFERED,
-                enrichment_state_registry_enabled=ENRICHMENT_STATE_REGISTRY_ENABLED,
-                enrichment_state_registry_mock_enabled=ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED,
-                enrichment_state_registry_endpoint=ENRICHMENT_STATE_REGISTRY_ENDPOINT,
-                enrichment_state_business_offered=ENRICHMENT_STATE_BUSINESS_OFFERED,
-                enrichment_state_business_enabled=ENRICHMENT_STATE_BUSINESS_ENABLED,
-                enrichment_state_business_mock_enabled=ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED,
-                enrichment_state_business_endpoint=ENRICHMENT_STATE_BUSINESS_ENDPOINT,
-                enrichment_usaspending_offered=ENRICHMENT_USASPENDING_OFFERED,
-                enrichment_usaspending_enabled=ENRICHMENT_USASPENDING_ENABLED,
-                enrichment_usaspending_mock_enabled=ENRICHMENT_USASPENDING_MOCK_ENABLED,
-                enrichment_usaspending_endpoint=ENRICHMENT_USASPENDING_ENDPOINT,
-                enrichment_ofac_offered=ENRICHMENT_OFAC_OFFERED,
-                enrichment_ofac_enabled=ENRICHMENT_OFAC_ENABLED,
-                enrichment_ofac_mock_enabled=ENRICHMENT_OFAC_MOCK_ENABLED,
-                enrichment_ofac_endpoint=ENRICHMENT_OFAC_ENDPOINT,
+                enrichment_mock_offered=_env_optional_bool("ENRICHMENT_MOCK_OFFERED"),
+                enrichment_mock_enabled=_env_bool("ENRICHMENT_MOCK_ENABLED"),
+                enrichment_candid_offered=_env_optional_bool("ENRICHMENT_CANDID_OFFERED"),
+                enrichment_candid_enabled=_env_bool("ENRICHMENT_CANDID_ENABLED"),
+                enrichment_candid_api_key=os.environ.get("ENRICHMENT_CANDID_API_KEY"),
+                enrichment_candid_endpoint=os.environ.get("ENRICHMENT_CANDID_ENDPOINT"),
+                enrichment_state_registry_offered=_env_optional_bool("ENRICHMENT_STATE_REGISTRY_OFFERED"),
+                enrichment_state_registry_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_ENABLED"),
+                enrichment_state_registry_mock_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED"),
+                enrichment_state_registry_endpoint=os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT"),
+                enrichment_state_business_offered=_env_optional_bool("ENRICHMENT_STATE_BUSINESS_OFFERED"),
+                enrichment_state_business_enabled=_env_bool("ENRICHMENT_STATE_BUSINESS_ENABLED"),
+                enrichment_state_business_mock_enabled=_env_bool("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED"),
+                enrichment_state_business_endpoint=os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT"),
+                enrichment_usaspending_offered=_env_optional_bool("ENRICHMENT_USASPENDING_OFFERED"),
+                enrichment_usaspending_enabled=_env_bool("ENRICHMENT_USASPENDING_ENABLED"),
+                enrichment_usaspending_mock_enabled=_env_bool("ENRICHMENT_USASPENDING_MOCK_ENABLED"),
+                enrichment_usaspending_endpoint=os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT"),
+                enrichment_ofac_offered=_env_optional_bool("ENRICHMENT_OFAC_OFFERED"),
+                enrichment_ofac_enabled=_env_bool("ENRICHMENT_OFAC_ENABLED"),
+                enrichment_ofac_mock_enabled=_env_bool("ENRICHMENT_OFAC_MOCK_ENABLED"),
+                enrichment_ofac_endpoint=os.environ.get("ENRICHMENT_OFAC_ENDPOINT"),
             )
         )
     return enrichment_service
@@ -222,10 +206,13 @@ def _get_ops_run_store() -> Any | None:
     return ops_run_store
 
 
-def _get_tenant_integration_settings_resolver() -> TenantIntegrationSettingsResolver:
+def _get_tenant_integration_settings_resolver() -> OrganizationIntegrationSettingsResolver:
     global tenant_integration_settings_resolver
     if tenant_integration_settings_resolver is None:
-        tenant_integration_settings_resolver = load_tenant_integration_settings(TENANT_INTEGRATION_SETTINGS_JSON)
+        tenant_integration_settings_resolver = load_organization_integration_settings(
+            ORGANIZATION_INTEGRATION_SETTINGS_JSON,
+            default_settings=PLATFORM_INTEGRATIONS.organization_default_settings(),
+        )
     return tenant_integration_settings_resolver
 
 

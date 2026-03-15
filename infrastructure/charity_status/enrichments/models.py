@@ -13,6 +13,31 @@ class EnrichmentStatus(str, Enum):
     FAILED = "failed"
 
 
+INTEGRATION_ID_ALIASES = {
+    "charitynavigator": "charity_navigator",
+    "charity_navigator": "charity_navigator",
+    "charity-navigator": "charity_navigator",
+    "charityNavigator": "charity_navigator",
+    "candid": "candid",
+}
+
+INTEGRATION_ID_DISPLAY_NAMES = {
+    "charity_navigator": "charityNavigator",
+}
+
+
+def normalize_integration_id(value: str | None) -> str:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return ""
+    return INTEGRATION_ID_ALIASES.get(candidate, candidate.lower())
+
+
+def integration_id_display_name(integration_id: str) -> str:
+    normalized = normalize_integration_id(integration_id)
+    return INTEGRATION_ID_DISPLAY_NAMES.get(normalized, normalized)
+
+
 @dataclass(frozen=True)
 class EnrichmentProviderResult:
     name: str
@@ -51,34 +76,90 @@ class EnrichmentProviderResult:
 
 
 @dataclass(frozen=True)
-class TenantIntegrationSetting:
+class OrganizationIntegrationSetting:
     enabled: bool = False
     required_for_eligibility: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
+            "requiredForEvaluation": self.required_for_eligibility,
+            "required_for_evaluation": self.required_for_eligibility,
             "required_for_eligibility": self.required_for_eligibility,
         }
+
+    @property
+    def required_for_evaluation(self) -> bool:
+        return self.required_for_eligibility
+
+
+TenantIntegrationSetting = OrganizationIntegrationSetting
+
+
+@dataclass(frozen=True)
+class OrganizationIntegrationSettings:
+    integrations: dict[str, OrganizationIntegrationSetting] = field(default_factory=dict)
+
+    def setting_for(self, integration_id: str) -> OrganizationIntegrationSetting:
+        return self.integrations.get(normalize_integration_id(integration_id), OrganizationIntegrationSetting())
+
+    def integration_ids(self) -> list[str]:
+        return sorted(self.integrations.keys())
+
+    def has_non_default_integrations(self) -> bool:
+        return any(
+            setting.enabled or setting.required_for_eligibility
+            for setting in self.integrations.values()
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            integration_id_display_name(integration_id): setting.to_dict()
+            for integration_id, setting in sorted(self.integrations.items())
+        }
+
+    @classmethod
+    def from_mapping(cls, mapping: dict[str, OrganizationIntegrationSetting] | None) -> "OrganizationIntegrationSettings":
+        if not mapping:
+            return cls()
+        normalized = {
+            normalize_integration_id(integration_id): setting
+            for integration_id, setting in mapping.items()
+            if normalize_integration_id(integration_id)
+        }
+        return cls(integrations=normalized)
 
 
 @dataclass(frozen=True)
 class EvaluationContext:
     workspace_id: str | None = None
     account_id: str | None = None
-    integration_settings: dict[str, TenantIntegrationSetting] = field(default_factory=dict)
+    integration_settings: dict[str, OrganizationIntegrationSetting] = field(default_factory=dict)
+    organization_integration_settings: OrganizationIntegrationSettings = field(default_factory=OrganizationIntegrationSettings)
 
-    def setting_for(self, integration_id: str) -> TenantIntegrationSetting:
-        return self.integration_settings.get(integration_id, TenantIntegrationSetting())
+    def __post_init__(self) -> None:
+        legacy_settings = OrganizationIntegrationSettings.from_mapping(self.integration_settings)
+        if isinstance(self.organization_integration_settings, dict):
+            current_settings = OrganizationIntegrationSettings.from_mapping(self.organization_integration_settings)
+        else:
+            current_settings = self.organization_integration_settings
+        merged_settings = OrganizationIntegrationSettings.from_mapping(
+            {
+                **legacy_settings.integrations,
+                **current_settings.integrations,
+            }
+        )
+        object.__setattr__(self, "organization_integration_settings", merged_settings)
+        object.__setattr__(self, "integration_settings", merged_settings.integrations)
+
+    def setting_for(self, integration_id: str) -> OrganizationIntegrationSetting:
+        return self.organization_integration_settings.setting_for(integration_id)
 
     def has_non_default_integrations(self) -> bool:
-        return any(
-            setting.enabled or setting.required_for_eligibility
-            for setting in self.integration_settings.values()
-        )
+        return self.organization_integration_settings.has_non_default_integrations()
 
     def integration_ids(self) -> list[str]:
-        return sorted(self.integration_settings.keys())
+        return self.organization_integration_settings.integration_ids()
 
 
 @dataclass(frozen=True)

@@ -458,6 +458,15 @@ State compliance enrichment fields (when available):
 
 Configuration (Terraform variables):
 
+- `third_party_integrations_enabled`
+- `integration_candid_enabled`
+- `integration_candid_client_id`
+- `integration_candid_client_secret`
+- `integration_charity_navigator_enabled`
+- `integration_charity_navigator_api_key`
+- `default_require_candid_for_evaluation`
+- `default_require_charity_navigator_for_evaluation`
+- `organization_integration_settings_json`
 - `enrichment_mock_offered`
 - `enrichment_mock_enabled`
 - `enrichment_candid_offered`
@@ -477,9 +486,25 @@ Configuration (Terraform variables):
 - `enrichment_ofac_offered`
 - `enrichment_ofac_enabled`
 - `enrichment_ofac_mock_enabled`
-- `tenant_integration_settings_json`
+- `tenant_integration_settings_json` (legacy alias)
 
-Tenant integration settings are env-backed JSON keyed by `workspace_id` with `account_id` fallback:
+Recommended Lambda environment variables for the new normalized platform model:
+
+```text
+THIRD_PARTY_INTEGRATIONS_ENABLED=false
+
+INTEGRATION_CANDID_ENABLED=false
+INTEGRATION_CANDID_CLIENT_ID=
+INTEGRATION_CANDID_CLIENT_SECRET=
+
+INTEGRATION_CHARITY_NAVIGATOR_ENABLED=false
+INTEGRATION_CHARITY_NAVIGATOR_API_KEY=
+
+DEFAULT_REQUIRE_CANDID_FOR_EVALUATION=false
+DEFAULT_REQUIRE_CHARITY_NAVIGATOR_FOR_EVALUATION=false
+```
+
+Organization integration settings are env-backed JSON keyed by `workspace_id` with `account_id` fallback:
 
 ```json
 [
@@ -487,8 +512,8 @@ Tenant integration settings are env-backed JSON keyed by `workspace_id` with `ac
     "workspace_id": "ws_123",
     "account_id": "acct_123",
     "integrations": {
-      "candid": { "enabled": true, "required_for_eligibility": false },
-      "charity_navigator": { "enabled": false, "required_for_eligibility": false }
+      "candid": { "enabled": true, "requiredForEvaluation": false },
+      "charityNavigator": { "enabled": false, "requiredForEvaluation": false }
     }
   }
 ]
@@ -499,6 +524,8 @@ Resolution defaults:
 - no integrations enabled
 - no integrations required
 - no third-party provider calls attempted unless both the deployment offers the integration and the tenant enables it
+- credential presence does not enable an integration
+- enabling an integration does not require it for evaluation
 
 ## U.S. Source Catalog (Phase 10A)
 
@@ -714,7 +741,8 @@ Terraform/env settings:
 - `api_key_records_json`
 - `oauth_m2m_enabled`
 - `oauth_token_records_json`
-- `tenant_integration_settings_json`
+- `organization_integration_settings_json`
+- `tenant_integration_settings_json` (legacy alias)
 
 Local dev note:
 

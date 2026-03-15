@@ -4,19 +4,34 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from charity_status.enrichments.models import EvaluationContext, TenantIntegrationSetting
+from charity_status.enrichments.models import (
+    EvaluationContext,
+    OrganizationIntegrationSetting,
+    OrganizationIntegrationSettings,
+    TenantIntegrationSetting,
+    normalize_integration_id,
+)
 
 
 @dataclass(frozen=True)
-class TenantIntegrationSettingsRecord:
+class OrganizationIntegrationSettingsRecord:
     workspace_id: str | None
     account_id: str | None
-    integration_settings: dict[str, TenantIntegrationSetting]
+    integration_settings: OrganizationIntegrationSettings
 
 
-class TenantIntegrationSettingsResolver:
-    def __init__(self, records: list[TenantIntegrationSettingsRecord] | None = None) -> None:
+class OrganizationIntegrationSettingsResolver:
+    def __init__(
+        self,
+        records: list[OrganizationIntegrationSettingsRecord] | None = None,
+        default_settings: OrganizationIntegrationSettings | dict[str, OrganizationIntegrationSetting] | None = None,
+    ) -> None:
         self._records = records or []
+        self._default_settings = (
+            default_settings
+            if isinstance(default_settings, OrganizationIntegrationSettings)
+            else OrganizationIntegrationSettings.from_mapping(default_settings)
+        )
 
     def resolve(
         self,
@@ -33,7 +48,7 @@ class TenantIntegrationSettingsResolver:
                 return EvaluationContext(
                     workspace_id=workspace,
                     account_id=account or match.account_id,
-                    integration_settings=match.integration_settings,
+                    organization_integration_settings=_merge_settings(self._default_settings, match.integration_settings),
                 )
 
         if account:
@@ -42,45 +57,80 @@ class TenantIntegrationSettingsResolver:
                 return EvaluationContext(
                     workspace_id=workspace or match.workspace_id,
                     account_id=account,
-                    integration_settings=match.integration_settings,
+                    organization_integration_settings=_merge_settings(self._default_settings, match.integration_settings),
                 )
 
-        return EvaluationContext(workspace_id=workspace, account_id=account)
+        return EvaluationContext(
+            workspace_id=workspace,
+            account_id=account,
+            organization_integration_settings=self._default_settings,
+        )
 
 
-def load_tenant_integration_settings(raw_json: str) -> TenantIntegrationSettingsResolver:
+TenantIntegrationSettingsRecord = OrganizationIntegrationSettingsRecord
+TenantIntegrationSettingsResolver = OrganizationIntegrationSettingsResolver
+
+
+def load_organization_integration_settings(
+    raw_json: str,
+    default_settings: OrganizationIntegrationSettings | dict[str, OrganizationIntegrationSetting] | None = None,
+) -> OrganizationIntegrationSettingsResolver:
     if not raw_json.strip():
-        return TenantIntegrationSettingsResolver()
+        return OrganizationIntegrationSettingsResolver(default_settings=default_settings)
 
     payload = json.loads(raw_json)
     if not isinstance(payload, list):
-        raise ValueError("TENANT_INTEGRATION_SETTINGS_JSON must be a JSON array")
+        raise ValueError("ORGANIZATION_INTEGRATION_SETTINGS_JSON must be a JSON array")
 
-    records: list[TenantIntegrationSettingsRecord] = []
+    records: list[OrganizationIntegrationSettingsRecord] = []
     for item in payload:
         if not isinstance(item, dict):
             continue
         settings_payload = item.get("integrations")
         if not isinstance(settings_payload, dict):
             settings_payload = {}
-        integration_settings: dict[str, TenantIntegrationSetting] = {}
+        integration_settings: dict[str, OrganizationIntegrationSetting] = {}
         for integration_id, raw_setting in settings_payload.items():
             if not isinstance(raw_setting, dict):
                 continue
-            integration_settings[str(integration_id).strip()] = TenantIntegrationSetting(
+            normalized_integration_id = normalize_integration_id(str(integration_id).strip())
+            if not normalized_integration_id:
+                continue
+            integration_settings[normalized_integration_id] = OrganizationIntegrationSetting(
                 enabled=bool(raw_setting.get("enabled", False)),
-                required_for_eligibility=bool(raw_setting.get("required_for_eligibility", False)),
+                required_for_eligibility=bool(
+                    raw_setting.get("requiredForEvaluation", raw_setting.get("required_for_evaluation", raw_setting.get("required_for_eligibility", False)))
+                ),
             )
         records.append(
-            TenantIntegrationSettingsRecord(
+            OrganizationIntegrationSettingsRecord(
                 workspace_id=_clean_identifier(item.get("workspace_id")),
                 account_id=_clean_identifier(item.get("account_id")),
-                integration_settings=integration_settings,
+                integration_settings=OrganizationIntegrationSettings.from_mapping(integration_settings),
             )
         )
-    return TenantIntegrationSettingsResolver(records)
+    return OrganizationIntegrationSettingsResolver(records, default_settings=default_settings)
+
+
+def load_tenant_integration_settings(
+    raw_json: str,
+    default_settings: OrganizationIntegrationSettings | dict[str, OrganizationIntegrationSetting] | None = None,
+) -> TenantIntegrationSettingsResolver:
+    return load_organization_integration_settings(raw_json, default_settings=default_settings)
 
 
 def _clean_identifier(value: Any) -> str | None:
     cleaned = str(value or "").strip()
     return cleaned or None
+
+
+def _merge_settings(
+    defaults: OrganizationIntegrationSettings,
+    overrides: OrganizationIntegrationSettings,
+) -> OrganizationIntegrationSettings:
+    return OrganizationIntegrationSettings.from_mapping(
+        {
+            **defaults.integrations,
+            **overrides.integrations,
+        }
+    )

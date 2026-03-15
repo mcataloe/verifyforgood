@@ -304,6 +304,56 @@ variable "enrichment_candid_api_key" {
   sensitive   = true
 }
 
+variable "third_party_integrations_enabled" {
+  description = "Master enablement flag for platform-level third-party integration availability."
+  type        = bool
+  default     = false
+}
+
+variable "integration_candid_enabled" {
+  description = "Platform-level availability flag for the Candid integration."
+  type        = bool
+  default     = false
+}
+
+variable "integration_candid_client_id" {
+  description = "Optional Candid client identifier used by the normalized third-party integration config model."
+  type        = string
+  default     = ""
+}
+
+variable "integration_candid_client_secret" {
+  description = "Optional Candid client secret used by the normalized third-party integration config model."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "integration_charity_navigator_enabled" {
+  description = "Platform-level availability flag for the Charity Navigator integration."
+  type        = bool
+  default     = false
+}
+
+variable "integration_charity_navigator_api_key" {
+  description = "Optional Charity Navigator API key used by the normalized third-party integration config model."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "default_require_candid_for_evaluation" {
+  description = "Default organization-level policy flag for requiring Candid during evaluation."
+  type        = bool
+  default     = false
+}
+
+variable "default_require_charity_navigator_for_evaluation" {
+  description = "Default organization-level policy flag for requiring Charity Navigator during evaluation."
+  type        = bool
+  default     = false
+}
+
 variable "enrichment_timeout_seconds" {
   description = "Timeout in seconds for enrichment provider calls."
   type        = number
@@ -516,6 +566,12 @@ variable "oauth_token_records_json" {
 
 variable "tenant_integration_settings_json" {
   description = "JSON array of tenant/workspace third-party integration settings keyed by workspace_id/account_id."
+  type        = string
+  default     = "[]"
+}
+
+variable "organization_integration_settings_json" {
+  description = "JSON array of organization/workspace third-party integration settings keyed by workspace_id/account_id."
   type        = string
   default     = "[]"
 }

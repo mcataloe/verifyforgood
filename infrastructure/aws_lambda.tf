@@ -108,49 +108,58 @@ resource "aws_lambda_function" "query" {
 
   environment {
     variables = {
-      DATABASE                               = aws_glue_catalog_database.eo_bmf.name
-      TABLE                                  = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP                              = aws_athena_workgroup.eo_bmf.name
-      FORM990_FILINGS_TABLE                  = aws_glue_catalog_table.form990_metadata.name
-      FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
-      FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
-      FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
-      ENRICHMENT_MOCK_OFFERED                = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
-      ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
-      ENRICHMENT_CANDID_OFFERED              = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
-      ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
-      ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
-      ENRICHMENT_STATE_REGISTRY_OFFERED      = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
-      ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
-      ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
-      ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
-      ENRICHMENT_STATE_BUSINESS_OFFERED      = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
-      ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
-      ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
-      ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
-      ENRICHMENT_USASPENDING_OFFERED         = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
-      ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
-      ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
-      ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
-      ENRICHMENT_OFAC_OFFERED                = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
-      ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
-      ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
-      ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint
-      PROFILE_TABLE_NAME                     = aws_dynamodb_table.profiles.name
-      APP_ENV                                = var.environment
-      SERVING_DDB_ENABLED                    = tostring(var.serving_dynamodb_enabled)
-      BATCH_VERIFY_MAX_SIZE                  = tostring(var.batch_verify_max_size)
-      SEARCH_MAX_LIMIT                       = tostring(var.search_max_limit)
-      SEARCH_DEFAULT_LIMIT                   = tostring(var.search_default_limit)
-      API_AUTH_ENABLED                       = tostring(var.api_auth_enabled)
-      API_KEY_RECORDS_JSON                   = var.api_key_records_json
-      OAUTH_M2M_ENABLED                      = tostring(var.oauth_m2m_enabled)
-      OAUTH_TOKEN_RECORDS_JSON               = var.oauth_token_records_json
-      TENANT_INTEGRATION_SETTINGS_JSON       = var.tenant_integration_settings_json
-      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
+      DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
+      TABLE                                            = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                                        = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE                            = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE                            = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE                         = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE                            = aws_glue_catalog_table.form990_quality.name
+      THIRD_PARTY_INTEGRATIONS_ENABLED                 = tostring(var.third_party_integrations_enabled)
+      INTEGRATION_CANDID_ENABLED                       = tostring(var.integration_candid_enabled)
+      INTEGRATION_CANDID_CLIENT_ID                     = var.integration_candid_client_id
+      INTEGRATION_CANDID_CLIENT_SECRET                 = var.integration_candid_client_secret
+      INTEGRATION_CHARITY_NAVIGATOR_ENABLED            = tostring(var.integration_charity_navigator_enabled)
+      INTEGRATION_CHARITY_NAVIGATOR_API_KEY            = var.integration_charity_navigator_api_key
+      DEFAULT_REQUIRE_CANDID_FOR_EVALUATION            = tostring(var.default_require_candid_for_evaluation)
+      DEFAULT_REQUIRE_CHARITY_NAVIGATOR_FOR_EVALUATION = tostring(var.default_require_charity_navigator_for_evaluation)
+      ENRICHMENT_MOCK_OFFERED                          = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
+      ENRICHMENT_MOCK_ENABLED                          = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_OFFERED                        = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENABLED                        = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT                       = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY                        = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS                       = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_OFFERED                = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
+      ENRICHMENT_STATE_REGISTRY_ENABLED                = tostring(var.enrichment_state_registry_enabled)
+      ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED           = tostring(var.enrichment_state_registry_mock_enabled)
+      ENRICHMENT_STATE_REGISTRY_ENDPOINT               = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_OFFERED                = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
+      ENRICHMENT_STATE_BUSINESS_ENABLED                = tostring(var.enrichment_state_business_enabled)
+      ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED           = tostring(var.enrichment_state_business_mock_enabled)
+      ENRICHMENT_STATE_BUSINESS_ENDPOINT               = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_OFFERED                   = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
+      ENRICHMENT_USASPENDING_ENABLED                   = tostring(var.enrichment_usaspending_enabled)
+      ENRICHMENT_USASPENDING_MOCK_ENABLED              = tostring(var.enrichment_usaspending_mock_enabled)
+      ENRICHMENT_USASPENDING_ENDPOINT                  = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_OFFERED                          = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
+      ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
+      ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
+      ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
+      PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
+      APP_ENV                                          = var.environment
+      SERVING_DDB_ENABLED                              = tostring(var.serving_dynamodb_enabled)
+      BATCH_VERIFY_MAX_SIZE                            = tostring(var.batch_verify_max_size)
+      SEARCH_MAX_LIMIT                                 = tostring(var.search_max_limit)
+      SEARCH_DEFAULT_LIMIT                             = tostring(var.search_default_limit)
+      API_AUTH_ENABLED                                 = tostring(var.api_auth_enabled)
+      API_KEY_RECORDS_JSON                             = var.api_key_records_json
+      OAUTH_M2M_ENABLED                                = tostring(var.oauth_m2m_enabled)
+      OAUTH_TOKEN_RECORDS_JSON                         = var.oauth_token_records_json
+      ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
+      TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
+      OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     }
   }
 }
@@ -202,47 +211,55 @@ resource "aws_lambda_function" "refresh" {
 
   environment {
     variables = {
-      DATABASE                               = aws_glue_catalog_database.eo_bmf.name
-      TABLE                                  = aws_glue_catalog_table.eo_bmf.name
-      WORKGROUP                              = aws_athena_workgroup.eo_bmf.name
-      FORM990_FILINGS_TABLE                  = aws_glue_catalog_table.form990_metadata.name
-      FORM990_METRICS_TABLE                  = aws_glue_catalog_table.form990_metrics.name
-      FORM990_GOVERNANCE_TABLE               = aws_glue_catalog_table.form990_governance.name
-      FORM990_QUALITY_TABLE                  = aws_glue_catalog_table.form990_quality.name
-      ENRICHMENT_MOCK_OFFERED                = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
-      ENRICHMENT_MOCK_ENABLED                = tostring(var.enrichment_mock_enabled)
-      ENRICHMENT_CANDID_OFFERED              = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENABLED              = tostring(var.enrichment_candid_enabled)
-      ENRICHMENT_CANDID_ENDPOINT             = var.enrichment_candid_endpoint
-      ENRICHMENT_CANDID_API_KEY              = var.enrichment_candid_api_key
-      ENRICHMENT_TIMEOUT_SECONDS             = tostring(var.enrichment_timeout_seconds)
-      ENRICHMENT_STATE_REGISTRY_OFFERED      = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
-      ENRICHMENT_STATE_REGISTRY_ENABLED      = tostring(var.enrichment_state_registry_enabled)
-      ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED = tostring(var.enrichment_state_registry_mock_enabled)
-      ENRICHMENT_STATE_REGISTRY_ENDPOINT     = var.enrichment_state_registry_endpoint
-      ENRICHMENT_STATE_BUSINESS_OFFERED      = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
-      ENRICHMENT_STATE_BUSINESS_ENABLED      = tostring(var.enrichment_state_business_enabled)
-      ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED = tostring(var.enrichment_state_business_mock_enabled)
-      ENRICHMENT_STATE_BUSINESS_ENDPOINT     = var.enrichment_state_business_endpoint
-      ENRICHMENT_USASPENDING_OFFERED         = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
-      ENRICHMENT_USASPENDING_ENABLED         = tostring(var.enrichment_usaspending_enabled)
-      ENRICHMENT_USASPENDING_MOCK_ENABLED    = tostring(var.enrichment_usaspending_mock_enabled)
-      ENRICHMENT_USASPENDING_ENDPOINT        = var.enrichment_usaspending_endpoint
-      ENRICHMENT_OFAC_OFFERED                = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
-      ENRICHMENT_OFAC_ENABLED                = tostring(var.enrichment_ofac_enabled)
-      ENRICHMENT_OFAC_MOCK_ENABLED           = tostring(var.enrichment_ofac_mock_enabled)
-      ENRICHMENT_OFAC_ENDPOINT               = var.enrichment_ofac_endpoint
-      PROFILE_TABLE_NAME                     = aws_dynamodb_table.profiles.name
-      APP_ENV                                = var.environment
-      REFRESH_MODE                           = var.refresh_mode
-      REFRESH_BATCH_SIZE                     = tostring(var.refresh_batch_size)
-      FORCE_REFRESH                          = tostring(var.refresh_force)
-      REFRESH_SOURCE_DETECTION_ENABLED       = tostring(var.refresh_source_detection_enabled)
-      BOOTSTRAP_NONPROD_OVERRIDE             = tostring(var.bootstrap_nonprod_override)
-      BOOTSTRAP_START_AFTER_EIN              = var.bootstrap_start_after_ein
-      BOOTSTRAP_MAX_BATCHES_PER_RUN          = tostring(var.bootstrap_max_batches_per_run)
-      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
+      DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
+      TABLE                                            = aws_glue_catalog_table.eo_bmf.name
+      WORKGROUP                                        = aws_athena_workgroup.eo_bmf.name
+      FORM990_FILINGS_TABLE                            = aws_glue_catalog_table.form990_metadata.name
+      FORM990_METRICS_TABLE                            = aws_glue_catalog_table.form990_metrics.name
+      FORM990_GOVERNANCE_TABLE                         = aws_glue_catalog_table.form990_governance.name
+      FORM990_QUALITY_TABLE                            = aws_glue_catalog_table.form990_quality.name
+      THIRD_PARTY_INTEGRATIONS_ENABLED                 = tostring(var.third_party_integrations_enabled)
+      INTEGRATION_CANDID_ENABLED                       = tostring(var.integration_candid_enabled)
+      INTEGRATION_CANDID_CLIENT_ID                     = var.integration_candid_client_id
+      INTEGRATION_CANDID_CLIENT_SECRET                 = var.integration_candid_client_secret
+      INTEGRATION_CHARITY_NAVIGATOR_ENABLED            = tostring(var.integration_charity_navigator_enabled)
+      INTEGRATION_CHARITY_NAVIGATOR_API_KEY            = var.integration_charity_navigator_api_key
+      DEFAULT_REQUIRE_CANDID_FOR_EVALUATION            = tostring(var.default_require_candid_for_evaluation)
+      DEFAULT_REQUIRE_CHARITY_NAVIGATOR_FOR_EVALUATION = tostring(var.default_require_charity_navigator_for_evaluation)
+      ENRICHMENT_MOCK_OFFERED                          = tostring(var.enrichment_mock_offered != null ? var.enrichment_mock_offered : var.enrichment_mock_enabled)
+      ENRICHMENT_MOCK_ENABLED                          = tostring(var.enrichment_mock_enabled)
+      ENRICHMENT_CANDID_OFFERED                        = tostring(var.enrichment_candid_offered != null ? var.enrichment_candid_offered : var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENABLED                        = tostring(var.enrichment_candid_enabled)
+      ENRICHMENT_CANDID_ENDPOINT                       = var.enrichment_candid_endpoint
+      ENRICHMENT_CANDID_API_KEY                        = var.enrichment_candid_api_key
+      ENRICHMENT_TIMEOUT_SECONDS                       = tostring(var.enrichment_timeout_seconds)
+      ENRICHMENT_STATE_REGISTRY_OFFERED                = tostring(var.enrichment_state_registry_offered != null ? var.enrichment_state_registry_offered : (var.enrichment_state_registry_enabled || var.enrichment_state_registry_mock_enabled))
+      ENRICHMENT_STATE_REGISTRY_ENABLED                = tostring(var.enrichment_state_registry_enabled)
+      ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED           = tostring(var.enrichment_state_registry_mock_enabled)
+      ENRICHMENT_STATE_REGISTRY_ENDPOINT               = var.enrichment_state_registry_endpoint
+      ENRICHMENT_STATE_BUSINESS_OFFERED                = tostring(var.enrichment_state_business_offered != null ? var.enrichment_state_business_offered : (var.enrichment_state_business_enabled || var.enrichment_state_business_mock_enabled))
+      ENRICHMENT_STATE_BUSINESS_ENABLED                = tostring(var.enrichment_state_business_enabled)
+      ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED           = tostring(var.enrichment_state_business_mock_enabled)
+      ENRICHMENT_STATE_BUSINESS_ENDPOINT               = var.enrichment_state_business_endpoint
+      ENRICHMENT_USASPENDING_OFFERED                   = tostring(var.enrichment_usaspending_offered != null ? var.enrichment_usaspending_offered : (var.enrichment_usaspending_enabled || var.enrichment_usaspending_mock_enabled))
+      ENRICHMENT_USASPENDING_ENABLED                   = tostring(var.enrichment_usaspending_enabled)
+      ENRICHMENT_USASPENDING_MOCK_ENABLED              = tostring(var.enrichment_usaspending_mock_enabled)
+      ENRICHMENT_USASPENDING_ENDPOINT                  = var.enrichment_usaspending_endpoint
+      ENRICHMENT_OFAC_OFFERED                          = tostring(var.enrichment_ofac_offered != null ? var.enrichment_ofac_offered : (var.enrichment_ofac_enabled || var.enrichment_ofac_mock_enabled))
+      ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
+      ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
+      ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
+      PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
+      APP_ENV                                          = var.environment
+      REFRESH_MODE                                     = var.refresh_mode
+      REFRESH_BATCH_SIZE                               = tostring(var.refresh_batch_size)
+      FORCE_REFRESH                                    = tostring(var.refresh_force)
+      REFRESH_SOURCE_DETECTION_ENABLED                 = tostring(var.refresh_source_detection_enabled)
+      BOOTSTRAP_NONPROD_OVERRIDE                       = tostring(var.bootstrap_nonprod_override)
+      BOOTSTRAP_START_AFTER_EIN                        = var.bootstrap_start_after_ein
+      BOOTSTRAP_MAX_BATCHES_PER_RUN                    = tostring(var.bootstrap_max_batches_per_run)
+      OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     }
   }
 }
