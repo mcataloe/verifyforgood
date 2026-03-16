@@ -769,6 +769,41 @@ Current deployment toggles for the shared orchestrated adapters:
 - `ENRICHMENT_STATE_REGISTRY_KENTUCKY_ENABLED=true` plus `ENRICHMENT_STATE_REGISTRY_KENTUCKY_COMPANIES_URL=...` enables the Kentucky bulk-data adapter
 - `ENRICHMENT_STATE_REGISTRY_ENABLED=true` is still required for the live state-registry integration overall
 
+## Tier 1 State Expansion Template (Phase 11E)
+
+Phase 11E expands the shared Tier 1 state-registry pattern to:
+
+- Utah
+- Nevada
+- Ohio
+- South Dakota
+- New York
+
+Implementation structure:
+
+- each state lives in its own isolated adapter package under `charity_status/state_registry/adapters/<state>/`
+- each package keeps transport/client logic separate from source-specific mapping
+- canonical normalization still happens only through `StateRegistryRecord`
+- shared logic was only extended where duplication had clearly emerged: `charity_status/state_registry/portal_html.py` now handles lightweight HTML-table extraction and hidden-input parsing for portal-style registries
+
+State-specific caveats:
+
+- Utah, Nevada, Ohio, and New York are modeled as portal-backed searches with fixture-backed parser coverage; the official portal transport can still change independently per state
+- South Dakota uses an ASP.NET form-post pattern and may present reCAPTCHA challenges; the client isolates that as a state-local lookup failure instead of breaking unrelated verification
+- Nevada’s official site can present Incapsula blocking to automated clients; that is treated as a Nevada-only transport failure
+
+Rules preserved for future Tier 1 additions:
+
+- keep each state’s field names, parsing, and status translation tables inside that state’s package
+- reuse `portal_html.py` only for the repeated mechanics of extracting tables and hidden form inputs
+- do not move state-specific code tables or business rules into the shared framework
+- add representative fixture HTML or source samples under `tests/fixtures/state_registry/<state>/`
+- test at minimum:
+  - service-level search through `StateRegistryLookupService`
+  - source-specific status or standing normalization
+  - malformed row isolation
+  - parser-version and raw-payload traceability behavior where relevant
+
 ## Peer Benchmarking (Phase 5B)
 
 Model version `2.0.1` adds optional peer-group benchmarking for fairer interpretation of selected metrics and normalizes alternate IRS status code formats before scoring/materialization.
