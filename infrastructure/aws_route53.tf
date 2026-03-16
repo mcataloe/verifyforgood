@@ -15,7 +15,7 @@ resource "aws_route53_zone" "selected" {
 }
 
 locals {
-  route53_zone_id = aws_route53_zone.selected[0].zone_id
+  route53_zone_id = local.enable_custom_domain ? aws_route53_zone.selected[0].zone_id : null
 }
 
 resource "aws_acm_certificate" "cert" {
