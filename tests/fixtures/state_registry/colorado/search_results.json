@@ -1,0 +1,26 @@
+[
+  {
+    "entityid": "20251665680",
+    "entityname": "KYLDERON MIST VALLEY LLC",
+    "principalcity": "Delta",
+    "principalstate": "CO",
+    "principalzipcode": "81416",
+    "entitystatus": "Good Standing",
+    "jurisdictonofformation": "CO",
+    "entitytype": "DLLC",
+    "entityformdate": "2025-06-16T00:00:00.000",
+    "raw_fetched_at": "2026-03-16T00:00:00+00:00"
+  },
+  {
+    "entityid": "19911102757",
+    "entityname": "AMERICAN RED CROSS - WELD COUNTY CHAPTER, Dissolved October 1, 2000",
+    "principalcity": "Greeley",
+    "principalstate": "CO",
+    "principalzipcode": "80631",
+    "entitystatus": "Administratively Dissolved",
+    "jurisdictonofformation": "CO",
+    "entitytype": "DNC",
+    "entityformdate": "1991-12-18T00:00:00.000",
+    "raw_fetched_at": "2026-03-16T00:00:00+00:00"
+  }
+]

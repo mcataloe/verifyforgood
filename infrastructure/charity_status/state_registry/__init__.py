@@ -21,6 +21,7 @@ from .normalization import (
     stable_payload_hash,
 )
 from .registry import StateRegistryAdapterRegistry, build_state_registry_adapter_registry
+from .service import StateRegistryLookupService
 from .traceability import build_raw_payload_ref, now_utc_iso
 
 __all__ = [
@@ -49,4 +50,5 @@ __all__ = [
     "classify_name_match",
     "StateRegistryAdapterRegistry",
     "build_state_registry_adapter_registry",
+    "StateRegistryLookupService",
 ]

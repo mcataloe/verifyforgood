@@ -653,6 +653,37 @@ Design intent:
 - fetch-by-external-id is optional and should raise a clear unsupported-operation error when a state does not provide it
 - raw payload traceability is part of the canonical model so source records can be audited and reprocessed later without leaking state-specific schema into shared logic
 
+## Colorado State Registry Pilot (Phase 11B)
+
+Phase 11B validates the shared framework with the first real state implementation under `charity_status/state_registry/adapters/colorado/`.
+
+Colorado module layout:
+
+- `client.py`: transport for the official Colorado business-entities dataset (`data.colorado.gov/resource/4ykn-tg5h.json`)
+- `mapper.py`: Colorado-owned field mapping and status/standing normalization into the canonical record model
+- `adapter.py`: shared-framework adapter implementation
+- `__init__.py`: explicit exports only
+
+Colorado implementation notes:
+
+- source type is modeled as `bulk_dataset` because the integration is dataset-backed even though the adapter queries it over HTTP
+- the adapter supports both name-based search and follow-up fetch by `entityid`
+- Colorado-specific cleanup stays local to the mapper, including stripping status suffixes from dissolved entity names and translating `entitystatus` values into canonical status/standing values
+- the canonical `registry_url` is built from the official Colorado Secretary of State detail route using the source `entityid`
+
+Fixture and test guidance for future states:
+
+- add realistic source samples under `tests/fixtures/state_registry/<state>/`
+- keep fixture assertions focused on canonical output, not every raw source column
+- do not use live network calls in unit tests; transport tests should stub HTTP responses
+- malformed source rows should be ignored or fail cleanly inside the state-owned parser/mapper without affecting shared framework code
+
+Shared lookup path:
+
+- `StateRegistryLookupService` resolves the correct adapter by state code
+- `search()` returns canonical `StateRegistryRecord` instances
+- `fetch_by_external_entity_id()` uses the same parser path for follow-up retrieval when the state supports it
+
 ## Peer Benchmarking (Phase 5B)
 
 Model version `2.0.1` adds optional peer-group benchmarking for fairer interpretation of selected metrics and normalizes alternate IRS status code formats before scoring/materialization.
