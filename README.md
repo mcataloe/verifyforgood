@@ -684,6 +684,39 @@ Shared lookup path:
 - `search()` returns canonical `StateRegistryRecord` instances
 - `fetch_by_external_entity_id()` uses the same parser path for follow-up retrieval when the state supports it
 
+## Kentucky State Registry Validation (Phase 11C)
+
+Phase 11C adds a second real adapter under `charity_status/state_registry/adapters/kentucky/` to validate the framework against Kentucky’s tab-delimited bulk company files.
+
+Kentucky module layout:
+
+- `client.py`: acquisition of the raw company snapshot text
+- `parser.py`: tab-delimited company-file parsing plus composite external-id generation
+- `mapper.py`: Kentucky-owned status, standing, entity-type, and date mapping
+- `adapter.py`: shared-contract adapter wiring with local bulk snapshot caching
+
+Kentucky source notes:
+
+- the official SOS business files are documented as tab-delimited bulk files
+- the business record identity is the composite of `ID`, `comptype`, and `compseq`
+- Kentucky parsing keeps raw acquisition separate from row parsing so future batch refresh/orchestration can reuse the parser without embedding HTTP concerns
+
+Framework validation outcome:
+
+- no shared contract break was required after adding the second Tier 1 adapter
+- the existing `search()` and `fetch_by_external_entity_id()` contract was sufficient for both dataset-backed Colorado and bulk-file Kentucky
+- the practical rule for future Tier 1 bulk adapters is:
+  - keep transport, parser, and mapper separate inside the state module
+  - generate canonical external ids from the source’s true record identity when a single source column is not enough
+  - keep source-specific code tables local to the state mapper
+
+Fixture guidance for future bulk-data states:
+
+- include realistic tabular snapshots under `tests/fixtures/state_registry/<state>/`
+- cover ambiguous candidate scenarios when one legal entity can surface multiple historical/company-sequence rows
+- assert parser-version and raw-payload traceability fields for at least one canonical record
+- malformed rows should fail locally in the state parser/mapper and not require shared framework exceptions
+
 ## Peer Benchmarking (Phase 5B)
 
 Model version `2.0.1` adds optional peer-group benchmarking for fairer interpretation of selected metrics and normalizes alternate IRS status code formats before scoring/materialization.
