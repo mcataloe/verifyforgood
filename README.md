@@ -602,6 +602,57 @@ Failure tolerance:
 - State registry provider failures/unavailable records do not fail core verification.
 - Normalized compliance output is included as `state_compliance` when available and feeds evidence/policy/decision risk context.
 
+## State Registry Framework (Phase 11A)
+
+Phase 11A adds a dedicated state-registry framework under `charity_status/state_registry/` for future U.S. business-registry ingestion and query work.
+
+Package layout:
+
+- `models.py`: canonical lookup and normalized record dataclasses
+- `enums.py`: practical constrained values for source type, entity status, standing, and confidence
+- `contracts.py`: shared adapter contract for search, optional fetch-by-id, and raw-to-canonical parsing
+- `registry.py`: explicit adapter registration and resolution by state code
+- `normalization.py`: shared name/status/standing normalization helpers plus stable raw-payload hashing
+- `matching.py`: shared matching primitives kept separate from source-specific parsing
+- `traceability.py`: raw payload reference helpers for retrieval timestamp, hash, parser version, and optional storage locator
+- `adapters/`: state-specific implementations isolated per state module
+
+Canonical normalized record fields:
+
+- `state_code`
+- `source_name`
+- `source_type`
+- `external_entity_id`
+- `entity_name`
+- `normalized_entity_name`
+- `entity_type`
+- `status`
+- `standing`
+- `formation_date`
+- `dissolution_date`
+- `last_filing_date`
+- `registry_url`
+- `raw_fetched_at`
+- `raw_hash`
+- `parser_version`
+- `matched_on`
+- `confidence`
+- `raw_payload_ref`
+
+Extension rules for new states:
+
+- add each state under its own module in `charity_status/state_registry/adapters/`
+- keep source-specific field names and parsing logic inside that state module only
+- map all outputs into the shared `StateRegistryRecord` contract before other application layers see them
+- reuse shared normalization, matching, and traceability helpers instead of copying them into state modules
+- register adapters explicitly via `StateRegistryAdapterRegistry`; unsupported states must fail cleanly
+
+Design intent:
+
+- the contract supports both search-portal style registries and bulk dataset sources
+- fetch-by-external-id is optional and should raise a clear unsupported-operation error when a state does not provide it
+- raw payload traceability is part of the canonical model so source records can be audited and reprocessed later without leaking state-specific schema into shared logic
+
 ## Peer Benchmarking (Phase 5B)
 
 Model version `2.0.1` adds optional peer-group benchmarking for fairer interpretation of selected metrics and normalizes alternate IRS status code formats before scoring/materialization.
