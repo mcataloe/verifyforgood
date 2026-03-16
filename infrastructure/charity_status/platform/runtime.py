@@ -22,6 +22,13 @@ from charity_status.enrichments.providers import (
     USAspendingProvider,
 )
 from charity_status.query import AthenaQueryClient
+from charity_status.state_registry import StateRegistryLookupService, build_state_registry_adapter_registry
+from charity_status.state_registry.adapters import (
+    ColoradoBusinessRegistryAdapter,
+    ColoradoRegistryClient,
+    KentuckyBusinessRegistryAdapter,
+    KentuckyBulkDataClient,
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +56,10 @@ class RefreshRuntimeConfig(QueryRuntimeConfig):
     enrichment_state_registry_enabled: bool = False
     enrichment_state_registry_mock_enabled: bool = False
     enrichment_state_registry_endpoint: str | None = None
+    enrichment_state_registry_colorado_enabled: bool = False
+    enrichment_state_registry_colorado_app_token: str | None = None
+    enrichment_state_registry_kentucky_enabled: bool = False
+    enrichment_state_registry_kentucky_companies_url: str | None = None
     enrichment_state_business_offered: bool | None = None
     enrichment_state_business_enabled: bool = False
     enrichment_state_business_mock_enabled: bool = False
@@ -170,26 +181,7 @@ def build_enrichment_service(config: RefreshRuntimeConfig) -> EnrichmentService:
             )
         )
 
-    _register_dual_mode_integration(
-        bindings=bindings,
-        providers=providers,
-        integration_id="state_registry",
-        offered=_resolve_offered(
-            config.enrichment_state_registry_offered,
-            config.enrichment_state_registry_enabled or config.enrichment_state_registry_mock_enabled,
-        ),
-        live_enabled=config.enrichment_state_registry_enabled,
-        mock_enabled=config.enrichment_state_registry_mock_enabled,
-        endpoint=config.enrichment_state_registry_endpoint,
-        timeout_seconds=config.enrichment_timeout_seconds,
-        live_provider_factory=lambda endpoint: StateRegistryProvider(
-            enabled=True,
-            adapter=StateRegistryApiAdapter(endpoint, config.enrichment_timeout_seconds),
-        ),
-        mock_provider_factory=lambda: StateRegistryMockProvider(enabled=True),
-        live_provider_name="state_registry",
-        mock_provider_name="state_registry_mock",
-    )
+    _register_state_registry_integration(bindings=bindings, providers=providers, config=config)
     _register_dual_mode_integration(
         bindings=bindings,
         providers=providers,
@@ -309,6 +301,59 @@ def _register_dual_mode_integration(
     )
 
 
+def _register_state_registry_integration(
+    *,
+    bindings: list[IntegrationBinding],
+    providers: list[object],
+    config: RefreshRuntimeConfig,
+) -> None:
+    offered = _resolve_offered(
+        config.enrichment_state_registry_offered,
+        config.enrichment_state_registry_enabled or config.enrichment_state_registry_mock_enabled,
+    )
+    if not offered:
+        return
+
+    if config.enrichment_state_registry_mock_enabled:
+        providers.append(StateRegistryMockProvider(enabled=True))
+        bindings.append(
+            IntegrationBinding(
+                integration_id="state_registry",
+                provider_name="state_registry_mock",
+                offered=True,
+                driver="mock",
+                credentials_present=True,
+                endpoint=config.enrichment_state_registry_endpoint,
+            )
+        )
+        return
+
+    endpoint = _clean_text(config.enrichment_state_registry_endpoint)
+    lookup_service = _build_state_registry_lookup_service(config)
+    credentials_present = bool(
+        config.enrichment_state_registry_enabled
+        and (endpoint or lookup_service is not None)
+    )
+    if credentials_present:
+        providers.append(
+            StateRegistryProvider(
+                enabled=True,
+                adapter=StateRegistryApiAdapter(endpoint, config.enrichment_timeout_seconds) if endpoint else None,
+                lookup_service=lookup_service,
+            )
+        )
+    bindings.append(
+        IntegrationBinding(
+            integration_id="state_registry",
+            provider_name="state_registry" if credentials_present else None,
+            offered=True,
+            driver="live" if config.enrichment_state_registry_enabled else "none",
+            credentials_present=credentials_present,
+            endpoint=endpoint,
+        )
+    )
+
+
 def _resolved_platform_integrations(config: RefreshRuntimeConfig) -> PlatformIntegrationsConfig:
     if config.platform_integrations.integrations:
         return config.platform_integrations
@@ -338,6 +383,31 @@ def _resolved_platform_integrations(config: RefreshRuntimeConfig) -> PlatformInt
             ),
         },
     )
+
+
+def _build_state_registry_lookup_service(config: RefreshRuntimeConfig) -> StateRegistryLookupService | None:
+    adapters = []
+    if config.enrichment_state_registry_colorado_enabled:
+        adapters.append(
+            ColoradoBusinessRegistryAdapter(
+                client=ColoradoRegistryClient(
+                    app_token=_clean_text(config.enrichment_state_registry_colorado_app_token),
+                    timeout_seconds=config.enrichment_timeout_seconds,
+                )
+            )
+        )
+    if config.enrichment_state_registry_kentucky_enabled and _clean_text(config.enrichment_state_registry_kentucky_companies_url):
+        adapters.append(
+            KentuckyBusinessRegistryAdapter(
+                client=KentuckyBulkDataClient(
+                    companies_url=_clean_text(config.enrichment_state_registry_kentucky_companies_url),
+                    timeout_seconds=config.enrichment_timeout_seconds,
+                )
+            )
+        )
+    if not adapters:
+        return None
+    return StateRegistryLookupService(adapter_registry=build_state_registry_adapter_registry(adapters))
 
 
 def _build_candid_platform_config(source: Mapping[str, str], globally_enabled: bool) -> PlatformIntegrationConfig:

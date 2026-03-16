@@ -32,9 +32,14 @@ class EnrichmentService:
         ein: str,
         organization_name: str | None = None,
         evaluation_context: EvaluationContext | None = None,
+        jurisdiction_state: str | None = None,
     ) -> EnrichmentAggregateResult:
         if self._legacy_mode:
-            return self._legacy_enrich(ein=ein, organization_name=organization_name)
+            return self._legacy_enrich(
+                ein=ein,
+                organization_name=organization_name,
+                jurisdiction_state=jurisdiction_state,
+            )
 
         context = evaluation_context or EvaluationContext()
         providers = []
@@ -120,7 +125,14 @@ class EnrichmentService:
                 continue
 
             try:
-                result = provider.lookup(ein=ein, organization_name=organization_name)
+                try:
+                    result = provider.lookup(
+                        ein=ein,
+                        organization_name=organization_name,
+                        jurisdiction_state=jurisdiction_state,
+                    )
+                except TypeError:
+                    result = provider.lookup(ein=ein, organization_name=organization_name)
                 result = replace(
                     result,
                     integration_id=integration_id,
@@ -234,7 +246,13 @@ class EnrichmentService:
         capabilities = [capability for provider in self._registry.list_all() for capability in provider.capabilities()]
         return default_us_source_catalog(capabilities).to_dict()
 
-    def _legacy_enrich(self, *, ein: str, organization_name: str | None) -> EnrichmentAggregateResult:
+    def _legacy_enrich(
+        self,
+        *,
+        ein: str,
+        organization_name: str | None,
+        jurisdiction_state: str | None = None,
+    ) -> EnrichmentAggregateResult:
         providers = []
         failures: list[dict[str, object]] = []
         integration_states: list[IntegrationState] = []
@@ -266,8 +284,16 @@ class EnrichmentService:
                 continue
 
             try:
+                try:
+                    provider_result = provider.lookup(
+                        ein=ein,
+                        organization_name=organization_name,
+                        jurisdiction_state=jurisdiction_state,
+                    )
+                except TypeError:
+                    provider_result = provider.lookup(ein=ein, organization_name=organization_name)
                 result = replace(
-                    provider.lookup(ein=ein, organization_name=organization_name),
+                    provider_result,
                     integration_id=integration_id,
                     driver=driver,
                 )

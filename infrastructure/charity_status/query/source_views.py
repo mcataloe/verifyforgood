@@ -24,6 +24,7 @@ def get_nonprofit_sources_view(
         enrichment_service=enrichment_service,
         ein=ein,
         organization_name=mapped["organization"].get("name"),
+        jurisdiction_state=str(mapped["verification"].get("state") or "").strip() or None,
         evaluation_context=evaluation_context,
     )
     providers = enrichment.get("providers") or []
@@ -231,6 +232,7 @@ def _enrich_payload(
     enrichment_service: Any,
     ein: str,
     organization_name: str | None,
+    jurisdiction_state: str | None,
     evaluation_context: EvaluationContext | None,
 ) -> dict[str, Any]:
     try:
@@ -238,6 +240,7 @@ def _enrich_payload(
             ein=ein,
             organization_name=organization_name,
             evaluation_context=evaluation_context,
+            jurisdiction_state=jurisdiction_state,
         )
     except TypeError:
         result = enrichment_service.enrich(ein=ein, organization_name=organization_name)

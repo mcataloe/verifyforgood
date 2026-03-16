@@ -80,3 +80,29 @@ def test_build_enrichment_service_distinguishes_offered_from_credentials():
     assert payload["providers"] == []
     assert payload["integration_evaluation"]["required_unmet_integrations"] == ["candid"]
     assert payload["integration_evaluation"]["integrations"][0]["availability_status"] == "missing_credentials"
+
+
+def test_build_enrichment_service_supports_state_registry_adapter_path_without_legacy_endpoint():
+    service = build_enrichment_service(
+        RefreshRuntimeConfig(
+            database="db",
+            table="table",
+            workgroup=None,
+            form990_filings_table="f1",
+            form990_metrics_table="f2",
+            form990_governance_table="f3",
+            form990_quality_table="f4",
+            enrichment_state_registry_offered=True,
+            enrichment_state_registry_enabled=True,
+            enrichment_state_registry_colorado_enabled=True,
+        )
+    )
+    payload = service.enrich(
+        "123456789",
+        organization_name="Colorado Example Org",
+        jurisdiction_state="CO",
+    ).to_dict()
+    integrations = payload["integration_evaluation"]["integrations"]
+    assert integrations[0]["integration_id"] == "state_registry"
+    assert integrations[0]["credentials_present"] is True
+    assert integrations[0]["availability_status"] == "tenant_disabled"

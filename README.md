@@ -514,6 +514,16 @@ INTEGRATION_CHARITY_NAVIGATOR_API_KEY=
 
 DEFAULT_REQUIRE_CANDID_FOR_EVALUATION=false
 DEFAULT_REQUIRE_CHARITY_NAVIGATOR_FOR_EVALUATION=false
+
+ENRICHMENT_STATE_REGISTRY_ENABLED=false
+ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED=false
+ENRICHMENT_STATE_REGISTRY_ENDPOINT=
+
+ENRICHMENT_STATE_REGISTRY_COLORADO_ENABLED=false
+ENRICHMENT_STATE_REGISTRY_COLORADO_APP_TOKEN=
+
+ENRICHMENT_STATE_REGISTRY_KENTUCKY_ENABLED=false
+ENRICHMENT_STATE_REGISTRY_KENTUCKY_COMPANIES_URL=
 ```
 
 Organization integration settings are env-backed JSON keyed by `workspace_id` with `account_id` fallback:
@@ -716,6 +726,48 @@ Fixture guidance for future bulk-data states:
 - cover ambiguous candidate scenarios when one legal entity can surface multiple historical/company-sequence rows
 - assert parser-version and raw-payload traceability fields for at least one canonical record
 - malformed rows should fail locally in the state parser/mapper and not require shared framework exceptions
+
+## State Registry Orchestration and Failure Isolation (Phase 11D)
+
+Phase 11D makes the shared state-registry framework usable from the existing nonprofit verification flow without making state-registry failures fatal to the broader API.
+
+Primary runtime path:
+
+- `StateRegistryLookupService.lookup()` now returns a structured outcome with:
+  - canonical normalized records
+  - non-fatal lookup or parse failures
+  - persisted-record count when a repository is attached
+- `StateRegistryProvider` bridges the shared adapter framework into the existing enrichment pipeline
+- the provider still supports the legacy `ENRICHMENT_STATE_REGISTRY_ENDPOINT` adapter path as a fallback, so older deployments are not forced onto the new framework immediately
+
+Failure-isolation rules:
+
+- unsupported states return a structured `unsupported_state` lookup failure instead of breaking unrelated adapters
+- adapter lookup errors and per-record parse errors are isolated and reported without crashing the rest of verification
+- in the nonprofit verification flow, state-registry failures surface as provider failures inside `enrichment.failures[]`; they do not abort the overall nonprofit response
+
+Persistence seam:
+
+- `charity_status/state_registry/repository.py` defines the shared persistence seam
+- `InMemoryStateRegistryRecordRepository` stores normalized records plus raw payload traceability metadata for tests and local wiring
+- persisted items include:
+  - canonical normalized record payload
+  - original lookup request
+  - raw payload reference metadata
+  - deterministic state/entity keys for future durable stores
+
+Adding new adapters to the orchestrated path:
+
+- keep the state-specific adapter isolated under `charity_status/state_registry/adapters/<state>/`
+- register the adapter in a `StateRegistryAdapterRegistry`
+- wire it into `StateRegistryLookupService`
+- pass that service into `StateRegistryProvider` so the broader verification flow can consume it without taking a direct dependency on state-specific parsing code
+
+Current deployment toggles for the shared orchestrated adapters:
+
+- `ENRICHMENT_STATE_REGISTRY_COLORADO_ENABLED=true` enables the Colorado adapter
+- `ENRICHMENT_STATE_REGISTRY_KENTUCKY_ENABLED=true` plus `ENRICHMENT_STATE_REGISTRY_KENTUCKY_COMPANIES_URL=...` enables the Kentucky bulk-data adapter
+- `ENRICHMENT_STATE_REGISTRY_ENABLED=true` is still required for the live state-registry integration overall
 
 ## Peer Benchmarking (Phase 5B)
 

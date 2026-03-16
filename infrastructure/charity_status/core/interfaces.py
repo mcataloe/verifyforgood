@@ -31,7 +31,13 @@ class ProfileStoreAdapter(Protocol):
 
 
 class EnrichmentProviderGateway(Protocol):
-    def enrich(self, ein: str, organization_name: str | None = None, evaluation_context: Any | None = None) -> Any:
+    def enrich(
+        self,
+        ein: str,
+        organization_name: str | None = None,
+        evaluation_context: Any | None = None,
+        jurisdiction_state: str | None = None,
+    ) -> Any:
         ...
 
 

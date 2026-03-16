@@ -18,7 +18,12 @@ class EnrichmentProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def lookup(self, ein: str, organization_name: str | None = None) -> EnrichmentProviderResult:
+    def lookup(
+        self,
+        ein: str,
+        organization_name: str | None = None,
+        jurisdiction_state: str | None = None,
+    ) -> EnrichmentProviderResult:
         raise NotImplementedError
 
     def capabilities(self) -> list[ProviderCapability]:

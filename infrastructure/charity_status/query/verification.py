@@ -141,6 +141,7 @@ def apply_evaluation_overlay(
             enrichment_service=enrichment_service,
             ein=subject_ein,
             organization_name=organization_name,
+            jurisdiction_state=str((payload.get("verification") or {}).get("state") or "").strip() or None,
             evaluation_context=context,
         )
     else:
@@ -274,6 +275,7 @@ def _enrich_payload(
     enrichment_service: Any,
     ein: str,
     organization_name: str | None,
+    jurisdiction_state: str | None,
     evaluation_context: EvaluationContext,
 ) -> dict[str, Any]:
     try:
@@ -281,6 +283,7 @@ def _enrich_payload(
             ein=ein,
             organization_name=organization_name,
             evaluation_context=evaluation_context,
+            jurisdiction_state=jurisdiction_state,
         )
     except TypeError:
         result = enrichment_service.enrich(ein=ein, organization_name=organization_name)

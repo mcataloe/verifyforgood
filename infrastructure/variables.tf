@@ -451,6 +451,30 @@ variable "enrichment_state_registry_endpoint" {
   default     = ""
 }
 
+variable "enrichment_state_registry_colorado_enabled" {
+  description = "Enable the Colorado state registry adapter through the shared state-registry orchestration layer."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_state_registry_colorado_app_token" {
+  description = "Optional Socrata app token for the Colorado state registry dataset."
+  type        = string
+  default     = ""
+}
+
+variable "enrichment_state_registry_kentucky_enabled" {
+  description = "Enable the Kentucky state registry adapter through the shared state-registry orchestration layer."
+  type        = bool
+  default     = false
+}
+
+variable "enrichment_state_registry_kentucky_companies_url" {
+  description = "Kentucky bulk company snapshot URL used by the shared state-registry orchestration layer."
+  type        = string
+  default     = ""
+}
+
 variable "enrichment_state_business_enabled" {
   description = "Enable scaffolded state business entity provider."
   type        = bool

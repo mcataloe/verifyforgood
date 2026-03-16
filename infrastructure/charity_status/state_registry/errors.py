@@ -15,3 +15,7 @@ class StateRegistryAdapterRegistrationError(StateRegistryError):
 
 class StateRegistryAdapterOperationNotSupportedError(StateRegistryError):
     pass
+
+
+class StateRegistryLookupFailedError(StateRegistryError):
+    pass

@@ -4,6 +4,7 @@ from .errors import (
     StateRegistryAdapterOperationNotSupportedError,
     StateRegistryAdapterRegistrationError,
     StateRegistryError,
+    StateRegistryLookupFailedError,
     UnsupportedStateRegistryError,
 )
 from .matching import NameMatchResult, classify_name_match
@@ -21,7 +22,13 @@ from .normalization import (
     stable_payload_hash,
 )
 from .registry import StateRegistryAdapterRegistry, build_state_registry_adapter_registry
-from .service import StateRegistryLookupService
+from .repository import (
+    InMemoryStateRegistryRecordRepository,
+    NoopStateRegistryRecordRepository,
+    StateRegistryRecordRepository,
+    build_state_registry_record_item,
+)
+from .service import StateRegistryLookupFailure, StateRegistryLookupOutcome, StateRegistryLookupService
 from .traceability import build_raw_payload_ref, now_utc_iso
 
 __all__ = [
@@ -31,6 +38,7 @@ __all__ = [
     "UnsupportedStateRegistryError",
     "StateRegistryAdapterRegistrationError",
     "StateRegistryAdapterOperationNotSupportedError",
+    "StateRegistryLookupFailedError",
     "StateRegistrySourceType",
     "StateRegistryEntityStatus",
     "StateRegistryStanding",
@@ -50,5 +58,11 @@ __all__ = [
     "classify_name_match",
     "StateRegistryAdapterRegistry",
     "build_state_registry_adapter_registry",
+    "StateRegistryRecordRepository",
+    "NoopStateRegistryRecordRepository",
+    "InMemoryStateRegistryRecordRepository",
+    "build_state_registry_record_item",
+    "StateRegistryLookupFailure",
+    "StateRegistryLookupOutcome",
     "StateRegistryLookupService",
 ]
