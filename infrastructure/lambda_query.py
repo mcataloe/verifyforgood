@@ -7,7 +7,7 @@ from collections import Counter
 from typing import Any
 
 import boto3
-from charity_status.api import error_response, json_response
+from charity_status.api import ResponseContext, build_response_context, error_response, json_response, normalize_route_key, strip_version_prefix
 from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
@@ -258,28 +258,41 @@ def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
 
 
 def handler(event, context):
+    api_context = build_response_context(event, context)
     route_key = _route_key(event or {})
+    
+    def respond(status_code: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return json_response(status_code, payload, response_context=api_context)
+
+    def fail(status_code: int, message: str, code: str | None = None) -> dict[str, Any]:
+        return error_response(status_code, message, response_context=api_context, code=code)
+
     try:
         auth_context = _get_auth_context_provider().extract_context(event or {})
+        api_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan=str(getattr(auth_context, "plan_id", None) or "public"),
+            deprecation=api_context.deprecation,
+        )
         _get_quota_metering_hook().on_request(auth_context, route_key)
     except AuthenticationError as exc:
-        return error_response(exc.status_code, str(exc))
+        return fail(exc.status_code, str(exc))
     except AuthorizationError as exc:
-        return error_response(exc.status_code, str(exc))
+        return fail(exc.status_code, str(exc))
     except QuotaExceededError as exc:
-        return error_response(exc.status_code, str(exc))
+        return fail(exc.status_code, str(exc))
     evaluation_context = _resolve_evaluation_context(auth_context)
     method = (event.get("httpMethod") or "GET").upper()
     if _is_ops_request(event, method):
         status_code, payload = _handle_ops_request(event)
-        response = json_response(status_code, payload)
+        response = respond(status_code, payload)
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
         return response
     if method == "POST" and _is_batch_verify_request(event):
-        response = _handle_batch_verify(event, evaluation_context=evaluation_context)
+        response = _handle_batch_verify(event, evaluation_context=evaluation_context, response_context=api_context)
         try:
             body = json.loads(response.get("body") or "{}")
-            total = ((body.get("batch_summary") or {}).get("total"))
+            total = (((body.get("data") or {}).get("batch_summary") or {}).get("total"))
             if isinstance(total, int):
                 auth_context.metadata["batch_items_count"] = str(total)
         except Exception:
@@ -288,11 +301,11 @@ def handler(event, context):
         return response
     if _is_organization_integrations_request(event, method):
         try:
-            response = _handle_organization_integrations_request(event, auth_context)
+            response = _handle_organization_integrations_request(event, auth_context, response_context=api_context)
         except OrganizationIntegrationSettingsValidationError as exc:
-            response = error_response(400, str(exc))
+            response = fail(400, str(exc))
         except AuthorizationError as exc:
-            response = error_response(exc.status_code, str(exc))
+            response = fail(exc.status_code, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
 
@@ -302,14 +315,14 @@ def handler(event, context):
         else:
             verification_input = _parse_get_request(event)
     except EINValidationError as exc:
-        return error_response(400, str(exc))
+        return fail(400, str(exc))
     except ValueError as exc:
-        return error_response(400, str(exc))
+        return fail(400, str(exc))
 
     try:
         if _is_search_request(event, method):
             status_code, payload = _handle_search_request(event)
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
 
@@ -322,7 +335,7 @@ def handler(event, context):
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
         if _is_sources_detail_request(event, method):
@@ -335,7 +348,7 @@ def handler(event, context):
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
         if _is_compliance_request(event, method):
@@ -346,7 +359,7 @@ def handler(event, context):
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
         if _is_federal_awards_request(event, method):
@@ -357,13 +370,13 @@ def handler(event, context):
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
 
         if _is_filings_request(event, method):
             status_code, payload = get_nonprofit_filings(_get_athena_client(), normalized_ein)
-            response = json_response(status_code, payload)
+            response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
 
@@ -378,7 +391,7 @@ def handler(event, context):
                         evaluation_context=evaluation_context,
                         ein=normalized_ein,
                     )
-                response = json_response(200, cached)
+                response = respond(200, cached)
                 _get_quota_metering_hook().on_response(auth_context, route_key, 200)
                 return response
 
@@ -397,37 +410,37 @@ def handler(event, context):
         )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
-        response = json_response(status_code, payload)
+        response = respond(status_code, payload)
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
         return response
     except EINValidationError as exc:
-        response = error_response(400, str(exc))
+        response = fail(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
         return response
     except ValueError as exc:
-        response = error_response(400, str(exc))
+        response = fail(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
         return response
     except AuthorizationError as exc:
-        response = error_response(exc.status_code, str(exc))
+        response = fail(exc.status_code, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, exc.status_code)
         return response
     except OrganizationIntegrationSettingsValidationError as exc:
-        response = error_response(400, str(exc))
+        response = fail(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
         return response
     except AthenaQueryTimeout as exc:
-        response = json_response(504, {"message": str(exc)})
+        response = fail(504, str(exc), code="timeout")
         _get_quota_metering_hook().on_response(auth_context, route_key, 504)
         return response
     except AthenaQueryError:
         logger.exception("Athena query error")
-        response = error_response(500, "Internal server error")
+        response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
     except Exception:
         logger.exception("Unhandled exception in lambda_query handler")
-        response = error_response(500, "Internal server error")
+        response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
 
@@ -448,7 +461,7 @@ def _route_key(event: dict[str, Any]) -> str:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = str(event.get("resource") or "")
     path = str(event.get("path") or "")
-    return f"{method} {resource or path or '/'}"
+    return normalize_route_key(f"{method} {resource or path or '/'}")
 
 
 def _parse_post_request(event: dict) -> VerificationInput:
@@ -489,71 +502,71 @@ def _parse_post_request(event: dict) -> VerificationInput:
 def _is_filings_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/filings") or path.endswith("/filings")
 
 
 def _is_search_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/nonprofits/search") or path.endswith("/nonprofits/search")
 
 
 def _is_batch_verify_request(event: dict) -> bool:
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
 
 
 def _is_ops_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.startswith("/ops/") or path.startswith("/ops/")
 
 
 def _is_organization_integrations_request(event: dict, method: str) -> bool:
     if method not in {"GET", "PUT"}:
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/organizations/integrations") or path.endswith("/organizations/integrations")
 
 
-def _handle_organization_integrations_request(event: dict, auth_context: Any) -> dict[str, Any]:
+def _handle_organization_integrations_request(
+    event: dict,
+    auth_context: Any,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
     workspace_id, account_id = _require_organization_context(auth_context)
     service = _get_organization_integration_settings_service()
     method = str(event.get("httpMethod") or "GET").upper()
     if method == "GET":
         document = service.get_settings(workspace_id=workspace_id, account_id=account_id)
-        return json_response(200, document.to_dict())
+        return json_response(200, document.to_dict(), response_context=response_context)
 
     body = event.get("body")
     if not body:
-        return error_response(400, "Request body is required")
+        return error_response(400, "Request body is required", response_context=response_context)
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
-        return error_response(400, "Request body must be valid JSON")
+        return error_response(400, "Request body must be valid JSON", response_context=response_context)
     if not isinstance(payload, dict):
-        return error_response(400, "Request body must be a JSON object")
+        return error_response(400, "Request body must be a JSON object", response_context=response_context)
     document = service.update_settings(
         workspace_id=workspace_id,
         account_id=account_id,
         payload=payload,
     )
-    return json_response(200, document.to_dict())
+    return json_response(200, document.to_dict(), response_context=response_context)
 
 
 def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
     run_store = _get_ops_run_store()
     if run_store is None:
         return 503, {"message": "Operational run store not configured"}
-    resource = str(event.get("resource") or "")
+    resource = _route_template(event)
     path_params = event.get("pathParameters") or {}
     query = event.get("queryStringParameters") or {}
     try:
@@ -582,32 +595,28 @@ def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
 def _is_sources_list_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/nonprofits/{ein}/sources") or path.endswith("/sources")
 
 
 def _is_sources_detail_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/nonprofits/{ein}/sources/{source_name}") or "/sources/" in path
 
 
 def _is_compliance_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/nonprofits/{ein}/compliance") or path.endswith("/compliance")
 
 
 def _is_federal_awards_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
-    resource = str(event.get("resource") or "")
-    path = str(event.get("path") or "")
+    resource, path = _route_paths(event)
     return resource.endswith("/nonprofits/{ein}/federal-awards") or path.endswith("/federal-awards")
 
 
@@ -616,7 +625,7 @@ def _extract_source_name(event: dict) -> str:
     direct = path_params.get("source_name")
     if isinstance(direct, str) and direct.strip():
         return direct.strip()
-    path = str(event.get("path") or "")
+    path = strip_version_prefix(str(event.get("path") or ""))
     marker = "/sources/"
     if marker in path:
         return path.split(marker, 1)[1].strip("/")
@@ -664,14 +673,19 @@ def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
     )
 
 
-def _handle_batch_verify(event: dict, evaluation_context: EvaluationContext) -> dict[str, Any]:
+def _handle_batch_verify(
+    event: dict,
+    evaluation_context: EvaluationContext,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
     try:
         body = event.get("body")
         if not body:
-            return error_response(400, "Request body is required")
+            return error_response(400, "Request body is required", response_context=response_context)
         payload = json.loads(body)
     except json.JSONDecodeError:
-        return error_response(400, "Request body must be valid JSON")
+        return error_response(400, "Request body must be valid JSON", response_context=response_context)
 
     items_input: list[Any]
     if isinstance(payload, list):
@@ -679,10 +693,10 @@ def _handle_batch_verify(event: dict, evaluation_context: EvaluationContext) -> 
     elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
         items_input = payload["items"]
     else:
-        return error_response(400, "Request body must be an array or an object with items[]")
+        return error_response(400, "Request body must be an array or an object with items[]", response_context=response_context)
 
     if len(items_input) > BATCH_VERIFY_MAX_SIZE:
-        return error_response(400, f"Batch size exceeds maximum of {BATCH_VERIFY_MAX_SIZE}")
+        return error_response(400, f"Batch size exceeds maximum of {BATCH_VERIFY_MAX_SIZE}", response_context=response_context)
 
     results: list[dict[str, Any]] = []
     status_counts: Counter[str] = Counter()
@@ -707,7 +721,18 @@ def _handle_batch_verify(event: dict, evaluation_context: EvaluationContext) -> 
         "counts_by_error": dict(error_counts),
         "max_batch_size": BATCH_VERIFY_MAX_SIZE,
     }
-    return json_response(200, {"batch_summary": summary, "items": results})
+    return json_response(200, {"batch_summary": summary, "items": results}, response_context=response_context)
+
+
+def _route_paths(event: dict[str, Any]) -> tuple[str, str]:
+    return _route_template(event), strip_version_prefix(str(event.get("path") or ""))
+
+
+def _route_template(event: dict[str, Any]) -> str:
+    resource = str(event.get("resource") or "")
+    if resource.strip():
+        return strip_version_prefix(resource)
+    return strip_version_prefix(str(event.get("path") or ""))
 
 
 def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationContext) -> dict[str, Any]:

@@ -79,9 +79,9 @@ def test_quota_exceeded():
     try:
         # Force deterministic bucket for assertion by patching method inputs.
         # This uses service logic directly via helper contract by faking current month write after first pass.
-        month_key, _, _ = enforce_quota_and_scope(principal, "GET /nonprofit/{ein}", InMemoryUsageStore())
+        month_key, _, _ = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
         store._usage[("acct_1", month_key)] = 250
-        enforce_quota_and_scope(principal, "GET /nonprofit/{ein}", store)
+        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", store)
     except QuotaExceededError:
         pass
     else:
@@ -99,7 +99,7 @@ def test_scoped_access_denied():
     )
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     try:
-        enforce_quota_and_scope(principal, "GET /nonprofits/{ein}/federal-awards", InMemoryUsageStore())
+        enforce_quota_and_scope(principal, "GET /v1/nonprofits/{ein}/federal-awards", InMemoryUsageStore())
     except AuthorizationError:
         pass
     else:
@@ -130,9 +130,9 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     module.usage_store = InMemoryUsageStore()
 
-    ok = module.handler({"httpMethod": "GET", "resource": "/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": display_key}}, None)
+    ok = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": display_key}}, None)
     assert ok["statusCode"] == 200
-    missing = module.handler({"httpMethod": "GET", "resource": "/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
+    missing = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
     assert missing["statusCode"] == 401
 
 
@@ -151,8 +151,8 @@ def test_entitlement_blocks_batch_for_developer(monkeypatch):
     module = importlib.import_module("infrastructure.lambda_query")
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "headers": {"x-api-key": display_key},
         "body": json.dumps({"items": [{"ein": "123456789"}]}),
     }
@@ -185,8 +185,8 @@ def test_batch_metering_counts_items_for_team_plan(monkeypatch):
     module.usage_store = InMemoryUsageStore()
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "headers": {"x-api-key": display_key},
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
     }

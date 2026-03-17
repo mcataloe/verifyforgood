@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /nonprofit/{ein}`, `GET /nonprofit/{ein}/filings`, `GET /nonprofits/search`, `GET /nonprofits/{ein}/sources`, `GET /nonprofits/{ein}/sources/{source_name}`, `GET /nonprofits/{ein}/compliance`, `GET /nonprofits/{ein}/federal-awards`, `POST /verify`, `POST /verify/batch`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organizations/integrations`, `PUT /v1/organizations/integrations`, `POST /v1/verify`, `POST /v1/verify/batch`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -64,7 +64,7 @@ Important:
 2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
 4. `lambda_query.py` handles verification/scoring endpoints.
-5. For `GET /nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
+5. For `GET /v1/nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
    - check materialized profile in DynamoDB
    - return cached profile on hit
    - on miss, run Athena/source assembly path, materialize to DynamoDB, return response
@@ -915,8 +915,8 @@ Compatibility notes:
 
 - Existing fields (`scores`, `score_explanation`, `decision`, `audit`, `summary`) remain unchanged.
 - `evidence` is additive and available in:
-  - `GET /nonprofit/{ein}`
-  - `POST /verify`
+  - `GET /v1/nonprofit/{ein}`
+  - `POST /v1/verify`
   - DynamoDB materialized profile records and cache-hit responses
 
 ## API Endpoints
@@ -1009,12 +1009,42 @@ External model remains simple:
 - API clients still see standard HTTP auth/quota behavior (`401`/`403`/`429`)
 - richer usage and overage accounting is internal/domain-ready for future billing processor integration
 
-### `GET /nonprofit/{ein}`
+## API Contract
+
+All public API Gateway routes are major-versioned under `/v1/`. Minor versions are not encoded in the path.
+
+Every HTTP response uses the same envelope:
+
+```json
+{
+  "api_version": "v1",
+  "api_release": "1.0.0",
+  "request_id": "generated-per-request",
+  "deprecation": {
+    "status": "active",
+    "sunset_date": null,
+    "recommended_version": null
+  },
+  "plan": "resolved-plan",
+  "data": {},
+  "meta": {},
+  "errors": []
+}
+```
+
+Notes:
+
+- `request_id` is generated per request and is stable across the full handler response path.
+- success payloads are returned under `data`
+- failures return `data={}` and populate `errors[]`
+- deprecated endpoints emit `Deprecation: true` and `Sunset: <ISO date>` headers in addition to the envelope metadata
+
+### `GET /v1/nonprofit/{ein}`
 
 Returns normalized organization + verification + scores + model + score explanation.
 When 990 data exists, includes enriched scoring factors and optional `filing_summary`.
 
-### `GET /nonprofits/search`
+### `GET /v1/nonprofits/search`
 
 Lightweight nonprofit listing/search endpoint (Athena-backed in this phase).
 
@@ -1034,7 +1064,7 @@ Response shape is intentionally index-friendly and lightweight:
 - `pagination.next_cursor`
 - `items[]` with summary fields (`ein`, `ein_normalized`, `name`, `state`, `subsection`, `irs_status`, `active`, `tax_period`)
 
-### `GET /nonprofits/{ein}/sources`
+### `GET /v1/nonprofits/{ein}/sources`
 
 Returns normalized source inspection output for the EIN, with source attribution and freshness metadata.
 
@@ -1057,7 +1087,7 @@ Response fields:
   - `explanation`
 - `failures[]` (provider-level failures from enrichment run)
 
-### `GET /nonprofits/{ein}/sources/{source_name}`
+### `GET /v1/nonprofits/{ein}/sources/{source_name}`
 
 Returns one normalized source entry for the EIN.
 
@@ -1065,7 +1095,7 @@ Returns one normalized source entry for the EIN.
 - `200` with `source` payload when available
 - Legacy `_mock` source aliases are still accepted for direct lookups, but logical source names are returned in collection responses.
 
-### `GET /nonprofits/{ein}/compliance`
+### `GET /v1/nonprofits/{ein}/compliance`
 
 Returns compliance visibility summary aggregated from normalized source records (for example, state registry + state business).
 
@@ -1083,7 +1113,7 @@ Response fields:
   - `status` (`available` or `unavailable`)
 - `sources[]` (normalized source entries used for summary)
 
-### `GET /nonprofits/{ein}/federal-awards`
+### `GET /v1/nonprofits/{ein}/federal-awards`
 
 Returns normalized federal awards summary derived from external source records.
 
@@ -1097,7 +1127,7 @@ Response fields:
   - `status` (`available` or `unavailable`)
   - `source`
 
-### `GET /organizations/integrations`
+### `GET /v1/organizations/integrations`
 
 Returns the current organization-level third-party integration settings for the authenticated workspace/account context.
 
@@ -1117,7 +1147,7 @@ Organizations without persisted settings return backward-compatible defaults:
 - `enabled=false`
 - `requiredForEvaluation=false`
 
-### `PUT /organizations/integrations`
+### `PUT /v1/organizations/integrations`
 
 Updates organization-level third-party integration settings for the authenticated workspace/account context.
 
@@ -1146,15 +1176,15 @@ Validation:
 
 ## Operational Endpoints (Phase 10F)
 
-Operational diagnostics are exposed on a separate read-only surface under `/ops/*`:
+Operational diagnostics are exposed on a separate read-only surface under `/v1/ops/*`:
 
-- `GET /ops/ingest/runs`
-- `GET /ops/ingest/runs/{ingest_run_id}`
-- `GET /ops/ingest/runs/{ingest_run_id}/filings`
-- `GET /ops/refresh/runs`
-- `GET /ops/refresh/runs/{refresh_run_id}`
-- `GET /ops/refresh/runs/{refresh_run_id}/eins`
-- `GET /ops/nonprofits/{ein}/pipeline-status`
+- `GET /v1/ops/ingest/runs`
+- `GET /v1/ops/ingest/runs/{ingest_run_id}`
+- `GET /v1/ops/ingest/runs/{ingest_run_id}/filings`
+- `GET /v1/ops/refresh/runs`
+- `GET /v1/ops/refresh/runs/{refresh_run_id}`
+- `GET /v1/ops/refresh/runs/{refresh_run_id}/eins`
+- `GET /v1/ops/nonprofits/{ein}/pipeline-status`
 
 Run lifecycle status meanings:
 
@@ -1169,12 +1199,12 @@ Operational diagnostics are structured and safe:
 
 Common debugging workflow for stale nonprofit data:
 
-1. check latest ingest runs (`/ops/ingest/runs`) and inspect run detail
-2. inspect filing items for the ingest run (`/ops/ingest/runs/{id}/filings`)
-3. inspect linked refresh run and EIN outcomes (`/ops/refresh/runs/{id}/eins`)
-4. inspect nonprofit pipeline status (`/ops/nonprofits/{ein}/pipeline-status`) for latest materialized hash/timestamps and staleness indicators
+1. check latest ingest runs (`/v1/ops/ingest/runs`) and inspect run detail
+2. inspect filing items for the ingest run (`/v1/ops/ingest/runs/{id}/filings`)
+3. inspect linked refresh run and EIN outcomes (`/v1/ops/refresh/runs/{id}/eins`)
+4. inspect nonprofit pipeline status (`/v1/ops/nonprofits/{ein}/pipeline-status`) for latest materialized hash/timestamps and staleness indicators
 
-### `POST /verify`
+### `POST /v1/verify`
 
 Request body:
 
@@ -1188,7 +1218,7 @@ Request body:
 
 Performs the same verification workflow as GET and includes conservative name-match metadata.
 
-### `POST /verify/batch`
+### `POST /v1/verify/batch`
 
 Synchronous batch verification endpoint for CSR/finance workflows.
 
@@ -1225,7 +1255,7 @@ Phase 6B adds a deterministic, config-driven customer policy layer for CSR workf
 Policy behavior:
 
 - uses a global default policy when no `policy_id` is provided
-- optionally applies named policies via `POST /verify` request body
+- optionally applies named policies via `POST /v1/verify` request body
 - evaluates deterministic conditions against assembled verification payload
 - keeps `decision` unchanged and adds `policy_evaluation` separately
 - exposes `final_recommendation` (policy-aware recommendation)
@@ -1262,9 +1292,9 @@ Supported profiles:
 
 Usage:
 
-- `POST /verify` supports optional `weighting_profile` in request body.
-- `GET /nonprofit/{ein}` supports optional `weighting_profile` query parameter.
-- `POST /verify/batch` items may include optional `weighting_profile`.
+- `POST /v1/verify` supports optional `weighting_profile` in request body.
+- `GET /v1/nonprofit/{ein}` supports optional `weighting_profile` query parameter.
+- `POST /v1/verify/batch` items may include optional `weighting_profile`.
 
 Auditability:
 
@@ -1276,7 +1306,7 @@ Invalid profile behavior:
 
 - defaults to deterministic fallback profile (`default_v1`) with `fallback_applied=true` in explanation metadata.
 
-### `GET /nonprofit/{ein}/filings`
+### `GET /v1/nonprofit/{ein}/filings`
 
 Returns filing summaries:
 

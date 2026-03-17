@@ -6,6 +6,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Any
 
+from charity_status.api import normalize_route_key
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from charity_status.auth.models import ApiKeyPrincipal, ApiPlan
 from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
@@ -15,17 +16,17 @@ DEFAULT_PLAN_LIMITS: dict[str, int] = {
 }
 
 ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
-    "POST /verify": "verify:write",
-    "POST /verify/batch": "verify:write",
-    "GET /nonprofit/{ein}": "verify:read",
-    "GET /nonprofit/{ein}/filings": "verify:read",
-    "GET /nonprofits/search": "nonprofits:read",
-    "GET /nonprofits/{ein}/sources": "sources:read",
-    "GET /nonprofits/{ein}/sources/{source_name}": "sources:read",
-    "GET /nonprofits/{ein}/compliance": "compliance:read",
-    "GET /nonprofits/{ein}/federal-awards": "federal_awards:read",
-    "GET /organizations/integrations": "verify:read",
-    "PUT /organizations/integrations": "verify:write",
+    "POST /v1/verify": "verify:write",
+    "POST /v1/verify/batch": "verify:write",
+    "GET /v1/nonprofit/{ein}": "verify:read",
+    "GET /v1/nonprofit/{ein}/filings": "verify:read",
+    "GET /v1/nonprofits/search": "nonprofits:read",
+    "GET /v1/nonprofits/{ein}/sources": "sources:read",
+    "GET /v1/nonprofits/{ein}/sources/{source_name}": "sources:read",
+    "GET /v1/nonprofits/{ein}/compliance": "compliance:read",
+    "GET /v1/nonprofits/{ein}/federal-awards": "federal_awards:read",
+    "GET /v1/organizations/integrations": "verify:read",
+    "PUT /v1/organizations/integrations": "verify:write",
 }
 
 
@@ -111,6 +112,7 @@ def enforce_quota_and_scope(
     route_key: str,
     usage_store: InMemoryUsageStore,
 ) -> tuple[str, int, int]:
+    route_key = normalize_route_key(route_key)
     required_scope = ROUTE_SCOPE_REQUIREMENTS.get(route_key)
     if required_scope and required_scope not in principal.scopes:
         raise AuthorizationError("Insufficient scope for endpoint")

@@ -8,6 +8,18 @@ from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsSt
 from charity_status.scoring import SCORING_MODEL_VERSION
 
 
+def _response_envelope(response):
+    return json.loads(response["body"])
+
+
+def _response_data(response):
+    return _response_envelope(response)["data"]
+
+
+def _response_error_message(response):
+    return _response_envelope(response)["errors"][0]["message"]
+
+
 def _load_module():
     sys.modules.pop("infrastructure.lambda_query", None)
     return importlib.import_module("infrastructure.lambda_query")
@@ -57,10 +69,9 @@ def test_invalid_ein_still_returns_400():
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "12-34A6789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 400
-    assert "invalid characters" in body["message"]
+    assert "invalid characters" in _response_error_message(result)
 
 
 def test_lookup_hit_path_returns_materialized_profile():
@@ -84,9 +95,15 @@ def test_lookup_hit_path_returns_materialized_profile():
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    envelope = _response_envelope(result)
+    body = envelope["data"]
 
     assert result["statusCode"] == 200
+    assert envelope["api_version"] == "v1"
+    assert envelope["api_release"] == "1.0.0"
+    assert envelope["request_id"]
+    assert envelope["plan"] == "public"
+    assert envelope["deprecation"]["status"] == "active"
     assert body["organization"]["name"] == "Cached Org"
     assert body["scores"]["overall"] == 88
     assert body["evidence"]["model_version"] == SCORING_MODEL_VERSION
@@ -117,7 +134,7 @@ def test_lookup_hit_path_refreshes_stale_materialized_profile():
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["organization"]["name"] == "Fresh Org"
@@ -141,7 +158,7 @@ def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["organization"]["name"] == "Fresh Org"
@@ -166,7 +183,7 @@ def test_post_verify_bypasses_cache_readthrough():
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["organization"]["name"] == "Post Org"
@@ -185,7 +202,7 @@ def test_post_verify_accepts_policy_id_and_returns_policy_evaluation():
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["policy_evaluation"]["policy_id"] == "strict_deny"
@@ -205,7 +222,7 @@ def test_post_verify_accepts_weighting_profile():
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["score_explanation"]["weighting_profile"]["applied"] == "compliance_heavy_v1"
@@ -219,7 +236,7 @@ def test_response_shape_still_contains_core_fields():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    body = json.loads(module.handler(event, None)["body"])
+    body = _response_data(module.handler(event, None))
 
     for key in [
         "organization",
@@ -258,7 +275,7 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["scores"]["overall"] == 88.5
@@ -313,7 +330,7 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["integration_evaluation"]["required_unmet_integrations"] == ["candid"]
@@ -352,9 +369,9 @@ def test_get_organization_integrations_returns_current_settings():
     module.auth_context_provider = _AuthProvider()
     module.quota_metering_hook = _QuotaHook()
 
-    event = {"httpMethod": "GET", "resource": "/organizations/integrations", "path": "/organizations/integrations", "headers": {}}
+    event = {"httpMethod": "GET", "resource": "/v1/organizations/integrations", "path": "/v1/organizations/integrations", "headers": {}}
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["workspace_id"] == "ws_1"
@@ -386,13 +403,13 @@ def test_put_organization_integrations_updates_settings():
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/organizations/integrations",
-        "path": "/organizations/integrations",
+        "resource": "/v1/organizations/integrations",
+        "path": "/v1/organizations/integrations",
         "headers": {},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": True}}}),
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["source"] == "stored"
@@ -426,16 +443,16 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/organizations/integrations",
-        "path": "/organizations/integrations",
+        "resource": "/v1/organizations/integrations",
+        "path": "/v1/organizations/integrations",
         "headers": {},
         "body": json.dumps({"integrations": {"candid": {"enabled": False, "requiredForEvaluation": True}}}),
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    message = _response_error_message(result)
 
     assert result["statusCode"] == 400
-    assert "requiredForEvaluation" in body["message"]
+    assert "requiredForEvaluation" in message
 
 
 def test_post_verify_batch_all_success():
@@ -447,14 +464,14 @@ def test_post_verify_batch_all_success():
 
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321", "name": "Batch Org"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["batch_summary"]["total"] == 2
@@ -471,13 +488,13 @@ def test_post_verify_batch_partial_invalid_input():
 
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "invalid"}, {"ein": "987654321"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = json.loads(module.handler(event, None)["body"])
+    body = _response_data(module.handler(event, None))
     assert body["batch_summary"]["success"] == 2
     assert body["batch_summary"]["error"] == 1
     assert body["batch_summary"]["counts_by_error"]["invalid_ein"] == 1
@@ -492,13 +509,13 @@ def test_post_verify_batch_missing_ein_rows():
 
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"name": "No EIN"}, {"ein": "123456789"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = json.loads(module.handler(event, None)["body"])
+    body = _response_data(module.handler(event, None))
     assert body["batch_summary"]["error"] == 1
     assert body["batch_summary"]["counts_by_error"]["missing_ein"] == 1
 
@@ -512,13 +529,13 @@ def test_post_verify_batch_duplicate_eins_are_processed_independently():
 
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "123456789"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = json.loads(module.handler(event, None)["body"])
+    body = _response_data(module.handler(event, None))
     assert body["batch_summary"]["total"] == 2
     assert body["batch_summary"]["success"] == 2
     assert len(body["items"]) == 2
@@ -529,16 +546,15 @@ def test_post_verify_batch_enforces_size_limit():
     module.BATCH_VERIFY_MAX_SIZE = 1
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
     assert result["statusCode"] == 400
-    assert "maximum of 1" in body["message"]
+    assert "maximum of 1" in _response_error_message(result)
 
 
 def test_post_verify_batch_reuses_cache_for_get_style_item():
@@ -564,14 +580,14 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
 
     event = {
         "httpMethod": "POST",
-        "resource": "/verify/batch",
-        "path": "/verify/batch",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
         "body": json.dumps({"items": [{"ein": "123456789"}]}),
         "pathParameters": None,
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["items"][0]["item"]["organization"]["name"] == "Cached Org"
 
@@ -594,12 +610,12 @@ def test_nonprofits_search_exactish_name():
     )
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/search",
-        "path": "/nonprofits/search",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "helping hands"},
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["items"][0]["name"] == "Helping Hands Foundation"
     assert body["items"][0]["ein"] == "12-3456789"
@@ -616,8 +632,8 @@ def test_nonprofits_search_filtered_search():
     module.athena_client = SimpleNamespace(search_nonprofits=search_nonprofits)
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/search",
-        "path": "/nonprofits/search",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "state": "il", "subsection": "03", "active_only": "true", "limit": "5"},
     }
     result = module.handler(event, None)
@@ -638,12 +654,12 @@ def test_nonprofits_search_pagination_cursor():
     )
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/search",
-        "path": "/nonprofits/search",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "limit": "2"},
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["pagination"]["next_cursor"] is not None
 
@@ -654,14 +670,13 @@ def test_nonprofits_search_invalid_limit_handling():
     module.athena_client = _mock_client(search_rows=[])
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/search",
-        "path": "/nonprofits/search",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "limit": "100"},
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
     assert result["statusCode"] == 400
-    assert "between 1 and 10" in body["message"]
+    assert "between 1 and 10" in _response_error_message(result)
 
 
 def test_nonprofits_sources_supported_source_lookup():
@@ -690,13 +705,13 @@ def test_nonprofits_sources_supported_source_lookup():
     )
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/sources/{source_name}",
-        "path": "/nonprofits/123456789/sources/state_registry_mock",
+        "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
+        "path": "/v1/nonprofits/123456789/sources/state_registry_mock",
         "pathParameters": {"ein": "123456789", "source_name": "state_registry_mock"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["source"]["source_name"] == "state_registry_mock"
     assert body["source"]["normalized_data"]["registration_status"] == "active"
@@ -708,15 +723,14 @@ def test_nonprofits_sources_unsupported_source_name():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/sources/{source_name}",
-        "path": "/nonprofits/123456789/sources/unknown_source",
+        "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
+        "path": "/v1/nonprofits/123456789/sources/unknown_source",
         "pathParameters": {"ein": "123456789", "source_name": "unknown_source"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
     assert result["statusCode"] == 404
-    assert "Unsupported source name" in body["message"]
+    assert "Unsupported source name" in _response_error_message(result)
 
 
 def test_nonprofits_compliance_no_source_data_case():
@@ -725,13 +739,13 @@ def test_nonprofits_compliance_no_source_data_case():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/compliance",
-        "path": "/nonprofits/123456789/compliance",
+        "resource": "/v1/nonprofits/{ein}/compliance",
+        "path": "/v1/nonprofits/123456789/compliance",
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["compliance"]["status"] == "unavailable"
 
@@ -742,13 +756,13 @@ def test_nonprofits_sources_no_source_data_case():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/sources",
-        "path": "/nonprofits/123456789/sources",
+        "resource": "/v1/nonprofits/{ein}/sources",
+        "path": "/v1/nonprofits/123456789/sources",
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["sources"] == []
     assert body["failures"] == []
@@ -790,13 +804,13 @@ def test_nonprofits_compliance_summary_aggregation():
     )
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/compliance",
-        "path": "/nonprofits/123456789/compliance",
+        "resource": "/v1/nonprofits/{ein}/compliance",
+        "path": "/v1/nonprofits/123456789/compliance",
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["compliance"]["status"] == "available"
     assert body["compliance"]["registration_status"] == "active"
@@ -828,13 +842,13 @@ def test_nonprofits_federal_awards_summary_response():
     )
     event = {
         "httpMethod": "GET",
-        "resource": "/nonprofits/{ein}/federal-awards",
-        "path": "/nonprofits/123456789/federal-awards",
+        "resource": "/v1/nonprofits/{ein}/federal-awards",
+        "path": "/v1/nonprofits/123456789/federal-awards",
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["federal_awards"]["status"] == "available"
     assert body["federal_awards"]["award_count"] == 5
@@ -882,11 +896,11 @@ def test_ops_ingest_runs_listing_and_detail():
     )
     module.OPS_METADATA_BUCKET = "test-bucket"
 
-    list_result = module.handler({"httpMethod": "GET", "resource": "/ops/ingest/runs", "headers": {}}, None)
+    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": {}}, None)
     detail_result = module.handler(
         {
             "httpMethod": "GET",
-            "resource": "/ops/ingest/runs/{ingest_run_id}",
+            "resource": "/v1/ops/ingest/runs/{ingest_run_id}",
             "pathParameters": {"ingest_run_id": "ing-1"},
             "headers": {},
         },
@@ -895,7 +909,7 @@ def test_ops_ingest_runs_listing_and_detail():
     filings_result = module.handler(
         {
             "httpMethod": "GET",
-            "resource": "/ops/ingest/runs/{ingest_run_id}/filings",
+            "resource": "/v1/ops/ingest/runs/{ingest_run_id}/filings",
             "pathParameters": {"ingest_run_id": "ing-1"},
             "headers": {},
         },
@@ -914,11 +928,11 @@ def test_ops_refresh_runs_listing_and_not_found():
         get_run_items=lambda run_type, run_id, item_name: None,
     )
     module.OPS_METADATA_BUCKET = "test-bucket"
-    list_result = module.handler({"httpMethod": "GET", "resource": "/ops/refresh/runs", "headers": {}}, None)
+    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": {}}, None)
     detail_result = module.handler(
         {
             "httpMethod": "GET",
-            "resource": "/ops/refresh/runs/{refresh_run_id}",
+            "resource": "/v1/ops/refresh/runs/{refresh_run_id}",
             "pathParameters": {"refresh_run_id": "ref-missing"},
             "headers": {},
         },
@@ -940,7 +954,7 @@ def test_ops_pipeline_status_lookup_and_not_found():
     ok = module.handler(
         {
             "httpMethod": "GET",
-            "resource": "/ops/nonprofits/{ein}/pipeline-status",
+            "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
             "pathParameters": {"ein": "123456789"},
             "headers": {},
         },
@@ -957,7 +971,7 @@ def test_ops_pipeline_status_lookup_and_not_found():
     missing = module.handler(
         {
             "httpMethod": "GET",
-            "resource": "/ops/nonprofits/{ein}/pipeline-status",
+            "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
             "pathParameters": {"ein": "123456789"},
             "headers": {},
         },

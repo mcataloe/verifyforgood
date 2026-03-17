@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import boto3
-from charity_status.api import error_response, json_response
+from charity_status.api import build_response_context, error_response, json_response
 from charity_status.form990 import Form990IngestService
 from charity_status.form990.discovery import fetch_index_records
 from charity_status.form990.filing_reconciliation import reconcile_filing_catalog, update_filing_state_from_ingest_result
@@ -76,17 +76,24 @@ class Form990OperationalError(RuntimeError):
 
 
 def handler(event, context):
-    del context
+    api_context = build_response_context(event, context, plan="internal")
+
+    def respond(status_code: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return json_response(status_code, payload, response_context=api_context)
+
+    def fail(status_code: int, message: str, code: str | None = None) -> dict[str, Any]:
+        return error_response(status_code, message, response_context=api_context, code=code)
+
     if not BUCKET:
-        return error_response(500, "BUCKET environment variable is required")
+        return fail(500, "BUCKET environment variable is required")
     config_errors = _validate_handler_config()
     if config_errors:
-        return error_response(500, "; ".join(config_errors))
+        return fail(500, "; ".join(config_errors))
 
     try:
         payload = _parse_event_payload(event)
     except ValueError as exc:
-        return error_response(400, str(exc))
+        return fail(400, str(exc))
     service = Form990IngestService(
         bucket=BUCKET,
         raw_prefix=RAW_PREFIX,
@@ -101,7 +108,7 @@ def handler(event, context):
     explicit_records = payload.get("records")
     if explicit_records is not None:
         if not isinstance(explicit_records, list):
-            return error_response(400, "records must be an array")
+            return fail(400, "records must be an array")
         result = service.ingest_index_payload(payload=explicit_records, download_raw=bool(payload.get("download_raw", DEFAULT_DOWNLOAD_RAW)))
         update_filing_state_from_ingest_result(
             s3_client=service.s3,
@@ -111,7 +118,7 @@ def handler(event, context):
             ingest_result=result,
         )
         result["filing_state_key"] = state_manifest_key(MANIFEST_PREFIX)
-        return json_response(200, result)
+        return respond(200, result)
 
     # Backward-compatible path: when callers provide index_url(s) without orchestration mode,
     # ingest directly and return legacy ingest payload shape.
@@ -127,7 +134,7 @@ def handler(event, context):
                 ingest_result=result,
             )
             result["filing_state_key"] = state_manifest_key(MANIFEST_PREFIX)
-            return json_response(200, result)
+            return respond(200, result)
 
     try:
         execution_mode = _resolve_execution_mode(payload)
@@ -141,15 +148,15 @@ def handler(event, context):
             result = _run_discovery_orchestrated(service, payload)
         else:
             result = _run_discovery_ingestion(service, payload)
-        return json_response(200, result)
+        return respond(200, result)
     except ValueError as exc:
-        return error_response(400, str(exc))
+        return fail(400, str(exc))
     except Form990OperationalError as exc:
         _log_structured("form990.run.failed", error_type="operational_error", error=str(exc))
-        return error_response(500, str(exc))
+        return fail(500, str(exc))
     except Exception as exc:
         _log_structured("form990.run.failed", error_type=classify_error(exc), error=str(exc))
-        return error_response(500, "Form 990 ingest failed")
+        return fail(500, "Form 990 ingest failed")
 
 
 def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, Any]) -> dict[str, Any]:

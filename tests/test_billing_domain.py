@@ -35,8 +35,8 @@ def test_overage_ready_calculation():
 
 def test_feature_gating():
     developer = DEFAULT_PLANS["developer"]
-    assert check_feature_entitlement(developer, "POST /verify/batch") is False
-    assert check_feature_entitlement(developer, "GET /nonprofit/{ein}") is True
+    assert check_feature_entitlement(developer, "POST /v1/verify/batch") is False
+    assert check_feature_entitlement(developer, "GET /v1/nonprofit/{ein}") is True
 
 
 def test_quota_period_state():

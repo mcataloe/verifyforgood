@@ -6,6 +6,18 @@ from infrastructure.charity_status.form990.models import Form990IndexRecord
 from infrastructure.charity_status.form990.source_catalog import Form990SourceArtifact, normalize_configured_sources
 
 
+def _response_envelope(response):
+    return json.loads(response["body"])
+
+
+def _response_data(response):
+    return _response_envelope(response)["data"]
+
+
+def _response_error_message(response):
+    return _response_envelope(response)["errors"][0]["message"]
+
+
 class FakeS3:
     def __init__(self):
         self.puts = []
@@ -108,9 +120,14 @@ def test_lambda_form990_success(monkeypatch):
     }
 
     result = module.handler(event, None)
-    body = json.loads(result["body"])
+    envelope = _response_envelope(result)
+    body = envelope["data"]
 
     assert result["statusCode"] == 200
+    assert envelope["api_version"] == "v1"
+    assert envelope["api_release"] == "1.0.0"
+    assert envelope["plan"] == "internal"
+    assert envelope["request_id"]
     assert body["records_processed"] == 1
     assert body["records"][0]["parse_status"] == "index_only"
 
@@ -118,10 +135,9 @@ def test_lambda_form990_success(monkeypatch):
 def test_lambda_form990_invalid_records_payload(monkeypatch):
     module, _ = _load_module(monkeypatch)
     result = module.handler({"records": {}}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 400
-    assert "records must be an array" in body["message"]
+    assert "records must be an array" in _response_error_message(result)
 
 
 def test_lambda_form990_rejects_invalid_runtime_config(monkeypatch):
@@ -132,9 +148,8 @@ def test_lambda_form990_rejects_invalid_runtime_config(monkeypatch):
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
     result = module.handler({}, None)
-    body = json.loads(result["body"])
     assert result["statusCode"] == 500
-    assert "FORM990_CHUNK_SIZE must be > 0" in body["message"]
+    assert "FORM990_CHUNK_SIZE must be > 0" in _response_error_message(result)
 
 
 def test_lambda_form990_rejects_invalid_source_mode_config(monkeypatch):
@@ -146,10 +161,9 @@ def test_lambda_form990_rejects_invalid_source_mode_config(monkeypatch):
     module = importlib.import_module("infrastructure.lambda_form990")
 
     result = module.handler({}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 500
-    assert "FORM990_SOURCE_MODE must be one of configured, static_manifest, or irs_page" in body["message"]
+    assert "FORM990_SOURCE_MODE must be one of configured, static_manifest, or irs_page" in _response_error_message(result)
 
 
 def test_lambda_form990_rejects_blank_legacy_irs_page_url_config(monkeypatch):
@@ -162,20 +176,18 @@ def test_lambda_form990_rejects_blank_legacy_irs_page_url_config(monkeypatch):
     module = importlib.import_module("infrastructure.lambda_form990")
 
     result = module.handler({}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 500
-    assert "FORM990_IRS_DOWNLOADS_PAGE_URL is required when FORM990_SOURCE_MODE=irs_page" in body["message"]
+    assert "FORM990_IRS_DOWNLOADS_PAGE_URL is required when FORM990_SOURCE_MODE=irs_page" in _response_error_message(result)
 
 
 def test_lambda_form990_json_body(monkeypatch):
     module, _ = _load_module(monkeypatch)
 
     result = module.handler({"body": "{not-json"}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 400
-    assert "valid JSON" in body["message"]
+    assert "valid JSON" in _response_error_message(result)
 
 
 def test_lambda_form990_loads_records_from_index_url(monkeypatch):
@@ -195,7 +207,7 @@ def test_lambda_form990_loads_records_from_index_url(monkeypatch):
     ]
 
     result = module.handler({"index_url": "https://example.org/index.json", "download_raw": False}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["records_processed"] == 1
@@ -213,7 +225,7 @@ def test_lambda_form990_index_filters_by_ein_and_limit(monkeypatch):
         {"index_url": "https://example.org/index.json", "download_raw": False, "eins": ["987654321"], "limit": 1},
         None,
     )
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["records_processed"] == 1
@@ -268,7 +280,7 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
     }
 
     result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["stage"] == "csv_reconciliation"
@@ -305,7 +317,7 @@ def test_static_manifest_is_default_discovery_mode(monkeypatch):
     }
 
     result = module.handler({"mode": "incremental"}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["source_mode"] == "static_manifest"
@@ -348,10 +360,9 @@ def test_static_manifest_missing_returns_clear_operational_error(monkeypatch):
     module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: (_ for _ in ()).throw(FileNotFoundError("missing manifest"))
 
     result = module.handler({"mode": "incremental"}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 500
-    assert "Form 990 static manifest is missing" in body["message"]
+    assert "Form 990 static manifest is missing" in _response_error_message(result)
 
 
 def test_static_manifest_malformed_returns_clear_operational_error(monkeypatch):
@@ -361,10 +372,9 @@ def test_static_manifest_malformed_returns_clear_operational_error(monkeypatch):
     )
 
     result = module.handler({"mode": "incremental"}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 500
-    assert "Form 990 static manifest is malformed" in body["message"]
+    assert "Form 990 static manifest is malformed" in _response_error_message(result)
 
 
 def test_discovery_mode_reports_unchanged_state(monkeypatch):
@@ -385,7 +395,7 @@ def test_discovery_mode_reports_unchanged_state(monkeypatch):
     )
 
     result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["new_sources"] == 0
@@ -435,7 +445,7 @@ def test_static_manifest_mode_reports_unchanged_state(monkeypatch):
     }
 
     result = module.handler({"mode": "incremental"}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["source_mode"] == "static_manifest"
@@ -475,7 +485,7 @@ def test_discovery_mode_skips_download_when_state_matches(monkeypatch):
     module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
     module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
     result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert called["value"] is False
@@ -502,7 +512,7 @@ def test_manual_source_catalog_preserves_configured_flow(monkeypatch):
     }
 
     result = module.handler({"mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["source_mode"] == "configured"
@@ -513,10 +523,9 @@ def test_lambda_form990_rejects_invalid_request_source_mode(monkeypatch):
     module, _ = _load_module(monkeypatch)
 
     result = module.handler({"mode": "incremental", "source_mode": "unsupported"}, None)
-    body = json.loads(result["body"])
 
     assert result["statusCode"] == 400
-    assert "source_mode must be one of configured, static_manifest, or irs_page" in body["message"]
+    assert "source_mode must be one of configured, static_manifest, or irs_page" in _response_error_message(result)
 
 
 def test_policy_config_override_target_years(monkeypatch):
@@ -539,7 +548,7 @@ def test_policy_config_override_target_years(monkeypatch):
         },
         None,
     )
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["policy"]["target_years"] == ["2023"]
     assert body["selected_source_count"] == 1
@@ -563,7 +572,7 @@ def test_irs_page_source_mode_discovers_source_artifacts(monkeypatch):
     module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {"status": "success", "records_processed": 0, "parsed_count": 0, "failed_count": 0, "records": []}
 
     result = module.handler({"mode": "incremental", "source_mode": "irs_page"}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["source_mode"] == "irs_page"
     assert body["source_catalog_count"] == 2
@@ -620,7 +629,7 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
         new_count=1,
     )
     result = module.handler({"mode": "bootstrap", "chunk_size": 1, "source_mode": "irs_page"}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
     assert body["stage"] == "zip_extraction"
@@ -682,7 +691,7 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
         new_count=1,
     )
     result = module.handler({"mode": "incremental", "target_years": ["2023"], "chunk_size": 10, "source_mode": "irs_page"}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["selected_source_count"] == 1
     assert body["chunk_count"] == 1
@@ -716,7 +725,7 @@ def test_legacy_index_url_path_bypasses_static_manifest(monkeypatch):
     }
 
     result = module.handler({"index_url": "https://example.org/index.json", "download_raw": False}, None)
-    body = json.loads(result["body"])
+    body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert called["fetch"] == 1

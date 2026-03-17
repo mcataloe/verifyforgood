@@ -421,7 +421,7 @@ variable "bootstrap_max_batches_per_run" {
 }
 
 variable "batch_verify_max_size" {
-  description = "Maximum number of rows accepted by POST /verify/batch."
+  description = "Maximum number of rows accepted by POST /v1/verify/batch."
   type        = number
   default     = 25
 }
@@ -551,13 +551,13 @@ variable "enrichment_ofac_endpoint" {
 }
 
 variable "search_max_limit" {
-  description = "Maximum page size allowed for GET /nonprofits/search."
+  description = "Maximum page size allowed for GET /v1/nonprofits/search."
   type        = number
   default     = 50
 }
 
 variable "search_default_limit" {
-  description = "Default page size for GET /nonprofits/search."
+  description = "Default page size for GET /v1/nonprofits/search."
   type        = number
   default     = 20
 }

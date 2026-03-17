@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from charity_status.api import normalize_route_key
 from charity_status.auth import (
     DEFAULT_PLAN_LIMITS,
     InMemoryUsageStore,
@@ -156,11 +157,12 @@ def _from_context(auth_context: AuthContext) -> ApiKeyPrincipal:
 
 
 def _billable_units(route_key: str, metadata: dict[str, str]) -> int:
-    if route_key == "POST /verify/batch":
+    route_key = normalize_route_key(route_key)
+    if route_key == "POST /v1/verify/batch":
         total = metadata.get("batch_items_count")
         if total and str(total).isdigit():
             return max(1, int(total))
-    if route_key.startswith("GET /nonprofits/{ein}/sources"):
+    if route_key.startswith("GET /v1/nonprofits/{ein}/sources"):
         return 2
     return 1
 

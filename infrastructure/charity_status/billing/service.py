@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from charity_status.api import normalize_route_key
 from charity_status.billing.models import EntitlementSet, MonthlyQuotaPeriod, SubscriptionPlan
 
 
@@ -45,10 +46,10 @@ DEFAULT_PLANS: dict[str, SubscriptionPlan] = {
 }
 
 ROUTE_ENTITLEMENT_REQUIREMENTS: dict[str, str] = {
-    "POST /verify/batch": "batch_verification",
-    "GET /nonprofits/{ein}/sources": "advanced_source_visibility",
-    "GET /nonprofits/{ein}/sources/{source_name}": "advanced_source_visibility",
-    "GET /nonprofits/{ein}/federal-awards": "premium_compliance_risk",
+    "POST /v1/verify/batch": "batch_verification",
+    "GET /v1/nonprofits/{ein}/sources": "advanced_source_visibility",
+    "GET /v1/nonprofits/{ein}/sources/{source_name}": "advanced_source_visibility",
+    "GET /v1/nonprofits/{ein}/federal-awards": "premium_compliance_risk",
 }
 
 
@@ -69,6 +70,7 @@ def monthly_period_for(now: datetime | None = None) -> str:
 
 
 def check_feature_entitlement(plan: SubscriptionPlan, route_key: str) -> bool:
+    route_key = normalize_route_key(route_key)
     required = ROUTE_ENTITLEMENT_REQUIREMENTS.get(route_key)
     if not required:
         return True

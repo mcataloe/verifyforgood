@@ -87,8 +87,8 @@ def test_scope_enforcement_for_oauth(monkeypatch):
     response = module.handler(
         {
             "httpMethod": "POST",
-            "resource": "/verify",
-            "path": "/verify",
+            "resource": "/v1/verify",
+            "path": "/v1/verify",
             "headers": {"Authorization": f"Bearer {token}"},
             "body": json.dumps({"ein": "123456789"}),
         },
@@ -126,11 +126,11 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
     module.usage_store = InMemoryUsageStore()
 
     api_key_response = module.handler(
-        {"httpMethod": "GET", "resource": "/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": api_key}},
+        {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": api_key}},
         None,
     )
     oauth_response = module.handler(
-        {"httpMethod": "GET", "resource": "/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"Authorization": f"Bearer {token}"}},
+        {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"Authorization": f"Bearer {token}"}},
         None,
     )
     assert api_key_response["statusCode"] == 200

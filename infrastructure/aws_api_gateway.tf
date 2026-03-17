@@ -7,9 +7,15 @@ resource "aws_api_gateway_rest_api" "irs_api" {
   name = "${local.domain_name}${var.environment == "prod" ? "" : "-${var.environment}"}"
 }
 
-resource "aws_api_gateway_resource" "ein" {
+resource "aws_api_gateway_resource" "api_v1" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  path_part   = "v1"
+}
+
+resource "aws_api_gateway_resource" "ein" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.api_v1.id
   path_part   = "nonprofit"
 }
 
@@ -27,13 +33,13 @@ resource "aws_api_gateway_resource" "ein_filings" {
 
 resource "aws_api_gateway_resource" "verify" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
-  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  parent_id   = aws_api_gateway_resource.api_v1.id
   path_part   = "verify"
 }
 
 resource "aws_api_gateway_resource" "nonprofits" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
-  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  parent_id   = aws_api_gateway_resource.api_v1.id
   path_part   = "nonprofits"
 }
 
@@ -81,7 +87,7 @@ resource "aws_api_gateway_resource" "verify_batch" {
 
 resource "aws_api_gateway_resource" "organizations" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
-  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  parent_id   = aws_api_gateway_resource.api_v1.id
   path_part   = "organizations"
 }
 
@@ -93,7 +99,7 @@ resource "aws_api_gateway_resource" "organizations_integrations" {
 
 resource "aws_api_gateway_resource" "ops" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
-  parent_id   = aws_api_gateway_rest_api.irs_api.root_resource_id
+  parent_id   = aws_api_gateway_resource.api_v1.id
   path_part   = "ops"
 }
 
