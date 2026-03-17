@@ -1,3 +1,4 @@
+from .admin import StaticAdminKeyStore, StoredAdminKeyRecord, authenticate_admin_key, build_admin_key_record, load_admin_key_store
 from .errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from .models import ApiKeyPrincipal, ApiPlan, OAuthClientPrincipal
 from .oauth import (
@@ -28,6 +29,11 @@ __all__ = [
     "AuthenticationError",
     "AuthorizationError",
     "QuotaExceededError",
+    "StaticAdminKeyStore",
+    "StoredAdminKeyRecord",
+    "authenticate_admin_key",
+    "build_admin_key_record",
+    "load_admin_key_store",
     "DEFAULT_PLAN_LIMITS",
     "InMemoryUsageStore",
     "StaticApiKeyStore",

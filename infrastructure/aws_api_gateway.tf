@@ -49,6 +49,66 @@ resource "aws_api_gateway_resource" "oauth_token" {
   path_part   = "token"
 }
 
+resource "aws_api_gateway_resource" "admin" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.api_v1.id
+  path_part   = "admin"
+}
+
+resource "aws_api_gateway_resource" "admin_accounts" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "accounts"
+}
+
+resource "aws_api_gateway_resource" "admin_account_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_accounts.id
+  path_part   = "{accountId}"
+}
+
+resource "aws_api_gateway_resource" "admin_account_suspend" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "suspend"
+}
+
+resource "aws_api_gateway_resource" "admin_account_activate" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "activate"
+}
+
+resource "aws_api_gateway_resource" "admin_account_api_keys" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "api-keys"
+}
+
+resource "aws_api_gateway_resource" "admin_account_api_key_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_api_keys.id
+  path_part   = "{keyId}"
+}
+
+resource "aws_api_gateway_resource" "admin_account_api_key_rotate" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_api_key_id.id
+  path_part   = "rotate"
+}
+
+resource "aws_api_gateway_resource" "admin_account_oauth_clients" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "oauth-clients"
+}
+
+resource "aws_api_gateway_resource" "admin_account_oauth_client_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_oauth_clients.id
+  path_part   = "{clientId}"
+}
+
 resource "aws_api_gateway_resource" "nonprofits" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.api_v1.id
@@ -230,6 +290,97 @@ resource "aws_api_gateway_method" "post_oauth_token" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_admin_accounts" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_accounts.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_admin_accounts" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_accounts.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_admin_account_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "patch_admin_account_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_id.id
+  http_method   = "PATCH"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_suspend" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_suspend.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_activate" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_activate.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_api_keys" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_api_keys.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_admin_account_api_keys" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_api_keys.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_admin_account_api_key_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_api_key_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_api_key_rotate" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_api_key_rotate.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_oauth_clients" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_oauth_clients.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_admin_account_oauth_clients" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_oauth_clients.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_admin_account_oauth_client_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_oauth_client_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "lambda_verify_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.verify.id
@@ -243,6 +394,123 @@ resource "aws_api_gateway_integration" "lambda_oauth_token_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.oauth_token.id
   http_method             = aws_api_gateway_method.post_oauth_token.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_accounts_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_accounts.id
+  http_method             = aws_api_gateway_method.post_admin_accounts.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_admin_accounts_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_accounts.id
+  http_method             = aws_api_gateway_method.get_admin_accounts.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_admin_account_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_id.id
+  http_method             = aws_api_gateway_method.get_admin_account_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_patch_admin_account_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_id.id
+  http_method             = aws_api_gateway_method.patch_admin_account_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_account_suspend_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_suspend.id
+  http_method             = aws_api_gateway_method.post_admin_account_suspend.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_account_activate_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_activate.id
+  http_method             = aws_api_gateway_method.post_admin_account_activate.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_account_api_keys_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_api_keys.id
+  http_method             = aws_api_gateway_method.post_admin_account_api_keys.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_admin_account_api_keys_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_api_keys.id
+  http_method             = aws_api_gateway_method.get_admin_account_api_keys.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_delete_admin_account_api_key_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_api_key_id.id
+  http_method             = aws_api_gateway_method.delete_admin_account_api_key_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_account_api_key_rotate_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_api_key_rotate.id
+  http_method             = aws_api_gateway_method.post_admin_account_api_key_rotate.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_admin_account_oauth_clients_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_oauth_clients.id
+  http_method             = aws_api_gateway_method.post_admin_account_oauth_clients.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_admin_account_oauth_clients_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_oauth_clients.id
+  http_method             = aws_api_gateway_method.get_admin_account_oauth_clients.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_delete_admin_account_oauth_client_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_oauth_client_id.id
+  http_method             = aws_api_gateway_method.delete_admin_account_oauth_client_id.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -504,6 +772,19 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_filings_integration,
     aws_api_gateway_integration.lambda_verify_integration,
     aws_api_gateway_integration.lambda_oauth_token_integration,
+    aws_api_gateway_integration.lambda_post_admin_accounts_integration,
+    aws_api_gateway_integration.lambda_get_admin_accounts_integration,
+    aws_api_gateway_integration.lambda_get_admin_account_id_integration,
+    aws_api_gateway_integration.lambda_patch_admin_account_id_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_suspend_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_activate_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_api_keys_integration,
+    aws_api_gateway_integration.lambda_get_admin_account_api_keys_integration,
+    aws_api_gateway_integration.lambda_delete_admin_account_api_key_id_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_api_key_rotate_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_oauth_clients_integration,
+    aws_api_gateway_integration.lambda_get_admin_account_oauth_clients_integration,
+    aws_api_gateway_integration.lambda_delete_admin_account_oauth_client_id_integration,
     aws_api_gateway_integration.lambda_verify_batch_integration,
     aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_put_organizations_integrations_integration,

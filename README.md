@@ -7,7 +7,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organizations/integrations`, `PUT /v1/organizations/integrations`, `POST /v1/verify`, `POST /v1/verify/batch`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organizations/integrations`, `PUT /v1/organizations/integrations`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -984,6 +984,13 @@ Auth coexistence behavior:
 - otherwise requests fall back to API key auth (`x-api-key`)
 - both auth modes resolve to the same `AuthContext` shape for consistent authorization, plan resolution, and billing behavior
 
+Admin control-plane authentication:
+
+- admin endpoints are protected separately from customer auth using `x-admin-key`
+- admin keys are hashed at rest and are never returned after creation
+- admin credentials do not resolve into customer `AuthContext`; they gate only `/v1/admin/...`
+- control-plane generated API keys and OAuth client secrets are shown once at create/rotate time and are stored hashed only
+
 ## Billing Domain Model (Phase 12B)
 
 Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/` (no external payment processor dependency yet).
@@ -1187,6 +1194,44 @@ Validation:
 - `requiredForEvaluation=true` with `enabled=false` returns `400`; the API does not silently enable the integration
 - unsupported integration ids return `400`
 - omitted integrations preserve their current values; unspecified organizations continue to default to disabled/not required
+
+## Admin Control Plane
+
+Admin-only tenant and credential management is exposed under `/v1/admin/...` and uses the same standard response envelope as the public/customer API.
+
+Admin routes:
+
+- `POST /v1/admin/accounts`
+- `GET /v1/admin/accounts`
+- `GET /v1/admin/accounts/{accountId}`
+- `PATCH /v1/admin/accounts/{accountId}`
+- `POST /v1/admin/accounts/{accountId}/suspend`
+- `POST /v1/admin/accounts/{accountId}/activate`
+- `POST /v1/admin/accounts/{accountId}/api-keys`
+- `GET /v1/admin/accounts/{accountId}/api-keys`
+- `DELETE /v1/admin/accounts/{accountId}/api-keys/{keyId}`
+- `POST /v1/admin/accounts/{accountId}/api-keys/{keyId}/rotate`
+- `POST /v1/admin/accounts/{accountId}/oauth-clients`
+- `GET /v1/admin/accounts/{accountId}/oauth-clients`
+- `DELETE /v1/admin/accounts/{accountId}/oauth-clients/{clientId}`
+
+Managed account shape:
+
+- `id`
+- `name`
+- `status` (`active` or `suspended`)
+- `created_at`
+
+Secret-handling rules:
+
+- API key plaintext is returned only from `POST /v1/admin/accounts/{accountId}/api-keys`
+- rotated API key plaintext is returned only from `POST /v1/admin/accounts/{accountId}/api-keys/{keyId}/rotate`
+- OAuth client plaintext secret is returned only from `POST /v1/admin/accounts/{accountId}/oauth-clients`
+- list/get/delete responses never expose plaintext secrets
+
+Terraform/env settings:
+
+- `admin_key_records_json`
 
 ## Operational Endpoints (Phase 10F)
 

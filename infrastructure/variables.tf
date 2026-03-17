@@ -601,6 +601,13 @@ variable "oauth_token_ttl_seconds" {
   default     = 3600
 }
 
+variable "admin_key_records_json" {
+  description = "JSON array of admin key records with admin_id/secret_hash/revoked for the separate control-plane admin surface."
+  type        = string
+  default     = "[]"
+  sensitive   = true
+}
+
 variable "tenant_integration_settings_json" {
   description = "JSON array of tenant/workspace third-party integration settings keyed by workspace_id/account_id."
   type        = string

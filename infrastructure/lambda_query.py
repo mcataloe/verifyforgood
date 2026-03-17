@@ -9,7 +9,18 @@ from urllib.parse import parse_qs
 
 import boto3
 from charity_status.api import ResponseContext, build_response_context, error_response, json_response, normalize_route_key, strip_version_prefix
-from charity_status.auth import AuthenticationError, AuthorizationError, InMemoryUsageStore, QuotaExceededError
+from charity_status.auth import (
+    AuthenticationError,
+    AuthorizationError,
+    InMemoryUsageStore,
+    QuotaExceededError,
+    StaticApiKeyStore,
+    StaticOAuthClientStore,
+    StaticOAuthTokenStore,
+    authenticate_admin_key,
+    load_admin_key_store,
+)
+from charity_status.control_plane import ControlPlaneError, ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
 from charity_status.enrichments import (
@@ -97,6 +108,7 @@ OAUTH_M2M_ENABLED = _env_bool("OAUTH_M2M_ENABLED")
 OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
 OAUTH_CLIENT_RECORDS_JSON = os.environ.get("OAUTH_CLIENT_RECORDS_JSON", "")
 OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
+ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
@@ -115,6 +127,7 @@ tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | 
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
 oauth_client_credentials_service: OAuthClientCredentialsService | None = None
+control_plane_service: ControlPlaneService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -192,20 +205,19 @@ def _get_profile_store() -> ProfileStoreAdapter | None:
 
 def _get_auth_context_provider() -> AuthContextProvider:
     global auth_context_provider
-    if auth_context_provider is None:
-        if API_AUTH_ENABLED:
-            api_key_store = load_api_key_store(API_KEY_RECORDS_JSON)
-            if OAUTH_M2M_ENABLED:
-                auth_context_provider = ApiKeyOrOAuthAuthContextProvider(
-                    api_key_store=api_key_store,
-                    oauth_token_store=load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON),
-                    oauth_client_store=load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
-                )
-            else:
-                auth_context_provider = ApiKeyAuthContextProvider(api_key_store)
-        else:
+    if not API_AUTH_ENABLED:
+        if auth_context_provider is None:
             auth_context_provider = NoopAuthContextProvider()
-    return auth_context_provider
+        return auth_context_provider
+
+    api_key_store = _load_runtime_api_key_store()
+    if OAUTH_M2M_ENABLED:
+        return ApiKeyOrOAuthAuthContextProvider(
+            api_key_store=api_key_store,
+            oauth_token_store=_load_runtime_oauth_token_store(),
+            oauth_client_store=_load_runtime_oauth_client_store(),
+        )
+    return ApiKeyAuthContextProvider(api_key_store)
 
 
 def _get_quota_metering_hook() -> QuotaMeteringHook:
@@ -221,12 +233,38 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
 
 def _get_oauth_client_credentials_service() -> OAuthClientCredentialsService:
     global oauth_client_credentials_service
-    if oauth_client_credentials_service is None:
-        oauth_client_credentials_service = OAuthClientCredentialsService(
-            load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
-            token_ttl_seconds=OAUTH_TOKEN_TTL_SECONDS,
-        )
+    oauth_client_credentials_service = OAuthClientCredentialsService(
+        _load_runtime_oauth_client_store(),
+        token_ttl_seconds=OAUTH_TOKEN_TTL_SECONDS,
+    )
     return oauth_client_credentials_service
+
+
+def _get_admin_key_store():
+    return load_admin_key_store(ADMIN_KEY_RECORDS_JSON)
+
+
+def _get_control_plane_service() -> ControlPlaneService:
+    global control_plane_service
+    if control_plane_service is None:
+        control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    return control_plane_service
+
+
+def _load_runtime_api_key_store() -> StaticApiKeyStore:
+    records = list(load_api_key_store(API_KEY_RECORDS_JSON)._by_id.values())
+    records.extend(_get_control_plane_service().api_key_records())
+    return StaticApiKeyStore(records)
+
+
+def _load_runtime_oauth_token_store() -> StaticOAuthTokenStore:
+    return load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON)
+
+
+def _load_runtime_oauth_client_store() -> StaticOAuthClientStore:
+    records = list(load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON)._by_id.values())
+    records.extend(_get_control_plane_service().oauth_client_records())
+    return StaticOAuthClientStore(records)
 
 
 def _get_ops_run_store() -> Any | None:
@@ -319,6 +357,78 @@ def _parse_oauth_token_request(event: dict[str, Any]) -> tuple[str, str]:
     return client_id, client_secret
 
 
+def _parse_json_body(event: dict[str, Any]) -> dict[str, Any]:
+    body = event.get("body")
+    if not body:
+        raise ValueError("Request body is required")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Request body must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
+
+
+def _is_admin_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "PATCH", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    return resource.startswith("/admin/") or path.startswith("/admin/")
+
+
+def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    path_params = event.get("pathParameters") or {}
+    account_id = str(path_params.get("accountId") or "")
+    key_id = str(path_params.get("keyId") or "")
+    client_id = str(path_params.get("clientId") or "")
+    service = _get_control_plane_service()
+
+    if resource == "/admin/accounts":
+        if method == "POST":
+            return json_response(201, service.create_account(_parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": service.list_accounts()}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}":
+        if method == "GET":
+            return json_response(200, service.get_account(account_id), response_context=response_context)
+        if method == "PATCH":
+            return json_response(200, service.update_account(account_id, _parse_json_body(event)), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/suspend" and method == "POST":
+        return json_response(200, service.suspend_account(account_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/activate" and method == "POST":
+        return json_response(200, service.activate_account(account_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys":
+        if method == "POST":
+            return json_response(201, service.create_api_key(account_id, _parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": service.list_api_keys(account_id)}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys/{keyId}":
+        if method == "DELETE":
+            return json_response(200, service.delete_api_key(account_id, key_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys/{keyId}/rotate" and method == "POST":
+        return json_response(200, service.rotate_api_key(account_id, key_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/oauth-clients":
+        if method == "POST":
+            return json_response(201, service.create_oauth_client(account_id, _parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": service.list_oauth_clients(account_id)}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/oauth-clients/{clientId}" and method == "DELETE":
+        return json_response(200, service.delete_oauth_client(account_id, client_id), response_context=response_context)
+
+    return error_response(404, "Admin route not found", response_context=response_context, code="not_found")
+
+
 def handler(event, context):
     api_context = build_response_context(event, context)
     route_key = _route_key(event or {})
@@ -330,6 +440,23 @@ def handler(event, context):
         return error_response(status_code, message, response_context=api_context, code=code)
 
     method = (event.get("httpMethod") or "GET").upper()
+    if _is_admin_request(event, method):
+        try:
+            admin_id = authenticate_admin_key((event or {}).get("headers") or {}, _get_admin_key_store())
+            event["_admin_id"] = admin_id
+            admin_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan="admin",
+                deprecation=api_context.deprecation,
+            )
+            return _handle_admin_request(event, admin_context)
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context)
+        except ControlPlaneError as exc:
+            return error_response(exc.status_code, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
+
     if _is_oauth_token_request(event, method):
         return _handle_oauth_token_request(event, api_context)
 
