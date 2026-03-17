@@ -8,7 +8,7 @@ from typing import Any
 
 from charity_status.api import normalize_route_key
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
-from charity_status.auth.models import ApiKeyPrincipal, ApiPlan
+from charity_status.auth.models import ApiKeyPrincipal, ApiPlan, AuthenticatedPrincipal
 from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
 
 DEFAULT_PLAN_LIMITS: dict[str, int] = {
@@ -16,6 +16,7 @@ DEFAULT_PLAN_LIMITS: dict[str, int] = {
 }
 
 ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
+    "POST /v1/oauth/token": "oauth:token",
     "POST /v1/verify": "verify:write",
     "POST /v1/verify/batch": "verify:write",
     "GET /v1/nonprofit/{ein}": "verify:read",
@@ -39,6 +40,7 @@ class StoredApiKeyRecord:
     scopes: tuple[str, ...]
     revoked: bool
     plan_id: str
+    rate_limit_profile: str
 
 
 class StaticApiKeyStore:
@@ -69,6 +71,7 @@ def build_api_key_record(
     scopes: list[str] | None = None,
     plan_id: str = "developer",
     revoked: bool = False,
+    rate_limit_profile: str | None = None,
 ) -> tuple[str, StoredApiKeyRecord]:
     secret_value = secret or _generate_secret()
     display_key = f"csk_{key_id}.{secret_value}"
@@ -80,6 +83,7 @@ def build_api_key_record(
         scopes=tuple(scopes or ("verify:read",)),
         revoked=revoked,
         plan_id=plan_id,
+        rate_limit_profile=rate_limit_profile or plan_id,
     )
     return display_key, record
 
@@ -99,16 +103,18 @@ def authenticate_api_key(headers: dict[str, Any] | None, store: StaticApiKeyStor
     resolved = DEFAULT_PLANS.get(record.plan_id, DEFAULT_PLANS["developer"])
     monthly_limit = limits.get(record.plan_id, resolved.monthly_request_limit)
     return ApiKeyPrincipal(
-        key_id=record.key_id,
+        credential_id=record.key_id,
         account_id=record.account_id,
         workspace_id=record.workspace_id,
         plan=ApiPlan(plan_id=record.plan_id, monthly_limit=monthly_limit, entitlements=resolved.entitlements),
         scopes=record.scopes,
+        auth_method="api_key",
+        rate_limit_profile=record.rate_limit_profile,
     )
 
 
 def enforce_quota_and_scope(
-    principal: ApiKeyPrincipal,
+    principal: AuthenticatedPrincipal,
     route_key: str,
     usage_store: InMemoryUsageStore,
 ) -> tuple[str, int, int]:
@@ -130,6 +136,10 @@ def enforce_quota_and_scope(
     if decision.projected_usage > decision.limit_units:
         raise QuotaExceededError("Monthly request quota exceeded")
     return month_key, used, principal.plan.monthly_limit
+
+
+def hash_secret(secret: str) -> str:
+    return _hash_secret(secret)
 
 
 def _extract_api_key(headers: dict[str, Any]) -> str:

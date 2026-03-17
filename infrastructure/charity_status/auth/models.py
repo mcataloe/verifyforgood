@@ -13,18 +13,25 @@ class ApiPlan:
 
 
 @dataclass(frozen=True)
-class ApiKeyPrincipal:
-    key_id: str
+class AuthenticatedPrincipal:
+    credential_id: str
     account_id: str
     workspace_id: str
     plan: ApiPlan
     scopes: tuple[str, ...]
+    auth_method: str
+    rate_limit_profile: str
 
 
 @dataclass(frozen=True)
-class OAuthClientPrincipal:
-    client_id: str
-    account_id: str
-    workspace_id: str
-    plan: ApiPlan
-    scopes: tuple[str, ...]
+class ApiKeyPrincipal(AuthenticatedPrincipal):
+    @property
+    def key_id(self) -> str:
+        return self.credential_id
+
+
+@dataclass(frozen=True)
+class OAuthClientPrincipal(AuthenticatedPrincipal):
+    @property
+    def client_id(self) -> str:
+        return self.credential_id

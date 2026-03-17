@@ -37,6 +37,18 @@ resource "aws_api_gateway_resource" "verify" {
   path_part   = "verify"
 }
 
+resource "aws_api_gateway_resource" "oauth" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.api_v1.id
+  path_part   = "oauth"
+}
+
+resource "aws_api_gateway_resource" "oauth_token" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.oauth.id
+  path_part   = "token"
+}
+
 resource "aws_api_gateway_resource" "nonprofits" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.api_v1.id
@@ -211,10 +223,26 @@ resource "aws_api_gateway_method" "post_verify" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_oauth_token" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.oauth_token.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "lambda_verify_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.verify.id
   http_method             = aws_api_gateway_method.post_verify.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_oauth_token_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.oauth_token.id
+  http_method             = aws_api_gateway_method.post_oauth_token.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -475,6 +503,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_integration,
     aws_api_gateway_integration.lambda_filings_integration,
     aws_api_gateway_integration.lambda_verify_integration,
+    aws_api_gateway_integration.lambda_oauth_token_integration,
     aws_api_gateway_integration.lambda_verify_batch_integration,
     aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_put_organizations_integrations_integration,

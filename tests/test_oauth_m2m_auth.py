@@ -5,9 +5,10 @@ import json
 import sys
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore, build_api_key_record, build_oauth_token_record
+from charity_status.auth import InMemoryUsageStore, build_api_key_record, build_oauth_client_record, build_oauth_token_record
 from charity_status.auth.errors import AuthenticationError
-from charity_status.auth.oauth import StaticOAuthTokenStore, authenticate_bearer_token
+from charity_status.auth.oauth import StaticOAuthClientStore, StaticOAuthTokenStore, authenticate_bearer_token, authenticate_oauth_client_credentials
+from charity_status.platform.auth import OAuthClientCredentialsService
 
 
 def _query_stub():
@@ -36,6 +37,10 @@ def _query_stub():
     )
 
 
+def _response_data(response):
+    return json.loads(response["body"])["data"]
+
+
 def test_valid_bearer_token_path():
     token, record = build_oauth_token_record(
         client_id="client_1",
@@ -48,6 +53,7 @@ def test_valid_bearer_token_path():
     principal = authenticate_bearer_token({"Authorization": f"Bearer {token}"}, StaticOAuthTokenStore([record]))
     assert principal.client_id == "client_1"
     assert principal.account_id == "acct_1"
+    assert principal.auth_method == "oauth_client_credentials"
 
 
 def test_invalid_bearer_token_path():
@@ -65,6 +71,45 @@ def test_invalid_bearer_token_path():
         assert False, "Expected AuthenticationError"
 
 
+def test_oauth_client_secret_plaintext_only_returned_at_creation():
+    client_secret, record = build_oauth_client_record(
+        client_id="client_1",
+        client_secret="oauth-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+    )
+    assert client_secret == "oauth-secret"
+    assert record.client_secret_hash != "oauth-secret"
+    assert not hasattr(record, "client_secret")
+
+
+def test_oauth_client_credentials_issue_signed_access_token():
+    client_secret, record = build_oauth_client_record(
+        client_id="client_1",
+        client_secret="oauth-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["oauth:token", "verify:read"],
+        plan_id="team",
+    )
+    principal = authenticate_oauth_client_credentials("client_1", client_secret, StaticOAuthClientStore([record]))
+    service = OAuthClientCredentialsService(StaticOAuthClientStore([record]), token_ttl_seconds=1800)
+
+    context, token_payload = service.issue_token("client_1", client_secret)
+    bearer_principal = authenticate_bearer_token(
+        {"Authorization": f"Bearer {token_payload['access_token']}"},
+        client_store=StaticOAuthClientStore([record]),
+    )
+
+    assert principal.client_id == "client_1"
+    assert context.credential_id == "client_1"
+    assert context.auth_method == "oauth_client_credentials"
+    assert context.plan == "team"
+    assert token_payload["token_type"] == "Bearer"
+    assert token_payload["expires_in"] == 1800
+    assert bearer_principal.client_id == "client_1"
+
+
 def test_scope_enforcement_for_oauth(monkeypatch):
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "true")
@@ -77,6 +122,7 @@ def test_scope_enforcement_for_oauth(monkeypatch):
         plan_id="team",
     )
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", json.dumps([record.__dict__]))
+    monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
     sys.modules.pop("infrastructure.lambda_query", None)
     module = importlib.import_module("infrastructure.lambda_query")
@@ -97,6 +143,41 @@ def test_scope_enforcement_for_oauth(monkeypatch):
     assert response["statusCode"] == 403
 
 
+def test_oauth_token_endpoint_returns_access_token(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    monkeypatch.setenv("OAUTH_M2M_ENABLED", "true")
+    client_secret, client_record = build_oauth_client_record(
+        client_id="client_1",
+        client_secret="oauth-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["oauth:token", "verify:read"],
+        plan_id="team",
+    )
+    monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
+    monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
+    monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([client_record.__dict__]))
+    sys.modules.pop("infrastructure.lambda_query", None)
+    module = importlib.import_module("infrastructure.lambda_query")
+
+    response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/oauth/token",
+            "path": "/v1/oauth/token",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"client_id": "client_1", "client_secret": client_secret}),
+        },
+        None,
+    )
+    body = _response_data(response)
+
+    assert response["statusCode"] == 200
+    assert body["token_type"] == "Bearer"
+    assert body["access_token"].startswith("oct_")
+    assert body["expires_in"] == 3600
+
+
 def test_coexistence_api_key_and_oauth(monkeypatch):
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "true")
@@ -108,22 +189,35 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
         scopes=["verify:read"],
         plan_id="developer",
     )
-    token, oauth_record = build_oauth_token_record(
+    client_secret, oauth_client_record = build_oauth_client_record(
         client_id="client_1",
-        token="oauth-secret",
+        client_secret="oauth-secret",
         account_id="acct_2",
         workspace_id="ws_2",
-        scopes=["verify:read"],
+        scopes=["oauth:token", "verify:read"],
         plan_id="team",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([key_record.__dict__]))
-    monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", json.dumps([oauth_record.__dict__]))
+    monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
+    monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([oauth_client_record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     module.usage_store = InMemoryUsageStore()
+
+    token_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/oauth/token",
+            "path": "/v1/oauth/token",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"client_id": "client_1", "client_secret": client_secret}),
+        },
+        None,
+    )
+    token = _response_data(token_response)["access_token"]
 
     api_key_response = module.handler(
         {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": api_key}},

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
+from charity_status.platform.auth import ApiKeyAuthContextProvider
 
 
 def test_valid_key_authenticates():
@@ -22,6 +23,41 @@ def test_valid_key_authenticates():
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     assert principal.account_id == "acct_1"
     assert principal.plan.monthly_limit == 250
+    assert principal.auth_method == "api_key"
+    assert principal.rate_limit_profile == "developer"
+
+
+def test_api_key_plaintext_only_returned_at_creation():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+    )
+    assert display_key.endswith(".test-secret")
+    assert not hasattr(record, "secret")
+    assert record.secret_hash != "test-secret"
+
+
+def test_api_key_provider_returns_normalized_auth_context():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:read"],
+        plan_id="developer",
+    )
+    event = {"headers": {"x-api-key": display_key}}
+
+    context = ApiKeyAuthContextProvider(StaticApiKeyStore([record])).extract_context(event)
+
+    assert context.account_id == "acct_1"
+    assert context.credential_id == "dev_001"
+    assert context.auth_method == "api_key"
+    assert context.plan == "developer"
+    assert context.rate_limit_profile == "developer"
+    assert event["_auth_context"] is context
 
 
 def test_invalid_key_rejected():

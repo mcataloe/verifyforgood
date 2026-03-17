@@ -5,15 +5,18 @@ from typing import Any
 
 from charity_status.api import normalize_route_key
 from charity_status.auth import (
+    DEFAULT_OAUTH_TOKEN_TTL_SECONDS,
     DEFAULT_PLAN_LIMITS,
     InMemoryUsageStore,
     StaticApiKeyStore,
+    StaticOAuthClientStore,
     StaticOAuthTokenStore,
     authenticate_api_key,
     authenticate_bearer_token,
+    authenticate_oauth_client_credentials,
     enforce_quota_and_scope,
 )
-from charity_status.auth.models import ApiKeyPrincipal, OAuthClientPrincipal
+from charity_status.auth.models import AuthenticatedPrincipal
 from charity_status.billing.service import DEFAULT_PLANS, check_quota_and_calculate, monthly_period_for
 from charity_status.core.models import AuthContext
 
@@ -25,21 +28,58 @@ class ApiKeyAuthContextProvider:
 
     def extract_context(self, event: dict[str, Any]) -> AuthContext:
         principal = authenticate_api_key(event.get("headers") or {}, self._store, self._plan_limits)
-        return _to_context(principal)
+        context = _to_context(principal)
+        _attach_context(event, context)
+        return context
 
 
 class ApiKeyOrOAuthAuthContextProvider:
-    def __init__(self, api_key_store: StaticApiKeyStore, oauth_store: StaticOAuthTokenStore, plan_limits: dict[str, int] | None = None):
+    def __init__(
+        self,
+        api_key_store: StaticApiKeyStore,
+        oauth_token_store: StaticOAuthTokenStore | None = None,
+        oauth_client_store: StaticOAuthClientStore | None = None,
+        plan_limits: dict[str, int] | None = None,
+    ):
         self._api_key_provider = ApiKeyAuthContextProvider(api_key_store, plan_limits=plan_limits)
-        self._oauth_store = oauth_store
+        self._oauth_token_store = oauth_token_store
+        self._oauth_client_store = oauth_client_store
 
     def extract_context(self, event: dict[str, Any]) -> AuthContext:
         headers = event.get("headers") or {}
         auth_value = _get_header(headers, "authorization")
         if auth_value and str(auth_value).lower().startswith("bearer "):
-            principal = authenticate_bearer_token(headers, self._oauth_store)
-            return _to_context(principal)
+            principal = authenticate_bearer_token(
+                headers,
+                token_store=self._oauth_token_store,
+                client_store=self._oauth_client_store,
+            )
+            context = _to_context(principal)
+            _attach_context(event, context)
+            return context
         return self._api_key_provider.extract_context(event)
+
+
+class OAuthClientCredentialsService:
+    def __init__(
+        self,
+        client_store: StaticOAuthClientStore,
+        *,
+        token_ttl_seconds: int = DEFAULT_OAUTH_TOKEN_TTL_SECONDS,
+    ):
+        self._client_store = client_store
+        self._token_ttl_seconds = token_ttl_seconds
+
+    def issue_token(self, client_id: str, client_secret: str) -> tuple[AuthContext, dict[str, Any]]:
+        principal = authenticate_oauth_client_credentials(client_id, client_secret, self._client_store)
+        from charity_status.auth.oauth import issue_client_access_token
+
+        token_payload = issue_client_access_token(
+            principal,
+            self._client_store,
+            ttl_seconds=self._token_ttl_seconds,
+        )
+        return _to_context(principal), token_payload
 
 
 class ApiKeyQuotaMeteringHook:
@@ -47,7 +87,7 @@ class ApiKeyQuotaMeteringHook:
         self._usage_store = usage_store
 
     def on_request(self, auth_context: AuthContext, route_key: str) -> None:
-        if not auth_context.account_id or not auth_context.plan_id:
+        if not auth_context.account_id or not auth_context.plan:
             return
         principal = _from_context(auth_context)
         month_key, _, _ = enforce_quota_and_scope(principal, route_key, self._usage_store)
@@ -64,7 +104,7 @@ class ApiKeyQuotaMeteringHook:
         billable_units = _billable_units(route_key, auth_context.metadata)
         if billable_units <= 0:
             return
-        plan = DEFAULT_PLANS.get(str(auth_context.plan_id), DEFAULT_PLANS["developer"])
+        plan = DEFAULT_PLANS.get(str(auth_context.plan), DEFAULT_PLANS["developer"])
         current = self._usage_store.get_usage(str(auth_context.account_id), month_key)
         decision = check_quota_and_calculate(plan=plan, used_units=current, consumed_units=billable_units, period_key=month_key)
         if decision.projected_usage > decision.limit_units:
@@ -94,6 +134,7 @@ def load_api_key_store(raw_json: str) -> StaticApiKeyStore:
                 scopes=tuple(item.get("scopes") or ()),
                 revoked=bool(item.get("revoked", False)),
                 plan_id=str(item.get("plan_id") or "developer"),
+                rate_limit_profile=str(item.get("rate_limit_profile") or item.get("plan_id") or "developer"),
             )
         )
     return StaticApiKeyStore(records)
@@ -120,40 +161,75 @@ def load_oauth_token_store(raw_json: str) -> StaticOAuthTokenStore:
                 scopes=tuple(item.get("scopes") or ()),
                 revoked=bool(item.get("revoked", False)),
                 plan_id=str(item.get("plan_id") or "developer"),
+                rate_limit_profile=str(item.get("rate_limit_profile") or item.get("plan_id") or "developer"),
             )
         )
     return StaticOAuthTokenStore(records)
 
 
-def _to_context(principal: ApiKeyPrincipal | OAuthClientPrincipal) -> AuthContext:
-    principal_type = "oauth_client" if isinstance(principal, OAuthClientPrincipal) else "api_key"
-    subject = f"oauth:{principal.client_id}" if isinstance(principal, OAuthClientPrincipal) else f"apikey:{principal.key_id}"
-    api_key_id = None if isinstance(principal, OAuthClientPrincipal) else principal.key_id
+def load_oauth_client_store(raw_json: str) -> StaticOAuthClientStore:
+    if not raw_json.strip():
+        return StaticOAuthClientStore([])
+    payload = json.loads(raw_json)
+    if not isinstance(payload, list):
+        raise ValueError("OAUTH_CLIENT_RECORDS_JSON must be a JSON array")
+    records = []
+    from charity_status.auth.oauth import StoredOAuthClientRecord
+
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        records.append(
+            StoredOAuthClientRecord(
+                client_id=str(item.get("client_id") or ""),
+                client_secret_hash=str(item.get("client_secret_hash") or ""),
+                account_id=str(item.get("account_id") or ""),
+                workspace_id=str(item.get("workspace_id") or ""),
+                scopes=tuple(item.get("scopes") or ()),
+                revoked=bool(item.get("revoked", False)),
+                plan_id=str(item.get("plan_id") or "developer"),
+                rate_limit_profile=str(item.get("rate_limit_profile") or item.get("plan_id") or "developer"),
+            )
+        )
+    return StaticOAuthClientStore(records)
+
+
+def _to_context(principal: AuthenticatedPrincipal) -> AuthContext:
+    subject = f"{principal.auth_method}:{principal.credential_id}"
     return AuthContext(
-        subject=subject,
-        scopes=principal.scopes,
-        metadata={"principal_type": principal_type},
         account_id=principal.account_id,
+        credential_id=principal.credential_id,
+        auth_method=principal.auth_method,
+        plan=principal.plan.plan_id,
+        scopes=principal.scopes,
+        rate_limit_profile=principal.rate_limit_profile,
         workspace_id=principal.workspace_id,
-        api_key_id=api_key_id,
-        plan_id=principal.plan.plan_id,
+        subject=subject,
+        metadata={"principal_type": principal.auth_method},
     )
 
 
-def _from_context(auth_context: AuthContext) -> ApiKeyPrincipal:
-    from charity_status.auth.models import ApiPlan
+def _from_context(auth_context: AuthContext) -> AuthenticatedPrincipal:
+    from charity_status.auth.models import AuthenticatedPrincipal, ApiPlan
 
-    return ApiKeyPrincipal(
-        key_id=str(auth_context.api_key_id),
-        account_id=str(auth_context.account_id),
-        workspace_id=str(auth_context.workspace_id),
+    return AuthenticatedPrincipal(
+        credential_id=str(auth_context.credential_id or ""),
+        account_id=str(auth_context.account_id or ""),
+        workspace_id=str(auth_context.workspace_id or ""),
         plan=ApiPlan(
-            plan_id=str(auth_context.plan_id),
-            monthly_limit=DEFAULT_PLAN_LIMITS.get(str(auth_context.plan_id), 250),
-            entitlements=DEFAULT_PLANS.get(str(auth_context.plan_id), DEFAULT_PLANS["developer"]).entitlements,
+            plan_id=str(auth_context.plan),
+            monthly_limit=DEFAULT_PLAN_LIMITS.get(str(auth_context.plan), 250),
+            entitlements=DEFAULT_PLANS.get(str(auth_context.plan), DEFAULT_PLANS["developer"]).entitlements,
         ),
         scopes=auth_context.scopes,
+        auth_method=str(auth_context.auth_method or "anonymous"),
+        rate_limit_profile=str(auth_context.rate_limit_profile or auth_context.plan or "developer"),
     )
+
+
+def _attach_context(event: dict[str, Any], auth_context: AuthContext) -> None:
+    if isinstance(event, dict):
+        event["_auth_context"] = auth_context
 
 
 def _billable_units(route_key: str, metadata: dict[str, str]) -> int:

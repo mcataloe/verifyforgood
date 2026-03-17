@@ -7,7 +7,15 @@ from .runtime import (
     build_enrichment_service,
     load_platform_integrations_config,
 )
-from .auth import ApiKeyAuthContextProvider, ApiKeyOrOAuthAuthContextProvider, ApiKeyQuotaMeteringHook, load_api_key_store, load_oauth_token_store
+from .auth import (
+    ApiKeyAuthContextProvider,
+    ApiKeyOrOAuthAuthContextProvider,
+    ApiKeyQuotaMeteringHook,
+    OAuthClientCredentialsService,
+    load_api_key_store,
+    load_oauth_client_store,
+    load_oauth_token_store,
+)
 
 __all__ = [
     "QueryRuntimeConfig",
@@ -20,6 +28,8 @@ __all__ = [
     "ApiKeyAuthContextProvider",
     "ApiKeyOrOAuthAuthContextProvider",
     "ApiKeyQuotaMeteringHook",
+    "OAuthClientCredentialsService",
     "load_api_key_store",
+    "load_oauth_client_store",
     "load_oauth_token_store",
 ]

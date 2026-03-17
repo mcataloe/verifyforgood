@@ -5,6 +5,7 @@ import logging
 import os
 from collections import Counter
 from typing import Any
+from urllib.parse import parse_qs
 
 import boto3
 from charity_status.api import ResponseContext, build_response_context, error_response, json_response, normalize_route_key, strip_version_prefix
@@ -25,11 +26,13 @@ from charity_status.platform import (
     ApiKeyAuthContextProvider,
     ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
+    OAuthClientCredentialsService,
     QueryRuntimeConfig,
     RefreshRuntimeConfig,
     build_athena_client,
     build_enrichment_service,
     load_api_key_store,
+    load_oauth_client_store,
     load_platform_integrations_config,
     load_oauth_token_store,
 )
@@ -92,6 +95,8 @@ API_AUTH_ENABLED = _env_bool("API_AUTH_ENABLED")
 API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
 OAUTH_M2M_ENABLED = _env_bool("OAUTH_M2M_ENABLED")
 OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
+OAUTH_CLIENT_RECORDS_JSON = os.environ.get("OAUTH_CLIENT_RECORDS_JSON", "")
+OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
@@ -109,6 +114,7 @@ ops_run_store: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
+oauth_client_credentials_service: OAuthClientCredentialsService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -192,7 +198,8 @@ def _get_auth_context_provider() -> AuthContextProvider:
             if OAUTH_M2M_ENABLED:
                 auth_context_provider = ApiKeyOrOAuthAuthContextProvider(
                     api_key_store=api_key_store,
-                    oauth_store=load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON),
+                    oauth_token_store=load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON),
+                    oauth_client_store=load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
                 )
             else:
                 auth_context_provider = ApiKeyAuthContextProvider(api_key_store)
@@ -210,6 +217,16 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
     return quota_metering_hook
+
+
+def _get_oauth_client_credentials_service() -> OAuthClientCredentialsService:
+    global oauth_client_credentials_service
+    if oauth_client_credentials_service is None:
+        oauth_client_credentials_service = OAuthClientCredentialsService(
+            load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
+            token_ttl_seconds=OAUTH_TOKEN_TTL_SECONDS,
+        )
+    return oauth_client_credentials_service
 
 
 def _get_ops_run_store() -> Any | None:
@@ -257,6 +274,51 @@ def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
     )
 
 
+def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    if not OAUTH_M2M_ENABLED:
+        return error_response(404, "OAuth token endpoint is not enabled", response_context=response_context, code="not_found")
+    try:
+        client_id, client_secret = _parse_oauth_token_request(event)
+        auth_context, token_payload = _get_oauth_client_credentials_service().issue_token(client_id, client_secret)
+        event["_auth_context"] = auth_context
+        token_context = ResponseContext(
+            request_id=response_context.request_id,
+            plan=str(auth_context.plan or "public"),
+            deprecation=response_context.deprecation,
+        )
+        return json_response(200, token_payload, response_context=token_context)
+    except AuthenticationError as exc:
+        return error_response(exc.status_code, str(exc), response_context=response_context, code="invalid_client")
+    except ValueError as exc:
+        return error_response(400, str(exc), response_context=response_context, code="invalid_request")
+
+
+def _parse_oauth_token_request(event: dict[str, Any]) -> tuple[str, str]:
+    headers = event.get("headers") or {}
+    content_type = str(_get_header(headers, "content-type") or "").lower()
+    body = str(event.get("body") or "")
+    if not body:
+        raise ValueError("Request body is required")
+
+    if "application/x-www-form-urlencoded" in content_type:
+        params = parse_qs(body, keep_blank_values=True)
+        client_id = str((params.get("client_id") or [""])[0]).strip()
+        client_secret = str((params.get("client_secret") or [""])[0]).strip()
+    else:
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Request body must be valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Request body must be a JSON object")
+        client_id = str(payload.get("client_id") or "").strip()
+        client_secret = str(payload.get("client_secret") or "").strip()
+
+    if not client_id or not client_secret:
+        raise ValueError("client_id and client_secret are required")
+    return client_id, client_secret
+
+
 def handler(event, context):
     api_context = build_response_context(event, context)
     route_key = _route_key(event or {})
@@ -267,11 +329,15 @@ def handler(event, context):
     def fail(status_code: int, message: str, code: str | None = None) -> dict[str, Any]:
         return error_response(status_code, message, response_context=api_context, code=code)
 
+    method = (event.get("httpMethod") or "GET").upper()
+    if _is_oauth_token_request(event, method):
+        return _handle_oauth_token_request(event, api_context)
+
     try:
         auth_context = _get_auth_context_provider().extract_context(event or {})
         api_context = ResponseContext(
             request_id=api_context.request_id,
-            plan=str(getattr(auth_context, "plan_id", None) or "public"),
+            plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
             deprecation=api_context.deprecation,
         )
         _get_quota_metering_hook().on_request(auth_context, route_key)
@@ -282,7 +348,6 @@ def handler(event, context):
     except QuotaExceededError as exc:
         return fail(exc.status_code, str(exc))
     evaluation_context = _resolve_evaluation_context(auth_context)
-    method = (event.get("httpMethod") or "GET").upper()
     if _is_ops_request(event, method):
         status_code, payload = _handle_ops_request(event)
         response = respond(status_code, payload)
@@ -518,6 +583,13 @@ def _is_batch_verify_request(event: dict) -> bool:
     return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
 
 
+def _is_oauth_token_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/oauth/token") or path.endswith("/oauth/token")
+
+
 def _is_ops_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
@@ -733,6 +805,13 @@ def _route_template(event: dict[str, Any]) -> str:
     if resource.strip():
         return strip_version_prefix(resource)
     return strip_version_prefix(str(event.get("path") or ""))
+
+
+def _get_header(headers: dict[str, Any], name: str) -> str | None:
+    for key, value in headers.items():
+        if str(key).lower() == name.lower():
+            return str(value)
+    return None
 
 
 def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationContext) -> dict[str, Any]:

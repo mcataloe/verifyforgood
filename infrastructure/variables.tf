@@ -582,10 +582,23 @@ variable "oauth_m2m_enabled" {
 }
 
 variable "oauth_token_records_json" {
-  description = "JSON array of OAuth bearer token records with client_id/token_hash/account_id/workspace_id/scopes/plan_id/revoked."
+  description = "JSON array of legacy pre-issued OAuth bearer token records with client_id/token_hash/account_id/workspace_id/scopes/plan_id/revoked."
   type        = string
   default     = "[]"
   sensitive   = true
+}
+
+variable "oauth_client_records_json" {
+  description = "JSON array of OAuth client credential records with client_id/client_secret_hash/account_id/workspace_id/scopes/plan_id/revoked."
+  type        = string
+  default     = "[]"
+  sensitive   = true
+}
+
+variable "oauth_token_ttl_seconds" {
+  description = "Lifetime in seconds for OAuth client-credentials access tokens issued by POST /v1/oauth/token."
+  type        = number
+  default     = 3600
 }
 
 variable "tenant_integration_settings_json" {

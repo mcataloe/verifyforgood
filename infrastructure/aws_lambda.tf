@@ -160,6 +160,8 @@ resource "aws_lambda_function" "query" {
       API_KEY_RECORDS_JSON                             = var.api_key_records_json
       OAUTH_M2M_ENABLED                                = tostring(var.oauth_m2m_enabled)
       OAUTH_TOKEN_RECORDS_JSON                         = var.oauth_token_records_json
+      OAUTH_CLIENT_RECORDS_JSON                        = var.oauth_client_records_json
+      OAUTH_TOKEN_TTL_SECONDS                          = tostring(var.oauth_token_ttl_seconds)
       ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
       TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
       ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name

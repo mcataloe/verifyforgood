@@ -923,12 +923,22 @@ Compatibility notes:
 
 ## Authentication and Quotas (Phase 12A)
 
-API key auth is supported for server-to-server and developer workflows, designed to coexist with future OAuth.
+The API uses a unified authentication layer that normalizes API keys and OAuth client-credentials into a shared internal `AuthContext`.
 
 Header:
 
 - `x-api-key: csk_<key_id>.<secret>`
 - `Authorization: Bearer <oauth_access_token>` (OAuth 2.1 client-credentials style M2M)
+
+Normalized auth context:
+
+- `account_id`
+- `credential_id`
+- `auth_method`
+- `plan`
+- `scopes`
+- `rate_limit_profile`
+- `workspace_id` when tenant routing is available
 
 Key model:
 
@@ -955,6 +965,8 @@ Terraform/env settings:
 - `api_key_records_json`
 - `oauth_m2m_enabled`
 - `oauth_token_records_json`
+- `oauth_client_records_json`
+- `oauth_token_ttl_seconds`
 - `organization_integration_settings_json`
 - `tenant_integration_settings_json` (legacy alias)
 
@@ -962,13 +974,15 @@ Local dev note:
 
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
 - key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
+- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_oauth_client_record`.
 - OAuth token record generation contract is available via `charity_status.auth.build_oauth_token_record`.
 
 Auth coexistence behavior:
 
+- `POST /v1/oauth/token` accepts `client_id` and `client_secret` and returns a bearer access token
 - when OAuth M2M is enabled, requests with `Authorization: Bearer ...` use OAuth token auth
 - otherwise requests fall back to API key auth (`x-api-key`)
-- both auth modes resolve to a shared principal/account/plan/scopes abstraction for consistent authorization and billing behavior
+- both auth modes resolve to the same `AuthContext` shape for consistent authorization, plan resolution, and billing behavior
 
 ## Billing Domain Model (Phase 12B)
 
