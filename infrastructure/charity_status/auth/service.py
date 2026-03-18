@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from charity_status.api import normalize_route_key
-from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
+from charity_status.auth.errors import AuthenticationError, AuthorizationError, FeatureUnavailableError, QuotaExceededError
 from charity_status.auth.models import ApiKeyPrincipal, ApiPlan, AuthenticatedPrincipal
-from charity_status.billing import EntitlementService, Subscription
+from charity_status.billing import EntitlementService, Subscription, missing_route_requirement, recommended_upgrade_plan
 from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
 
 DEFAULT_PLAN_LIMITS: dict[str, int] = {
@@ -19,8 +19,10 @@ DEFAULT_PLAN_LIMITS: dict[str, int] = {
 ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "POST /v1/oauth/token": "oauth:token",
     "POST /v1/verify": "verify:write",
+    "POST /v1/nonprofits/verify": "verify:write",
     "POST /v1/verify/batch": "verify:write",
     "GET /v1/nonprofit/{ein}": "verify:read",
+    "GET /v1/nonprofits/{ein}": "verify:read",
     "GET /v1/nonprofit/{ein}/filings": "verify:read",
     "GET /v1/nonprofits/search": "nonprofits:read",
     "GET /v1/nonprofits/{ein}/sources": "sources:read",
@@ -135,8 +137,18 @@ def enforce_quota_and_scope(
         fallback_plan_code=principal.plan.plan_id,
         subscription=principal.subscription,
     )
-    if not check_feature_entitlement(resolved.entitlements, route_key):
-        raise AuthorizationError("Plan entitlement does not allow this endpoint")
+    missing_requirement = missing_route_requirement(resolved.entitlements, route_key)
+    if missing_requirement is not None:
+        requirement_type, requirement_name = missing_requirement
+        raise FeatureUnavailableError(
+            "Plan entitlement does not allow this endpoint",
+            feature_flag=requirement_name if requirement_type == "feature_flag" else None,
+            capability=requirement_name if requirement_type == "capability" else None,
+            upgrade_plan=recommended_upgrade_plan(
+                feature_flag=requirement_name if requirement_type == "feature_flag" else None,
+                capability=requirement_name if requirement_type == "capability" else None,
+            ),
+        )
     month_key = monthly_period_for()
     used = usage_store.get_usage(principal.account_id, month_key)
     decision = check_quota_and_calculate(

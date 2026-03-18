@@ -17,8 +17,10 @@ PLAN_CODES: tuple[str, ...] = ("free", "starter", "growth", "pro", "enterprise")
 
 CAPABILITY_BY_ROUTE: dict[str, str] = {
     "POST /v1/verify": "verification",
+    "POST /v1/nonprofits/verify": "verification",
     "POST /v1/verify/batch": "batch_verification",
     "GET /v1/nonprofit/{ein}": "verification",
+    "GET /v1/nonprofits/{ein}": "verification",
     "GET /v1/nonprofit/{ein}/filings": "verification",
     "GET /v1/nonprofits/search": "verification",
     "GET /v1/nonprofits/{ein}/sources": "financial_trends",

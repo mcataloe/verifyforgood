@@ -12,6 +12,7 @@ from charity_status.api import ResponseContext, build_response_context, error_re
 from charity_status.auth import (
     AuthenticationError,
     AuthorizationError,
+    FeatureUnavailableError,
     InMemoryUsageStore,
     QuotaExceededError,
     StaticApiKeyStore,
@@ -20,7 +21,7 @@ from charity_status.auth import (
     authenticate_admin_key,
     load_admin_key_store,
 )
-from charity_status.billing import EntitlementService
+from charity_status.billing import EntitlementService, ResponseShapingService
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
@@ -130,6 +131,7 @@ organization_integration_settings_service: OrganizationIntegrationSettingsServic
 oauth_client_credentials_service: OAuthClientCredentialsService | None = None
 control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
+response_shaping_service: ResponseShapingService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -273,6 +275,13 @@ def _get_entitlement_service() -> EntitlementService:
             for account_id, subscription in _get_control_plane_service().store.subscriptions.items()
         }
     return entitlement_service
+
+
+def _get_response_shaping_service() -> ResponseShapingService:
+    global response_shaping_service
+    if response_shaping_service is None:
+        response_shaping_service = ResponseShapingService()
+    return response_shaping_service
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -500,6 +509,18 @@ def handler(event, context):
         _get_quota_metering_hook().on_request(auth_context, route_key)
     except AuthenticationError as exc:
         return fail(exc.status_code, str(exc))
+    except FeatureUnavailableError as exc:
+        return error_response(
+            exc.status_code,
+            str(exc),
+            response_context=api_context,
+            code="feature_unavailable",
+            meta={
+                "feature_flag": exc.feature_flag,
+                "capability": exc.capability,
+                "upgrade_plan": exc.upgrade_plan,
+            },
+        )
     except AuthorizationError as exc:
         return fail(exc.status_code, str(exc))
     except QuotaExceededError as exc:
@@ -618,7 +639,8 @@ def handler(event, context):
                         evaluation_context=evaluation_context,
                         ein=normalized_ein,
                     )
-                response = respond(200, cached)
+                shaped = _shape_payload_for_response(cached, auth_context)
+                response = respond(200, shaped)
                 _get_quota_metering_hook().on_response(auth_context, route_key, 200)
                 return response
 
@@ -637,7 +659,8 @@ def handler(event, context):
         )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
-        response = respond(status_code, payload)
+        shaped_payload = _shape_payload_for_response(payload, auth_context) if status_code == 200 else payload
+        response = respond(status_code, shaped_payload)
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
         return response
     except EINValidationError as exc:
@@ -647,6 +670,20 @@ def handler(event, context):
     except ValueError as exc:
         response = fail(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
+    except FeatureUnavailableError as exc:
+        response = error_response(
+            exc.status_code,
+            str(exc),
+            response_context=api_context,
+            code="feature_unavailable",
+            meta={
+                "feature_flag": exc.feature_flag,
+                "capability": exc.capability,
+                "upgrade_plan": exc.upgrade_plan,
+            },
+        )
+        _get_quota_metering_hook().on_response(auth_context, route_key, exc.status_code)
         return response
     except AuthorizationError as exc:
         response = fail(exc.status_code, str(exc))
@@ -1078,6 +1115,13 @@ def _parse_bool(value: Any, default: bool) -> bool:
     if candidate in {"false", "0", "no"}:
         return False
     raise ValueError("active_only must be a boolean")
+
+
+def _shape_payload_for_response(payload: dict[str, Any], auth_context: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return payload
+    entitlements = getattr(auth_context, "entitlements", None)
+    return _get_response_shaping_service().shape_verification_response(payload, entitlements)
 
 
 def _cached_profile_is_current(payload: dict[str, Any]) -> bool:

@@ -21,6 +21,8 @@ from .service import (
     route_capability,
     route_feature_flag,
 )
+from .feature_gating import build_upgrade_hint, build_upgrade_hints, missing_route_requirement, recommended_upgrade_plan
+from .response_shaping import ResponseShapingService
 
 __all__ = [
     "Account",
@@ -40,6 +42,11 @@ __all__ = [
     "quota_period_state",
     "route_capability",
     "route_feature_flag",
+    "build_upgrade_hint",
+    "build_upgrade_hints",
+    "missing_route_requirement",
+    "recommended_upgrade_plan",
+    "ResponseShapingService",
     "check_feature_entitlement",
     "check_quota_and_calculate",
 ]

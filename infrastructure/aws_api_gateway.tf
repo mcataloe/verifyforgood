@@ -121,6 +121,12 @@ resource "aws_api_gateway_resource" "nonprofits" {
   path_part   = "nonprofits"
 }
 
+resource "aws_api_gateway_resource" "nonprofits_verify" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.nonprofits.id
+  path_part   = "verify"
+}
+
 resource "aws_api_gateway_resource" "nonprofits_search" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.nonprofits.id
@@ -561,10 +567,42 @@ resource "aws_api_gateway_method" "get_nonprofits_search" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_nonprofits_verify" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_verify.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_nonprofits_ein" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.nonprofits_ein.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "lambda_nonprofits_search_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.nonprofits_search.id
   http_method             = aws_api_gateway_method.get_nonprofits_search.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_nonprofits_verify_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_verify.id
+  http_method             = aws_api_gateway_method.post_nonprofits_verify.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_nonprofits_ein_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.nonprofits_ein.id
+  http_method             = aws_api_gateway_method.get_nonprofits_ein.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -829,6 +867,8 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_put_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_nonprofits_search_integration,
+    aws_api_gateway_integration.lambda_nonprofits_verify_integration,
+    aws_api_gateway_integration.lambda_get_nonprofits_ein_integration,
     aws_api_gateway_integration.lambda_nonprofits_sources_integration,
     aws_api_gateway_integration.lambda_nonprofits_source_name_integration,
     aws_api_gateway_integration.lambda_nonprofits_compliance_integration,
