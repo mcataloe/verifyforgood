@@ -155,7 +155,9 @@ class ControlPlaneService:
         name = str(payload.get("name") or "").strip()
         if not name:
             raise ControlPlaneError("name is required")
-        account_id = str(payload.get("id") or f"acct_{uuid4().hex[:12]}")
+        if "id" in payload:
+            raise ControlPlaneError("id is system-generated")
+        account_id = f"acct_{uuid4().hex}"
         if self.store.get_account(account_id) is not None:
             raise ControlPlaneError("account already exists")
         account = Account(
@@ -207,7 +209,9 @@ class ControlPlaneService:
         self._get_account(account_id)
         scopes = _scopes(payload.get("scopes"), default=("verify:read",))
         plan = self._resolve_plan_code(account_id, payload.get("plan"))
-        key_id = str(payload.get("key_id") or f"key_{uuid4().hex[:12]}")
+        if "key_id" in payload:
+            raise ControlPlaneError("key_id is system-generated")
+        key_id = f"key_{uuid4().hex}"
         if self.store.get_api_key_record(key_id) is not None:
             raise ControlPlaneError("API key already exists")
         plaintext, record = build_api_key_record(
@@ -271,7 +275,9 @@ class ControlPlaneService:
         self._get_account(account_id)
         scopes = _scopes(payload.get("scopes"), default=("oauth:token", "verify:read"))
         plan = self._resolve_plan_code(account_id, payload.get("plan"))
-        client_id = str(payload.get("client_id") or f"client_{uuid4().hex[:12]}")
+        if "client_id" in payload:
+            raise ControlPlaneError("client_id is system-generated")
+        client_id = f"client_{uuid4().hex}"
         if self.store.get_oauth_client_record(client_id) is not None:
             raise ControlPlaneError("OAuth client already exists")
         plaintext, record = build_oauth_client_record(

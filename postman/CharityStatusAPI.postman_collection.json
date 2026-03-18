@@ -358,9 +358,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"{{accountId}}\",\n  \"name\": \"Example Account\"\n}"
+              "raw": "{\n  \"name\": \"Example Account\"\n}"
             },
-            "description": "Create account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "description": "Create account. Auth: x-admin-key. Variables: baseUrl. Account id is system-generated and returned in the response.",
             "url": "{{baseUrl}}/v1/admin/accounts"
           }
         },
@@ -505,9 +505,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"key_id\": \"{{keyId}}\",\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"verify:read\"\n  ],\n  \"plan\": \"free\",\n  \"rate_limit_profile\": \"free\"\n}"
+              "raw": "{\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"verify:read\"\n  ],\n  \"plan\": \"free\",\n  \"rate_limit_profile\": \"free\"\n}"
             },
-            "description": "Create API key. Auth: x-admin-key. Variables: baseUrl, accountId, keyId.",
+            "description": "Create API key. Auth: x-admin-key. Variables: baseUrl, accountId. key_id is system-generated and returned in the response.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/api-keys"
           }
         },
@@ -574,9 +574,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"client_id\": \"{{clientIdManaged}}\",\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"oauth:token\",\n    \"verify:read\"\n  ],\n  \"plan\": \"growth\",\n  \"rate_limit_profile\": \"growth\"\n}"
+              "raw": "{\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"oauth:token\",\n    \"verify:read\"\n  ],\n  \"plan\": \"growth\",\n  \"rate_limit_profile\": \"growth\"\n}"
             },
-            "description": "Create OAuth client. Auth: x-admin-key. Variables: baseUrl, accountId, clientIdManaged.",
+            "description": "Create OAuth client. Auth: x-admin-key. Variables: baseUrl, accountId. client_id is system-generated and returned in the response.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/oauth-clients"
           }
         },

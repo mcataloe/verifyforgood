@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import sys
 from types import SimpleNamespace
 
@@ -95,6 +96,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert created["statusCode"] == 201
     assert _body(created)["plan"] == "admin"
     assert account["status"] == "active"
+    assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
 
     listed = module.handler(
         {
@@ -169,7 +171,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"id": "acct_live", "name": "Live Account"}),
+                "body": json.dumps({"name": "Live Account"}),
             },
             None,
         )
@@ -191,6 +193,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     secret = payload["secret"]
     assert created["statusCode"] == 201
     assert secret.startswith("csk_")
+    assert re.fullmatch(r"key_[0-9a-f]{32}", key_id)
 
     listed = module.handler(
         {
@@ -266,7 +269,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"id": "acct_oauth", "name": "OAuth Account"}),
+                "body": json.dumps({"name": "OAuth Account"}),
             },
             None,
         )
@@ -287,6 +290,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
     client_id = payload["oauth_client"]["client_id"]
     client_secret = payload["client_secret"]
     assert created["statusCode"] == 201
+    assert re.fullmatch(r"client_[0-9a-f]{32}", client_id)
 
     listed = module.handler(
         {
@@ -330,18 +334,82 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
 
 def test_control_plane_service_stores_only_hashed_secrets():
     service = ControlPlaneService(store=InMemoryControlPlaneStore())
-    account = service.create_account({"id": "acct_hash", "name": "Hash Account"})
+    account = service.create_account({"name": "Hash Account"})
 
-    api_key_payload = service.create_api_key(account["id"], {"key_id": "key_hash"})
-    oauth_payload = service.create_oauth_client(account["id"], {"client_id": "client_hash"})
+    api_key_payload = service.create_api_key(account["id"], {})
+    oauth_payload = service.create_oauth_client(account["id"], {})
 
-    api_key_record = service.store.api_keys["key_hash"][1]
-    oauth_record = service.store.oauth_clients["client_hash"][1]
+    api_key_id = api_key_payload["api_key"]["key_id"]
+    oauth_client_id = oauth_payload["oauth_client"]["client_id"]
+    api_key_record = service.store.api_keys[api_key_id][1]
+    oauth_record = service.store.oauth_clients[oauth_client_id][1]
 
     assert api_key_payload["secret"] != api_key_record.secret_hash
     assert oauth_payload["client_secret"] != oauth_record.client_secret_hash
     assert not hasattr(api_key_record, "secret")
     assert not hasattr(oauth_record, "client_secret")
+    assert re.fullmatch(r"acct_[0-9a-f]{32}", account["id"])
+    assert re.fullmatch(r"key_[0-9a-f]{32}", api_key_id)
+    assert re.fullmatch(r"client_[0-9a-f]{32}", oauth_client_id)
+
+
+def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
+    module, admin_key = _load_module(monkeypatch)
+    headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
+
+    account_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts",
+            "path": "/v1/admin/accounts",
+            "headers": headers,
+            "body": json.dumps({"id": "acct_custom", "name": "Custom Account"}),
+        },
+        None,
+    )
+    assert account_response["statusCode"] == 400
+    assert "system-generated" in _body(account_response)["errors"][0]["message"]
+
+    account = _data(
+        module.handler(
+            {
+                "httpMethod": "POST",
+                "resource": "/v1/admin/accounts",
+                "path": "/v1/admin/accounts",
+                "headers": headers,
+                "body": json.dumps({"name": "Generated Account"}),
+            },
+            None,
+        )
+    )
+
+    api_key_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts/{accountId}/api-keys",
+            "path": f"/v1/admin/accounts/{account['id']}/api-keys",
+            "pathParameters": {"accountId": account["id"]},
+            "headers": headers,
+            "body": json.dumps({"key_id": "key_custom", "scopes": ["verify:read"]}),
+        },
+        None,
+    )
+    assert api_key_response["statusCode"] == 400
+    assert "system-generated" in _body(api_key_response)["errors"][0]["message"]
+
+    oauth_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts/{accountId}/oauth-clients",
+            "path": f"/v1/admin/accounts/{account['id']}/oauth-clients",
+            "pathParameters": {"accountId": account["id"]},
+            "headers": headers,
+            "body": json.dumps({"client_id": "client_custom", "scopes": ["oauth:token", "verify:read"]}),
+        },
+        None,
+    )
+    assert oauth_response["statusCode"] == 400
+    assert "system-generated" in _body(oauth_response)["errors"][0]["message"]
 
 
 def test_admin_subscription_routes(monkeypatch):
@@ -354,7 +422,7 @@ def test_admin_subscription_routes(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"id": "acct_subs", "name": "Subscription Account"}),
+                "body": json.dumps({"name": "Subscription Account"}),
             },
             None,
         )
