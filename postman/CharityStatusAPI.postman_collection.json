@@ -1,0 +1,727 @@
+{
+  "info": {
+    "_postman_id": "8d76ca6d-37e5-4d3e-b7d5-8e38b3c73e62",
+    "name": "CharityStatusAPI",
+    "description": "Runnable Postman collection for CharityStatusAPI endpoints grouped by Customer/Public, Admin, and Ops.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://example.execute-api.us-east-1.amazonaws.com"
+    },
+    {
+      "key": "apiKey",
+      "value": "csk_replace_me"
+    },
+    {
+      "key": "adminKey",
+      "value": "cak_replace_me"
+    },
+    {
+      "key": "oauthAccessToken",
+      "value": "replace_me"
+    },
+    {
+      "key": "clientId",
+      "value": "client_replace_me"
+    },
+    {
+      "key": "clientSecret",
+      "value": "secret_replace_me"
+    },
+    {
+      "key": "accountId",
+      "value": "acct_replace_me"
+    },
+    {
+      "key": "keyId",
+      "value": "key_replace_me"
+    },
+    {
+      "key": "clientIdManaged",
+      "value": "client_replace_me"
+    },
+    {
+      "key": "ein",
+      "value": "123456789"
+    },
+    {
+      "key": "sourceName",
+      "value": "state_registry_mock"
+    },
+    {
+      "key": "ingestRunId",
+      "value": "ingest_run_replace_me"
+    },
+    {
+      "key": "refreshRunId",
+      "value": "refresh_run_replace_me"
+    }
+  ],
+  "item": [
+    {
+      "name": "Customer/Public",
+      "description": "Customer-facing and public endpoints. API-key protected unless otherwise noted.",
+      "item": [
+        {
+          "name": "GET /v1/nonprofit/{ein}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Legacy alias lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofit/{{ein}}"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/{ein}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Pluralized lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofits/{{ein}}"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofit/{ein}/filings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List Form 990 filings. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofit/{{ein}}/filings"
+          }
+        },
+        {
+          "name": "POST /v1/verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ein\": \"{{ein}}\",\n  \"name\": \"Example Charity\",\n  \"policy_id\": \"default_policy\",\n  \"weighting_profile\": \"default\"\n}"
+            },
+            "description": "Legacy alias verify endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/verify"
+          }
+        },
+        {
+          "name": "POST /v1/nonprofits/verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ein\": \"{{ein}}\",\n  \"name\": \"Example Charity\",\n  \"policy_id\": \"default_policy\",\n  \"weighting_profile\": \"default\"\n}"
+            },
+            "description": "Pluralized verify endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofits/verify"
+          }
+        },
+        {
+          "name": "POST /v1/verify/batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"ein\": \"{{ein}}\",\n      \"name\": \"Example Charity\"\n    },\n    {\n      \"ein\": \"987654321\",\n      \"name\": \"Second Charity\"\n    }\n  ]\n}"
+            },
+            "description": "Batch verification endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/verify/batch"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Search nonprofits. Auth: x-api-key. Variables: baseUrl.",
+            "url": {
+              "raw": "{{baseUrl}}/v1/nonprofits/search?q=red%20cross&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "nonprofits",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "red cross"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/{ein}/sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List source records. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofits/{{ein}}/sources"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/{ein}/sources/{source_name}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get a single source payload. Auth: x-api-key. Variables: baseUrl, ein, sourceName.",
+            "url": "{{baseUrl}}/v1/nonprofits/{{ein}}/sources/{{sourceName}}"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/{ein}/compliance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Compliance view. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofits/{{ein}}/compliance"
+          }
+        },
+        {
+          "name": "GET /v1/nonprofits/{ein}/federal-awards",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Federal awards view. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/nonprofits/{{ein}}/federal-awards"
+          }
+        },
+        {
+          "name": "GET /v1/organizations/integrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get organization integration settings. Auth: x-api-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/organizations/integrations"
+          }
+        },
+        {
+          "name": "PUT /v1/organizations/integrations",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"integrations\": {\n    \"candid\": {\n      \"enabled\": true,\n      \"requiredForEvaluation\": false\n    },\n    \"charityNavigator\": {\n      \"enabled\": false,\n      \"requiredForEvaluation\": false\n    }\n  }\n}"
+            },
+            "description": "Update organization integration settings. Auth: x-api-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/organizations/integrations"
+          }
+        },
+        {
+          "name": "POST /v1/oauth/token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"{{clientId}}\",\n  \"client_secret\": \"{{clientSecret}}\"\n}"
+            },
+            "description": "Issue OAuth client-credentials token. No auth header. Variables: baseUrl, clientId, clientSecret.",
+            "url": "{{baseUrl}}/v1/oauth/token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Admin control-plane endpoints. Auth: x-admin-key.",
+      "item": [
+        {
+          "name": "POST /v1/admin/accounts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{accountId}}\",\n  \"name\": \"Example Account\"\n}"
+            },
+            "description": "Create account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts"
+          }
+        },
+        {
+          "name": "GET /v1/admin/accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List accounts. Auth: x-admin-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/admin/accounts"
+          }
+        },
+        {
+          "name": "GET /v1/admin/accounts/{accountId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}"
+          }
+        },
+        {
+          "name": "PATCH /v1/admin/accounts/{accountId}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Account Name\",\n  \"status\": \"active\"\n}"
+            },
+            "description": "Update account metadata. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}"
+          }
+        },
+        {
+          "name": "GET /v1/admin/accounts/{accountId}/subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get subscription. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/subscription"
+          }
+        },
+        {
+          "name": "PUT /v1/admin/accounts/{accountId}/subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_code\": \"pro\",\n  \"status\": \"active\",\n  \"effective_from\": \"2026-03-18T00:00:00+00:00\",\n  \"effective_to\": null\n}"
+            },
+            "description": "Update subscription plan and dates. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/subscription"
+          }
+        },
+        {
+          "name": "POST /v1/admin/accounts/{accountId}/suspend",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Suspend account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/suspend"
+          }
+        },
+        {
+          "name": "POST /v1/admin/accounts/{accountId}/activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Activate account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/activate"
+          }
+        },
+        {
+          "name": "POST /v1/admin/accounts/{accountId}/api-keys",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key_id\": \"{{keyId}}\",\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"verify:read\"\n  ],\n  \"plan\": \"free\",\n  \"rate_limit_profile\": \"free\"\n}"
+            },
+            "description": "Create API key. Auth: x-admin-key. Variables: baseUrl, accountId, keyId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/api-keys"
+          }
+        },
+        {
+          "name": "GET /v1/admin/accounts/{accountId}/api-keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List API keys. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/api-keys"
+          }
+        },
+        {
+          "name": "DELETE /v1/admin/accounts/{accountId}/api-keys/{keyId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Delete API key. Auth: x-admin-key. Variables: baseUrl, accountId, keyId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/api-keys/{{keyId}}"
+          }
+        },
+        {
+          "name": "POST /v1/admin/accounts/{accountId}/api-keys/{keyId}/rotate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Rotate API key. Auth: x-admin-key. Variables: baseUrl, accountId, keyId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/api-keys/{{keyId}}/rotate"
+          }
+        },
+        {
+          "name": "POST /v1/admin/accounts/{accountId}/oauth-clients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"{{clientIdManaged}}\",\n  \"workspace_id\": \"{{accountId}}\",\n  \"scopes\": [\n    \"oauth:token\",\n    \"verify:read\"\n  ],\n  \"plan\": \"growth\",\n  \"rate_limit_profile\": \"growth\"\n}"
+            },
+            "description": "Create OAuth client. Auth: x-admin-key. Variables: baseUrl, accountId, clientIdManaged.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/oauth-clients"
+          }
+        },
+        {
+          "name": "GET /v1/admin/accounts/{accountId}/oauth-clients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List OAuth clients. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/oauth-clients"
+          }
+        },
+        {
+          "name": "DELETE /v1/admin/accounts/{accountId}/oauth-clients/{clientId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Delete OAuth client. Auth: x-admin-key. Variables: baseUrl, accountId, clientIdManaged.",
+            "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/oauth-clients/{{clientIdManaged}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ops",
+      "description": "Operational read endpoints.",
+      "item": [
+        {
+          "name": "GET /v1/ops/ingest/runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List ingest runs. Auth: x-api-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/ops/ingest/runs"
+          }
+        },
+        {
+          "name": "GET /v1/ops/ingest/runs/{ingest_run_id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get ingest run details. Auth: x-api-key. Variables: baseUrl, ingestRunId.",
+            "url": "{{baseUrl}}/v1/ops/ingest/runs/{{ingestRunId}}"
+          }
+        },
+        {
+          "name": "GET /v1/ops/ingest/runs/{ingest_run_id}/filings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get ingest run filings. Auth: x-api-key. Variables: baseUrl, ingestRunId.",
+            "url": "{{baseUrl}}/v1/ops/ingest/runs/{{ingestRunId}}/filings"
+          }
+        },
+        {
+          "name": "GET /v1/ops/refresh/runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "List refresh runs. Auth: x-api-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/ops/refresh/runs"
+          }
+        },
+        {
+          "name": "GET /v1/ops/refresh/runs/{refresh_run_id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get refresh run details. Auth: x-api-key. Variables: baseUrl, refreshRunId.",
+            "url": "{{baseUrl}}/v1/ops/refresh/runs/{{refreshRunId}}"
+          }
+        },
+        {
+          "name": "GET /v1/ops/refresh/runs/{refresh_run_id}/eins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get refresh run EINs. Auth: x-api-key. Variables: baseUrl, refreshRunId.",
+            "url": "{{baseUrl}}/v1/ops/refresh/runs/{{refreshRunId}}/eins"
+          }
+        },
+        {
+          "name": "GET /v1/ops/nonprofits/{ein}/pipeline-status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "description": "Get nonprofit pipeline status. Auth: x-api-key. Variables: baseUrl, ein.",
+            "url": "{{baseUrl}}/v1/ops/nonprofits/{{ein}}/pipeline-status"
+          }
+        }
+      ]
+    }
+  ]
+}

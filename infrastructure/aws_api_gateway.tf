@@ -883,6 +883,14 @@ resource "aws_api_gateway_deployment" "deployment" {
   ]
 
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
+
+  triggers = {
+    redeployment = filesha1("${path.module}/aws_api_gateway.tf")
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_api_gateway_stage" "prod" {

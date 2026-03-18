@@ -101,3 +101,8 @@ root_domain_name           = "charitystatusapi.com"
 # route53_zone_name        = "charitystatusapi.com."
 
 # Domain name is derived from base_name as "${base_name}.com".
+
+# Additional variables present in terraform-dev.tfvars but not actively assigned above.
+base_name                 = "charitystatusapi"
+form990_schedule_expression = "cron(30 4 * * ? *)"
+route53_zone_name         = "charitystatusapi.com."
