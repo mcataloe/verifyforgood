@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from charity_status.billing.models import Entitlement, Subscription
+
 
 @dataclass
 class AuthContext:
@@ -13,6 +15,8 @@ class AuthContext:
     rate_limit_profile: str | None = None
     workspace_id: str | None = None
     subject: str = "anonymous"
+    subscription: Subscription | None = None
+    entitlements: Entitlement | None = None
     metadata: dict[str, str] = field(default_factory=dict)
 
     @property

@@ -7,8 +7,9 @@ from uuid import uuid4
 
 from charity_status.auth.oauth import StoredOAuthClientRecord, build_oauth_client_record
 from charity_status.auth.service import StoredApiKeyRecord, build_api_key_record
+from charity_status.billing import EntitlementService, Subscription
 
-from .models import Account, ManagedApiKey, ManagedOAuthClient
+from .models import Account, ManagedApiKey, ManagedOAuthClient, ManagedSubscription
 
 
 class ControlPlaneError(ValueError):
@@ -22,6 +23,7 @@ class ControlPlaneNotFound(ControlPlaneError):
 class InMemoryControlPlaneStore:
     def __init__(self):
         self.accounts: dict[str, Account] = {}
+        self.subscriptions: dict[str, ManagedSubscription] = {}
         self.api_keys: dict[str, tuple[ManagedApiKey, StoredApiKeyRecord]] = {}
         self.oauth_clients: dict[str, tuple[ManagedOAuthClient, StoredOAuthClientRecord]] = {}
 
@@ -29,6 +31,9 @@ class InMemoryControlPlaneStore:
 @dataclass
 class ControlPlaneService:
     store: InMemoryControlPlaneStore
+
+    def __post_init__(self) -> None:
+        self._entitlement_service = EntitlementService()
 
     def list_accounts(self) -> list[dict[str, Any]]:
         return [account.to_dict() for account in self.store.accounts.values()]
@@ -47,6 +52,13 @@ class ControlPlaneService:
             created_at=_utcnow(),
         )
         self.store.accounts[account.id] = account
+        self.store.subscriptions[account.id] = ManagedSubscription(
+            account_id=account.id,
+            plan_code="free",
+            status="active",
+            effective_from=account.created_at,
+            effective_to=None,
+        )
         return account.to_dict()
 
     def update_account(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -76,7 +88,7 @@ class ControlPlaneService:
     def create_api_key(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._get_account(account_id)
         scopes = _scopes(payload.get("scopes"), default=("verify:read",))
-        plan = str(payload.get("plan") or "developer")
+        plan = self._resolve_plan_code(account_id, payload.get("plan"))
         key_id = str(payload.get("key_id") or f"key_{uuid4().hex[:12]}")
         plaintext, record = build_api_key_record(
             key_id=key_id,
@@ -141,7 +153,7 @@ class ControlPlaneService:
     def create_oauth_client(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._get_account(account_id)
         scopes = _scopes(payload.get("scopes"), default=("oauth:token", "verify:read"))
-        plan = str(payload.get("plan") or "developer")
+        plan = self._resolve_plan_code(account_id, payload.get("plan"))
         client_id = str(payload.get("client_id") or f"client_{uuid4().hex[:12]}")
         plaintext, record = build_oauth_client_record(
             client_id=client_id,
@@ -187,6 +199,19 @@ class ControlPlaneService:
     def oauth_client_records(self) -> list[StoredOAuthClientRecord]:
         return [record for _model, record in self.store.oauth_clients.values() if not record.revoked]
 
+    def list_subscriptions(self) -> list[dict[str, Any]]:
+        return [subscription.to_dict() for subscription in self.store.subscriptions.values()]
+
+    def get_subscription(self, account_id: str) -> dict[str, Any]:
+        self._get_account(account_id)
+        return self._get_subscription(account_id).to_dict()
+
+    def update_subscription(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self._get_account(account_id)
+        subscription = self._build_subscription(account_id, payload)
+        self.store.subscriptions[account_id] = subscription
+        return subscription.to_dict()
+
     def _get_account(self, account_id: str) -> Account:
         account = self.store.accounts.get(account_id)
         if account is None:
@@ -205,6 +230,41 @@ class ControlPlaneService:
             raise ControlPlaneNotFound("OAuth client not found")
         return candidate
 
+    def _get_subscription(self, account_id: str) -> ManagedSubscription:
+        subscription = self.store.subscriptions.get(account_id)
+        if subscription is None:
+            raise ControlPlaneNotFound("Subscription not found")
+        return subscription
+
+    def _resolve_plan_code(self, account_id: str, value: Any) -> str:
+        if value is not None:
+            return self._entitlement_service.normalize_plan_code(str(value))
+        current = self.store.subscriptions.get(account_id)
+        if current is not None:
+            return current.plan_code
+        return "free"
+
+    def _build_subscription(self, account_id: str, payload: dict[str, Any]) -> ManagedSubscription:
+        current = self.store.subscriptions.get(account_id)
+        candidate = Subscription(
+            account_id=account_id,
+            plan_code=self._entitlement_service.normalize_plan_code(payload.get("plan_code") or payload.get("plan") or (current.plan_code if current else "free")),
+            status=str(payload.get("status") or (current.status if current else "active")).strip().lower(),
+            effective_from=_optional_string(payload.get("effective_from"), default=current.effective_from if current else None),
+            effective_to=_optional_string(payload.get("effective_to"), default=current.effective_to if current else None),
+        )
+        try:
+            normalized = self._entitlement_service.set_subscription(candidate)
+        except ValueError as exc:
+            raise ControlPlaneError(str(exc)) from exc
+        return ManagedSubscription(
+            account_id=normalized.account_id,
+            plan_code=normalized.plan_code,
+            status=normalized.status,
+            effective_from=normalized.effective_from,
+            effective_to=normalized.effective_to,
+        )
+
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -219,3 +279,10 @@ def _scopes(value: Any, *, default: tuple[str, ...]) -> tuple[str, ...]:
     if not resolved:
         raise ControlPlaneError("scopes must include at least one value")
     return tuple(resolved)
+
+
+def _optional_string(value: Any, *, default: str | None = None) -> str | None:
+    if value is None:
+        return default
+    candidate = str(value).strip()
+    return candidate or None

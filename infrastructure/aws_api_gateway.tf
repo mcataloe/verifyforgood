@@ -79,6 +79,12 @@ resource "aws_api_gateway_resource" "admin_account_activate" {
   path_part   = "activate"
 }
 
+resource "aws_api_gateway_resource" "admin_account_subscription" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "subscription"
+}
+
 resource "aws_api_gateway_resource" "admin_account_api_keys" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.admin_account_id.id
@@ -318,6 +324,20 @@ resource "aws_api_gateway_method" "patch_admin_account_id" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_admin_account_subscription" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_subscription.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "put_admin_account_subscription" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_subscription.id
+  http_method   = "PUT"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "post_admin_account_suspend" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.admin_account_suspend.id
@@ -430,6 +450,24 @@ resource "aws_api_gateway_integration" "lambda_patch_admin_account_id_integratio
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.admin_account_id.id
   http_method             = aws_api_gateway_method.patch_admin_account_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_get_admin_account_subscription_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_subscription.id
+  http_method             = aws_api_gateway_method.get_admin_account_subscription.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_put_admin_account_subscription_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_subscription.id
+  http_method             = aws_api_gateway_method.put_admin_account_subscription.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -776,6 +814,8 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_get_admin_accounts_integration,
     aws_api_gateway_integration.lambda_get_admin_account_id_integration,
     aws_api_gateway_integration.lambda_patch_admin_account_id_integration,
+    aws_api_gateway_integration.lambda_get_admin_account_subscription_integration,
+    aws_api_gateway_integration.lambda_put_admin_account_subscription_integration,
     aws_api_gateway_integration.lambda_post_admin_account_suspend_integration,
     aws_api_gateway_integration.lambda_post_admin_account_activate_integration,
     aws_api_gateway_integration.lambda_post_admin_account_api_keys_integration,

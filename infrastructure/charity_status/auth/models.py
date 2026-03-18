@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from charity_status.billing.models import EntitlementSet
+from charity_status.billing.models import Entitlement, Subscription
 
 
 @dataclass(frozen=True)
 class ApiPlan:
     plan_id: str
     monthly_limit: int
-    entitlements: EntitlementSet
+    entitlements: Entitlement
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,8 @@ class AuthenticatedPrincipal:
     scopes: tuple[str, ...]
     auth_method: str
     rate_limit_profile: str
+    subscription: Subscription | None = None
+    entitlements: Entitlement | None = None
 
 
 @dataclass(frozen=True)

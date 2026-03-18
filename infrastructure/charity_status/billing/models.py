@@ -1,14 +1,58 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+FEATURE_FLAGS: tuple[str, ...] = (
+    "financial_trends",
+    "risk_flags",
+    "benchmarking",
+    "state_registry",
+    "monitoring",
+)
 
 
 @dataclass(frozen=True)
-class EntitlementSet:
-    batch_verification: bool = False
-    advanced_source_visibility: bool = False
-    monitoring_change_events: bool = False
-    premium_compliance_risk: bool = False
+class Subscription:
+    account_id: str
+    plan_code: str
+    status: str
+    effective_from: str | None = None
+    effective_to: str | None = None
+
+
+@dataclass(frozen=True)
+class Entitlement:
+    plan_code: str
+    feature_flags: tuple[str, ...] = ()
+    request_limits: dict[str, int] = field(default_factory=dict)
+    rate_limits: dict[str, int] = field(default_factory=dict)
+    allowed_capabilities: tuple[str, ...] = ()
+    overage_unit_price_usd_micros: int = 0
+
+    @property
+    def monthly_request_limit(self) -> int:
+        return max(0, int(self.request_limits.get("monthly_requests", 0)))
+
+    @property
+    def batch_request_limit(self) -> int:
+        return max(0, int(self.request_limits.get("batch_items", 0)))
+
+    @property
+    def requests_per_minute(self) -> int:
+        return max(0, int(self.rate_limits.get("requests_per_minute", 0)))
+
+    def has_feature(self, feature_flag: str) -> bool:
+        return feature_flag in self.feature_flags
+
+    def allows_capability(self, capability: str) -> bool:
+        return capability in self.allowed_capabilities
+
+
+@dataclass(frozen=True)
+class ResolvedEntitlements:
+    subscription: Subscription
+    entitlements: Entitlement
 
 
 @dataclass(frozen=True)
@@ -17,7 +61,7 @@ class SubscriptionPlan:
     monthly_request_limit: int
     included_units: int
     overage_unit_price_usd_micros: int
-    entitlements: EntitlementSet
+    entitlements: Entitlement
 
 
 @dataclass(frozen=True)

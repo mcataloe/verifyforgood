@@ -357,7 +357,7 @@ def test_get_organization_integrations_returns_current_settings():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:read",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+            return SimpleNamespace(subject="tenant", scopes=("verify:read",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -389,7 +389,7 @@ def test_put_organization_integrations_updates_settings():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -429,7 +429,7 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="team")
+            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):

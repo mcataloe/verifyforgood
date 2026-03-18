@@ -20,6 +20,7 @@ from charity_status.auth import (
     authenticate_admin_key,
     load_admin_key_store,
 )
+from charity_status.billing import EntitlementService
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
@@ -128,6 +129,7 @@ organization_integration_settings_store: OrganizationIntegrationSettingsStoreAda
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
 oauth_client_credentials_service: OAuthClientCredentialsService | None = None
 control_plane_service: ControlPlaneService | None = None
+entitlement_service: EntitlementService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -216,8 +218,9 @@ def _get_auth_context_provider() -> AuthContextProvider:
             api_key_store=api_key_store,
             oauth_token_store=_load_runtime_oauth_token_store(),
             oauth_client_store=_load_runtime_oauth_client_store(),
+            entitlement_service=_get_entitlement_service(),
         )
-    return ApiKeyAuthContextProvider(api_key_store)
+    return ApiKeyAuthContextProvider(api_key_store, entitlement_service=_get_entitlement_service())
 
 
 def _get_quota_metering_hook() -> QuotaMeteringHook:
@@ -225,7 +228,10 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
     if quota_metering_hook is None:
         if API_AUTH_ENABLED:
             usage_store = usage_store or InMemoryUsageStore()
-            quota_metering_hook = ApiKeyQuotaMeteringHook(usage_store=usage_store)
+            quota_metering_hook = ApiKeyQuotaMeteringHook(
+                usage_store=usage_store,
+                entitlement_service=_get_entitlement_service(),
+            )
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
     return quota_metering_hook
@@ -236,6 +242,7 @@ def _get_oauth_client_credentials_service() -> OAuthClientCredentialsService:
     oauth_client_credentials_service = OAuthClientCredentialsService(
         _load_runtime_oauth_client_store(),
         token_ttl_seconds=OAUTH_TOKEN_TTL_SECONDS,
+        entitlement_service=_get_entitlement_service(),
     )
     return oauth_client_credentials_service
 
@@ -249,6 +256,23 @@ def _get_control_plane_service() -> ControlPlaneService:
     if control_plane_service is None:
         control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     return control_plane_service
+
+
+def _get_entitlement_service() -> EntitlementService:
+    global entitlement_service
+    if entitlement_service is None:
+        entitlement_service = EntitlementService(
+            subscriptions={
+                account_id: subscription.to_subscription()
+                for account_id, subscription in _get_control_plane_service().store.subscriptions.items()
+            }
+        )
+    else:
+        entitlement_service._subscriptions = {
+            account_id: subscription.to_subscription()
+            for account_id, subscription in _get_control_plane_service().store.subscriptions.items()
+        }
+    return entitlement_service
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -371,7 +395,7 @@ def _parse_json_body(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_admin_request(event: dict[str, Any], method: str) -> bool:
-    if method not in {"GET", "POST", "PATCH", "DELETE"}:
+    if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
         return False
     resource, path = _route_paths(event)
     return resource.startswith("/admin/") or path.startswith("/admin/")
@@ -397,6 +421,12 @@ def _handle_admin_request(event: dict[str, Any], response_context: ResponseConte
             return json_response(200, service.get_account(account_id), response_context=response_context)
         if method == "PATCH":
             return json_response(200, service.update_account(account_id, _parse_json_body(event)), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/subscription":
+        if method == "GET":
+            return json_response(200, service.get_subscription(account_id), response_context=response_context)
+        if method == "PUT":
+            return json_response(200, service.update_subscription(account_id, _parse_json_body(event)), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/suspend" and method == "POST":
         return json_response(200, service.suspend_account(account_id), response_context=response_context)
@@ -481,7 +511,12 @@ def handler(event, context):
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
         return response
     if method == "POST" and _is_batch_verify_request(event):
-        response = _handle_batch_verify(event, evaluation_context=evaluation_context, response_context=api_context)
+        response = _handle_batch_verify(
+            event,
+            auth_context=auth_context,
+            evaluation_context=evaluation_context,
+            response_context=api_context,
+        )
         try:
             body = json.loads(response.get("body") or "{}")
             total = (((body.get("data") or {}).get("batch_summary") or {}).get("total"))
@@ -874,6 +909,7 @@ def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
 
 def _handle_batch_verify(
     event: dict,
+    auth_context: Any,
     evaluation_context: EvaluationContext,
     *,
     response_context: ResponseContext,
@@ -894,6 +930,12 @@ def _handle_batch_verify(
     else:
         return error_response(400, "Request body must be an array or an object with items[]", response_context=response_context)
 
+    plan_entitlements = getattr(auth_context, "entitlements", None)
+    plan_batch_limit = getattr(plan_entitlements, "batch_request_limit", 0)
+    if plan_entitlements is not None and plan_batch_limit <= 0:
+        return error_response(403, "Plan entitlement does not allow this endpoint", response_context=response_context, code="forbidden")
+    if plan_entitlements is not None and len(items_input) > plan_batch_limit:
+        return error_response(403, f"Batch size exceeds plan limit of {plan_batch_limit}", response_context=response_context, code="forbidden")
     if len(items_input) > BATCH_VERIFY_MAX_SIZE:
         return error_response(400, f"Batch size exceeds maximum of {BATCH_VERIFY_MAX_SIZE}", response_context=response_context)
 

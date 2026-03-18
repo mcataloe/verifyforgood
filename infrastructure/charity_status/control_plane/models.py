@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from charity_status.billing.models import Subscription
+
 
 @dataclass
 class Account:
@@ -61,3 +63,30 @@ class ManagedOAuthClient:
             "scopes": list(self.scopes),
             "rate_limit_profile": self.rate_limit_profile,
         }
+
+
+@dataclass
+class ManagedSubscription:
+    account_id: str
+    plan_code: str
+    status: str
+    effective_from: str | None = None
+    effective_to: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "account_id": self.account_id,
+            "plan_code": self.plan_code,
+            "status": self.status,
+            "effective_from": self.effective_from,
+            "effective_to": self.effective_to,
+        }
+
+    def to_subscription(self) -> Subscription:
+        return Subscription(
+            account_id=self.account_id,
+            plan_code=self.plan_code,
+            status=self.status,
+            effective_from=self.effective_from,
+            effective_to=self.effective_to,
+        )

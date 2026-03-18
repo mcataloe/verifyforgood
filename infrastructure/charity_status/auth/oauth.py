@@ -12,6 +12,7 @@ from typing import Any
 from charity_status.auth.errors import AuthenticationError
 from charity_status.auth.models import ApiPlan, OAuthClientPrincipal
 from charity_status.auth.service import hash_secret
+from charity_status.billing import EntitlementService, Subscription
 from charity_status.billing.service import DEFAULT_PLANS
 
 
@@ -68,7 +69,7 @@ def build_oauth_token_record(
     account_id: str,
     workspace_id: str,
     scopes: list[str] | None = None,
-    plan_id: str = "developer",
+    plan_id: str = "free",
     revoked: bool = False,
     rate_limit_profile: str | None = None,
 ) -> tuple[str, StoredOAuthTokenRecord]:
@@ -92,7 +93,7 @@ def build_oauth_client_record(
     account_id: str,
     workspace_id: str,
     scopes: list[str] | None = None,
-    plan_id: str = "developer",
+    plan_id: str = "free",
     revoked: bool = False,
     rate_limit_profile: str | None = None,
 ) -> tuple[str, StoredOAuthClientRecord]:
@@ -218,7 +219,9 @@ def authenticate_signed_access_token(
 
 
 def _token_record_to_principal(record: StoredOAuthTokenRecord) -> OAuthClientPrincipal:
-    plan = DEFAULT_PLANS.get(record.plan_id, DEFAULT_PLANS["developer"])
+    normalized_plan_id = EntitlementService().normalize_plan_code(record.plan_id)
+    plan = DEFAULT_PLANS.get(normalized_plan_id, DEFAULT_PLANS["free"])
+    subscription = Subscription(account_id=record.account_id, plan_code=normalized_plan_id, status="active")
     return OAuthClientPrincipal(
         credential_id=record.client_id,
         account_id=record.account_id,
@@ -227,11 +230,15 @@ def _token_record_to_principal(record: StoredOAuthTokenRecord) -> OAuthClientPri
         scopes=record.scopes,
         auth_method="oauth_client_credentials",
         rate_limit_profile=record.rate_limit_profile,
+        subscription=subscription,
+        entitlements=plan.entitlements,
     )
 
 
 def _client_record_to_principal(record: StoredOAuthClientRecord) -> OAuthClientPrincipal:
-    plan = DEFAULT_PLANS.get(record.plan_id, DEFAULT_PLANS["developer"])
+    normalized_plan_id = EntitlementService().normalize_plan_code(record.plan_id)
+    plan = DEFAULT_PLANS.get(normalized_plan_id, DEFAULT_PLANS["free"])
+    subscription = Subscription(account_id=record.account_id, plan_code=normalized_plan_id, status="active")
     return OAuthClientPrincipal(
         credential_id=record.client_id,
         account_id=record.account_id,
@@ -240,6 +247,8 @@ def _client_record_to_principal(record: StoredOAuthClientRecord) -> OAuthClientP
         scopes=record.scopes,
         auth_method="oauth_client_credentials",
         rate_limit_profile=record.rate_limit_profile,
+        subscription=subscription,
+        entitlements=plan.entitlements,
     )
 
 

@@ -48,7 +48,7 @@ def test_valid_bearer_token_path():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="team",
+        plan_id="growth",
     )
     principal = authenticate_bearer_token({"Authorization": f"Bearer {token}"}, StaticOAuthTokenStore([record]))
     assert principal.client_id == "client_1"
@@ -90,7 +90,7 @@ def test_oauth_client_credentials_issue_signed_access_token():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["oauth:token", "verify:read"],
-        plan_id="team",
+        plan_id="growth",
     )
     principal = authenticate_oauth_client_credentials("client_1", client_secret, StaticOAuthClientStore([record]))
     service = OAuthClientCredentialsService(StaticOAuthClientStore([record]), token_ttl_seconds=1800)
@@ -104,7 +104,9 @@ def test_oauth_client_credentials_issue_signed_access_token():
     assert principal.client_id == "client_1"
     assert context.credential_id == "client_1"
     assert context.auth_method == "oauth_client_credentials"
-    assert context.plan == "team"
+    assert context.plan == "growth"
+    assert context.subscription is not None
+    assert context.subscription.plan_code == "growth"
     assert token_payload["token_type"] == "Bearer"
     assert token_payload["expires_in"] == 1800
     assert bearer_principal.client_id == "client_1"
@@ -119,7 +121,7 @@ def test_scope_enforcement_for_oauth(monkeypatch):
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="team",
+        plan_id="growth",
     )
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", json.dumps([record.__dict__]))
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
@@ -152,7 +154,7 @@ def test_oauth_token_endpoint_returns_access_token(monkeypatch):
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["oauth:token", "verify:read"],
-        plan_id="team",
+        plan_id="growth",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
@@ -187,7 +189,7 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     client_secret, oauth_client_record = build_oauth_client_record(
         client_id="client_1",
@@ -195,7 +197,7 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
         account_id="acct_2",
         workspace_id="ws_2",
         scopes=["oauth:token", "verify:read"],
-        plan_id="team",
+        plan_id="growth",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([key_record.__dict__]))
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")

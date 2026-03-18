@@ -9,7 +9,7 @@ def test_json_response_wraps_payload_with_standard_envelope():
     response_context = build_response_context(
         {"requestContext": {"requestId": "req-123"}},
         None,
-        plan="team",
+        plan="growth",
     )
 
     response = json_response(200, {"result": "ok"}, response_context=response_context, meta={"count": 1})
@@ -26,7 +26,7 @@ def test_json_response_wraps_payload_with_standard_envelope():
             "sunset_date": None,
             "recommended_version": None,
         },
-        "plan": "team",
+        "plan": "growth",
         "data": {"result": "ok"},
         "meta": {"count": 1},
         "errors": [],

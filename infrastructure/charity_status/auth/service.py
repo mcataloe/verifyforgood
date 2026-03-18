@@ -9,6 +9,7 @@ from typing import Any
 from charity_status.api import normalize_route_key
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from charity_status.auth.models import ApiKeyPrincipal, ApiPlan, AuthenticatedPrincipal
+from charity_status.billing import EntitlementService, Subscription
 from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
 
 DEFAULT_PLAN_LIMITS: dict[str, int] = {
@@ -69,7 +70,7 @@ def build_api_key_record(
     account_id: str,
     workspace_id: str,
     scopes: list[str] | None = None,
-    plan_id: str = "developer",
+    plan_id: str = "free",
     revoked: bool = False,
     rate_limit_profile: str | None = None,
 ) -> tuple[str, StoredApiKeyRecord]:
@@ -100,16 +101,20 @@ def authenticate_api_key(headers: dict[str, Any] | None, store: StaticApiKeyStor
         raise AuthenticationError("Invalid API key")
 
     limits = plan_limits or DEFAULT_PLAN_LIMITS
-    resolved = DEFAULT_PLANS.get(record.plan_id, DEFAULT_PLANS["developer"])
-    monthly_limit = limits.get(record.plan_id, resolved.monthly_request_limit)
+    normalized_plan_id = EntitlementService().normalize_plan_code(record.plan_id)
+    resolved = DEFAULT_PLANS.get(normalized_plan_id, DEFAULT_PLANS["free"])
+    monthly_limit = limits.get(normalized_plan_id, resolved.monthly_request_limit)
+    subscription = Subscription(account_id=record.account_id, plan_code=normalized_plan_id, status="active")
     return ApiKeyPrincipal(
         credential_id=record.key_id,
         account_id=record.account_id,
         workspace_id=record.workspace_id,
-        plan=ApiPlan(plan_id=record.plan_id, monthly_limit=monthly_limit, entitlements=resolved.entitlements),
+        plan=ApiPlan(plan_id=normalized_plan_id, monthly_limit=monthly_limit, entitlements=resolved.entitlements),
         scopes=record.scopes,
         auth_method="api_key",
         rate_limit_profile=record.rate_limit_profile,
+        subscription=subscription,
+        entitlements=resolved.entitlements,
     )
 
 
@@ -117,25 +122,32 @@ def enforce_quota_and_scope(
     principal: AuthenticatedPrincipal,
     route_key: str,
     usage_store: InMemoryUsageStore,
+    entitlement_service: EntitlementService | None = None,
 ) -> tuple[str, int, int]:
     route_key = normalize_route_key(route_key)
     required_scope = ROUTE_SCOPE_REQUIREMENTS.get(route_key)
     if required_scope and required_scope not in principal.scopes:
         raise AuthorizationError("Insufficient scope for endpoint")
 
-    if not check_feature_entitlement(DEFAULT_PLANS.get(principal.plan.plan_id, DEFAULT_PLANS["developer"]), route_key):
+    service = entitlement_service or EntitlementService()
+    resolved = service.resolve(
+        account_id=principal.account_id,
+        fallback_plan_code=principal.plan.plan_id,
+        subscription=principal.subscription,
+    )
+    if not check_feature_entitlement(resolved.entitlements, route_key):
         raise AuthorizationError("Plan entitlement does not allow this endpoint")
     month_key = monthly_period_for()
     used = usage_store.get_usage(principal.account_id, month_key)
     decision = check_quota_and_calculate(
-        plan=DEFAULT_PLANS.get(principal.plan.plan_id, DEFAULT_PLANS["developer"]),
+        plan=resolved.entitlements,
         used_units=used,
         consumed_units=1,
         period_key=month_key,
     )
     if decision.projected_usage > decision.limit_units:
         raise QuotaExceededError("Monthly request quota exceeded")
-    return month_key, used, principal.plan.monthly_limit
+    return month_key, used, resolved.entitlements.monthly_request_limit
 
 
 def hash_secret(secret: str) -> str:

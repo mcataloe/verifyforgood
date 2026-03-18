@@ -182,7 +182,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
             "path": f"/v1/admin/accounts/{account['id']}/api-keys",
             "pathParameters": {"accountId": account["id"]},
             "headers": headers,
-            "body": json.dumps({"scopes": ["verify:read"], "plan": "developer"}),
+            "body": json.dumps({"scopes": ["verify:read"], "plan": "free"}),
         },
         None,
     )
@@ -279,7 +279,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
             "path": f"/v1/admin/accounts/{account['id']}/oauth-clients",
             "pathParameters": {"accountId": account["id"]},
             "headers": headers,
-            "body": json.dumps({"scopes": ["oauth:token", "verify:read"], "plan": "team"}),
+            "body": json.dumps({"scopes": ["oauth:token", "verify:read"], "plan": "growth"}),
         },
         None,
     )
@@ -342,3 +342,55 @@ def test_control_plane_service_stores_only_hashed_secrets():
     assert oauth_payload["client_secret"] != oauth_record.client_secret_hash
     assert not hasattr(api_key_record, "secret")
     assert not hasattr(oauth_record, "client_secret")
+
+
+def test_admin_subscription_routes(monkeypatch):
+    module, admin_key = _load_module(monkeypatch)
+    headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
+    account = _data(
+        module.handler(
+            {
+                "httpMethod": "POST",
+                "resource": "/v1/admin/accounts",
+                "path": "/v1/admin/accounts",
+                "headers": headers,
+                "body": json.dumps({"id": "acct_subs", "name": "Subscription Account"}),
+            },
+            None,
+        )
+    )
+
+    fetched = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/admin/accounts/{accountId}/subscription",
+            "path": f"/v1/admin/accounts/{account['id']}/subscription",
+            "pathParameters": {"accountId": account["id"]},
+            "headers": {"x-admin-key": admin_key},
+        },
+        None,
+    )
+    assert fetched["statusCode"] == 200
+    assert _data(fetched)["plan_code"] == "free"
+
+    updated = module.handler(
+        {
+            "httpMethod": "PUT",
+            "resource": "/v1/admin/accounts/{accountId}/subscription",
+            "path": f"/v1/admin/accounts/{account['id']}/subscription",
+            "pathParameters": {"accountId": account["id"]},
+            "headers": headers,
+            "body": json.dumps(
+                {
+                    "plan_code": "pro",
+                    "status": "active",
+                    "effective_from": "2026-03-18T00:00:00+00:00",
+                }
+            ),
+        },
+        None,
+    )
+    assert updated["statusCode"] == 200
+    payload = _data(updated)
+    assert payload["plan_code"] == "pro"
+    assert payload["status"] == "active"

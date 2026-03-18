@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
+from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from charity_status.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
 
 
 def test_plan_entitlements():
-    developer = DEFAULT_PLANS["developer"]
-    team = DEFAULT_PLANS["team"]
-    assert developer.entitlements.batch_verification is False
-    assert team.entitlements.batch_verification is True
-    assert team.entitlements.advanced_source_visibility is True
+    free = DEFAULT_ENTITLEMENTS["free"]
+    growth = DEFAULT_ENTITLEMENTS["growth"]
+    assert free.has_feature("financial_trends") is False
+    assert growth.has_feature("financial_trends") is True
+    assert growth.has_feature("benchmarking") is True
 
 
 def test_quota_period_modeling_reset_key():
@@ -21,26 +22,45 @@ def test_quota_period_modeling_reset_key():
 
 
 def test_overage_ready_calculation():
-    plan = DEFAULT_PLANS["developer"]
+    entitlement = DEFAULT_ENTITLEMENTS["free"]
     decision = check_quota_and_calculate(
-        plan=plan,
+        plan=entitlement,
         used_units=249,
         consumed_units=2,
         period_key="2026-03",
     )
     assert decision.projected_usage == 251
     assert decision.overage_units == 1
-    assert decision.overage_cost_usd_micros == plan.overage_unit_price_usd_micros
+    assert decision.overage_cost_usd_micros == entitlement.overage_unit_price_usd_micros
 
 
 def test_feature_gating():
-    developer = DEFAULT_PLANS["developer"]
-    assert check_feature_entitlement(developer, "POST /v1/verify/batch") is False
-    assert check_feature_entitlement(developer, "GET /v1/nonprofit/{ein}") is True
+    free = DEFAULT_ENTITLEMENTS["free"]
+    assert check_feature_entitlement(free, "POST /v1/verify/batch") is False
+    assert check_feature_entitlement(free, "GET /v1/nonprofit/{ein}") is True
 
 
 def test_quota_period_state():
-    plan = DEFAULT_PLANS["starter"]
-    period = quota_period_state(plan, used_units=120, period_key="2026-03")
+    entitlement = DEFAULT_ENTITLEMENTS["starter"]
+    period = quota_period_state(entitlement, used_units=120, period_key="2026-03")
     assert period.limit_units == 1000
     assert period.remaining_units == 880
+
+
+def test_entitlement_service_resolves_inactive_subscription_to_free():
+    service = EntitlementService(
+        subscriptions={
+            "acct_1": Subscription(
+                account_id="acct_1",
+                plan_code="pro",
+                status="canceled",
+                effective_from="2026-01-01T00:00:00+00:00",
+                effective_to="2026-02-01T00:00:00+00:00",
+            )
+        }
+    )
+
+    resolved = service.resolve(account_id="acct_1", now=datetime(2026, 3, 1, tzinfo=timezone.utc))
+
+    assert resolved.subscription.plan_code == "free"
+    assert resolved.entitlements.monthly_request_limit == 250

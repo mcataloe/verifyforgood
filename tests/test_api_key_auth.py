@@ -18,13 +18,13 @@ def test_valid_key_authenticates():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     assert principal.account_id == "acct_1"
     assert principal.plan.monthly_limit == 250
     assert principal.auth_method == "api_key"
-    assert principal.rate_limit_profile == "developer"
+    assert principal.rate_limit_profile == "free"
 
 
 def test_api_key_plaintext_only_returned_at_creation():
@@ -46,7 +46,7 @@ def test_api_key_provider_returns_normalized_auth_context():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     event = {"headers": {"x-api-key": display_key}}
 
@@ -55,8 +55,12 @@ def test_api_key_provider_returns_normalized_auth_context():
     assert context.account_id == "acct_1"
     assert context.credential_id == "dev_001"
     assert context.auth_method == "api_key"
-    assert context.plan == "developer"
-    assert context.rate_limit_profile == "developer"
+    assert context.plan == "free"
+    assert context.subscription is not None
+    assert context.subscription.plan_code == "free"
+    assert context.entitlements is not None
+    assert context.entitlements.monthly_request_limit == 250
+    assert context.rate_limit_profile == "free"
     assert event["_auth_context"] is context
 
 
@@ -107,7 +111,7 @@ def test_quota_exceeded():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     store = InMemoryUsageStore()
@@ -131,7 +135,7 @@ def test_scoped_access_denied():
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     try:
@@ -150,7 +154,7 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:read"],
-        plan_id="developer",
+        plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
@@ -172,7 +176,7 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     assert missing["statusCode"] == 401
 
 
-def test_entitlement_blocks_batch_for_developer(monkeypatch):
+def test_entitlement_blocks_batch_for_free(monkeypatch):
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     display_key, record = build_api_key_record(
         key_id="dev_001",
@@ -180,7 +184,7 @@ def test_entitlement_blocks_batch_for_developer(monkeypatch):
         account_id="acct_1",
         workspace_id="ws_1",
         scopes=["verify:write"],
-        plan_id="developer",
+        plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
@@ -196,15 +200,15 @@ def test_entitlement_blocks_batch_for_developer(monkeypatch):
     assert response["statusCode"] == 403
 
 
-def test_batch_metering_counts_items_for_team_plan(monkeypatch):
+def test_batch_metering_counts_items_for_growth_plan(monkeypatch):
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     display_key, record = build_api_key_record(
-        key_id="team_001",
+        key_id="growth_001",
         secret="test-secret",
         account_id="acct_2",
         workspace_id="ws_2",
         scopes=["verify:write"],
-        plan_id="team",
+        plan_id="growth",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
