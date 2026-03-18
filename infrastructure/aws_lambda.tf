@@ -151,6 +151,7 @@ resource "aws_lambda_function" "query" {
       ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
       PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
+      CONTROL_PLANE_TABLE_NAME                         = aws_dynamodb_table.control_plane.name
       APP_ENV                                          = var.environment
       SERVING_DDB_ENABLED                              = tostring(var.serving_dynamodb_enabled)
       BATCH_VERIFY_MAX_SIZE                            = tostring(var.batch_verify_max_size)

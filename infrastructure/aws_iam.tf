@@ -52,7 +52,10 @@ resource "aws_iam_role_policy" "lambda_data_access" {
         Resource = [
           aws_dynamodb_table.profiles.arn,
           aws_dynamodb_table.organization_settings.arn,
+          aws_dynamodb_table.control_plane.arn,
           "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
+          "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
+          "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",
         ]
       }
     ]

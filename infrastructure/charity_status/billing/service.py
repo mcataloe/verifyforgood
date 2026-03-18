@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -124,8 +125,13 @@ class MeteringDecision:
 
 
 class EntitlementService:
-    def __init__(self, subscriptions: dict[str, Subscription] | None = None):
+    def __init__(
+        self,
+        subscriptions: dict[str, Subscription] | None = None,
+        subscription_loader: Callable[[str], Subscription | None] | None = None,
+    ):
         self._subscriptions = subscriptions if subscriptions is not None else {}
+        self._subscription_loader = subscription_loader
 
     def resolve(
         self,
@@ -136,6 +142,8 @@ class EntitlementService:
         now: datetime | None = None,
     ) -> ResolvedEntitlements:
         candidate = subscription or self._subscriptions.get(account_id)
+        if candidate is None and self._subscription_loader is not None:
+            candidate = self._subscription_loader(account_id)
         if candidate is None:
             candidate = Subscription(
                 account_id=account_id,

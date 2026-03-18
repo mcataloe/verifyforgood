@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from charity_status.api import normalize_route_key
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, FeatureUnavailableError, QuotaExceededError
@@ -54,6 +54,17 @@ class StaticApiKeyStore:
         return self._by_id.get(key_id)
 
 
+class UsageStore(Protocol):
+    def get_usage(self, account_id: str, month_key: str) -> int:
+        ...
+
+    def increment(self, account_id: str, month_key: str) -> None:
+        ...
+
+    def increment_usage(self, account_id: str, month_key: str, units: int = 1) -> int:
+        ...
+
+
 class InMemoryUsageStore:
     def __init__(self):
         self._usage: dict[tuple[str, str], int] = {}
@@ -64,6 +75,11 @@ class InMemoryUsageStore:
     def increment(self, account_id: str, month_key: str) -> None:
         key = (account_id, month_key)
         self._usage[key] = self._usage.get(key, 0) + 1
+
+    def increment_usage(self, account_id: str, month_key: str, units: int = 1) -> int:
+        key = (account_id, month_key)
+        self._usage[key] = self._usage.get(key, 0) + max(0, units)
+        return self._usage[key]
 
 
 def build_api_key_record(
@@ -123,7 +139,7 @@ def authenticate_api_key(headers: dict[str, Any] | None, store: StaticApiKeyStor
 def enforce_quota_and_scope(
     principal: AuthenticatedPrincipal,
     route_key: str,
-    usage_store: InMemoryUsageStore,
+    usage_store: UsageStore,
     entitlement_service: EntitlementService | None = None,
 ) -> tuple[str, int, int]:
     route_key = normalize_route_key(route_key)

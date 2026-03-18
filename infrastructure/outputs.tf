@@ -67,3 +67,8 @@ output "organization_settings_dynamodb_table_name" {
   description = "DynamoDB table for organization-level integration settings."
   value       = aws_dynamodb_table.organization_settings.name
 }
+
+output "control_plane_dynamodb_table_name" {
+  description = "DynamoDB table for control-plane accounts, subscriptions, managed credentials, and usage."
+  value       = aws_dynamodb_table.control_plane.name
+}

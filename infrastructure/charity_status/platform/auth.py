@@ -11,6 +11,7 @@ from charity_status.auth import (
     StaticApiKeyStore,
     StaticOAuthClientStore,
     StaticOAuthTokenStore,
+    UsageStore,
     authenticate_api_key,
     authenticate_bearer_token,
     authenticate_oauth_client_credentials,
@@ -98,7 +99,7 @@ class OAuthClientCredentialsService:
 
 
 class ApiKeyQuotaMeteringHook:
-    def __init__(self, usage_store: InMemoryUsageStore, entitlement_service: EntitlementService | None = None):
+    def __init__(self, usage_store: UsageStore, entitlement_service: EntitlementService | None = None):
         self._usage_store = usage_store
         self._entitlement_service = entitlement_service or EntitlementService()
 
@@ -124,6 +125,10 @@ class ApiKeyQuotaMeteringHook:
         current = self._usage_store.get_usage(str(auth_context.account_id), month_key)
         decision = check_quota_and_calculate(plan=entitlement, used_units=current, consumed_units=billable_units, period_key=month_key)
         if decision.projected_usage > decision.limit_units:
+            return
+        increment_usage = getattr(self._usage_store, "increment_usage", None)
+        if callable(increment_usage):
+            increment_usage(str(auth_context.account_id), month_key, billable_units)
             return
         for _ in range(billable_units):
             self._usage_store.increment(str(auth_context.account_id), month_key)

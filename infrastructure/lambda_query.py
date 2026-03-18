@@ -13,7 +13,6 @@ from charity_status.auth import (
     AuthenticationError,
     AuthorizationError,
     FeatureUnavailableError,
-    InMemoryUsageStore,
     QuotaExceededError,
     StaticApiKeyStore,
     StaticOAuthClientStore,
@@ -22,7 +21,7 @@ from charity_status.auth import (
     load_admin_key_store,
 )
 from charity_status.billing import EntitlementService, ResponseShapingService
-from charity_status.control_plane import ControlPlaneError, ControlPlaneService, InMemoryControlPlaneStore
+from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
 from charity_status.enrichments import (
@@ -98,6 +97,7 @@ FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
 PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
 PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
+CONTROL_PLANE_TABLE_NAME = os.environ.get("CONTROL_PLANE_TABLE_NAME", "").strip()
 ORGANIZATION_SETTINGS_TABLE_NAME = os.environ.get("ORGANIZATION_SETTINGS_TABLE_NAME", "").strip()
 APP_ENV = os.environ.get("APP_ENV", "dev")
 SERVING_DDB_ENABLED = _env_bool("SERVING_DDB_ENABLED")
@@ -123,7 +123,7 @@ enrichment_service: EnrichmentProviderGateway | None = None
 profile_store: ProfileStoreAdapter | None = None
 auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
-usage_store: InMemoryUsageStore | None = None
+usage_store: Any | None = None
 ops_run_store: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
@@ -229,7 +229,7 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
     global quota_metering_hook, usage_store
     if quota_metering_hook is None:
         if API_AUTH_ENABLED:
-            usage_store = usage_store or InMemoryUsageStore()
+            usage_store = usage_store or _get_control_plane_service().store
             quota_metering_hook = ApiKeyQuotaMeteringHook(
                 usage_store=usage_store,
                 entitlement_service=_get_entitlement_service(),
@@ -256,24 +256,17 @@ def _get_admin_key_store():
 def _get_control_plane_service() -> ControlPlaneService:
     global control_plane_service
     if control_plane_service is None:
-        control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+        if CONTROL_PLANE_TABLE_NAME:
+            control_plane_service = ControlPlaneService(store=DynamoControlPlaneStore(table_name=CONTROL_PLANE_TABLE_NAME))
+        else:
+            control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     return control_plane_service
 
 
 def _get_entitlement_service() -> EntitlementService:
     global entitlement_service
     if entitlement_service is None:
-        entitlement_service = EntitlementService(
-            subscriptions={
-                account_id: subscription.to_subscription()
-                for account_id, subscription in _get_control_plane_service().store.subscriptions.items()
-            }
-        )
-    else:
-        entitlement_service._subscriptions = {
-            account_id: subscription.to_subscription()
-            for account_id, subscription in _get_control_plane_service().store.subscriptions.items()
-        }
+        entitlement_service = EntitlementService(subscription_loader=_load_runtime_subscription)
     return entitlement_service
 
 
@@ -285,9 +278,10 @@ def _get_response_shaping_service() -> ResponseShapingService:
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
-    records = list(load_api_key_store(API_KEY_RECORDS_JSON)._by_id.values())
-    records.extend(_get_control_plane_service().api_key_records())
-    return StaticApiKeyStore(records)
+    return _MergedApiKeyStore(
+        _ManagedApiKeyStore(_get_control_plane_service().store),
+        load_api_key_store(API_KEY_RECORDS_JSON),
+    )
 
 
 def _load_runtime_oauth_token_store() -> StaticOAuthTokenStore:
@@ -295,9 +289,52 @@ def _load_runtime_oauth_token_store() -> StaticOAuthTokenStore:
 
 
 def _load_runtime_oauth_client_store() -> StaticOAuthClientStore:
-    records = list(load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON)._by_id.values())
-    records.extend(_get_control_plane_service().oauth_client_records())
-    return StaticOAuthClientStore(records)
+    return _MergedOAuthClientStore(
+        _ManagedOAuthClientStore(_get_control_plane_service().store),
+        load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
+    )
+
+
+def _load_runtime_subscription(account_id: str):
+    store = _get_control_plane_service().store
+    subscription = store.get_subscription(account_id)
+    if subscription is None:
+        return None
+    return subscription.to_subscription()
+
+
+class _ManagedApiKeyStore:
+    def __init__(self, store: Any) -> None:
+        self._store = store
+
+    def get(self, key_id: str):
+        return self._store.get_api_key_record(key_id)
+
+
+class _MergedApiKeyStore:
+    def __init__(self, primary: Any, fallback: StaticApiKeyStore) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def get(self, key_id: str):
+        return self._primary.get(key_id) or self._fallback.get(key_id)
+
+
+class _ManagedOAuthClientStore:
+    def __init__(self, store: Any) -> None:
+        self._store = store
+
+    def get(self, client_id: str):
+        return self._store.get_oauth_client_record(client_id)
+
+
+class _MergedOAuthClientStore:
+    def __init__(self, primary: Any, fallback: StaticOAuthClientStore) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def get(self, client_id: str):
+        return self._primary.get(client_id) or self._fallback.get(client_id)
 
 
 def _get_ops_run_store() -> Any | None:
