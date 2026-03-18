@@ -1411,8 +1411,28 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 
 - Query Lambda package includes query/normalization/scoring modules.
 - Ingest and Form 990 Lambdas are packaged separately.
-- Domain registration remains manual; Route53 hosted zone and records are managed by Terraform when enabled.
+- Domain registration remains manual; the hosted zone must already exist, and Terraform manages records when custom domains are enabled.
 - DynamoDB table is provisioned for serving profiles (`pk = EIN#{ein}`, `sk = PROFILE#LATEST`).
+
+Environment-specific Terraform workflow:
+
+```bash
+cd infrastructure
+terraform init -backend-config=backend-dev.hcl
+terraform plan -var-file=terraform.shared.tfvars -var-file=terraform-dev.tfvars -var-file=terraform-dev.secrets.tfvars
+
+terraform init -reconfigure -backend-config=backend-prod.hcl
+terraform plan -var-file=terraform.shared.tfvars -var-file=terraform-prod.tfvars -var-file=terraform-prod.secrets.tfvars
+```
+
+The S3 backend buckets and DynamoDB lock tables referenced by those backend files are bootstrap resources and must exist before `terraform init` succeeds.
+
+Variable file layout:
+
+- `terraform.shared.tfvars`: tracked shared non-secret defaults
+- `terraform-dev.tfvars` / `terraform-prod.tfvars`: tracked environment-specific non-secret overrides
+- `terraform-dev.secrets.tfvars` / `terraform-prod.secrets.tfvars`: local-only secrets files
+- `*.example` variants: tracked templates for onboarding
 
 Form 990 mode configuration additions:
 

@@ -4,7 +4,7 @@
 #############################################
 
 resource "aws_api_gateway_rest_api" "irs_api" {
-  name = "${local.domain_name}${var.environment == "prod" ? "" : "-${var.environment}"}"
+  name = local.api_gateway_name
 }
 
 resource "aws_api_gateway_resource" "api_v1" {
@@ -893,14 +893,8 @@ resource "aws_api_gateway_deployment" "deployment" {
   }
 }
 
-resource "aws_api_gateway_stage" "prod" {
+resource "aws_api_gateway_stage" "environment" {
   deployment_id = aws_api_gateway_deployment.deployment.id
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
-  stage_name    = "prod"
-}
-
-resource "aws_api_gateway_stage" "dev" {
-  deployment_id = aws_api_gateway_deployment.deployment.id
-  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
-  stage_name    = "dev"
+  stage_name    = var.environment
 }

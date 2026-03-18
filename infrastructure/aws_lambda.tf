@@ -47,7 +47,7 @@ data "archive_file" "ingest_zip_from_file" {
 }
 
 resource "aws_lambda_function" "ingest" {
-  function_name = "irs_dataset_ingest"
+  function_name = local.ingest_lambda_name
   handler       = "lambda_ingest.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -97,7 +97,7 @@ data "archive_file" "query_zip" {
 }
 
 resource "aws_lambda_function" "query" {
-  function_name = "irs_query_api"
+  function_name = local.query_lambda_name
   handler       = "lambda_query.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -208,7 +208,7 @@ data "archive_file" "refresh_zip" {
 
 resource "aws_lambda_function" "refresh" {
   count         = var.refresh_lambda_enabled ? 1 : 0
-  function_name = "irs_profile_refresh"
+  function_name = local.refresh_lambda_name
   handler       = "lambda_refresh.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -311,7 +311,7 @@ data "archive_file" "form990_zip" {
 }
 
 resource "aws_lambda_function" "form990_ingest" {
-  function_name = "irs_form990_ingest"
+  function_name = local.form990_ingest_lambda_name
   handler       = "lambda_form990.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -360,12 +360,12 @@ resource "aws_lambda_function" "form990_ingest" {
 }
 
 resource "aws_sqs_queue" "form990_work_dlq" {
-  name                      = "irs-form990-work-dlq"
+  name                      = local.form990_work_dlq_name
   message_retention_seconds = 1209600
 }
 
 resource "aws_sqs_queue" "form990_work_queue" {
-  name                       = "irs-form990-work-queue"
+  name                       = local.form990_work_queue_name
   visibility_timeout_seconds = var.form990_queue_visibility_timeout_seconds
   message_retention_seconds  = 345600
   redrive_policy = jsonencode({
@@ -375,7 +375,7 @@ resource "aws_sqs_queue" "form990_work_queue" {
 }
 
 resource "aws_lambda_function" "form990_orchestrator" {
-  function_name = "irs_form990_orchestrator"
+  function_name = local.form990_orchestrator_lambda_name
   handler       = "lambda_form990_orchestrator.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -425,7 +425,7 @@ resource "aws_lambda_function" "form990_orchestrator" {
 }
 
 resource "aws_lambda_function" "form990_worker" {
-  function_name                  = "irs_form990_worker"
+  function_name                  = local.form990_worker_lambda_name
   handler                        = "lambda_form990_worker.handler"
   runtime                        = "python3.11"
   role                           = aws_iam_role.lambda_role.arn
@@ -466,6 +466,7 @@ resource "aws_lambda_event_source_mapping" "form990_worker_sqs" {
 #############################################
 
 resource "aws_cloudwatch_event_rule" "daily_ingest" {
+  name                = local.daily_ingest_rule_name
   schedule_expression = "cron(0 3 * * ? *)"
 }
 
@@ -485,6 +486,7 @@ resource "aws_lambda_permission" "allow_eventbridge" {
 
 resource "aws_cloudwatch_event_rule" "refresh_schedule" {
   count               = var.refresh_lambda_enabled && trim(var.refresh_schedule_expression, " ") != "" ? 1 : 0
+  name                = local.refresh_schedule_rule_name
   schedule_expression = var.refresh_schedule_expression
 }
 
@@ -506,6 +508,7 @@ resource "aws_lambda_permission" "allow_eventbridge_refresh" {
 
 resource "aws_cloudwatch_event_rule" "form990_schedule" {
   count               = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+  name                = local.form990_schedule_rule_name
   schedule_expression = var.form990_schedule_expression
 }
 

@@ -1,0 +1,4 @@
+bucket         = "charitystatusapi-tfstate"
+key            = "terraform/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "charitystatusapi-tf-locks"

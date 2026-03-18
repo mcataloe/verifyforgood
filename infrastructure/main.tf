@@ -1,5 +1,7 @@
 locals {
   domain_name                             = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
+  name_prefix                             = var.environment == "prod" ? var.base_name : "${var.base_name}-${var.environment}"
+  db_prefix                               = replace(local.name_prefix, "-", "_")
   source_data_prefix_normalized           = "${trim(var.source_data_prefix, "/")}/"
   form990_raw_source_prefix_normalized    = "${trim(var.form990_raw_source_prefix, "/")}/"
   form990_raw_prefix_normalized           = "${trim(var.form990_raw_prefix, "/")}/"
@@ -9,12 +11,27 @@ locals {
   form990_governance_prefix_normalized    = "${trim(var.form990_governance_prefix, "/")}/"
   form990_quality_prefix_normalized       = "${trim(var.form990_quality_prefix, "/")}/"
   form990_relationships_prefix_normalized = "${trim(var.form990_relationships_prefix, "/")}/"
-  source_data_bucket_name                 = "${var.base_name}-irs-source-data-bucket"
-  athena_results_bucket_name              = "${var.base_name}-athena-results"
-  profile_table_name                      = "${var.base_name}-${var.environment}-profiles"
-  organization_settings_table_name        = "${var.base_name}-${var.environment}-organization-settings"
-  control_plane_table_name                = "${var.base_name}-${var.environment}-control-plane"
-  glue_database_name                      = "${var.base_name}_irs_db"
+  source_data_bucket_name                 = "${local.name_prefix}-irs-source-data-bucket"
+  athena_results_bucket_name              = "${local.name_prefix}-athena-results"
+  profile_table_name                      = "${local.name_prefix}-profiles"
+  organization_settings_table_name        = "${local.name_prefix}-organization-settings"
+  control_plane_table_name                = "${local.name_prefix}-control-plane"
+  glue_database_name                      = "${local.db_prefix}_irs_db"
+  athena_workgroup_resource_name          = var.environment == "prod" ? var.athena_workgroup_name : "${var.athena_workgroup_name}-${var.environment}"
+  api_gateway_name                        = "${local.name_prefix}-api"
+  lambda_role_name                        = "${local.name_prefix}-lambda-role"
+  lambda_data_policy_name                 = "${local.name_prefix}-lambda-data-policy"
+  ingest_lambda_name                      = "${local.name_prefix}-dataset-ingest"
+  query_lambda_name                       = "${local.name_prefix}-query-api"
+  refresh_lambda_name                     = "${local.name_prefix}-profile-refresh"
+  form990_ingest_lambda_name              = "${local.name_prefix}-form990-ingest"
+  form990_orchestrator_lambda_name        = "${local.name_prefix}-form990-orchestrator"
+  form990_worker_lambda_name              = "${local.name_prefix}-form990-worker"
+  form990_work_dlq_name                   = "${local.name_prefix}-form990-work-dlq"
+  form990_work_queue_name                 = "${local.name_prefix}-form990-work-queue"
+  daily_ingest_rule_name                  = "${local.name_prefix}-daily-ingest"
+  refresh_schedule_rule_name              = "${local.name_prefix}-refresh-schedule"
+  form990_schedule_rule_name              = "${local.name_prefix}-form990-schedule"
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
@@ -114,7 +131,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "athena_results" {
-  bucket = var.environment == "prod" ? local.athena_results_bucket_name : "${local.athena_results_bucket_name}-${var.environment}"
+  bucket = local.athena_results_bucket_name
   tags   = local.common_tags
 }
 
@@ -128,7 +145,7 @@ resource "aws_s3_bucket_public_access_block" "athena_results" {
 }
 
 resource "aws_athena_workgroup" "eo_bmf" {
-  name = "${var.athena_workgroup_name}-${var.environment}"
+  name = local.athena_workgroup_resource_name
 
   configuration {
     enforce_workgroup_configuration    = true

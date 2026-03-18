@@ -9,13 +9,15 @@ locals {
   enable_custom_domain = var.enable_custom_domain && local.base_domain_name != ""
 }
 
-resource "aws_route53_zone" "selected" {
+data "aws_route53_zone" "selected" {
   count = local.enable_custom_domain ? 1 : 0
-  name  = trim(local.route53_zone_name, ".")
+  name  = local.route53_zone_name
+
+  private_zone = false
 }
 
 locals {
-  route53_zone_id = local.enable_custom_domain ? aws_route53_zone.selected[0].zone_id : null
+  route53_zone_id = local.enable_custom_domain ? data.aws_route53_zone.selected[0].zone_id : null
 }
 
 resource "aws_acm_certificate" "cert" {
@@ -62,7 +64,7 @@ resource "aws_api_gateway_base_path_mapping" "mapping" {
   count = local.enable_custom_domain ? 1 : 0
 
   api_id      = aws_api_gateway_rest_api.irs_api.id
-  stage_name  = var.environment == "prod" ? aws_api_gateway_stage.prod.stage_name : aws_api_gateway_stage.dev.stage_name
+  stage_name  = aws_api_gateway_stage.environment.stage_name
   domain_name = aws_api_gateway_domain_name.api_domain[0].domain_name
 }
 

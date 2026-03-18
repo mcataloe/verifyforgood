@@ -4,7 +4,7 @@
 #############################################
 
 resource "aws_iam_role" "lambda_role" {
-  name = "irs_api_lambda_role"
+  name = local.lambda_role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -24,7 +24,7 @@ resource "aws_iam_role_policy_attachment" "basic_lambda" {
 }
 
 resource "aws_iam_role_policy" "lambda_data_access" {
-  name = "irs_lambda_data_policy"
+  name = local.lambda_data_policy_name
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
