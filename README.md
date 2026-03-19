@@ -11,7 +11,7 @@ Customer-facing overview:
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -1039,6 +1039,7 @@ External model remains simple:
 - API clients still see standard HTTP auth/quota behavior (`401`/`403`/`429`)
 - richer usage and overage accounting is internal/domain-ready for future billing processor integration
 - paid-plan enrollment now creates Stripe-hosted Checkout sessions with automatic tax enabled and no custom fee line items layered on top of the advertised plan price
+- active paid subscriptions can now change plans through Stripe-native updates, with immediate prorated upgrades and next-cycle downgrades
 
 ## API Contract
 
@@ -1261,6 +1262,47 @@ Stripe configuration:
   "pro": "price_789"
 }
 ```
+
+### `POST /v1/organization/billing/plan-change`
+
+Changes the plan for an already-enrolled authenticated customer account.
+
+Request body:
+
+```json
+{
+  "plan_code": "growth"
+}
+```
+
+Behavior:
+
+- the account must already have an active Stripe subscription; first-time paid enrollment still uses `POST /v1/organization/billing/checkout-session`
+- upgrades apply immediately through Stripe subscription updates
+- upgrades rely on Stripe proration; the API does not calculate proration locally
+- downgrades are scheduled for the next billing cycle and do not change the current billing period
+- a later upgrade overrides any previously scheduled downgrade
+- repeated requests for the same pending downgrade return the current pending state instead of stacking conflicting changes
+
+Response fields:
+
+- `account_id`
+- `current_plan_code`
+- `pending_plan_code`
+- `effective_from`
+- `effective_to`
+- `billing_period_start`
+- `billing_period_end`
+- `pending_plan_effective_at`
+- `billing_status`
+- `change_type`
+- `reused`
+
+Plan-change timing:
+
+- `change_type=upgrade`: new plan is active immediately and Stripe handles proration
+- `change_type=downgrade_scheduled`: current plan remains active until `pending_plan_effective_at`
+- `change_type=pending_change_cleared`: a previously scheduled downgrade was removed and the current plan remains in force
 
 ### `POST /v1/webhooks/stripe`
 

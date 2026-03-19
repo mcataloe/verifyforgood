@@ -205,6 +205,12 @@ resource "aws_api_gateway_resource" "organization_billing_checkout_session" {
   path_part   = "checkout-session"
 }
 
+resource "aws_api_gateway_resource" "organization_billing_plan_change" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.organization_billing.id
+  path_part   = "plan-change"
+}
+
 resource "aws_api_gateway_resource" "ops" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.api_v1.id
@@ -740,6 +746,13 @@ resource "aws_api_gateway_method" "post_organization_billing_checkout_session" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_organization_billing_plan_change" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.organization_billing_plan_change.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "get_ops_ingest_runs" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.ops_ingest_runs.id
@@ -820,6 +833,15 @@ resource "aws_api_gateway_integration" "lambda_post_organization_billing_checkou
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.organization_billing_checkout_session.id
   http_method             = aws_api_gateway_method.post_organization_billing_checkout_session.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_organization_billing_plan_change_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.organization_billing_plan_change.id
+  http_method             = aws_api_gateway_method.post_organization_billing_plan_change.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -924,6 +946,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_put_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_post_organization_billing_checkout_session_integration,
+    aws_api_gateway_integration.lambda_post_organization_billing_plan_change_integration,
     aws_api_gateway_integration.lambda_nonprofits_search_integration,
     aws_api_gateway_integration.lambda_nonprofits_verify_integration,
     aws_api_gateway_integration.lambda_get_nonprofits_ein_integration,

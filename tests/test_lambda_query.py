@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from charity_status.auth import InMemoryUsageStore
 from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
 from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from charity_status.billing.plan_changes import BillingPlanChangeService
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
@@ -743,6 +744,71 @@ def test_post_stripe_webhook_route_processes_valid_signed_event(monkeypatch):
     body = _response_data(result)
     assert body["processed"] is True
     assert module.control_plane_service.store.get_subscription(account["id"]).stripe_customer_id == "cus_123"
+
+
+def test_post_organization_billing_plan_change_returns_plan_payload():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Plan Change Account", "ein": "123456789"})
+
+    class _PlanChangeService:
+        def change_plan(self, *, account_id: str, payload: dict[str, object]) -> dict[str, object]:
+            assert account_id == account["id"]
+            assert payload == {"plan_code": "growth"}
+            return {
+                "account_id": account_id,
+                "current_plan_code": "pro",
+                "pending_plan_code": "growth",
+                "effective_from": "2026-03-01T00:00:00+00:00",
+                "effective_to": None,
+                "billing_period_start": "2026-03-01T00:00:00+00:00",
+                "billing_period_end": "2026-04-01T00:00:00+00:00",
+                "pending_plan_effective_at": "2026-04-01T00:00:00+00:00",
+                "billing_status": "active",
+                "change_type": "downgrade_scheduled",
+                "reused": False,
+            }
+
+    module.billing_plan_change_service = _PlanChangeService()
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/plan-change",
+            "path": "/v1/organization/billing/plan-change",
+            "headers": {},
+            "body": json.dumps({"plan_code": "growth"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["current_plan_code"] == "pro"
+    assert body["pending_plan_code"] == "growth"
+    assert body["change_type"] == "downgrade_scheduled"
 
 
 def test_post_stripe_webhook_route_rejects_invalid_signature(monkeypatch):

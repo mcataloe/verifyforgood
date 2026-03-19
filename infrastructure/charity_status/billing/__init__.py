@@ -22,6 +22,7 @@ from .service import (
     route_feature_flag,
 )
 from .feature_gating import build_upgrade_hint, build_upgrade_hints, missing_route_requirement, recommended_upgrade_plan
+from .plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from .response_shaping import ResponseShapingService
 from .webhooks import (
     BillingWebhookError,
@@ -56,6 +57,8 @@ __all__ = [
     "build_upgrade_hints",
     "missing_route_requirement",
     "recommended_upgrade_plan",
+    "BillingPlanChangeError",
+    "BillingPlanChangeService",
     "ResponseShapingService",
     "check_feature_entitlement",
     "check_quota_and_calculate",

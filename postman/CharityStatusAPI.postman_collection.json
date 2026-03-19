@@ -352,6 +352,30 @@
           }
         },
         {
+          "name": "POST /v1/organization/billing/plan-change",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_code\": \"growth\"\n}"
+            },
+            "description": "Change an active paid subscription plan. Upgrades apply immediately with Stripe-managed proration; downgrades are scheduled for the next billing cycle. Auth: x-api-key. Variables: baseUrl.",
+            "url": "{{baseUrl}}/v1/organization/billing/plan-change"
+          }
+        },
+        {
           "name": "POST /v1/oauth/token",
           "request": {
             "method": "POST",

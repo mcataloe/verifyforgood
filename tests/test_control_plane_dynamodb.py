@@ -231,7 +231,10 @@ def test_dynamo_control_plane_supports_stripe_lookup_and_billing_event_round_tri
             effective_from="2026-03-18T00:00:00+00:00",
             stripe_customer_id="cus_test_123",
             stripe_subscription_id="sub_test_123",
+            stripe_subscription_schedule_id="sub_sched_test_123",
             billing_status="active",
+            pending_plan_code="starter",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
             updated_at="2026-03-19T00:00:00+00:00",
         )
     )
@@ -257,6 +260,9 @@ def test_dynamo_control_plane_supports_stripe_lookup_and_billing_event_round_tri
 
     assert by_customer is not None and by_customer.account_id == account_id
     assert by_subscription is not None and by_subscription.account_id == account_id
+    assert by_subscription.pending_plan_code == "starter"
+    assert by_subscription.pending_plan_effective_at == "2026-04-01T00:00:00+00:00"
+    assert by_subscription.stripe_subscription_schedule_id == "sub_sched_test_123"
     assert billing_event is not None
     assert billing_event.stripe_invoice_id == "in_test_123"
     assert billing_event.invoice_total == 10800

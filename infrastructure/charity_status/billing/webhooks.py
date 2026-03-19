@@ -188,6 +188,8 @@ class StripeWebhookService:
             stripe_subscription_id=_event_subscription_id(event_object) or subscription.stripe_subscription_id,
             billing_status="checkout_completed",
             pending_plan_code=_optional_string(metadata.get("requested_plan_code")) or subscription.pending_plan_code,
+            pending_plan_effective_at=None,
+            stripe_subscription_schedule_id=None,
             pending_checkout_session_id=None,
             pending_checkout_session_url=None,
             pending_checkout_expires_at=None,
@@ -205,6 +207,20 @@ class StripeWebhookService:
         plan_code = self._plan_code_for_event(event_object) or subscription.plan_code
         period_start = _stripe_epoch_to_iso(event_object.get("current_period_start")) or subscription.billing_period_start
         period_end = _stripe_epoch_to_iso(event_object.get("current_period_end")) or subscription.billing_period_end
+        schedule_id = _optional_string(event_object.get("schedule")) or subscription.stripe_subscription_schedule_id
+        cancel_at_period_end = bool(event_object.get("cancel_at_period_end"))
+        pending_plan_code = subscription.pending_plan_code
+        pending_plan_effective_at = subscription.pending_plan_effective_at
+        if is_deleted:
+            pending_plan_code = None
+            pending_plan_effective_at = None
+            schedule_id = None
+        elif cancel_at_period_end:
+            pending_plan_code = pending_plan_code or "free"
+            pending_plan_effective_at = period_end or pending_plan_effective_at
+        elif pending_plan_code and plan_code == pending_plan_code:
+            pending_plan_code = None
+            pending_plan_effective_at = None
         effective_from = period_start or subscription.effective_from or _utcnow()
         effective_to = None if not is_deleted else (period_end or _stripe_epoch_to_iso(event_object.get("canceled_at")) or _utcnow())
         return replace(
@@ -218,7 +234,9 @@ class StripeWebhookService:
             billing_status=stripe_status,
             billing_period_start=period_start,
             billing_period_end=period_end,
-            pending_plan_code=None,
+            pending_plan_code=pending_plan_code,
+            pending_plan_effective_at=pending_plan_effective_at,
+            stripe_subscription_schedule_id=schedule_id,
             pending_checkout_session_id=None,
             pending_checkout_session_url=None,
             pending_checkout_expires_at=None,
@@ -240,6 +258,8 @@ class StripeWebhookService:
             billing_status=billing_status,
             billing_period_start=period[0] or subscription.billing_period_start,
             billing_period_end=period[1] or subscription.billing_period_end,
+            pending_plan_effective_at=subscription.pending_plan_effective_at,
+            stripe_subscription_schedule_id=subscription.stripe_subscription_schedule_id,
             updated_at=_utcnow(),
         )
 
