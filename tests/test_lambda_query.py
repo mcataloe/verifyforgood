@@ -7,7 +7,7 @@ from decimal import Decimal
 from time import time
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore
+from charity_status.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
 from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
 from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
 from charity_status.billing.models import Subscription
@@ -43,6 +43,13 @@ def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None
 def _load_module():
     sys.modules.pop("infrastructure.lambda_query", None)
     return importlib.import_module("infrastructure.lambda_query")
+
+
+def _load_admin_module(monkeypatch):
+    admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
+    monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
+    sys.modules.pop("infrastructure.lambda_query", None)
+    return importlib.import_module("infrastructure.lambda_query"), admin_key
 
 
 def _sample_record(name="Test Org", status="1"):
@@ -1818,8 +1825,8 @@ def test_handler_invokes_auth_and_quota_hooks():
     assert calls[-1][2] == 200
 
 
-def test_ops_ingest_runs_listing_and_detail():
-    module = _load_module()
+def test_ops_ingest_runs_listing_and_detail(monkeypatch):
+    module, admin_key = _load_admin_module(monkeypatch)
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [],
         get_run=lambda run_type, run_id: {"ingest_run_id": run_id, "status": "partial_success"} if run_type == "ingest" else None,
@@ -1827,13 +1834,14 @@ def test_ops_ingest_runs_listing_and_detail():
     )
     module.OPS_METADATA_BUCKET = "test-bucket"
 
-    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": {}}, None)
+    headers = {"x-admin-key": admin_key}
+    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": headers}, None)
     detail_result = module.handler(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/ingest/runs/{ingest_run_id}",
             "pathParameters": {"ingest_run_id": "ing-1"},
-            "headers": {},
+            "headers": headers,
         },
         None,
     )
@@ -1842,30 +1850,32 @@ def test_ops_ingest_runs_listing_and_detail():
             "httpMethod": "GET",
             "resource": "/v1/ops/ingest/runs/{ingest_run_id}/filings",
             "pathParameters": {"ingest_run_id": "ing-1"},
-            "headers": {},
+            "headers": headers,
         },
         None,
     )
     assert list_result["statusCode"] == 200
     assert detail_result["statusCode"] == 200
     assert filings_result["statusCode"] == 200
+    assert _response_envelope(list_result)["plan"] == "admin"
 
 
-def test_ops_refresh_runs_listing_and_not_found():
-    module = _load_module()
+def test_ops_refresh_runs_listing_and_not_found(monkeypatch):
+    module, admin_key = _load_admin_module(monkeypatch)
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [{"refresh_run_id": "ref-1", "status": "completed"}] if run_type == "refresh" else [],
         get_run=lambda run_type, run_id: None,
         get_run_items=lambda run_type, run_id, item_name: None,
     )
     module.OPS_METADATA_BUCKET = "test-bucket"
-    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": {}}, None)
+    headers = {"x-admin-key": admin_key}
+    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": headers}, None)
     detail_result = module.handler(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/refresh/runs/{refresh_run_id}",
             "pathParameters": {"refresh_run_id": "ref-missing"},
-            "headers": {},
+            "headers": headers,
         },
         None,
     )
@@ -1873,8 +1883,8 @@ def test_ops_refresh_runs_listing_and_not_found():
     assert detail_result["statusCode"] == 404
 
 
-def test_ops_pipeline_status_lookup_and_not_found():
-    module = _load_module()
+def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
+    module, admin_key = _load_admin_module(monkeypatch)
     module.OPS_METADATA_BUCKET = "test-bucket"
     module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": SCORING_MODEL_VERSION, "environment": "dev"})
     module.ops_run_store = SimpleNamespace(
@@ -1882,12 +1892,13 @@ def test_ops_pipeline_status_lookup_and_not_found():
         get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}],
         get_run=lambda run_type, run_id: None,
     )
+    headers = {"x-admin-key": admin_key}
     ok = module.handler(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
             "pathParameters": {"ein": "123456789"},
-            "headers": {},
+            "headers": headers,
         },
         None,
     )
@@ -1904,8 +1915,54 @@ def test_ops_pipeline_status_lookup_and_not_found():
             "httpMethod": "GET",
             "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
             "pathParameters": {"ein": "123456789"},
-            "headers": {},
+            "headers": headers,
         },
         None,
     )
     assert missing["statusCode"] == 404
+
+
+def test_ops_routes_require_admin_key(monkeypatch):
+    module, _admin_key = _load_admin_module(monkeypatch)
+    module.OPS_METADATA_BUCKET = "test-bucket"
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=50: [],
+        get_run=lambda run_type, run_id: None,
+        get_run_items=lambda run_type, run_id, item_name: None,
+    )
+
+    result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": {}}, None)
+
+    assert result["statusCode"] == 401
+    assert _response_envelope(result)["plan"] == "public"
+
+
+def test_ops_routes_reject_customer_api_key(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    display_key, record = build_api_key_record(
+        key_id="ops_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:read"],
+        plan_id="pro",
+    )
+    monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
+    module, _admin_key = _load_admin_module(monkeypatch)
+    module.OPS_METADATA_BUCKET = "test-bucket"
+    module.ops_run_store = SimpleNamespace(
+        list_run_summaries=lambda run_type, limit=50: [],
+        get_run=lambda run_type, run_id: None,
+        get_run_items=lambda run_type, run_id, item_name: None,
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/ops/ingest/runs",
+            "headers": {"x-api-key": display_key},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 401

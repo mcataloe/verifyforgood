@@ -674,7 +674,7 @@
     },
     {
       "name": "Ops",
-      "description": "Operational read endpoints.",
+      "description": "Operational read endpoints. Auth: x-admin-key only.",
       "item": [
         {
           "name": "GET /v1/ops/ingest/runs",
@@ -682,12 +682,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "List ingest runs. Auth: x-api-key. Variables: baseUrl.",
+            "description": "List ingest runs. Auth: x-admin-key. Variables: baseUrl.",
             "url": "{{baseUrl}}/v1/ops/ingest/runs"
           }
         },
@@ -697,12 +697,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "Get ingest run details. Auth: x-api-key. Variables: baseUrl, ingestRunId.",
+            "description": "Get ingest run details. Auth: x-admin-key. Variables: baseUrl, ingestRunId.",
             "url": "{{baseUrl}}/v1/ops/ingest/runs/{{ingestRunId}}"
           }
         },
@@ -712,12 +712,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "Get ingest run filings. Auth: x-api-key. Variables: baseUrl, ingestRunId.",
+            "description": "Get ingest run filings. Auth: x-admin-key. Variables: baseUrl, ingestRunId.",
             "url": "{{baseUrl}}/v1/ops/ingest/runs/{{ingestRunId}}/filings"
           }
         },
@@ -727,12 +727,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "List refresh runs. Auth: x-api-key. Variables: baseUrl.",
+            "description": "List refresh runs. Auth: x-admin-key. Variables: baseUrl.",
             "url": "{{baseUrl}}/v1/ops/refresh/runs"
           }
         },
@@ -742,12 +742,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "Get refresh run details. Auth: x-api-key. Variables: baseUrl, refreshRunId.",
+            "description": "Get refresh run details. Auth: x-admin-key. Variables: baseUrl, refreshRunId.",
             "url": "{{baseUrl}}/v1/ops/refresh/runs/{{refreshRunId}}"
           }
         },
@@ -757,12 +757,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "Get refresh run EINs. Auth: x-api-key. Variables: baseUrl, refreshRunId.",
+            "description": "Get refresh run EINs. Auth: x-admin-key. Variables: baseUrl, refreshRunId.",
             "url": "{{baseUrl}}/v1/ops/refresh/runs/{{refreshRunId}}/eins"
           }
         },
@@ -772,12 +772,12 @@
             "method": "GET",
             "header": [
               {
-                "key": "x-api-key",
-                "value": "{{apiKey}}",
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
                 "type": "text"
               }
             ],
-            "description": "Get nonprofit pipeline status. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Get nonprofit pipeline status. Auth: x-admin-key. Variables: baseUrl, ein.",
             "url": "{{baseUrl}}/v1/ops/nonprofits/{{ein}}/pipeline-status"
           }
         }

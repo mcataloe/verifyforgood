@@ -598,7 +598,7 @@ def handler(event, context):
         return error_response(status_code, message, response_context=api_context, code=code)
 
     method = (event.get("httpMethod") or "GET").upper()
-    if _is_admin_request(event, method):
+    if _is_admin_request(event, method) or _is_ops_request(event, method):
         try:
             admin_id = authenticate_admin_key((event or {}).get("headers") or {}, _get_admin_key_store())
             event["_admin_id"] = admin_id
@@ -607,6 +607,9 @@ def handler(event, context):
                 plan="admin",
                 deprecation=api_context.deprecation,
             )
+            if _is_ops_request(event, method):
+                status_code, payload = _handle_ops_request(event)
+                return json_response(status_code, payload, response_context=admin_context)
             return _handle_admin_request(event, admin_context)
         except AuthenticationError as exc:
             return error_response(exc.status_code, str(exc), response_context=api_context)
@@ -657,11 +660,6 @@ def handler(event, context):
     except QuotaExceededError as exc:
         return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
-    if _is_ops_request(event, method):
-        status_code, payload = _handle_ops_request(event)
-        response = respond(status_code, payload)
-        _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
-        return response
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(
             event,

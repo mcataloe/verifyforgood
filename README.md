@@ -1512,6 +1512,12 @@ Operational diagnostics are exposed on a separate read-only surface under `/v1/o
 - `GET /v1/ops/refresh/runs/{refresh_run_id}/eins`
 - `GET /v1/ops/nonprofits/{ein}/pipeline-status`
 
+Authentication:
+
+- all `/v1/ops/*` routes require `x-admin-key`
+- customer API keys and OAuth customer auth are not sufficient for the ops surface
+- `GET /v1/ops/nonprofits/{ein}/pipeline-status` remains admin-only in the current design and may move to a separate customer-safe route later if needed
+
 Run lifecycle status meanings:
 
 - ingest: `success`, `partial_success`, `failed`
