@@ -865,7 +865,7 @@ def _is_organization_integrations_request(event: dict, method: str) -> bool:
     if method not in {"GET", "PUT"}:
         return False
     resource, path = _route_paths(event)
-    return resource.endswith("/organizations/integrations") or path.endswith("/organizations/integrations")
+    return resource.endswith("/organization/settings") or path.endswith("/organization/settings")
 
 
 def _handle_organization_integrations_request(

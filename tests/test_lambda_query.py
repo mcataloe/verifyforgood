@@ -389,7 +389,7 @@ def test_get_organization_integrations_returns_current_settings():
     module.auth_context_provider = _AuthProvider()
     module.quota_metering_hook = _QuotaHook()
 
-    event = {"httpMethod": "GET", "resource": "/v1/organizations/integrations", "path": "/v1/organizations/integrations", "headers": {}}
+    event = {"httpMethod": "GET", "resource": "/v1/organization/settings", "path": "/v1/organization/settings", "headers": {}}
     result = module.handler(event, None)
     body = _response_data(result)
 
@@ -432,8 +432,8 @@ def test_put_organization_integrations_updates_settings():
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/v1/organizations/integrations",
-        "path": "/v1/organizations/integrations",
+        "resource": "/v1/organization/settings",
+        "path": "/v1/organization/settings",
         "headers": {},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": True}}}),
     }
@@ -481,8 +481,8 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/v1/organizations/integrations",
-        "path": "/v1/organizations/integrations",
+        "resource": "/v1/organization/settings",
+        "path": "/v1/organization/settings",
         "headers": {},
         "body": json.dumps({"billing": {"allowOverage": False}}),
     }
@@ -527,8 +527,8 @@ def test_put_organization_integrations_rejects_integration_update_for_growth_pla
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/v1/organizations/integrations",
-        "path": "/v1/organizations/integrations",
+        "resource": "/v1/organization/settings",
+        "path": "/v1/organization/settings",
         "headers": {},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": False}}}),
     }
@@ -571,8 +571,8 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     event = {
         "httpMethod": "PUT",
-        "resource": "/v1/organizations/integrations",
-        "path": "/v1/organizations/integrations",
+        "resource": "/v1/organization/settings",
+        "path": "/v1/organization/settings",
         "headers": {},
         "body": json.dumps({"integrations": {"candid": {"enabled": False, "requiredForEvaluation": True}}}),
     }

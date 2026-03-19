@@ -11,7 +11,7 @@ Customer-facing overview:
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organizations/integrations`, `PUT /v1/organizations/integrations`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -1153,7 +1153,7 @@ Response fields:
   - `status` (`available` or `unavailable`)
   - `source`
 
-### `GET /v1/organizations/integrations`
+### `GET /v1/organization/settings`
 
 Returns the current customer-managed settings for the authenticated workspace/account context. This response now includes both workspace-aware integration settings and account-wide billing overage settings.
 
@@ -1175,7 +1175,7 @@ Organizations without persisted settings return backward-compatible defaults:
 - `enabled=false`
 - `requiredForEvaluation=false`
 
-### `PUT /v1/organizations/integrations`
+### `PUT /v1/organization/settings`
 
 Updates customer-managed settings for the authenticated workspace/account context.
 

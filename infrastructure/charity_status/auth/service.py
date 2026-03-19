@@ -29,8 +29,8 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "GET /v1/nonprofits/{ein}/sources/{source_name}": "sources:read",
     "GET /v1/nonprofits/{ein}/compliance": "compliance:read",
     "GET /v1/nonprofits/{ein}/federal-awards": "federal_awards:read",
-    "GET /v1/organizations/integrations": "verify:read",
-    "PUT /v1/organizations/integrations": "verify:write",
+    "GET /v1/organization/settings": "verify:read",
+    "PUT /v1/organization/settings": "verify:write",
 }
 
 

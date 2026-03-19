@@ -26,8 +26,8 @@ Primary customer-facing endpoints:
 - `GET /v1/nonprofits/{ein}/federal-awards`
 - `POST /v1/verify`
 - `POST /v1/verify/batch`
-- `GET /v1/organizations/integrations`
-- `PUT /v1/organizations/integrations`
+- `GET /v1/organization/settings`
+- `PUT /v1/organization/settings`
 
 Admin account-management routes under `/v1/admin/...` are not part of the standard customer surface.
 
@@ -38,7 +38,7 @@ Customer access is currently modeled through:
 - API keys
 - OAuth client credentials
 
-Customers can also manage account-level overage behavior through `GET/PUT /v1/organizations/integrations`. The `billing.allowOverage` setting is available on all plans.
+Customers can also manage account-level overage behavior through `GET/PUT /v1/organization/settings`. The `billing.allowOverage` setting is available on all plans.
 
 ## Subscription Plans
 

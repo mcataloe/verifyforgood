@@ -277,7 +277,7 @@
           }
         },
         {
-          "name": "GET /v1/organizations/integrations",
+          "name": "GET /v1/organization/settings",
           "request": {
             "method": "GET",
             "header": [
@@ -287,12 +287,12 @@
                 "type": "text"
               }
             ],
-            "description": "Get customer-managed settings. Response includes account billing overage settings and organization integration settings. Auth: x-api-key. Variables: baseUrl.",
-            "url": "{{baseUrl}}/v1/organizations/integrations"
+            "description": "Get customer-managed settings. Response includes account billing overage settings and organization integration settings. Auth: x-api-key. Variables: baseUrl. Example request has no body.",
+            "url": "{{baseUrl}}/v1/organization/settings"
           }
         },
         {
-          "name": "PUT /v1/organizations/integrations",
+          "name": "PUT /v1/organization/settings",
           "request": {
             "method": "PUT",
             "header": [
@@ -311,8 +311,8 @@
               "mode": "raw",
               "raw": "{\n  \"billing\": {\n    \"allowOverage\": false\n  },\n  \"integrations\": {\n    \"candid\": {\n      \"enabled\": true,\n      \"requiredForEvaluation\": false\n    },\n    \"charityNavigator\": {\n      \"enabled\": false,\n      \"requiredForEvaluation\": false\n    }\n  }\n}"
             },
-            "description": "Update customer-managed settings. billing.allowOverage is available on all plans; integration-setting changes still require a plan with organization settings access. Auth: x-api-key. Variables: baseUrl.",
-            "url": "{{baseUrl}}/v1/organizations/integrations"
+            "description": "Update customer-managed settings. billing.allowOverage is available on all plans; integration-setting changes still require a plan with organization settings access. Auth: x-api-key. Variables: baseUrl. Full example payload included in the request body.",
+            "url": "{{baseUrl}}/v1/organization/settings"
           }
         },
         {
