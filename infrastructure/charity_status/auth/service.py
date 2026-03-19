@@ -32,6 +32,7 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "GET /v1/organization/settings": "verify:read",
     "PUT /v1/organization/settings": "verify:write",
     "POST /v1/organization/billing/checkout-session": "verify:write",
+    "POST /v1/organization/billing/plan-change": "verify:write",
 }
 
 

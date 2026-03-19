@@ -435,6 +435,8 @@ class ControlPlaneService:
             billing_period_start=current.billing_period_start if current else None,
             billing_period_end=current.billing_period_end if current else None,
             pending_plan_code=current.pending_plan_code if current else None,
+            pending_plan_effective_at=current.pending_plan_effective_at if current else None,
+            stripe_subscription_schedule_id=current.stripe_subscription_schedule_id if current else None,
             pending_checkout_session_id=current.pending_checkout_session_id if current else None,
             pending_checkout_session_url=current.pending_checkout_session_url if current else None,
             pending_checkout_expires_at=current.pending_checkout_expires_at if current else None,

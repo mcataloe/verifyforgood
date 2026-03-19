@@ -25,6 +25,8 @@ class Subscription:
     billing_period_start: str | None = None
     billing_period_end: str | None = None
     pending_plan_code: str | None = None
+    pending_plan_effective_at: str | None = None
+    stripe_subscription_schedule_id: str | None = None
     pending_checkout_session_id: str | None = None
     pending_checkout_session_url: str | None = None
     pending_checkout_expires_at: str | None = None

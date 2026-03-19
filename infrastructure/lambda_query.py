@@ -22,6 +22,7 @@ from charity_status.auth import (
 )
 from charity_status.billing import EntitlementService, ResponseShapingService
 from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
+from charity_status.billing.plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from charity_status.billing.webhooks import BillingWebhookError, StripeWebhookService, load_stripe_webhook_config
 from charity_status.billing.service import DEFAULT_PLANS
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
@@ -138,6 +139,7 @@ control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
 response_shaping_service: ResponseShapingService | None = None
 billing_checkout_service: BillingCheckoutService | None = None
+billing_plan_change_service: BillingPlanChangeService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -293,6 +295,16 @@ def _get_billing_checkout_service() -> BillingCheckoutService:
             config=STRIPE_CHECKOUT_CONFIG,
         )
     return billing_checkout_service
+
+
+def _get_billing_plan_change_service() -> BillingPlanChangeService:
+    global billing_plan_change_service
+    if billing_plan_change_service is None:
+        billing_plan_change_service = BillingPlanChangeService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+        )
+    return billing_plan_change_service
 
 
 def _get_stripe_webhook_service() -> StripeWebhookService:
@@ -628,6 +640,15 @@ def handler(event, context):
             response = fail(exc.status_code, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
+    if _is_organization_plan_change_request(event, method):
+        try:
+            response = _handle_organization_plan_change_request(event, auth_context, response_context=api_context)
+        except BillingPlanChangeError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
     if _is_organization_settings_request(event, method):
         try:
             response = _handle_organization_settings_request(event, auth_context, response_context=api_context)
@@ -923,6 +944,13 @@ def _is_organization_checkout_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/billing/checkout-session") or path.endswith("/organization/billing/checkout-session")
 
 
+def _is_organization_plan_change_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/plan-change") or path.endswith("/organization/billing/plan-change")
+
+
 def _handle_organization_settings_request(
     event: dict,
     auth_context: Any,
@@ -985,6 +1013,23 @@ def _handle_organization_checkout_request(
         payload=payload,
     )
     return json_response(200, checkout, response_context=response_context)
+
+
+def _handle_organization_plan_change_request(
+    event: dict,
+    auth_context: Any,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    _workspace_id, account_id = _require_organization_context(auth_context)
+    if not account_id:
+        raise AuthorizationError("Billing plan changes require authenticated account context")
+    payload = _parse_json_body(event)
+    plan_change = _get_billing_plan_change_service().change_plan(
+        account_id=account_id,
+        payload=payload,
+    )
+    return json_response(200, plan_change, response_context=response_context)
 
 
 def _allows_organization_settings_management(auth_context: Any) -> bool:

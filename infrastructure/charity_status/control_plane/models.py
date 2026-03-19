@@ -80,6 +80,8 @@ class ManagedSubscription:
     billing_period_start: str | None = None
     billing_period_end: str | None = None
     pending_plan_code: str | None = None
+    pending_plan_effective_at: str | None = None
+    stripe_subscription_schedule_id: str | None = None
     pending_checkout_session_id: str | None = None
     pending_checkout_session_url: str | None = None
     pending_checkout_expires_at: str | None = None
@@ -98,6 +100,8 @@ class ManagedSubscription:
             "billing_period_start": self.billing_period_start,
             "billing_period_end": self.billing_period_end,
             "pending_plan_code": self.pending_plan_code,
+            "pending_plan_effective_at": self.pending_plan_effective_at,
+            "stripe_subscription_schedule_id": self.stripe_subscription_schedule_id,
             "updated_at": self.updated_at,
         }
 
@@ -114,6 +118,8 @@ class ManagedSubscription:
             billing_period_start=self.billing_period_start,
             billing_period_end=self.billing_period_end,
             pending_plan_code=self.pending_plan_code,
+            pending_plan_effective_at=self.pending_plan_effective_at,
+            stripe_subscription_schedule_id=self.stripe_subscription_schedule_id,
             pending_checkout_session_id=self.pending_checkout_session_id,
             pending_checkout_session_url=self.pending_checkout_session_url,
             pending_checkout_expires_at=self.pending_checkout_expires_at,

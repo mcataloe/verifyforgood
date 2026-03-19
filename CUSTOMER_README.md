@@ -13,6 +13,7 @@ Typical customer workflows include:
 - checking compliance and federal-award views
 - managing organization-level integration settings
 - starting paid-plan enrollment through Stripe-hosted Checkout
+- changing an active paid plan
 
 ## Customer Endpoints
 
@@ -30,6 +31,7 @@ Primary customer-facing endpoints:
 - `GET /v1/organization/settings`
 - `PUT /v1/organization/settings`
 - `POST /v1/organization/billing/checkout-session`
+- `POST /v1/organization/billing/plan-change`
 
 Admin account-management routes under `/v1/admin/...` are not part of the standard customer surface.
 
@@ -43,6 +45,8 @@ Customer access is currently modeled through:
 Customers can also manage account-level overage behavior through `GET/PUT /v1/organization/settings`. The `billing.allowOverage` setting is available on all plans.
 
 Customers can start paid-plan enrollment through `POST /v1/organization/billing/checkout-session`. The API returns a Stripe-hosted Checkout URL rather than collecting payment details directly.
+
+Customers with an active paid subscription can change plans through `POST /v1/organization/billing/plan-change`.
 
 ## Subscription Plans
 
@@ -171,6 +175,24 @@ Enrollment behavior:
 - duplicate requests for the same pending plan reuse the current Stripe Checkout session instead of creating a new one
 - Checkout is always hosted by Stripe; this API does not store card details or render payment forms
 - if a customer has disabled request overage, the enrollment endpoint still remains available so they can upgrade
+
+## Plan Changes
+
+Request:
+
+```json
+{
+  "plan_code": "growth"
+}
+```
+
+Plan-change behavior:
+
+- upgrades apply immediately
+- upgrade proration is handled by Stripe, not by this API
+- downgrades are deferred to the next billing cycle
+- a later upgrade clears any previously scheduled downgrade
+- first-time paid enrollment still uses `POST /v1/organization/billing/checkout-session`
 
 ## Tenant Setup
 
