@@ -49,6 +49,18 @@ resource "aws_api_gateway_resource" "oauth_token" {
   path_part   = "token"
 }
 
+resource "aws_api_gateway_resource" "webhooks" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.api_v1.id
+  path_part   = "webhooks"
+}
+
+resource "aws_api_gateway_resource" "webhooks_stripe" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.webhooks.id
+  path_part   = "stripe"
+}
+
 resource "aws_api_gateway_resource" "admin" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.api_v1.id
@@ -314,6 +326,13 @@ resource "aws_api_gateway_method" "post_oauth_token" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_webhooks_stripe" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.webhooks_stripe.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "post_admin_accounts" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.admin_accounts.id
@@ -432,6 +451,15 @@ resource "aws_api_gateway_integration" "lambda_oauth_token_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.oauth_token.id
   http_method             = aws_api_gateway_method.post_oauth_token.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_webhooks_stripe_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.webhooks_stripe.id
+  http_method             = aws_api_gateway_method.post_webhooks_stripe.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -876,6 +904,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_filings_integration,
     aws_api_gateway_integration.lambda_verify_integration,
     aws_api_gateway_integration.lambda_oauth_token_integration,
+    aws_api_gateway_integration.lambda_webhooks_stripe_integration,
     aws_api_gateway_integration.lambda_post_admin_accounts_integration,
     aws_api_gateway_integration.lambda_get_admin_accounts_integration,
     aws_api_gateway_integration.lambda_get_admin_account_id_integration,

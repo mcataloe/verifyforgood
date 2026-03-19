@@ -1,7 +1,10 @@
 import importlib
+import hashlib
+import hmac
 import json
 import sys
 from decimal import Decimal
+from time import time
 from types import SimpleNamespace
 
 from charity_status.auth import InMemoryUsageStore
@@ -24,6 +27,13 @@ def _response_data(response):
 
 def _response_error_message(response):
     return _response_envelope(response)["errors"][0]["message"]
+
+
+def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None) -> str:
+    timestamp = int(time()) if timestamp is None else timestamp
+    signed_payload = f"{timestamp}.{payload}".encode("utf-8")
+    signature = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    return f"t={timestamp},v1={signature}"
 
 
 def _load_module():
@@ -687,6 +697,83 @@ def test_post_organization_billing_checkout_session_returns_checkout_url():
     assert body["checkout_url"] == "https://checkout.stripe.com/c/pay/cs_test_123"
     assert body["reused"] is False
     assert stripe_client.session_calls == 1
+
+
+def test_post_stripe_webhook_route_processes_valid_signed_event(monkeypatch):
+    monkeypatch.setenv("STRIPE_BILLING_ENABLED", "true")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_PRICE_IDS", '{"growth":"price_growth"}')
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Webhook Account", "ein": "123456789"})
+    payload = json.dumps(
+        {
+            "id": "evt_1",
+            "type": "checkout.session.completed",
+            "created": 1770000000,
+            "data": {
+                "object": {
+                    "object": "checkout.session",
+                    "id": "cs_123",
+                    "mode": "subscription",
+                    "customer": "cus_123",
+                    "subscription": "sub_123",
+                    "client_reference_id": account["id"],
+                    "metadata": {"account_id": account["id"], "requested_plan_code": "growth"},
+                }
+            },
+        },
+        separators=(",", ":"),
+    )
+    signature = _stripe_signature(payload, secret="whsec_test")
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/webhooks/stripe",
+            "path": "/v1/webhooks/stripe",
+            "headers": {"Stripe-Signature": signature},
+            "body": payload,
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["processed"] is True
+    assert module.control_plane_service.store.get_subscription(account["id"]).stripe_customer_id == "cus_123"
+
+
+def test_post_stripe_webhook_route_rejects_invalid_signature(monkeypatch):
+    monkeypatch.setenv("STRIPE_BILLING_ENABLED", "true")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_PRICE_IDS", '{"growth":"price_growth"}')
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    module = _load_module()
+    payload = json.dumps(
+        {
+            "id": "evt_1",
+            "type": "checkout.session.completed",
+            "created": 1770000000,
+            "data": {"object": {"object": "checkout.session"}},
+        },
+        separators=(",", ":"),
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/webhooks/stripe",
+            "path": "/v1/webhooks/stripe",
+            "headers": {"Stripe-Signature": "t=1770000000,v1=bad"},
+            "body": payload,
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert "signature" in _response_error_message(result).lower()
 
 
 def test_post_organization_billing_checkout_session_rejects_invalid_plan():

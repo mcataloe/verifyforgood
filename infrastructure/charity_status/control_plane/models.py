@@ -92,6 +92,13 @@ class ManagedSubscription:
             "status": self.status,
             "effective_from": self.effective_from,
             "effective_to": self.effective_to,
+            "stripe_customer_id": self.stripe_customer_id,
+            "stripe_subscription_id": self.stripe_subscription_id,
+            "billing_status": self.billing_status,
+            "billing_period_start": self.billing_period_start,
+            "billing_period_end": self.billing_period_end,
+            "pending_plan_code": self.pending_plan_code,
+            "updated_at": self.updated_at,
         }
 
     def to_subscription(self) -> Subscription:
@@ -112,3 +119,35 @@ class ManagedSubscription:
             pending_checkout_expires_at=self.pending_checkout_expires_at,
             updated_at=self.updated_at,
         )
+
+
+@dataclass
+class ManagedBillingEvent:
+    event_id: str
+    event_type: str
+    processed_at: str
+    account_id: str | None = None
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    stripe_invoice_id: str | None = None
+    gross_amount: int | None = None
+    tax_amount: int | None = None
+    invoice_total: int | None = None
+    currency: str | None = None
+    webhook_created_at: str | None = None
+
+    def to_dict(self) -> dict[str, str | int | None]:
+        return {
+            "event_id": self.event_id,
+            "event_type": self.event_type,
+            "processed_at": self.processed_at,
+            "account_id": self.account_id,
+            "stripe_customer_id": self.stripe_customer_id,
+            "stripe_subscription_id": self.stripe_subscription_id,
+            "stripe_invoice_id": self.stripe_invoice_id,
+            "gross_amount": self.gross_amount,
+            "tax_amount": self.tax_amount,
+            "invoice_total": self.invoice_total,
+            "currency": self.currency,
+            "webhook_created_at": self.webhook_created_at,
+        }

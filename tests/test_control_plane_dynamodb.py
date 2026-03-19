@@ -10,7 +10,16 @@ from charity_status.auth import build_admin_key_record, build_api_key_record
 from charity_status.auth.errors import QuotaExceededError
 from charity_status.auth.oauth import authenticate_oauth_client_credentials
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
-from charity_status.control_plane import Account, ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, ManagedApiKey, ManagedSubscription
+from charity_status.control_plane import (
+    Account,
+    ControlPlaneService,
+    DynamoControlPlaneStore,
+    FakeDynamoResource,
+    FakeDynamoTable,
+    ManagedApiKey,
+    ManagedBillingEvent,
+    ManagedSubscription,
+)
 from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
 
 
@@ -204,6 +213,53 @@ def test_dynamo_control_plane_persists_pending_stripe_checkout_linkage():
     assert reloaded.pending_plan_code == "growth"
     assert reloaded.pending_checkout_session_id == "cs_test_123"
     assert reloaded.pending_checkout_session_url == "https://checkout.stripe.com/c/pay/cs_test_123"
+
+
+def test_dynamo_control_plane_supports_stripe_lookup_and_billing_event_round_trip():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
+    service = ControlPlaneService(store=store)
+    account = service.create_account({"name": "Billing Account", "ein": "123456789"})
+    account_id = account["id"]
+
+    store.put_subscription(
+        ManagedSubscription(
+            account_id=account_id,
+            plan_code="growth",
+            status="active",
+            effective_from="2026-03-18T00:00:00+00:00",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    store.put_billing_event(
+        ManagedBillingEvent(
+            event_id="evt_test_123",
+            event_type="invoice.paid",
+            processed_at="2026-03-19T00:00:00+00:00",
+            account_id=account_id,
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            stripe_invoice_id="in_test_123",
+            gross_amount=10000,
+            tax_amount=800,
+            invoice_total=10800,
+            currency="usd",
+        )
+    )
+
+    by_customer = store.get_subscription_by_stripe_customer_id("cus_test_123")
+    by_subscription = store.get_subscription_by_stripe_subscription_id("sub_test_123")
+    billing_event = store.get_billing_event("evt_test_123")
+
+    assert by_customer is not None and by_customer.account_id == account_id
+    assert by_subscription is not None and by_subscription.account_id == account_id
+    assert billing_event is not None
+    assert billing_event.stripe_invoice_id == "in_test_123"
+    assert billing_event.invoice_total == 10800
 
 
 def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(monkeypatch):

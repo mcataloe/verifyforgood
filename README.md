@@ -11,7 +11,7 @@ Customer-facing overview:
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -1262,10 +1262,55 @@ Stripe configuration:
 }
 ```
 
+### `POST /v1/webhooks/stripe`
+
+Receives Stripe webhook events and synchronizes Stripe subscription state back into the local control-plane records.
+
+Behavior:
+
+- the endpoint expects the raw Stripe request body; the handler verifies the `Stripe-Signature` header against the unmodified payload
+- unsupported events are acknowledged and logged for idempotency, but they do not change local subscription state
+- duplicate event ids are safely ignored after the first successful processing
+- webhook financial fields are stored for internal reconciliation only and are not exposed to customers
+
+Supported Stripe events:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.paid`
+- `invoice.payment_failed`
+
+State synchronization:
+
+- updates stored Stripe customer and subscription ids
+- updates local billing status and effective subscription status
+- updates current billing period start/end
+- resolves plan changes from Stripe price ids or checkout metadata
+- captures invoice subtotal, tax, total, and currency for analytics/reporting
+
+Stripe webhook configuration:
+
+- `STRIPE_BILLING_ENABLED=true` enables webhook processing
+- `STRIPE_WEBHOOK_SECRET` must contain the Stripe webhook signing secret for the configured endpoint
+- `STRIPE_PRICE_IDS` is reused to map Stripe subscription price ids back to local `plan_code` values
+
+Local webhook testing:
+
+```bash
+stripe listen --forward-to http://localhost:3000/v1/webhooks/stripe
+stripe trigger checkout.session.completed
+stripe trigger invoice.paid
+```
+
+Use the signing secret emitted by `stripe listen` as `STRIPE_WEBHOOK_SECRET`.
+
 Local Stripe test mode:
 
 - use a Stripe test secret key in `STRIPE_SECRET_KEY`
 - configure test-mode Price IDs in `STRIPE_PRICE_IDS`
+- use the Stripe CLI or Dashboard test-mode webhooks with the matching `STRIPE_WEBHOOK_SECRET`
 - send `success_url` and `cancel_url` values that point at your local or test frontend
 - Stripe test cards stay entirely inside the hosted Checkout page; this API does not render payment forms locally
 

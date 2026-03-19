@@ -10,7 +10,7 @@ import boto3
 from charity_status.auth.oauth import StoredOAuthClientRecord
 from charity_status.auth.service import StoredApiKeyRecord
 
-from .models import Account, ManagedApiKey, ManagedOAuthClient, ManagedSubscription
+from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription
 
 
 class DynamoControlPlaneStore:
@@ -47,6 +47,40 @@ class DynamoControlPlaneStore:
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
         self._table.put_item(Item=_subscription_item(subscription))
+
+    def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
+        response = self._table.query(
+            IndexName="credential_lookup",
+            KeyConditionExpression="gsi1pk = :gsi1pk",
+            ExpressionAttributeValues={":gsi1pk": f"STRIPE#CUSTOMER#{stripe_customer_id}"},
+            Limit=1,
+        )
+        items = response.get("Items") or []
+        if not items:
+            return None
+        return _subscription_from_item(items[0])
+
+    def get_subscription_by_stripe_subscription_id(self, stripe_subscription_id: str) -> ManagedSubscription | None:
+        response = self._table.query(
+            IndexName="entity_listing",
+            KeyConditionExpression="gsi2pk = :gsi2pk",
+            ExpressionAttributeValues={":gsi2pk": f"STRIPE#SUBSCRIPTION#{stripe_subscription_id}"},
+            Limit=1,
+        )
+        items = response.get("Items") or []
+        if not items:
+            return None
+        return _subscription_from_item(items[0])
+
+    def get_billing_event(self, event_id: str) -> ManagedBillingEvent | None:
+        response = self._table.get_item(Key={"pk": _billing_event_pk(event_id), "sk": "EVENT"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _billing_event_from_item(item)
+
+    def put_billing_event(self, event: ManagedBillingEvent) -> None:
+        self._table.put_item(Item=_billing_event_item(event))
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
         response = self._table.query(
@@ -157,7 +191,7 @@ def _account_item(account: Account) -> dict[str, Any]:
 
 
 def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
-    return {
+    item = {
         "pk": _account_pk(subscription.account_id),
         "sk": "SUBSCRIPTION",
         "type": "SUBSCRIPTION",
@@ -176,6 +210,37 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         "pending_checkout_session_url": subscription.pending_checkout_session_url,
         "pending_checkout_expires_at": subscription.pending_checkout_expires_at,
         "updated_at": subscription.updated_at,
+    }
+    if subscription.stripe_customer_id:
+        item["gsi1pk"] = f"STRIPE#CUSTOMER#{subscription.stripe_customer_id}"
+        item["gsi1sk"] = _account_pk(subscription.account_id)
+    if subscription.stripe_subscription_id:
+        item["gsi2pk"] = f"STRIPE#SUBSCRIPTION#{subscription.stripe_subscription_id}"
+        item["gsi2sk"] = _account_pk(subscription.account_id)
+    return item
+
+
+def _billing_event_pk(event_id: str) -> str:
+    return f"BILLINGEVENT#{event_id}"
+
+
+def _billing_event_item(event: ManagedBillingEvent) -> dict[str, Any]:
+    return {
+        "pk": _billing_event_pk(event.event_id),
+        "sk": "EVENT",
+        "type": "BILLING_EVENT",
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "processed_at": event.processed_at,
+        "account_id": event.account_id,
+        "stripe_customer_id": event.stripe_customer_id,
+        "stripe_subscription_id": event.stripe_subscription_id,
+        "stripe_invoice_id": event.stripe_invoice_id,
+        "gross_amount": event.gross_amount,
+        "tax_amount": event.tax_amount,
+        "invoice_total": event.invoice_total,
+        "currency": event.currency,
+        "webhook_created_at": event.webhook_created_at,
     }
 
 
@@ -249,6 +314,23 @@ def _subscription_from_item(item: dict[str, Any]) -> ManagedSubscription:
     )
 
 
+def _billing_event_from_item(item: dict[str, Any]) -> ManagedBillingEvent:
+    return ManagedBillingEvent(
+        event_id=str(item.get("event_id") or ""),
+        event_type=str(item.get("event_type") or ""),
+        processed_at=str(item.get("processed_at") or ""),
+        account_id=_optional_string(item.get("account_id")),
+        stripe_customer_id=_optional_string(item.get("stripe_customer_id")),
+        stripe_subscription_id=_optional_string(item.get("stripe_subscription_id")),
+        stripe_invoice_id=_optional_string(item.get("stripe_invoice_id")),
+        gross_amount=_optional_int(item.get("gross_amount")),
+        tax_amount=_optional_int(item.get("tax_amount")),
+        invoice_total=_optional_int(item.get("invoice_total")),
+        currency=_optional_string(item.get("currency")),
+        webhook_created_at=_optional_string(item.get("webhook_created_at")),
+    )
+
+
 def _api_key_model_from_item(item: dict[str, Any]) -> ManagedApiKey:
     return ManagedApiKey(
         key_id=str(item.get("key_id") or ""),
@@ -310,6 +392,12 @@ def _int_value(value: Any) -> int:
     if value is None:
         return 0
     return int(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return _int_value(value)
 
 
 class FakeDynamoTable:

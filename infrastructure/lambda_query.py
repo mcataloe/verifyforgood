@@ -22,6 +22,7 @@ from charity_status.auth import (
 )
 from charity_status.billing import EntitlementService, ResponseShapingService
 from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
+from charity_status.billing.webhooks import BillingWebhookError, StripeWebhookService, load_stripe_webhook_config
 from charity_status.billing.service import DEFAULT_PLANS
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
@@ -120,6 +121,7 @@ ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
 )
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
+STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -136,6 +138,7 @@ control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
 response_shaping_service: ResponseShapingService | None = None
 billing_checkout_service: BillingCheckoutService | None = None
+stripe_webhook_service: StripeWebhookService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -290,6 +293,16 @@ def _get_billing_checkout_service() -> BillingCheckoutService:
             config=STRIPE_CHECKOUT_CONFIG,
         )
     return billing_checkout_service
+
+
+def _get_stripe_webhook_service() -> StripeWebhookService:
+    global stripe_webhook_service
+    if stripe_webhook_service is None:
+        stripe_webhook_service = StripeWebhookService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_WEBHOOK_CONFIG,
+        )
+    return stripe_webhook_service
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -547,6 +560,12 @@ def handler(event, context):
             return error_response(exc.status_code, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
         except ValueError as exc:
             return error_response(400, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
+
+    if _is_stripe_webhook_request(event, method):
+        try:
+            return _handle_stripe_webhook_request(event, api_context)
+        except BillingWebhookError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
 
     if _is_oauth_token_request(event, method):
         return _handle_oauth_token_request(event, api_context)
@@ -876,6 +895,13 @@ def _is_oauth_token_request(event: dict, method: str) -> bool:
     return resource.endswith("/oauth/token") or path.endswith("/oauth/token")
 
 
+def _is_stripe_webhook_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/webhooks/stripe") or path.endswith("/webhooks/stripe")
+
+
 def _is_ops_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
@@ -932,6 +958,16 @@ def _handle_organization_settings_request(
         payload=payload,
     )
     return json_response(200, document.to_dict(), response_context=response_context)
+
+
+def _handle_stripe_webhook_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    headers = event.get("headers") or {}
+    signature = _get_header(headers, "Stripe-Signature")
+    result = _get_stripe_webhook_service().handle(
+        raw_body=_raw_request_body(event),
+        signature_header=signature,
+    )
+    return json_response(200, result, response_context=response_context)
 
 
 def _handle_organization_checkout_request(
@@ -1144,6 +1180,19 @@ def _get_header(headers: dict[str, Any], name: str) -> str | None:
         if str(key).lower() == name.lower():
             return str(value)
     return None
+
+
+def _raw_request_body(event: dict[str, Any]) -> str:
+    if "rawBody" in event and isinstance(event.get("rawBody"), str):
+        return str(event.get("rawBody") or "")
+    body = event.get("body")
+    if body is None:
+        return ""
+    if bool(event.get("isBase64Encoded")):
+        import base64
+
+        return base64.b64decode(str(body)).decode("utf-8")
+    return str(body)
 
 
 def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationContext) -> dict[str, Any]:

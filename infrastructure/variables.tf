@@ -639,6 +639,13 @@ variable "stripe_secret_key" {
   sensitive   = true
 }
 
+variable "stripe_webhook_secret" {
+  description = "Stripe webhook signing secret used to verify hosted billing lifecycle callbacks."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "ops_metadata_prefix" {
   description = "S3 prefix for operational ingest/refresh run metadata and diagnostics."
   type        = string

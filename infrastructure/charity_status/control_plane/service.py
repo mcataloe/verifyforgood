@@ -10,7 +10,7 @@ from charity_status.auth.oauth import StoredOAuthClientRecord, build_oauth_clien
 from charity_status.auth.service import StoredApiKeyRecord, build_api_key_record
 from charity_status.billing import EntitlementService, Subscription
 
-from .models import Account, ManagedApiKey, ManagedOAuthClient, ManagedSubscription
+from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription
 
 
 class ControlPlaneError(ValueError):
@@ -35,6 +35,18 @@ class ControlPlaneStore(Protocol):
         ...
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
+        ...
+
+    def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
+        ...
+
+    def get_subscription_by_stripe_subscription_id(self, stripe_subscription_id: str) -> ManagedSubscription | None:
+        ...
+
+    def get_billing_event(self, event_id: str) -> ManagedBillingEvent | None:
+        ...
+
+    def put_billing_event(self, event: ManagedBillingEvent) -> None:
         ...
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
@@ -75,6 +87,7 @@ class InMemoryControlPlaneStore:
         self.api_keys: dict[str, tuple[ManagedApiKey, StoredApiKeyRecord]] = {}
         self.oauth_clients: dict[str, tuple[ManagedOAuthClient, StoredOAuthClientRecord]] = {}
         self.usage: dict[tuple[str, str], int] = {}
+        self.billing_events: dict[str, ManagedBillingEvent] = {}
 
     def list_accounts(self) -> list[Account]:
         return list(self.accounts.values())
@@ -90,6 +103,24 @@ class InMemoryControlPlaneStore:
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
         self.subscriptions[subscription.account_id] = subscription
+
+    def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
+        for subscription in self.subscriptions.values():
+            if subscription.stripe_customer_id == stripe_customer_id:
+                return subscription
+        return None
+
+    def get_subscription_by_stripe_subscription_id(self, stripe_subscription_id: str) -> ManagedSubscription | None:
+        for subscription in self.subscriptions.values():
+            if subscription.stripe_subscription_id == stripe_subscription_id:
+                return subscription
+        return None
+
+    def get_billing_event(self, event_id: str) -> ManagedBillingEvent | None:
+        return self.billing_events.get(event_id)
+
+    def put_billing_event(self, event: ManagedBillingEvent) -> None:
+        self.billing_events[event.event_id] = event
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
         return [model for model, _record in self.api_keys.values() if model.account_id == account_id]
