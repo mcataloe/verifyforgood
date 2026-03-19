@@ -60,7 +60,7 @@ def test_dynamo_control_plane_persists_accounts_and_subscriptions_across_service
     resource = FakeDynamoResource(table)
 
     service = ControlPlaneService(store=DynamoControlPlaneStore("control-plane", dynamodb_resource=resource))
-    created = service.create_account({"name": "Dynamo Account"})
+    created = service.create_account({"name": "Dynamo Account", "ein": "12-3456789"})
     account_id = created["id"]
     service.update_subscription(
         account_id,
@@ -75,6 +75,7 @@ def test_dynamo_control_plane_persists_accounts_and_subscriptions_across_service
 
     assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
     assert reloaded.get_account(account_id)["name"] == "Dynamo Account"
+    assert reloaded.get_account(account_id)["ein"] == "123456789"
     assert reloaded.get_subscription(account_id)["plan_code"] == "pro"
     assert reloaded.list_accounts()[0]["id"] == account_id
 
@@ -84,7 +85,7 @@ def test_dynamo_control_plane_managed_credentials_authenticate_from_lookup_recor
     resource = FakeDynamoResource(table)
     store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
     service = ControlPlaneService(store=store)
-    account = service.create_account({"name": "Auth Account"})
+    account = service.create_account({"name": "Auth Account", "ein": "123456789"})
     account_id = account["id"]
 
     api_key_payload = service.create_api_key(account_id, {"plan": "growth"})
@@ -115,7 +116,7 @@ def test_dynamo_usage_persists_quota_state_across_service_reinitialization():
     resource = FakeDynamoResource(table)
     store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
     service = ControlPlaneService(store=store)
-    account = service.create_account({"name": "Quota Account"})
+    account = service.create_account({"name": "Quota Account", "ein": "123456789"})
     account_id = account["id"]
     api_key_payload = service.create_api_key(account_id, {"plan": "free"})
 
@@ -158,7 +159,7 @@ def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(mo
             "resource": "/v1/admin/accounts",
             "path": "/v1/admin/accounts",
             "headers": {"x-admin-key": admin_key, "Content-Type": "application/json"},
-            "body": json.dumps({"name": "Lambda Dynamo"}),
+            "body": json.dumps({"name": "Lambda Dynamo", "ein": "123456789"}),
         },
         None,
     )
@@ -181,6 +182,7 @@ def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(mo
 
     assert listed["statusCode"] == 200
     assert payload["data"]["items"][0]["id"] == created_account_id
+    assert payload["data"]["items"][0]["ein"] == "123456789"
 
 
 def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch):
@@ -211,7 +213,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch)
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     service = module._get_control_plane_service()
-    account = service.create_account({"name": "Managed Account"})
+    account = service.create_account({"name": "Managed Account", "ein": "123456789"})
     account_id = account["id"]
     managed_secret, managed_record = build_api_key_record(
         key_id="dup_key",
@@ -285,3 +287,4 @@ def test_existing_non_uuid_identifiers_remain_readable_in_dynamo_store():
     )
 
     assert service.get_account(legacy_account_id)["id"] == legacy_account_id
+    assert service.get_account(legacy_account_id)["ein"] is None

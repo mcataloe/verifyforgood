@@ -1219,8 +1219,25 @@ Managed account shape:
 
 - `id`
 - `name`
+- `ein` (normalized 9-digit EIN; legacy records may temporarily return `null` until backfilled)
 - `status` (`active` or `suspended`)
 - `created_at`
+
+`POST /v1/admin/accounts` request body:
+
+```json
+{
+  "name": "Acme Giving",
+  "ein": "123456789"
+}
+```
+
+Rules:
+
+- `name` is required
+- `ein` is required
+- `ein` accepts `123456789` or `12-3456789` and is stored as normalized 9 digits
+- `ein` cannot be changed through `PATCH /v1/admin/accounts/{accountId}`
 
 Secret-handling rules:
 

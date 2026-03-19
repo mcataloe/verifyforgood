@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -155,6 +156,7 @@ class ControlPlaneService:
         name = str(payload.get("name") or "").strip()
         if not name:
             raise ControlPlaneError("name is required")
+        ein = _normalize_ein(payload.get("ein"))
         if "id" in payload:
             raise ControlPlaneError("id is system-generated")
         account_id = f"acct_{uuid4().hex}"
@@ -165,6 +167,7 @@ class ControlPlaneService:
             name=name,
             status="active",
             created_at=_utcnow(),
+            ein=ein,
         )
         self.store.put_account(account)
         self.store.put_subscription(
@@ -180,6 +183,8 @@ class ControlPlaneService:
 
     def update_account(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         account = self._get_account(account_id)
+        if "ein" in payload:
+            raise ControlPlaneError("ein cannot be updated")
         if "name" in payload:
             name = str(payload.get("name") or "").strip()
             if not name:
@@ -415,3 +420,13 @@ def _optional_string(value: Any, *, default: str | None = None) -> str | None:
         return default
     candidate = str(value).strip()
     return candidate or None
+
+
+def _normalize_ein(value: Any) -> str:
+    candidate = str(value or "").strip()
+    if not candidate:
+        raise ControlPlaneError("ein is required")
+    normalized = re.sub(r"\D", "", candidate)
+    if len(normalized) != 9:
+        raise ControlPlaneError("ein must be a valid EIN")
+    return normalized

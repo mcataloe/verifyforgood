@@ -11,11 +11,13 @@ class Account:
     name: str
     status: str
     created_at: str
+    ein: str | None = None
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | None]:
         return {
             "id": self.id,
             "name": self.name,
+            "ein": self.ein,
             "status": self.status,
             "created_at": self.created_at,
         }

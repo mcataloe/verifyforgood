@@ -150,6 +150,7 @@ def _account_item(account: Account) -> dict[str, Any]:
         "type": "ACCOUNT",
         "account_id": account.id,
         "name": account.name,
+        "ein": account.ein,
         "status": account.status,
         "created_at": account.created_at,
     }
@@ -214,6 +215,7 @@ def _account_from_item(item: dict[str, Any]) -> Account:
         name=str(item.get("name") or ""),
         status=str(item.get("status") or "active"),
         created_at=str(item.get("created_at") or ""),
+        ein=_optional_string(item.get("ein")),
     )
 
 

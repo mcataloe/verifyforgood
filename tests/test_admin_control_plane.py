@@ -87,7 +87,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
             "resource": "/v1/admin/accounts",
             "path": "/v1/admin/accounts",
             "headers": headers,
-            "body": json.dumps({"name": "Acme Giving"}),
+            "body": json.dumps({"name": "Acme Giving", "ein": "12-3456789"}),
         },
         None,
     )
@@ -96,6 +96,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert created["statusCode"] == 201
     assert _body(created)["plan"] == "admin"
     assert account["status"] == "active"
+    assert account["ein"] == "123456789"
     assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
 
     listed = module.handler(
@@ -171,7 +172,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"name": "Live Account"}),
+                "body": json.dumps({"name": "Live Account", "ein": "123456789"}),
             },
             None,
         )
@@ -269,7 +270,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"name": "OAuth Account"}),
+                "body": json.dumps({"name": "OAuth Account", "ein": "123456789"}),
             },
             None,
         )
@@ -334,7 +335,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
 
 def test_control_plane_service_stores_only_hashed_secrets():
     service = ControlPlaneService(store=InMemoryControlPlaneStore())
-    account = service.create_account({"name": "Hash Account"})
+    account = service.create_account({"name": "Hash Account", "ein": "123456789"})
 
     api_key_payload = service.create_api_key(account["id"], {})
     oauth_payload = service.create_oauth_client(account["id"], {})
@@ -353,6 +354,46 @@ def test_control_plane_service_stores_only_hashed_secrets():
     assert re.fullmatch(r"client_[0-9a-f]{32}", oauth_client_id)
 
 
+def test_control_plane_service_requires_name_and_valid_ein():
+    service = ControlPlaneService(store=InMemoryControlPlaneStore())
+
+    try:
+        service.create_account({"ein": "123456789"})
+    except ValueError as exc:
+        assert str(exc) == "name is required"
+    else:
+        assert False, "Expected name validation error"
+
+    try:
+        service.create_account({"name": "Missing EIN"})
+    except ValueError as exc:
+        assert str(exc) == "ein is required"
+    else:
+        assert False, "Expected EIN validation error"
+
+    try:
+        service.create_account({"name": "Bad EIN", "ein": "12-34"})
+    except ValueError as exc:
+        assert str(exc) == "ein must be a valid EIN"
+    else:
+        assert False, "Expected invalid EIN error"
+
+    account = service.create_account({"name": "Normalized EIN", "ein": "12-3456789"})
+    assert account["ein"] == "123456789"
+
+
+def test_control_plane_service_rejects_ein_updates():
+    service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = service.create_account({"name": "Immutable Account", "ein": "123456789"})
+
+    try:
+        service.update_account(account["id"], {"ein": "987654321"})
+    except ValueError as exc:
+        assert str(exc) == "ein cannot be updated"
+    else:
+        assert False, "Expected immutable EIN error"
+
+
 def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
@@ -363,7 +404,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
             "resource": "/v1/admin/accounts",
             "path": "/v1/admin/accounts",
             "headers": headers,
-            "body": json.dumps({"id": "acct_custom", "name": "Custom Account"}),
+            "body": json.dumps({"id": "acct_custom", "name": "Custom Account", "ein": "123456789"}),
         },
         None,
     )
@@ -377,7 +418,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"name": "Generated Account"}),
+                "body": json.dumps({"name": "Generated Account", "ein": "123456789"}),
             },
             None,
         )
@@ -422,7 +463,7 @@ def test_admin_subscription_routes(monkeypatch):
                 "resource": "/v1/admin/accounts",
                 "path": "/v1/admin/accounts",
                 "headers": headers,
-                "body": json.dumps({"name": "Subscription Account"}),
+                "body": json.dumps({"name": "Subscription Account", "ein": "123456789"}),
             },
             None,
         )
@@ -462,3 +503,60 @@ def test_admin_subscription_routes(monkeypatch):
     payload = _data(updated)
     assert payload["plan_code"] == "pro"
     assert payload["status"] == "active"
+
+
+def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatch):
+    module, admin_key = _load_module(monkeypatch)
+    headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
+
+    missing_ein = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts",
+            "path": "/v1/admin/accounts",
+            "headers": headers,
+            "body": json.dumps({"name": "Missing EIN"}),
+        },
+        None,
+    )
+    assert missing_ein["statusCode"] == 400
+    assert "ein is required" in _body(missing_ein)["errors"][0]["message"]
+
+    invalid_ein = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts",
+            "path": "/v1/admin/accounts",
+            "headers": headers,
+            "body": json.dumps({"name": "Bad EIN", "ein": "12-34"}),
+        },
+        None,
+    )
+    assert invalid_ein["statusCode"] == 400
+    assert "valid EIN" in _body(invalid_ein)["errors"][0]["message"]
+
+    created = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts",
+            "path": "/v1/admin/accounts",
+            "headers": headers,
+            "body": json.dumps({"name": "Immutable EIN", "ein": "123456789"}),
+        },
+        None,
+    )
+    account_id = _data(created)["id"]
+
+    patched = module.handler(
+        {
+            "httpMethod": "PATCH",
+            "resource": "/v1/admin/accounts/{accountId}",
+            "path": f"/v1/admin/accounts/{account_id}",
+            "pathParameters": {"accountId": account_id},
+            "headers": headers,
+            "body": json.dumps({"ein": "987654321"}),
+        },
+        None,
+    )
+    assert patched["statusCode"] == 400
+    assert "cannot be updated" in _body(patched)["errors"][0]["message"]

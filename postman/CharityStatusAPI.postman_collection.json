@@ -358,9 +358,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Example Account\"\n}"
+              "raw": "{\n  \"name\": \"Example Account\",\n  \"ein\": \"123456789\"\n}"
             },
-            "description": "Create account. Auth: x-admin-key. Variables: baseUrl. Account id is system-generated and returned in the response.",
+            "description": "Create account. Auth: x-admin-key. Variables: baseUrl. Both name and ein are required. EIN may be provided as 9 digits or hyphenated and is stored normalized. Account id is system-generated and returned in the response.",
             "url": "{{baseUrl}}/v1/admin/accounts"
           }
         },
