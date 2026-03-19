@@ -172,13 +172,13 @@ resource "aws_api_gateway_resource" "verify_batch" {
 resource "aws_api_gateway_resource" "organizations" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.api_v1.id
-  path_part   = "organizations"
+  path_part   = "organization"
 }
 
 resource "aws_api_gateway_resource" "organizations_integrations" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.organizations.id
-  path_part   = "integrations"
+  path_part   = "settings"
 }
 
 resource "aws_api_gateway_resource" "ops" {

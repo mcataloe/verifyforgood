@@ -587,9 +587,9 @@ def handler(event, context):
             pass
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
-    if _is_organization_integrations_request(event, method):
+    if _is_organization_settings_request(event, method):
         try:
-            response = _handle_organization_integrations_request(event, auth_context, response_context=api_context)
+            response = _handle_organization_settings_request(event, auth_context, response_context=api_context)
         except OrganizationIntegrationSettingsValidationError as exc:
             response = fail(400, str(exc))
         except AuthorizationError as exc:
@@ -861,14 +861,14 @@ def _is_ops_request(event: dict, method: str) -> bool:
     return resource.startswith("/ops/") or path.startswith("/ops/")
 
 
-def _is_organization_integrations_request(event: dict, method: str) -> bool:
+def _is_organization_settings_request(event: dict, method: str) -> bool:
     if method not in {"GET", "PUT"}:
         return False
     resource, path = _route_paths(event)
     return resource.endswith("/organization/settings") or path.endswith("/organization/settings")
 
 
-def _handle_organization_integrations_request(
+def _handle_organization_settings_request(
     event: dict,
     auth_context: Any,
     *,
