@@ -7,7 +7,7 @@ import sys
 from types import SimpleNamespace
 
 from charity_status.auth import build_admin_key_record
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from charity_status.control_plane import Account, ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 def _query_stub():
@@ -96,6 +96,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert created["statusCode"] == 201
     assert _body(created)["plan"] == "admin"
     assert account["status"] == "active"
+    assert account["subscription"] == "free"
     assert account["ein"] == "123456789"
     assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
 
@@ -111,6 +112,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert listed["statusCode"] == 200
     assert listed["headers"]["Content-Type"] == "application/json"
     assert len(_data(listed)["items"]) == 1
+    assert _data(listed)["items"][0]["subscription"] == "free"
 
     fetched = module.handler(
         {
@@ -123,6 +125,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
         None,
     )
     assert _data(fetched)["id"] == account_id
+    assert _data(fetched)["subscription"] == "free"
 
     updated = module.handler(
         {
@@ -136,6 +139,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
         None,
     )
     assert _data(updated)["name"] == "Acme Foundation"
+    assert _data(updated)["subscription"] == "free"
 
     suspended = module.handler(
         {
@@ -148,6 +152,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
         None,
     )
     assert _data(suspended)["status"] == "suspended"
+    assert _data(suspended)["subscription"] == "free"
 
     activated = module.handler(
         {
@@ -160,6 +165,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
         None,
     )
     assert _data(activated)["status"] == "active"
+    assert _data(activated)["subscription"] == "free"
 
 
 def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
@@ -392,6 +398,39 @@ def test_control_plane_service_rejects_ein_updates():
         assert str(exc) == "ein cannot be updated"
     else:
         assert False, "Expected immutable EIN error"
+
+
+def test_control_plane_service_returns_null_subscription_for_legacy_account_without_subscription():
+    service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    service.store.put_account(
+        Account(
+            id="acct_legacy",
+            name="Legacy Account",
+            status="active",
+            created_at="2026-03-18T00:00:00+00:00",
+        )
+    )
+
+    account = service.get_account("acct_legacy")
+
+    assert account["subscription"] is None
+
+
+def test_control_plane_service_normalizes_account_subscription_aliases():
+    service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = service.create_account({"name": "Alias Account", "ein": "123456789"})
+    service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="business",
+            status="active",
+            effective_from="2026-03-18T00:00:00+00:00",
+        )
+    )
+
+    fetched = service.get_account(account["id"])
+
+    assert fetched["subscription"] == "pro"
 
 
 def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):

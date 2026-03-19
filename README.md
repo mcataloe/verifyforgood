@@ -1468,6 +1468,7 @@ Managed account shape:
 
 - `id`
 - `name`
+- `subscription` (current canonical plan from the tenant subscription record, for example `free` or `pro`; may be `null` for legacy records with no subscription)
 - `ein` (normalized 9-digit EIN; legacy records may temporarily return `null` until backfilled)
 - `status` (`active` or `suspended`)
 - `created_at`

@@ -191,10 +191,10 @@ class ControlPlaneService:
         self._entitlement_service = EntitlementService(subscription_loader=self._load_subscription)
 
     def list_accounts(self) -> list[dict[str, Any]]:
-        return [account.to_dict() for account in self.store.list_accounts()]
+        return [self._serialize_account(account) for account in self.store.list_accounts()]
 
     def get_account(self, account_id: str) -> dict[str, Any]:
-        return self._get_account(account_id).to_dict()
+        return self._serialize_account(self._get_account(account_id))
 
     def create_account(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = str(payload.get("name") or "").strip()
@@ -226,7 +226,7 @@ class ControlPlaneService:
                 updated_at=account.created_at,
             )
         )
-        return account.to_dict()
+        return self._serialize_account(account)
 
     def update_account(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         account = self._get_account(account_id)
@@ -243,19 +243,19 @@ class ControlPlaneService:
                 raise ControlPlaneError("status must be active or suspended")
             account.status = status
         self.store.put_account(account)
-        return account.to_dict()
+        return self._serialize_account(account)
 
     def suspend_account(self, account_id: str) -> dict[str, Any]:
         account = self._get_account(account_id)
         account.status = "suspended"
         self.store.put_account(account)
-        return account.to_dict()
+        return self._serialize_account(account)
 
     def activate_account(self, account_id: str) -> dict[str, Any]:
         account = self._get_account(account_id)
         account.status = "active"
         self.store.put_account(account)
-        return account.to_dict()
+        return self._serialize_account(account)
 
     def create_api_key(self, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._get_account(account_id)
@@ -463,6 +463,13 @@ class ControlPlaneService:
             pending_checkout_expires_at=current.pending_checkout_expires_at if current else None,
             updated_at=_utcnow(),
         )
+
+    def _serialize_account(self, account: Account) -> dict[str, Any]:
+        subscription = self.store.get_subscription(account.id)
+        subscription_plan = None
+        if subscription is not None:
+            subscription_plan = self._entitlement_service.normalize_plan_code(subscription.plan_code)
+        return account.to_dict(subscription=subscription_plan)
 
 
 def _utcnow() -> str:

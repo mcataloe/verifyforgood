@@ -94,9 +94,11 @@ def test_dynamo_control_plane_persists_accounts_and_subscriptions_across_service
 
     assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
     assert reloaded.get_account(account_id)["name"] == "Dynamo Account"
+    assert reloaded.get_account(account_id)["subscription"] == "pro"
     assert reloaded.get_account(account_id)["ein"] == "123456789"
     assert reloaded.get_subscription(account_id)["plan_code"] == "pro"
     assert reloaded.list_accounts()[0]["id"] == account_id
+    assert reloaded.list_accounts()[0]["subscription"] == "pro"
 
 
 def test_dynamo_control_plane_managed_credentials_authenticate_from_lookup_records():
@@ -484,4 +486,24 @@ def test_existing_non_uuid_identifiers_remain_readable_in_dynamo_store():
     )
 
     assert service.get_account(legacy_account_id)["id"] == legacy_account_id
+    assert service.get_account(legacy_account_id)["subscription"] == "free"
     assert service.get_account(legacy_account_id)["ein"] is None
+
+
+def test_legacy_dynamo_account_without_subscription_returns_null_subscription():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    service = ControlPlaneService(store=DynamoControlPlaneStore("control-plane", dynamodb_resource=resource))
+
+    service.store.put_account(
+        Account(
+            id="acct_legacy_no_sub",
+            name="Legacy No Subscription",
+            status="active",
+            created_at="2026-03-18T00:00:00+00:00",
+        )
+    )
+
+    account = service.get_account("acct_legacy_no_sub")
+
+    assert account["subscription"] is None

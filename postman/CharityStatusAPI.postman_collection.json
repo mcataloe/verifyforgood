@@ -420,7 +420,7 @@
               "mode": "raw",
               "raw": "{\n  \"name\": \"Example Account\",\n  \"ein\": \"123456789\"\n}"
             },
-            "description": "Create account. Auth: x-admin-key. Variables: baseUrl. Both name and ein are required. EIN may be provided as 9 digits or hyphenated and is stored normalized. Account id is system-generated and returned in the response.",
+            "description": "Create account. Auth: x-admin-key. Variables: baseUrl. Both name and ein are required. EIN may be provided as 9 digits or hyphenated and is stored normalized. Account id is system-generated and returned in the response. Account-shaped responses include the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts"
           }
         },
@@ -435,7 +435,7 @@
                 "type": "text"
               }
             ],
-            "description": "List accounts. Auth: x-admin-key. Variables: baseUrl.",
+            "description": "List accounts. Auth: x-admin-key. Variables: baseUrl. Each account item includes the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts"
           }
         },
@@ -450,7 +450,7 @@
                 "type": "text"
               }
             ],
-            "description": "Get account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "description": "Get account. Auth: x-admin-key. Variables: baseUrl, accountId. Account-shaped responses include the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}"
           }
         },
@@ -474,7 +474,7 @@
               "mode": "raw",
               "raw": "{\n  \"name\": \"Updated Account Name\",\n  \"status\": \"active\"\n}"
             },
-            "description": "Update account metadata. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "description": "Update account metadata. Auth: x-admin-key. Variables: baseUrl, accountId. The returned account object includes the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}"
           }
         },
@@ -528,7 +528,7 @@
                 "type": "text"
               }
             ],
-            "description": "Suspend account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "description": "Suspend account. Auth: x-admin-key. Variables: baseUrl, accountId. The returned account object includes the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/suspend"
           }
         },
@@ -543,7 +543,7 @@
                 "type": "text"
               }
             ],
-            "description": "Activate account. Auth: x-admin-key. Variables: baseUrl, accountId.",
+            "description": "Activate account. Auth: x-admin-key. Variables: baseUrl, accountId. The returned account object includes the tenant subscription field.",
             "url": "{{baseUrl}}/v1/admin/accounts/{{accountId}}/activate"
           }
         },
