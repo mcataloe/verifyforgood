@@ -6,6 +6,7 @@ from .models import (
     ResolvedEntitlements,
     Subscription,
     SubscriptionPlan,
+    TrialHistory,
     UsageMeter,
     Workspace,
 )
@@ -24,12 +25,14 @@ from .service import (
 from .feature_gating import build_upgrade_hint, build_upgrade_hints, missing_route_requirement, recommended_upgrade_plan
 from .plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from .response_shaping import ResponseShapingService
+from .trials import TrialConfig, TrialLifecycleService, load_trial_config
 
 __all__ = [
     "Account",
     "Workspace",
     "Subscription",
     "SubscriptionPlan",
+    "TrialHistory",
     "Entitlement",
     "ResolvedEntitlements",
     "FEATURE_FLAGS",
@@ -49,6 +52,9 @@ __all__ = [
     "recommended_upgrade_plan",
     "BillingPlanChangeError",
     "BillingPlanChangeService",
+    "TrialConfig",
+    "TrialLifecycleService",
+    "load_trial_config",
     "ResponseShapingService",
     "check_feature_entitlement",
     "check_quota_and_calculate",

@@ -12,6 +12,7 @@ Typical customer workflows include:
 - inspecting source-level data
 - checking compliance and federal-award views
 - managing organization-level integration settings
+- starting a no-card free trial through first product use
 - starting paid-plan enrollment through Stripe-hosted Checkout
 - changing an active paid plan
 
@@ -53,6 +54,20 @@ Customers with an active paid subscription can change plans through `POST /v1/or
 Customers with an existing Stripe billing profile can open the Stripe-hosted customer portal through `POST /v1/organization/billing/portal-session`.
 
 Customers can retrieve a product-focused billing summary through `GET /v1/organization/billing/subscription`.
+
+## Free Trial
+
+Eligible organizations receive a 14-day free trial that is designed to complement the existing free tier.
+
+Trial behavior:
+
+- no credit card is required to start the trial
+- the trial starts on the first authenticated customer product request made with an issued credential
+- the trial grants Growth-tier access while keeping the underlying billing plan on `free`
+- the trial does not automatically create a paid subscription
+- the trial does not automatically charge the customer when it ends
+- when the trial expires, the organization falls back to the existing free tier
+- upgrading to a paid plan remains a separate explicit action through Stripe-hosted Checkout
 
 ## Subscription Plans
 
@@ -141,6 +156,7 @@ Paid plan enrollment uses Stripe-hosted Checkout:
 - Stripe automatic tax is enabled during Checkout
 - customers see the configured plan price in Stripe Checkout
 - the platform does not add custom fee line items on top of the advertised subscription price
+- active trials can convert to paid through the same hosted Checkout flow
 
 The billing model currently includes:
 
@@ -221,9 +237,11 @@ Portal behavior:
 `GET /v1/organization/billing/subscription` returns:
 
 - current `plan`
+- current `effective_access_plan`
 - current `billing_status`
 - `renewal_date`
 - `pending_downgrade` when a lower tier is already scheduled for the next billing cycle
+- `trial` status and trial end date when applicable
 
 ## Billing Enforcement
 

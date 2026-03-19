@@ -19,6 +19,7 @@ from charity_status.control_plane import (
     ManagedApiKey,
     ManagedBillingEvent,
     ManagedSubscription,
+    ManagedTrialHistory,
 )
 from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
 
@@ -266,6 +267,67 @@ def test_dynamo_control_plane_supports_stripe_lookup_and_billing_event_round_tri
     assert billing_event is not None
     assert billing_event.stripe_invoice_id == "in_test_123"
     assert billing_event.invoice_total == 10800
+
+
+def test_dynamo_control_plane_persists_trial_state_on_subscription_records():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
+    service = ControlPlaneService(store=store)
+    account = service.create_account({"name": "Trial Account", "ein": "123456789"})
+    account_id = account["id"]
+
+    store.put_subscription(
+        ManagedSubscription(
+            account_id=account_id,
+            plan_code="free",
+            status="active",
+            effective_from="2026-03-19T00:00:00+00:00",
+            trial_status="active",
+            trial_started_at="2026-03-19T00:00:00+00:00",
+            trial_ends_at="2026-04-02T00:00:00+00:00",
+            trial_trigger_event="GET /v1/nonprofit/{ein}",
+            trial_consumed=True,
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+
+    reloaded = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource).get_subscription(account_id)
+
+    assert reloaded is not None
+    assert reloaded.trial_status == "active"
+    assert reloaded.trial_started_at == "2026-03-19T00:00:00+00:00"
+    assert reloaded.trial_ends_at == "2026-04-02T00:00:00+00:00"
+    assert reloaded.trial_trigger_event == "GET /v1/nonprofit/{ein}"
+    assert reloaded.trial_consumed is True
+
+
+def test_dynamo_control_plane_persists_trial_history_by_ein():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
+
+    store.put_trial_history(
+        ManagedTrialHistory(
+            ein="123456789",
+            trial_consumed=True,
+            first_account_id="acct_first",
+            last_account_id="acct_last",
+            trial_started_at="2026-03-19T00:00:00+00:00",
+            trial_ended_at="2026-04-02T00:00:00+00:00",
+            last_status="expired",
+            last_termination_reason="expired_to_free",
+            updated_at="2026-04-02T00:00:00+00:00",
+        )
+    )
+
+    reloaded = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource).get_trial_history("123456789")
+
+    assert reloaded is not None
+    assert reloaded.first_account_id == "acct_first"
+    assert reloaded.last_account_id == "acct_last"
+    assert reloaded.last_status == "expired"
+    assert reloaded.last_termination_reason == "expired_to_free"
 
 
 def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(monkeypatch):

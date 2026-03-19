@@ -646,6 +646,31 @@ variable "stripe_webhook_secret" {
   sensitive   = true
 }
 
+variable "free_trial_enabled" {
+  description = "Enable free-trial lifecycle activation for eligible organizations."
+  type        = bool
+  default     = false
+}
+
+variable "free_trial_duration_days" {
+  description = "Length of the free trial in days once activated."
+  type        = number
+  default     = 14
+}
+
+variable "free_trial_plan_code" {
+  description = "Paid-tier entitlement profile granted during an active free trial."
+  type        = string
+  default     = "growth"
+}
+
+variable "free_trial_monthly_request_limit" {
+  description = "Optional monthly request cap override for active trials. Null keeps the trial plan default."
+  type        = number
+  default     = null
+  nullable    = true
+}
+
 variable "ops_metadata_prefix" {
   description = "S3 prefix for operational ingest/refresh run metadata and diagnostics."
   type        = string

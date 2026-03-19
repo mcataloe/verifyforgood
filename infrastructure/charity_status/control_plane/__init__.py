@@ -1,4 +1,4 @@
-from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription
+from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
 from .dynamodb_store import DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable
 from .service import ControlPlaneError, ControlPlaneNotFound, ControlPlaneService, InMemoryControlPlaneStore
 
@@ -8,6 +8,7 @@ __all__ = [
     "ManagedBillingEvent",
     "ManagedOAuthClient",
     "ManagedSubscription",
+    "ManagedTrialHistory",
     "DynamoControlPlaneStore",
     "FakeDynamoResource",
     "FakeDynamoTable",

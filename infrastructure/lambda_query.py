@@ -20,7 +20,7 @@ from charity_status.auth import (
     authenticate_admin_key,
     load_admin_key_store,
 )
-from charity_status.billing import EntitlementService, ResponseShapingService
+from charity_status.billing import EntitlementService, ResponseShapingService, TrialLifecycleService, load_trial_config
 from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
 from charity_status.billing.plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from charity_status.billing.portal import BillingPortalError, BillingPortalService
@@ -125,6 +125,7 @@ ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
 )
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
+TRIAL_CONFIG = load_trial_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -145,6 +146,7 @@ billing_plan_change_service: BillingPlanChangeService | None = None
 billing_portal_service: BillingPortalService | None = None
 billing_visibility_service: BillingVisibilityService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
+trial_lifecycle_service: TrialLifecycleService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -247,6 +249,7 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
                 usage_store=usage_store,
                 entitlement_service=_get_entitlement_service(),
                 billing_settings_resolver=_get_organization_integration_settings_service(),
+                trial_lifecycle_service=_get_trial_lifecycle_service(),
             )
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
@@ -280,7 +283,10 @@ def _get_control_plane_service() -> ControlPlaneService:
 def _get_entitlement_service() -> EntitlementService:
     global entitlement_service
     if entitlement_service is None:
-        entitlement_service = EntitlementService(subscription_loader=_load_runtime_subscription)
+        entitlement_service = EntitlementService(
+            subscription_loader=_load_runtime_subscription,
+            trial_config=TRIAL_CONFIG,
+        )
     return entitlement_service
 
 
@@ -324,7 +330,11 @@ def _get_billing_portal_service() -> BillingPortalService:
 def _get_billing_visibility_service() -> BillingVisibilityService:
     global billing_visibility_service
     if billing_visibility_service is None:
-        billing_visibility_service = BillingVisibilityService(store=_get_control_plane_service().store)
+        billing_visibility_service = BillingVisibilityService(
+            store=_get_control_plane_service().store,
+            entitlement_service=_get_entitlement_service(),
+            trial_lifecycle_service=_get_trial_lifecycle_service(),
+        )
     return billing_visibility_service
 
 
@@ -334,8 +344,19 @@ def _get_stripe_webhook_service() -> StripeWebhookService:
         stripe_webhook_service = StripeWebhookService(
             store=_get_control_plane_service().store,
             config=STRIPE_WEBHOOK_CONFIG,
+            trial_lifecycle_service=_get_trial_lifecycle_service(),
         )
     return stripe_webhook_service
+
+
+def _get_trial_lifecycle_service() -> TrialLifecycleService:
+    global trial_lifecycle_service
+    if trial_lifecycle_service is None:
+        trial_lifecycle_service = TrialLifecycleService(
+            store=_get_control_plane_service().store,
+            config=TRIAL_CONFIG,
+        )
+    return trial_lifecycle_service
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -612,6 +633,11 @@ def handler(event, context):
             deprecation=api_context.deprecation,
         )
         _get_quota_metering_hook().on_request(auth_context, route_key)
+        api_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
+            deprecation=api_context.deprecation,
+        )
     except AuthenticationError as exc:
         return fail(exc.status_code, str(exc))
     except FeatureUnavailableError as exc:

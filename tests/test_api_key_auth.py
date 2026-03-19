@@ -9,8 +9,10 @@ from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
 from charity_status.auth.models import ApiPlan, AuthenticatedPrincipal
-from charity_status.billing import DEFAULT_ENTITLEMENTS, Subscription
+from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from charity_status.billing.trials import TrialConfig, TrialLifecycleService
 from charity_status.billing.service import monthly_period_for
+from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.platform.auth import ApiKeyAuthContextProvider
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 
@@ -344,6 +346,79 @@ def test_quota_metering_continues_past_limit_when_overage_allowed():
     hook.on_response(context, "GET /v1/nonprofit/{ein}", 200)
 
     assert store.get_usage("acct_1", month_key) == 251
+
+
+def test_quota_hook_starts_trial_on_first_customer_product_request():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Trial Org", "ein": "123456789"})
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id=account["id"],
+        workspace_id=account["id"],
+        scopes=["verify:write"],
+        plan_id="free",
+    )
+    entitlement_service = EntitlementService(
+        subscription_loader=lambda account_id: control_plane.store.get_subscription(account_id).to_subscription(),
+        trial_config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+    )
+    context = ApiKeyAuthContextProvider(
+        StaticApiKeyStore([record]),
+        entitlement_service=entitlement_service,
+    ).extract_context({"headers": {"x-api-key": display_key}})
+    hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        entitlement_service=entitlement_service,
+        trial_lifecycle_service=TrialLifecycleService(
+            store=control_plane.store,
+            config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+        ),
+    )
+
+    hook.on_request(context, "POST /v1/verify/batch")
+
+    assert context.plan == "growth"
+    assert context.subscription is not None
+    assert context.subscription.plan_code == "free"
+    assert context.subscription.trial_status == "active"
+    assert context.entitlements is not None
+    assert context.entitlements.plan_code == "growth"
+
+
+def test_quota_hook_does_not_start_trial_for_billing_visibility_route():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Trial Org", "ein": "123456789"})
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id=account["id"],
+        workspace_id=account["id"],
+        scopes=["verify:read"],
+        plan_id="free",
+    )
+    entitlement_service = EntitlementService(
+        subscription_loader=lambda account_id: control_plane.store.get_subscription(account_id).to_subscription(),
+        trial_config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+    )
+    context = ApiKeyAuthContextProvider(
+        StaticApiKeyStore([record]),
+        entitlement_service=entitlement_service,
+    ).extract_context({"headers": {"x-api-key": display_key}})
+    hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        entitlement_service=entitlement_service,
+        trial_lifecycle_service=TrialLifecycleService(
+            store=control_plane.store,
+            config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+        ),
+    )
+
+    hook.on_request(context, "GET /v1/organization/billing/subscription")
+
+    assert context.plan == "free"
+    assert context.subscription is not None
+    assert context.subscription.trial_status == "never_started"
 
 
 def test_scoped_access_denied():

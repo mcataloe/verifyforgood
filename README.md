@@ -1004,6 +1004,13 @@ Admin control-plane authentication:
 
 Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
 
+The billing domain now also models a free-trial lifecycle for newly eligible organizations:
+
+- no credit card is required to start the trial
+- no automatic paid subscription or charge occurs at trial end
+- trial expiry falls back to the existing `free` tier instead of blocking access entirely
+- paid conversion remains an explicit customer action through Stripe-hosted Checkout
+
 Core billing entities:
 
 - `Account` / `Workspace`
@@ -1040,6 +1047,7 @@ External model remains simple:
 - richer usage and overage accounting is internal/domain-ready for future billing processor integration
 - paid-plan enrollment now creates Stripe-hosted Checkout sessions with automatic tax enabled and no custom fee line items layered on top of the advertised plan price
 - active paid subscriptions can now change plans through Stripe-native updates, with immediate prorated upgrades and next-cycle downgrades
+- eligible organizations can now receive a 14-day free trial that grants Growth-tier access without changing the underlying billing plan from `free`
 
 ## API Contract
 
@@ -1237,6 +1245,7 @@ Behavior:
 
 - only paid plans with configured Stripe Price IDs are eligible for Checkout
 - the account must be active and the caller must have authenticated account context
+- active trials can enroll in paid plans through the same Checkout flow
 - the stored Stripe customer id is reused when present; otherwise the API creates one customer record for the account
 - duplicate requests for the same unexpired pending plan return the existing Checkout URL instead of creating a second session
 - Checkout is always Stripe-hosted; the API does not collect or store card details
@@ -1262,6 +1271,13 @@ Stripe configuration:
   "pro": "price_789"
 }
 ```
+
+Free-trial configuration:
+
+- `FREE_TRIAL_ENABLED=true` enables free-trial activation for eligible organizations
+- `FREE_TRIAL_DURATION_DAYS` defaults to `14`
+- `FREE_TRIAL_PLAN_CODE` defaults to `growth`
+- `FREE_TRIAL_MONTHLY_REQUEST_LIMIT` is optional; when unset, the trial uses the configured plan limit directly
 
 ### `POST /v1/organization/billing/plan-change`
 
@@ -1352,13 +1368,27 @@ Behavior:
 - the caller must have authenticated account context for the organization being managed
 - the response is intentionally simplified and does not expose tax, invoice, or fee breakdown fields
 - scheduled downgrades are surfaced only when a lower plan is already queued for the next renewal
+- active trials keep the underlying billing `plan` on `free`, but the response also returns the effective access tier granted by the trial
+- trial expiry is enforced through the centralized trial lifecycle and returns the organization to `free` access without creating a paid subscription
 
 Response fields:
 
 - `plan`
+- `effective_access_plan`
 - `billing_status`
 - `renewal_date`
 - `pending_downgrade`
+- `trial`
+
+Trial behavior:
+
+- eligible organizations receive a 14-day free trial
+- the trial starts on the first authenticated customer product request made with an issued credential
+- billing/settings/self-service routes do not start the trial
+- the first activation-worthy request is stored as `trial_trigger_event` for audit/support use
+- active trials reuse Growth-tier entitlements while leaving the billing plan on `free`
+- when the trial expires, the organization automatically returns to the existing `free` tier
+- a previously consumed trial is not reissued for another organization with the same normalized EIN
 
 ### `POST /v1/webhooks/stripe`
 
@@ -1387,6 +1417,7 @@ State synchronization:
 - updates current billing period start/end
 - resolves plan changes from Stripe price ids or checkout metadata
 - updates the stored billing state used by request-time auth and quota enforcement
+- marks active trials as converted once a paid Stripe subscription becomes the source of truth
 - captures invoice subtotal, tax, total, and currency for analytics/reporting
 
 Stripe webhook configuration:

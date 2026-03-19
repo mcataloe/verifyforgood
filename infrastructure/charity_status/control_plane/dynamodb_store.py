@@ -10,7 +10,7 @@ import boto3
 from charity_status.auth.oauth import StoredOAuthClientRecord
 from charity_status.auth.service import StoredApiKeyRecord
 
-from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription
+from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
 
 
 class DynamoControlPlaneStore:
@@ -81,6 +81,16 @@ class DynamoControlPlaneStore:
 
     def put_billing_event(self, event: ManagedBillingEvent) -> None:
         self._table.put_item(Item=_billing_event_item(event))
+
+    def get_trial_history(self, ein: str) -> ManagedTrialHistory | None:
+        response = self._table.get_item(Key={"pk": _trial_history_pk(ein), "sk": "TRIAL"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _trial_history_from_item(item)
+
+    def put_trial_history(self, history: ManagedTrialHistory) -> None:
+        self._table.put_item(Item=_trial_history_item(history))
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
         response = self._table.query(
@@ -205,6 +215,12 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         "billing_status": subscription.billing_status,
         "billing_period_start": subscription.billing_period_start,
         "billing_period_end": subscription.billing_period_end,
+        "trial_status": subscription.trial_status,
+        "trial_started_at": subscription.trial_started_at,
+        "trial_ends_at": subscription.trial_ends_at,
+        "trial_trigger_event": subscription.trial_trigger_event,
+        "trial_consumed": subscription.trial_consumed,
+        "trial_termination_reason": subscription.trial_termination_reason,
         "pending_plan_code": subscription.pending_plan_code,
         "pending_plan_effective_at": subscription.pending_plan_effective_at,
         "stripe_subscription_schedule_id": subscription.stripe_subscription_schedule_id,
@@ -226,6 +242,10 @@ def _billing_event_pk(event_id: str) -> str:
     return f"BILLINGEVENT#{event_id}"
 
 
+def _trial_history_pk(ein: str) -> str:
+    return f"TRIALHISTORY#{ein}"
+
+
 def _billing_event_item(event: ManagedBillingEvent) -> dict[str, Any]:
     return {
         "pk": _billing_event_pk(event.event_id),
@@ -243,6 +263,23 @@ def _billing_event_item(event: ManagedBillingEvent) -> dict[str, Any]:
         "invoice_total": event.invoice_total,
         "currency": event.currency,
         "webhook_created_at": event.webhook_created_at,
+    }
+
+
+def _trial_history_item(history: ManagedTrialHistory) -> dict[str, Any]:
+    return {
+        "pk": _trial_history_pk(history.ein),
+        "sk": "TRIAL",
+        "type": "TRIAL_HISTORY",
+        "ein": history.ein,
+        "trial_consumed": history.trial_consumed,
+        "first_account_id": history.first_account_id,
+        "last_account_id": history.last_account_id,
+        "trial_started_at": history.trial_started_at,
+        "trial_ended_at": history.trial_ended_at,
+        "last_status": history.last_status,
+        "last_termination_reason": history.last_termination_reason,
+        "updated_at": history.updated_at,
     }
 
 
@@ -308,12 +345,32 @@ def _subscription_from_item(item: dict[str, Any]) -> ManagedSubscription:
         billing_status=_optional_string(item.get("billing_status")),
         billing_period_start=_optional_string(item.get("billing_period_start")),
         billing_period_end=_optional_string(item.get("billing_period_end")),
+        trial_status=_optional_string(item.get("trial_status")),
+        trial_started_at=_optional_string(item.get("trial_started_at")),
+        trial_ends_at=_optional_string(item.get("trial_ends_at")),
+        trial_trigger_event=_optional_string(item.get("trial_trigger_event")),
+        trial_consumed=bool(item.get("trial_consumed", False)),
+        trial_termination_reason=_optional_string(item.get("trial_termination_reason")),
         pending_plan_code=_optional_string(item.get("pending_plan_code")),
         pending_plan_effective_at=_optional_string(item.get("pending_plan_effective_at")),
         stripe_subscription_schedule_id=_optional_string(item.get("stripe_subscription_schedule_id")),
         pending_checkout_session_id=_optional_string(item.get("pending_checkout_session_id")),
         pending_checkout_session_url=_optional_string(item.get("pending_checkout_session_url")),
         pending_checkout_expires_at=_optional_string(item.get("pending_checkout_expires_at")),
+        updated_at=_optional_string(item.get("updated_at")),
+    )
+
+
+def _trial_history_from_item(item: dict[str, Any]) -> ManagedTrialHistory:
+    return ManagedTrialHistory(
+        ein=str(item.get("ein") or ""),
+        trial_consumed=bool(item.get("trial_consumed", False)),
+        first_account_id=_optional_string(item.get("first_account_id")),
+        last_account_id=_optional_string(item.get("last_account_id")),
+        trial_started_at=_optional_string(item.get("trial_started_at")),
+        trial_ended_at=_optional_string(item.get("trial_ended_at")),
+        last_status=_optional_string(item.get("last_status")),
+        last_termination_reason=_optional_string(item.get("last_termination_reason")),
         updated_at=_optional_string(item.get("updated_at")),
     )
 

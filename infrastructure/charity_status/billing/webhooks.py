@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
 
 from charity_status.billing.checkout import _clean_text, _mapping_bool, _parse_price_ids
+from charity_status.billing.trials import TrialLifecycleService
 from charity_status.control_plane import ManagedBillingEvent, ManagedSubscription
 
 
@@ -93,9 +94,16 @@ def load_stripe_webhook_config(env: Mapping[str, str] | None = None) -> StripeWe
 
 
 class StripeWebhookService:
-    def __init__(self, *, store: BillingWebhookStore, config: StripeWebhookConfig) -> None:
+    def __init__(
+        self,
+        *,
+        store: BillingWebhookStore,
+        config: StripeWebhookConfig,
+        trial_lifecycle_service: TrialLifecycleService | None = None,
+    ) -> None:
         self._store = store
         self._config = config
+        self._trial_lifecycle_service = trial_lifecycle_service
 
     def handle(self, *, raw_body: str, signature_header: str | None) -> dict[str, Any]:
         if not self._config.enabled:
@@ -132,6 +140,8 @@ class StripeWebhookService:
             raise BillingWebhookProcessingError("Unable to resolve local account for Stripe webhook event")
         updated_subscription = self._apply_event(event_type=event_type, event_object=data_object, subscription=subscription)
         self._store.put_subscription(updated_subscription)
+        if self._trial_lifecycle_service is not None:
+            updated_subscription = self._trial_lifecycle_service.mark_paid_conversion(account_id=updated_subscription.account_id) or updated_subscription
         self._store.put_billing_event(
             ManagedBillingEvent(
                 event_id=event_id,

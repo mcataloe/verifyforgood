@@ -24,12 +24,31 @@ class Subscription:
     billing_status: str | None = None
     billing_period_start: str | None = None
     billing_period_end: str | None = None
+    trial_status: str | None = None
+    trial_started_at: str | None = None
+    trial_ends_at: str | None = None
+    trial_trigger_event: str | None = None
+    trial_consumed: bool = False
+    trial_termination_reason: str | None = None
     pending_plan_code: str | None = None
     pending_plan_effective_at: str | None = None
     stripe_subscription_schedule_id: str | None = None
     pending_checkout_session_id: str | None = None
     pending_checkout_session_url: str | None = None
     pending_checkout_expires_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class TrialHistory:
+    ein: str
+    trial_consumed: bool
+    first_account_id: str | None = None
+    last_account_id: str | None = None
+    trial_started_at: str | None = None
+    trial_ended_at: str | None = None
+    last_status: str | None = None
+    last_termination_reason: str | None = None
     updated_at: str | None = None
 
 

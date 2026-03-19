@@ -104,19 +104,45 @@ class ApiKeyQuotaMeteringHook:
         usage_store: UsageStore,
         entitlement_service: EntitlementService | None = None,
         billing_settings_resolver: Any | None = None,
+        trial_lifecycle_service: Any | None = None,
     ):
         self._usage_store = usage_store
         self._entitlement_service = entitlement_service or EntitlementService()
         self._billing_settings_resolver = billing_settings_resolver
+        self._trial_lifecycle_service = trial_lifecycle_service
 
     def on_request(self, auth_context: AuthContext, route_key: str) -> None:
         if not auth_context.account_id or not auth_context.plan:
             return
+        normalized_route_key = normalize_route_key(route_key)
+        updated_subscription = auth_context.subscription
+        if self._trial_lifecycle_service is not None:
+            updated_subscription = self._trial_lifecycle_service.maybe_activate_trial(
+                account_id=str(auth_context.account_id),
+                trigger_event=normalized_route_key,
+            ) or updated_subscription
+        resolved = self._entitlement_service.resolve(
+            account_id=str(auth_context.account_id),
+            fallback_plan_code=str(auth_context.plan or "free"),
+            subscription=updated_subscription,
+        )
+        auth_context.subscription = resolved.subscription
+        auth_context.entitlements = resolved.entitlements
+        auth_context.plan = resolved.entitlements.plan_code
+        auth_context.metadata["billing_plan_code"] = resolved.subscription.plan_code
+        auth_context.metadata["subscription_status"] = resolved.subscription.status
+        auth_context.metadata["billing_status"] = str(resolved.subscription.billing_status or resolved.subscription.status or "")
+        auth_context.metadata["requests_per_minute"] = str(resolved.entitlements.requests_per_minute)
+        auth_context.metadata["monthly_request_limit"] = str(resolved.entitlements.monthly_request_limit)
+        if resolved.subscription.trial_status:
+            auth_context.metadata["trial_status"] = resolved.subscription.trial_status
+        if resolved.subscription.trial_ends_at:
+            auth_context.metadata["trial_ends_at"] = resolved.subscription.trial_ends_at
         principal = _from_context(auth_context)
-        billable_units = _billable_units(route_key, auth_context.metadata)
+        billable_units = _billable_units(normalized_route_key, auth_context.metadata)
         month_key, _, _ = enforce_quota_and_scope(
             principal,
-            route_key,
+            normalized_route_key,
             self._usage_store,
             self._entitlement_service,
             self._billing_settings_resolver,
@@ -252,7 +278,7 @@ def _to_context(principal: AuthenticatedPrincipal, entitlement_service: Entitlem
         account_id=principal.account_id,
         credential_id=principal.credential_id,
         auth_method=principal.auth_method,
-        plan=resolved.subscription.plan_code,
+        plan=resolved.entitlements.plan_code,
         scopes=principal.scopes,
         rate_limit_profile=principal.rate_limit_profile,
         workspace_id=principal.workspace_id,
@@ -261,10 +287,13 @@ def _to_context(principal: AuthenticatedPrincipal, entitlement_service: Entitlem
         entitlements=resolved.entitlements,
         metadata={
             "principal_type": principal.auth_method,
+            "billing_plan_code": resolved.subscription.plan_code,
             "subscription_status": resolved.subscription.status,
             "billing_status": str(resolved.subscription.billing_status or resolved.subscription.status or ""),
             "requests_per_minute": str(resolved.entitlements.requests_per_minute),
             "monthly_request_limit": str(resolved.entitlements.monthly_request_limit),
+            "trial_status": str(resolved.subscription.trial_status or ""),
+            "trial_ends_at": str(resolved.subscription.trial_ends_at or ""),
         },
     )
 

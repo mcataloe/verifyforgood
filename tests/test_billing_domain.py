@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from charity_status.billing.trials import TrialConfig
 from charity_status.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
 
 
@@ -84,3 +85,49 @@ def test_entitlement_service_keeps_current_plan_during_pending_downgrade():
 
     assert resolved.subscription.plan_code == "pro"
     assert resolved.entitlements.monthly_request_limit == 100000
+
+
+def test_entitlement_service_grants_trial_entitlements_while_billing_plan_stays_free():
+    service = EntitlementService(
+        subscriptions={
+            "acct_1": Subscription(
+                account_id="acct_1",
+                plan_code="free",
+                status="active",
+                trial_status="active",
+                trial_started_at="2026-03-19T00:00:00+00:00",
+                trial_ends_at="2026-04-02T00:00:00+00:00",
+                trial_consumed=True,
+            )
+        },
+        trial_config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+    )
+
+    resolved = service.resolve(account_id="acct_1", now=datetime(2026, 3, 20, tzinfo=timezone.utc))
+
+    assert resolved.subscription.plan_code == "free"
+    assert resolved.entitlements.plan_code == "growth"
+    assert resolved.entitlements.monthly_request_limit == 10000
+
+
+def test_entitlement_service_returns_free_entitlements_after_trial_expiry():
+    service = EntitlementService(
+        subscriptions={
+            "acct_1": Subscription(
+                account_id="acct_1",
+                plan_code="free",
+                status="active",
+                trial_status="active",
+                trial_started_at="2026-03-01T00:00:00+00:00",
+                trial_ends_at="2026-03-15T00:00:00+00:00",
+                trial_consumed=True,
+            )
+        },
+        trial_config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+    )
+
+    resolved = service.resolve(account_id="acct_1", now=datetime(2026, 3, 20, tzinfo=timezone.utc))
+
+    assert resolved.subscription.plan_code == "free"
+    assert resolved.entitlements.plan_code == "free"
+    assert resolved.entitlements.monthly_request_limit == 250

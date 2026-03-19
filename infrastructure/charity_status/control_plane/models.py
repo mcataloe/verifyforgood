@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from charity_status.billing.models import Subscription
+from charity_status.billing.models import Subscription, TrialHistory
 
 
 @dataclass
@@ -79,6 +79,12 @@ class ManagedSubscription:
     billing_status: str | None = None
     billing_period_start: str | None = None
     billing_period_end: str | None = None
+    trial_status: str | None = None
+    trial_started_at: str | None = None
+    trial_ends_at: str | None = None
+    trial_trigger_event: str | None = None
+    trial_consumed: bool = False
+    trial_termination_reason: str | None = None
     pending_plan_code: str | None = None
     pending_plan_effective_at: str | None = None
     stripe_subscription_schedule_id: str | None = None
@@ -99,6 +105,12 @@ class ManagedSubscription:
             "billing_status": self.billing_status,
             "billing_period_start": self.billing_period_start,
             "billing_period_end": self.billing_period_end,
+            "trial_status": self.trial_status,
+            "trial_started_at": self.trial_started_at,
+            "trial_ends_at": self.trial_ends_at,
+            "trial_trigger_event": self.trial_trigger_event,
+            "trial_consumed": self.trial_consumed,
+            "trial_termination_reason": self.trial_termination_reason,
             "pending_plan_code": self.pending_plan_code,
             "pending_plan_effective_at": self.pending_plan_effective_at,
             "stripe_subscription_schedule_id": self.stripe_subscription_schedule_id,
@@ -117,6 +129,12 @@ class ManagedSubscription:
             billing_status=self.billing_status,
             billing_period_start=self.billing_period_start,
             billing_period_end=self.billing_period_end,
+            trial_status=self.trial_status,
+            trial_started_at=self.trial_started_at,
+            trial_ends_at=self.trial_ends_at,
+            trial_trigger_event=self.trial_trigger_event,
+            trial_consumed=self.trial_consumed,
+            trial_termination_reason=self.trial_termination_reason,
             pending_plan_code=self.pending_plan_code,
             pending_plan_effective_at=self.pending_plan_effective_at,
             stripe_subscription_schedule_id=self.stripe_subscription_schedule_id,
@@ -157,3 +175,6 @@ class ManagedBillingEvent:
             "currency": self.currency,
             "webhook_created_at": self.webhook_created_at,
         }
+
+
+ManagedTrialHistory = TrialHistory

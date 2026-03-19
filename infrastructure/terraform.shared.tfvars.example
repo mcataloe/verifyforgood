@@ -91,6 +91,10 @@ organization_integration_settings_json = "[]"
 tenant_integration_settings_json       = "[]"
 stripe_billing_enabled                 = false
 stripe_price_ids_json                  = "{}"
+free_trial_enabled                     = true
+free_trial_duration_days               = 14
+free_trial_plan_code                   = "growth"
+free_trial_monthly_request_limit       = null
 ops_metadata_prefix                    = "ops/"
 serving_dynamodb_enabled               = true
 

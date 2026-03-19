@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from charity_status.api import normalize_route_key
 from charity_status.billing.models import Entitlement, MonthlyQuotaPeriod, ResolvedEntitlements, Subscription, SubscriptionPlan
+from charity_status.billing.trials import TrialConfig
 
 
 PLAN_CODE_ALIASES: dict[str, str] = {
@@ -127,9 +128,11 @@ class EntitlementService:
         self,
         subscriptions: dict[str, Subscription] | None = None,
         subscription_loader: Callable[[str], Subscription | None] | None = None,
+        trial_config: TrialConfig | None = None,
     ):
         self._subscriptions = subscriptions if subscriptions is not None else {}
         self._subscription_loader = subscription_loader
+        self._trial_config = trial_config or TrialConfig()
 
     def resolve(
         self,
@@ -160,6 +163,12 @@ class EntitlementService:
             billing_status=candidate.billing_status,
             billing_period_start=candidate.billing_period_start,
             billing_period_end=candidate.billing_period_end,
+            trial_status=candidate.trial_status,
+            trial_started_at=candidate.trial_started_at,
+            trial_ends_at=candidate.trial_ends_at,
+            trial_trigger_event=candidate.trial_trigger_event,
+            trial_consumed=candidate.trial_consumed,
+            trial_termination_reason=candidate.trial_termination_reason,
             pending_plan_code=candidate.pending_plan_code,
             pending_plan_effective_at=candidate.pending_plan_effective_at,
             stripe_subscription_schedule_id=candidate.stripe_subscription_schedule_id,
@@ -180,6 +189,12 @@ class EntitlementService:
                 billing_status=resolved_subscription.billing_status,
                 billing_period_start=resolved_subscription.billing_period_start,
                 billing_period_end=resolved_subscription.billing_period_end,
+                trial_status=resolved_subscription.trial_status,
+                trial_started_at=resolved_subscription.trial_started_at,
+                trial_ends_at=resolved_subscription.trial_ends_at,
+                trial_trigger_event=resolved_subscription.trial_trigger_event,
+                trial_consumed=resolved_subscription.trial_consumed,
+                trial_termination_reason=resolved_subscription.trial_termination_reason,
                 pending_plan_code=resolved_subscription.pending_plan_code,
                 pending_plan_effective_at=resolved_subscription.pending_plan_effective_at,
                 stripe_subscription_schedule_id=resolved_subscription.stripe_subscription_schedule_id,
@@ -188,9 +203,12 @@ class EntitlementService:
                 pending_checkout_expires_at=resolved_subscription.pending_checkout_expires_at,
                 updated_at=resolved_subscription.updated_at,
             )
+        entitlements = DEFAULT_ENTITLEMENTS[resolved_subscription.plan_code]
+        if _trial_is_active(resolved_subscription, now=now) and resolved_subscription.plan_code == "free":
+            entitlements = _trial_entitlement(self._trial_config)
         return ResolvedEntitlements(
             subscription=resolved_subscription,
-            entitlements=DEFAULT_ENTITLEMENTS[resolved_subscription.plan_code],
+            entitlements=entitlements,
         )
 
     def get_subscription(self, account_id: str, *, fallback_plan_code: str | None = None) -> Subscription:
@@ -208,6 +226,12 @@ class EntitlementService:
             billing_status=subscription.billing_status,
             billing_period_start=subscription.billing_period_start,
             billing_period_end=subscription.billing_period_end,
+            trial_status=subscription.trial_status,
+            trial_started_at=subscription.trial_started_at,
+            trial_ends_at=subscription.trial_ends_at,
+            trial_trigger_event=subscription.trial_trigger_event,
+            trial_consumed=subscription.trial_consumed,
+            trial_termination_reason=subscription.trial_termination_reason,
             pending_plan_code=subscription.pending_plan_code,
             pending_plan_effective_at=subscription.pending_plan_effective_at,
             stripe_subscription_schedule_id=subscription.stripe_subscription_schedule_id,
@@ -315,3 +339,23 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _trial_is_active(subscription: Subscription, *, now: datetime | None = None) -> bool:
+    if str(subscription.trial_status or "").strip().lower() != "active":
+        return False
+    trial_ends_at = _parse_iso_datetime(subscription.trial_ends_at)
+    if trial_ends_at is None:
+        return False
+    current = now or datetime.now(timezone.utc)
+    return current < trial_ends_at
+
+
+def _trial_entitlement(config: TrialConfig) -> Entitlement:
+    base_plan_code = config.plan_code if config.plan_code in DEFAULT_ENTITLEMENTS else "growth"
+    base = DEFAULT_ENTITLEMENTS[base_plan_code]
+    if config.monthly_request_limit_override is None:
+        return base
+    request_limits = dict(base.request_limits)
+    request_limits["monthly_requests"] = max(1, int(config.monthly_request_limit_override))
+    return replace(base, request_limits=request_limits)

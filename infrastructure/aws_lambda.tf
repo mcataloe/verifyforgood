@@ -170,6 +170,10 @@ resource "aws_lambda_function" "query" {
       STRIPE_PRICE_IDS                                 = var.stripe_price_ids_json
       STRIPE_SECRET_KEY                                = var.stripe_secret_key
       STRIPE_WEBHOOK_SECRET                            = var.stripe_webhook_secret
+      FREE_TRIAL_ENABLED                               = tostring(var.free_trial_enabled)
+      FREE_TRIAL_DURATION_DAYS                         = tostring(var.free_trial_duration_days)
+      FREE_TRIAL_PLAN_CODE                             = var.free_trial_plan_code
+      FREE_TRIAL_MONTHLY_REQUEST_LIMIT                 = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
       ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                              = var.ops_metadata_prefix

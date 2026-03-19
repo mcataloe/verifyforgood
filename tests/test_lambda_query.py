@@ -951,12 +951,14 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
     body = _response_data(result)
     assert body == {
         "plan": "pro",
+        "effective_access_plan": "pro",
         "billing_status": "active",
         "renewal_date": "2026-04-01T00:00:00+00:00",
         "pending_downgrade": {
             "plan": "growth",
             "effective_at": "2026-04-01T00:00:00+00:00",
         },
+        "trial": None,
     }
 
 
@@ -997,6 +999,118 @@ def test_organization_billing_subscription_requires_account_context():
 
     assert result["statusCode"] == 403
     assert "authenticated workspace or account context" in _response_error_message(result)
+
+
+def test_get_organization_billing_subscription_includes_trial_status_and_effective_access_plan():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Trial Account", "ein": "123456789"})
+    module.control_plane_service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="free",
+            status="active",
+            effective_from="2026-03-19T00:00:00+00:00",
+            trial_status="active",
+            trial_started_at="2026-03-19T00:00:00+00:00",
+            trial_ends_at="2026-04-02T00:00:00+00:00",
+            trial_trigger_event="POST /v1/verify",
+            trial_consumed=True,
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    module.entitlement_service = None
+    module.billing_visibility_service = None
+    module.trial_lifecycle_service = None
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:read",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="free",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/billing/subscription",
+            "path": "/v1/organization/billing/subscription",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    assert _response_data(result) == {
+        "plan": "free",
+        "effective_access_plan": "growth",
+        "billing_status": "active",
+        "renewal_date": None,
+        "pending_downgrade": None,
+        "trial": {
+            "active": True,
+            "status": "active",
+            "ends_at": "2026-04-02T00:00:00+00:00",
+        },
+    }
+
+
+def test_first_authenticated_customer_request_starts_trial_before_feature_gating(monkeypatch):
+    monkeypatch.setenv("API_AUTH_ENABLED", "true")
+    monkeypatch.setenv("FREE_TRIAL_ENABLED", "true")
+    monkeypatch.setenv("FREE_TRIAL_DURATION_DAYS", "14")
+    monkeypatch.setenv("FREE_TRIAL_PLAN_CODE", "growth")
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    module.auth_context_provider = None
+    module.quota_metering_hook = None
+    module.entitlement_service = None
+    module.trial_lifecycle_service = None
+    module.billing_visibility_service = None
+    account = module.control_plane_service.create_account({"name": "Trial Account", "ein": "123456789"})
+    api_key_payload = module.control_plane_service.create_api_key(
+        account["id"],
+        {"plan": "free", "scopes": ["verify:write"]},
+    )
+    module.SERVING_DDB_ENABLED = False
+    module.athena_client = _mock_client(record=_sample_record("Trial Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+    module.usage_store = InMemoryUsageStore()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/verify/batch",
+            "path": "/v1/verify/batch",
+            "headers": {"x-api-key": api_key_payload["secret"]},
+            "body": json.dumps({"items": [{"ein": "123456789"}]}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    envelope = _response_envelope(result)
+    assert envelope["plan"] == "growth"
+    updated = module.control_plane_service.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.plan_code == "free"
+    assert updated.trial_status == "active"
+    assert updated.trial_trigger_event == "POST /v1/verify/batch"
 
 
 def test_post_stripe_webhook_route_rejects_invalid_signature(monkeypatch):

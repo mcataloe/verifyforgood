@@ -10,7 +10,7 @@ from charity_status.auth.oauth import StoredOAuthClientRecord, build_oauth_clien
 from charity_status.auth.service import StoredApiKeyRecord, build_api_key_record
 from charity_status.billing import EntitlementService, Subscription
 
-from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription
+from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
 
 
 class ControlPlaneError(ValueError):
@@ -47,6 +47,12 @@ class ControlPlaneStore(Protocol):
         ...
 
     def put_billing_event(self, event: ManagedBillingEvent) -> None:
+        ...
+
+    def get_trial_history(self, ein: str) -> ManagedTrialHistory | None:
+        ...
+
+    def put_trial_history(self, history: ManagedTrialHistory) -> None:
         ...
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
@@ -88,6 +94,7 @@ class InMemoryControlPlaneStore:
         self.oauth_clients: dict[str, tuple[ManagedOAuthClient, StoredOAuthClientRecord]] = {}
         self.usage: dict[tuple[str, str], int] = {}
         self.billing_events: dict[str, ManagedBillingEvent] = {}
+        self.trial_histories: dict[str, ManagedTrialHistory] = {}
 
     def list_accounts(self) -> list[Account]:
         return list(self.accounts.values())
@@ -121,6 +128,12 @@ class InMemoryControlPlaneStore:
 
     def put_billing_event(self, event: ManagedBillingEvent) -> None:
         self.billing_events[event.event_id] = event
+
+    def get_trial_history(self, ein: str) -> ManagedTrialHistory | None:
+        return self.trial_histories.get(ein)
+
+    def put_trial_history(self, history: ManagedTrialHistory) -> None:
+        self.trial_histories[history.ein] = history
 
     def list_api_keys(self, account_id: str) -> list[ManagedApiKey]:
         return [model for model, _record in self.api_keys.values() if model.account_id == account_id]
@@ -208,6 +221,8 @@ class ControlPlaneService:
                 status="active",
                 effective_from=account.created_at,
                 effective_to=None,
+                trial_status="never_started",
+                trial_consumed=False,
                 updated_at=account.created_at,
             )
         )
@@ -434,6 +449,12 @@ class ControlPlaneService:
             billing_status=current.billing_status if current else None,
             billing_period_start=current.billing_period_start if current else None,
             billing_period_end=current.billing_period_end if current else None,
+            trial_status=current.trial_status if current else "never_started",
+            trial_started_at=current.trial_started_at if current else None,
+            trial_ends_at=current.trial_ends_at if current else None,
+            trial_trigger_event=current.trial_trigger_event if current else None,
+            trial_consumed=current.trial_consumed if current else False,
+            trial_termination_reason=current.trial_termination_reason if current else None,
             pending_plan_code=current.pending_plan_code if current else None,
             pending_plan_effective_at=current.pending_plan_effective_at if current else None,
             stripe_subscription_schedule_id=current.stripe_subscription_schedule_id if current else None,

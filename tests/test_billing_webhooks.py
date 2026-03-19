@@ -14,6 +14,7 @@ from charity_status.billing.webhooks import (
     load_stripe_webhook_config,
     verify_and_parse_stripe_event,
 )
+from charity_status.billing.trials import TrialConfig, TrialLifecycleService
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
@@ -174,6 +175,62 @@ def test_stripe_webhook_service_ignores_duplicate_events():
     assert first["processed"] is True
     assert second["processed"] is False
     assert second["duplicate"] is True
+
+
+def test_stripe_webhook_marks_active_trial_as_converted_when_paid_subscription_syncs():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        control_plane.store.get_subscription(account["id"]).__class__(
+            account_id=account["id"],
+            plan_code="free",
+            status="active",
+            effective_from="2026-03-19T00:00:00+00:00",
+            trial_status="active",
+            trial_started_at="2026-03-19T00:00:00+00:00",
+            trial_ends_at="2026-04-02T00:00:00+00:00",
+            trial_trigger_event="POST /v1/verify",
+            trial_consumed=True,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    trial_service = TrialLifecycleService(
+        store=control_plane.store,
+        config=TrialConfig(enabled=True, duration_days=14, plan_code="growth"),
+    )
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+        ),
+        trial_lifecycle_service=trial_service,
+    )
+    payload = _event_payload(
+        event_id="evt_subscription",
+        event_type="customer.subscription.updated",
+        event_object={
+            "object": "subscription",
+            "id": "sub_123",
+            "customer": "cus_123",
+            "status": "active",
+            "current_period_start": 1770000000,
+            "current_period_end": 1772592000,
+            "metadata": {"account_id": account["id"]},
+            "items": {"data": [{"price": {"id": "price_growth"}}]},
+        },
+    )
+
+    service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+
+    updated = control_plane.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.plan_code == "growth"
+    assert updated.trial_status == "converted"
+    assert updated.trial_termination_reason == "converted_to_paid"
 
 
 def _event_payload(*, event_id: str, event_type: str, event_object: dict[str, object]) -> str:
