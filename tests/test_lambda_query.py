@@ -11,7 +11,9 @@ from charity_status.auth import InMemoryUsageStore
 from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
 from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
 from charity_status.billing.plan_changes import BillingPlanChangeService
+from charity_status.billing.portal import BillingPortalService, PortalSessionResult
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from charity_status.control_plane.models import ManagedSubscription
 from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status.scoring import SCORING_MODEL_VERSION
@@ -131,6 +133,25 @@ class _FailingStripeCheckoutClient:
         idempotency_key: str,
     ) -> CheckoutSessionResult:
         raise BillingProviderError("Stripe rejected the request during checkout session creation")
+
+
+class _StripePortalClient:
+    def __init__(self) -> None:
+        self.session_calls = 0
+
+    def create_portal_session(
+        self,
+        *,
+        customer_id: str,
+        account_id: str,
+        return_url: str,
+        idempotency_key: str,
+    ) -> PortalSessionResult:
+        self.session_calls += 1
+        return PortalSessionResult(
+            session_id="bps_test_123",
+            url="https://billing.stripe.com/p/session/test_123",
+        )
 
 
 def test_invalid_ein_still_returns_400():
@@ -809,6 +830,172 @@ def test_post_organization_billing_plan_change_returns_plan_payload():
     assert body["current_plan_code"] == "pro"
     assert body["pending_plan_code"] == "growth"
     assert body["change_type"] == "downgrade_scheduled"
+
+
+def test_post_organization_billing_portal_session_returns_portal_url():
+    module = _load_module()
+    stripe_client = _StripePortalClient()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Portal Account", "ein": "123456789"})
+    module.control_plane_service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="growth",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            updated_at="2026-03-01T00:00:00+00:00",
+        )
+    )
+    module.billing_portal_service = BillingPortalService(
+        store=module.control_plane_service.store,
+        config=StripeCheckoutConfig(enabled=True, secret_key="sk_test_123", price_ids={"growth": "price_growth"}),
+        stripe_client=stripe_client,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="growth",
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/portal-session",
+            "path": "/v1/organization/billing/portal-session",
+            "headers": {},
+            "body": json.dumps({"return_url": "https://example.com/billing"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["portal_url"] == "https://billing.stripe.com/p/session/test_123"
+    assert stripe_client.session_calls == 1
+
+
+def test_get_organization_billing_subscription_returns_product_focused_summary():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Visibility Account", "ein": "123456789"})
+    module.control_plane_service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="pro",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            billing_period_start="2026-03-01T00:00:00+00:00",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            pending_plan_code="growth",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            updated_at="2026-03-01T00:00:00+00:00",
+        )
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:read",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/billing/subscription",
+            "path": "/v1/organization/billing/subscription",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body == {
+        "plan": "pro",
+        "billing_status": "active",
+        "renewal_date": "2026-04-01T00:00:00+00:00",
+        "pending_downgrade": {
+            "plan": "growth",
+            "effective_at": "2026-04-01T00:00:00+00:00",
+        },
+    }
+
+
+def test_organization_billing_subscription_requires_account_context():
+    module = _load_module()
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:read",),
+                metadata={},
+                workspace_id=None,
+                account_id=None,
+                plan="free",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/billing/subscription",
+            "path": "/v1/organization/billing/subscription",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert "authenticated workspace or account context" in _response_error_message(result)
 
 
 def test_post_stripe_webhook_route_rejects_invalid_signature(monkeypatch):

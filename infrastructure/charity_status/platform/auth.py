@@ -296,7 +296,12 @@ def _attach_context(event: dict[str, Any], auth_context: AuthContext) -> None:
 
 def _billable_units(route_key: str, metadata: dict[str, str]) -> int:
     route_key = normalize_route_key(route_key)
-    if route_key in {"POST /v1/organization/billing/checkout-session", "POST /v1/organization/billing/plan-change"}:
+    if route_key in {
+        "POST /v1/organization/billing/checkout-session",
+        "POST /v1/organization/billing/plan-change",
+        "POST /v1/organization/billing/portal-session",
+        "GET /v1/organization/billing/subscription",
+    }:
         return 0
     if route_key == "POST /v1/verify/batch":
         total = metadata.get("batch_items_count")

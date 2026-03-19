@@ -32,6 +32,8 @@ Primary customer-facing endpoints:
 - `PUT /v1/organization/settings`
 - `POST /v1/organization/billing/checkout-session`
 - `POST /v1/organization/billing/plan-change`
+- `POST /v1/organization/billing/portal-session`
+- `GET /v1/organization/billing/subscription`
 
 Admin account-management routes under `/v1/admin/...` are not part of the standard customer surface.
 
@@ -47,6 +49,10 @@ Customers can also manage account-level overage behavior through `GET/PUT /v1/or
 Customers can start paid-plan enrollment through `POST /v1/organization/billing/checkout-session`. The API returns a Stripe-hosted Checkout URL rather than collecting payment details directly.
 
 Customers with an active paid subscription can change plans through `POST /v1/organization/billing/plan-change`.
+
+Customers with an existing Stripe billing profile can open the Stripe-hosted customer portal through `POST /v1/organization/billing/portal-session`.
+
+Customers can retrieve a product-focused billing summary through `GET /v1/organization/billing/subscription`.
 
 ## Subscription Plans
 
@@ -193,6 +199,31 @@ Plan-change behavior:
 - downgrades are deferred to the next billing cycle
 - a later upgrade clears any previously scheduled downgrade
 - first-time paid enrollment still uses `POST /v1/organization/billing/checkout-session`
+
+## Billing Portal
+
+Request:
+
+```json
+{
+  "return_url": "https://example.com/billing"
+}
+```
+
+Portal behavior:
+
+- the portal is hosted by Stripe
+- the organization must already have a Stripe billing profile
+- the API returns only a portal URL and does not expose tax, fee, or invoice-line detail
+
+## Billing Visibility
+
+`GET /v1/organization/billing/subscription` returns:
+
+- current `plan`
+- current `billing_status`
+- `renewal_date`
+- `pending_downgrade` when a lower tier is already scheduled for the next billing cycle
 
 ## Tenant Setup
 

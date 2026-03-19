@@ -11,7 +11,7 @@ Customer-facing overview:
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -1303,6 +1303,45 @@ Plan-change timing:
 - `change_type=upgrade`: new plan is active immediately and Stripe handles proration
 - `change_type=downgrade_scheduled`: current plan remains active until `pending_plan_effective_at`
 - `change_type=pending_change_cleared`: a previously scheduled downgrade was removed and the current plan remains in force
+
+### `POST /v1/organization/billing/portal-session`
+
+Creates a Stripe-hosted customer portal session for the authenticated customer account.
+
+Request body:
+
+```json
+{
+  "return_url": "https://example.com/billing"
+}
+```
+
+Behavior:
+
+- the caller must have authenticated account context for the organization being managed
+- the account must already have a stored Stripe customer id from a prior billing enrollment
+- the returned URL is Stripe-hosted; the API does not expose tax, invoice-line, or fee breakdown details
+
+Response fields:
+
+- `portal_url`
+
+### `GET /v1/organization/billing/subscription`
+
+Returns a product-focused billing summary for the authenticated customer account.
+
+Behavior:
+
+- the caller must have authenticated account context for the organization being managed
+- the response is intentionally simplified and does not expose tax, invoice, or fee breakdown fields
+- scheduled downgrades are surfaced only when a lower plan is already queued for the next renewal
+
+Response fields:
+
+- `plan`
+- `billing_status`
+- `renewal_date`
+- `pending_downgrade`
 
 ### `POST /v1/webhooks/stripe`
 
