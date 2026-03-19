@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from charity_status.form990.index import parse_index_records, parse_index_source_payload
+from charity_status.form990.index import iter_index_records_from_source, parse_index_records
 from charity_status.form990.models import Form990IndexRecord
 from charity_status.form990.storage import filing_catalog_key, filing_diff_key, state_manifest_key
 
@@ -19,6 +20,7 @@ REQUIRED_PARSED_ARTIFACT_KEYS = (
     "quality_s3_key",
     "relationships_s3_key",
 )
+MAX_DIFF_DETAILS = int(os.environ.get("FORM990_DIFF_DETAIL_LIMIT", "200"))
 
 
 @dataclass(frozen=True)
@@ -100,7 +102,7 @@ def load_filing_state(s3_client: Any, bucket: str, manifest_prefix: str) -> list
 
 
 def load_csv_catalog_records(s3_client: Any, bucket: str, csv_sources: list[dict[str, Any]]) -> list[Form990IndexRecord]:
-    records: list[Form990IndexRecord] = []
+    deduped: dict[str, Form990IndexRecord] = {}
     for source in sorted(csv_sources, key=_source_sort_key):
         if not isinstance(source, dict):
             continue
@@ -109,25 +111,20 @@ def load_csv_catalog_records(s3_client: Any, bucket: str, csv_sources: list[dict
         if not source_key or not source_url:
             continue
         body = s3_client.get_object(Bucket=bucket, Key=source_key)["Body"].read()
-        rows = parse_index_source_payload(source_url, body)
-        for record in parse_index_records(rows):
+        for record in iter_index_records_from_source(source_url, body):
             archive_hint = str(record.source_archive or "").strip() or None
-            records.append(
-                Form990IndexRecord(
-                    ein=record.ein,
-                    tax_year=record.tax_year,
-                    filing_date=record.filing_date,
-                    return_type=record.return_type,
-                    irs_object_id=record.irs_object_id,
-                    xml_url=record.xml_url,
-                    source_year=str(source.get("source_year") or record.source_year or "").strip() or None,
-                    source_archive=archive_hint or str(source.get("source_archive_key") or source.get("source_filename") or "").strip() or None,
-                    source_signature=filing_signature(record, source),
-                )
+            enriched = Form990IndexRecord(
+                ein=record.ein,
+                tax_year=record.tax_year,
+                filing_date=record.filing_date,
+                return_type=record.return_type,
+                irs_object_id=record.irs_object_id,
+                xml_url=record.xml_url,
+                source_year=str(source.get("source_year") or record.source_year or "").strip() or None,
+                source_archive=archive_hint or str(source.get("source_archive_key") or source.get("source_filename") or "").strip() or None,
+                source_signature=filing_signature(record, source),
             )
-    deduped: dict[str, Form990IndexRecord] = {}
-    for record in records:
-        deduped[_filing_identity(record)] = record
+            deduped[_filing_identity(enriched)] = enriched
     return list(deduped.values())
 
 
@@ -252,6 +249,9 @@ def _reconcile_records(
     new_entries: list[dict[str, Any]] = []
     changed_entries: list[dict[str, Any]] = []
     incomplete_entries: list[dict[str, Any]] = []
+    new_count = 0
+    changed_count = 0
+    incomplete_count = 0
     unchanged_count = 0
 
     for record in current_records:
@@ -261,7 +261,9 @@ def _reconcile_records(
             entry = filing_record_to_state_entry(record)
             next_state_entries.append(entry)
             selected_records.append(record)
-            new_entries.append(entry)
+            new_count += 1
+            if len(new_entries) < MAX_DIFF_DETAILS:
+                new_entries.append(entry)
             continue
 
         same_signature = str(previous.get("filing_signature") or previous.get("source_signature") or "") == str(record.source_signature or "")
@@ -270,11 +272,15 @@ def _reconcile_records(
 
         if not same_signature:
             selected_records.append(record)
-            changed_entries.append({"before": previous, "after": merged})
+            changed_count += 1
+            if len(changed_entries) < MAX_DIFF_DETAILS:
+                changed_entries.append({"before": previous, "after": merged})
             continue
         if not filing_processing_complete(merged):
             selected_records.append(record)
-            incomplete_entries.append(merged)
+            incomplete_count += 1
+            if len(incomplete_entries) < MAX_DIFF_DETAILS:
+                incomplete_entries.append(merged)
             continue
         unchanged_count += 1
 
@@ -285,10 +291,12 @@ def _reconcile_records(
         "run_id": run_id,
         "catalog_count": len(current_records),
         "selected_count": len(selected_records),
-        "new_count": len(new_entries),
-        "changed_count": len(changed_entries),
+        "new_count": new_count,
+        "changed_count": changed_count,
         "unchanged_count": unchanged_count,
-        "incomplete_count": len(incomplete_entries),
+        "incomplete_count": incomplete_count,
+        "details_limited": (new_count > len(new_entries)) or (changed_count > len(changed_entries)) or (incomplete_count > len(incomplete_entries)),
+        "detail_limit": MAX_DIFF_DETAILS,
         "new_filings": new_entries,
         "changed_filings": changed_entries,
         "incomplete_filings": incomplete_entries,

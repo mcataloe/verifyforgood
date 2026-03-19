@@ -3,29 +3,13 @@ from __future__ import annotations
 import json
 import re
 import urllib.request
-from typing import Any
+from typing import Any, Iterable
 
 from charity_status.form990.models import Form990IndexRecord
 
 
 def parse_index_records(payload: list[dict[str, Any]]) -> list[Form990IndexRecord]:
-    records: list[Form990IndexRecord] = []
-    for item in payload:
-        normalized = _normalize_index_item(item)
-        records.append(
-            Form990IndexRecord(
-                ein=_to_str(normalized.get("ein")),
-                tax_year=_to_str(normalized.get("tax_year")),
-                filing_date=_to_str(normalized.get("filing_date")),
-                return_type=_to_str(normalized.get("return_type")),
-                irs_object_id=_to_str(normalized.get("irs_object_id")),
-                xml_url=_to_str(normalized.get("xml_url")),
-                source_year=_to_str(normalized.get("source_year")),
-                source_archive=_to_str(normalized.get("source_archive")),
-                source_signature=_to_str(normalized.get("source_signature")),
-            )
-        )
-    return records
+    return [_index_item_to_record(item) for item in payload]
 
 
 def fetch_index_payload(index_url: str, timeout_seconds: int = 60) -> list[dict[str, Any]]:
@@ -47,6 +31,16 @@ def parse_index_source_payload(index_url: str, body: bytes) -> list[dict[str, An
     except json.JSONDecodeError:
         return _parse_csv_rows(body)
     return extract_index_items(payload)
+
+
+def iter_index_records_from_source(index_url: str, body: bytes) -> Iterable[Form990IndexRecord]:
+    lower_url = index_url.lower()
+    if lower_url.endswith(".csv"):
+        for row in _iter_csv_rows(body):
+            yield _index_item_to_record(row)
+        return
+    for row in parse_index_source_payload(index_url, body):
+        yield _index_item_to_record(row)
 
 
 def extract_index_items(payload: Any) -> list[dict[str, Any]]:
@@ -117,22 +111,50 @@ def _default_xml_url(object_id: str) -> str:
     return f"https://apps.irs.gov/pub/epostcard/cor/{object_id}_public.xml"
 
 
+def _index_item_to_record(item: dict[str, Any]) -> Form990IndexRecord:
+    normalized = _normalize_index_item(item)
+    return Form990IndexRecord(
+        ein=_to_str(normalized.get("ein")),
+        tax_year=_to_str(normalized.get("tax_year")),
+        filing_date=_to_str(normalized.get("filing_date")),
+        return_type=_to_str(normalized.get("return_type")),
+        irs_object_id=_to_str(normalized.get("irs_object_id")),
+        xml_url=_to_str(normalized.get("xml_url")),
+        source_year=_to_str(normalized.get("source_year")),
+        source_archive=_to_str(normalized.get("source_archive")),
+        source_signature=_to_str(normalized.get("source_signature")),
+    )
+
+
 def _parse_csv_rows(body: bytes) -> list[dict[str, Any]]:
+    rows = list(_iter_csv_rows(body))
+    return rows
+
+
+def _iter_csv_rows(body: bytes) -> Iterable[dict[str, Any]]:
     import csv
     import io
 
     text = body.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
-    rows = [dict(row) for row in reader]
-    if _rows_look_valid(rows):
-        return rows
-    return _parse_csv_rows_positional(text)
+    stream = io.StringIO(text)
+    reader = csv.DictReader(stream)
+    try:
+        first_row_raw = next(reader)
+    except StopIteration:
+        for row in _parse_csv_rows_positional(text):
+            yield row
+        return
+    first_row = dict(first_row_raw)
+    if _row_looks_valid(first_row):
+        yield first_row
+        for row in reader:
+            yield dict(row)
+        return
+    for row in _parse_csv_rows_positional(text):
+        yield row
 
 
-def _rows_look_valid(rows: list[dict[str, Any]]) -> bool:
-    if not rows:
-        return False
-    sample = rows[0]
+def _row_looks_valid(sample: dict[str, Any]) -> bool:
     keys = {str(key).strip().lower() for key in sample.keys()}
     expected = {"ein", "taxyr", "tax_yr", "returntype", "return_type", "objectid", "object_id", "url", "xml_url"}
     return len(keys.intersection(expected)) >= 2

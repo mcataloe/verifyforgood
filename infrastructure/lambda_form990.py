@@ -292,6 +292,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         run_id=prepared["run_id"],
         csv_sources=csv_sources,
     )
+    selected_records = reconciliation.selected_records
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
@@ -302,7 +303,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     chunks = []
     chunk: list[dict[str, Any]] = []
     chunk_index = 0
-    for record in reconciliation.selected_records:
+    for record in selected_records:
         chunk.append(_record_to_dict(record))
         if len(chunk) < chunk_size:
             continue
@@ -337,14 +338,16 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         )
 
     run_store = S3RunStore(bucket=bucket, prefix=prefix, s3_client=service.s3)
-    selected_count = len(reconciliation.selected_records)
-    zip_source_count = _count_zip_sources_for_records(reconciliation.selected_records, downloaded_state)
+    selected_count = len(selected_records)
+    zip_source_count = _count_zip_sources_for_records(selected_records, downloaded_state)
+    chunk_count = len(chunks)
+    sample_chunks = chunks[:10]
     run_summary = {
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "stage": "csv_reconciliation",
-        "status": "queued" if chunks else "success",
+        "status": "queued" if chunk_count else "success",
         "source_mode": prepared["source_mode"],
         "started_at": datetime.now(timezone.utc).isoformat(),
         "source_catalog_count": prepared["source_catalog_count"],
@@ -366,8 +369,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "selected_records": selected_count,
         "zip_source_count": zip_source_count,
         "chunk_size": chunk_size,
-        "chunk_count": len(chunks),
-        "chunk_status_counts": {"queued": len(chunks), "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
+        "chunk_count": chunk_count,
+        "chunk_status_counts": {"queued": chunk_count, "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
         "policy": prepared["policy"],
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
@@ -385,22 +388,22 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     service.s3.put_object(
         Bucket=bucket,
         Key=f"{prefix}/form990-runs/{run_id}/summary.json",
-        Body=json.dumps({"ingest_run_id": run_id, "chunk_count": len(chunks), "status": "queued"}, sort_keys=True).encode("utf-8"),
+        Body=json.dumps({"ingest_run_id": run_id, "chunk_count": chunk_count, "status": "queued"}, sort_keys=True).encode("utf-8"),
     )
     _write_checkpoint(
         service.s3,
         {
             "run_id": run_id,
             "stage": "zip_extraction",
-            "status": "queued" if chunks else "success",
-            "chunk_count": len(chunks),
+            "status": "queued" if chunk_count else "success",
+            "chunk_count": chunk_count,
             "selected_records": selected_count,
             "filing_state_key": reconciliation.state_key,
         },
     )
 
     return {
-        "status": "queued" if chunks else "success",
+        "status": "queued" if chunk_count else "success",
         "stage": "zip_extraction",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
@@ -425,7 +428,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "selected_records": selected_count,
         "zip_source_count": zip_source_count,
         "chunk_size": chunk_size,
-        "chunk_count": len(chunks),
+        "chunk_count": chunk_count,
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
@@ -435,7 +438,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filing_diff_key": reconciliation.diff_key,
         "filing_state_key": reconciliation.state_key,
         "run_s3_key": ops_run_key,
-        "chunks": chunks[:10],
+        "chunks": sample_chunks,
         "next_stage": "normalized_parsing",
         "next_stage_implemented": True,
     }
