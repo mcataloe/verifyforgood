@@ -65,6 +65,11 @@ class UsageStore(Protocol):
         ...
 
 
+class BillingSettingsResolver(Protocol):
+    def allow_overage(self, account_id: str) -> bool:
+        ...
+
+
 class InMemoryUsageStore:
     def __init__(self):
         self._usage: dict[tuple[str, str], int] = {}
@@ -141,6 +146,8 @@ def enforce_quota_and_scope(
     route_key: str,
     usage_store: UsageStore,
     entitlement_service: EntitlementService | None = None,
+    billing_settings_resolver: BillingSettingsResolver | None = None,
+    consumed_units: int = 1,
 ) -> tuple[str, int, int]:
     route_key = normalize_route_key(route_key)
     required_scope = ROUTE_SCOPE_REQUIREMENTS.get(route_key)
@@ -170,11 +177,15 @@ def enforce_quota_and_scope(
     decision = check_quota_and_calculate(
         plan=resolved.entitlements,
         used_units=used,
-        consumed_units=1,
+        consumed_units=consumed_units,
         period_key=month_key,
     )
-    if decision.projected_usage > decision.limit_units:
-        raise QuotaExceededError("Monthly request quota exceeded")
+    allow_overage = billing_settings_resolver.allow_overage(principal.account_id) if billing_settings_resolver is not None else True
+    if decision.projected_usage > decision.limit_units and not allow_overage:
+        raise QuotaExceededError(
+            "Monthly request limit reached. Upgrade your subscription or enable pay per request to continue.",
+            code="quota_exceeded_hard_stop",
+        )
     return month_key, used, resolved.entitlements.monthly_request_limit
 
 

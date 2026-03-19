@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,10 +24,28 @@ class OrganizationIntegrationSettingsValidationError(ValueError):
 
 
 @dataclass(frozen=True)
+class AccountBillingSettings:
+    allow_overage: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowOverage": self.allow_overage,
+        }
+
+    @classmethod
+    def from_item(cls, item: dict[str, Any] | None) -> "AccountBillingSettings":
+        if not isinstance(item, dict):
+            return cls()
+        billing = item.get("billing") if isinstance(item.get("billing"), dict) else item
+        return cls(allow_overage=_coerce_bool(billing.get("allowOverage", billing.get("allow_overage")), default=True))
+
+
+@dataclass(frozen=True)
 class OrganizationIntegrationSettingsDocument:
     workspace_id: str | None
     account_id: str | None
     integration_settings: OrganizationIntegrationSettings
+    billing_settings: AccountBillingSettings = field(default_factory=AccountBillingSettings)
     source: str = "default"
     updated_at: str | None = None
 
@@ -38,6 +56,7 @@ class OrganizationIntegrationSettingsDocument:
             "source": self.source,
             "updated_at": self.updated_at,
             "integrations": self.integration_settings.to_dict(),
+            "billing": self.billing_settings.to_dict(),
         }
 
     @classmethod
@@ -52,6 +71,7 @@ class OrganizationIntegrationSettingsDocument:
             workspace_id=_clean_identifier(item.get("workspace_id")),
             account_id=_clean_identifier(item.get("account_id")),
             integration_settings=OrganizationIntegrationSettings.from_mapping(settings),
+            billing_settings=AccountBillingSettings(),
             source=source,
             updated_at=_clean_identifier(item.get("updated_at")),
         )
@@ -60,6 +80,7 @@ class OrganizationIntegrationSettingsDocument:
 class InMemoryOrganizationIntegrationSettingsStore:
     def __init__(self, items: list[dict[str, Any]] | None = None) -> None:
         self._items: dict[tuple[str | None, str | None], dict[str, Any]] = {}
+        self._billing_items: dict[str, dict[str, Any]] = {}
         for item in items or []:
             key = (_clean_identifier(item.get("workspace_id")), _clean_identifier(item.get("account_id")))
             self._items[key] = dict(item)
@@ -83,6 +104,19 @@ class InMemoryOrganizationIntegrationSettingsStore:
     def put_settings(self, item: dict[str, Any]) -> None:
         key = (_clean_identifier(item.get("workspace_id")), _clean_identifier(item.get("account_id")))
         self._items[key] = dict(item)
+
+    def get_billing_settings(self, *, account_id: str | None) -> dict[str, Any] | None:
+        account = _clean_identifier(account_id)
+        if account is None:
+            return None
+        item = self._billing_items.get(account)
+        return dict(item) if item is not None else None
+
+    def put_billing_settings(self, item: dict[str, Any]) -> None:
+        account = _clean_identifier(item.get("account_id"))
+        if account is None:
+            raise OrganizationIntegrationSettingsValidationError("account_id is required")
+        self._billing_items[account] = dict(item)
 
 
 class DynamoOrganizationIntegrationSettingsStore:
@@ -114,6 +148,19 @@ class DynamoOrganizationIntegrationSettingsStore:
         return None
 
     def put_settings(self, item: dict[str, Any]) -> None:
+        self._table.put_item(Item=item)
+
+    def get_billing_settings(self, *, account_id: str | None) -> dict[str, Any] | None:
+        account = _clean_identifier(account_id)
+        if account is None:
+            return None
+        response = self._table.get_item(Key={"pk": _organization_billing_pk(account), "sk": "BILLING"})
+        item = response.get("Item")
+        if item is not None:
+            return item
+        return None
+
+    def put_billing_settings(self, item: dict[str, Any]) -> None:
         self._table.put_item(Item=item)
 
 
@@ -149,15 +196,21 @@ class OrganizationIntegrationSettingsService:
     def get_settings(self, *, workspace_id: str | None, account_id: str | None) -> OrganizationIntegrationSettingsDocument:
         context = self.resolve_context(workspace_id=workspace_id, account_id=account_id)
         stored = self._get_stored_document(workspace_id=workspace_id, account_id=account_id)
-        source = stored.source if stored is not None else "default"
-        updated_at = stored.updated_at if stored is not None else None
+        billing_settings, billing_updated_at = self._get_billing_settings(account_id=context.account_id or account_id)
+        source = "stored" if stored is not None or billing_updated_at is not None else "default"
+        updated_at = _latest_updated_at(stored.updated_at if stored is not None else None, billing_updated_at)
         return OrganizationIntegrationSettingsDocument(
             workspace_id=context.workspace_id,
             account_id=context.account_id,
             integration_settings=self._with_supported_defaults(context.organization_integration_settings),
+            billing_settings=billing_settings,
             source=source,
             updated_at=updated_at,
         )
+
+    def allow_overage(self, account_id: str | None) -> bool:
+        settings, _updated_at = self._get_billing_settings(account_id=account_id)
+        return settings.allow_overage
 
     def update_settings(
         self,
@@ -172,25 +225,57 @@ class OrganizationIntegrationSettingsService:
         account = _clean_identifier(account_id)
         if workspace is None and account is None:
             raise OrganizationIntegrationSettingsValidationError("workspace_id or account_id is required")
+        if "integrations" not in payload and "billing" not in payload:
+            raise OrganizationIntegrationSettingsValidationError("Request body must include integrations or billing object")
 
         current = self.get_settings(workspace_id=workspace, account_id=account)
-        updates = self._parse_update_payload(payload)
-        merged = OrganizationIntegrationSettings.from_mapping(
-            {
-                **current.integration_settings.integrations,
-                **updates.integrations,
-            }
-        )
-        validate_organization_integration_settings(merged, supported_integrations=self._supported_integrations)
-        document = OrganizationIntegrationSettingsDocument(
+        updated_at = datetime.now(timezone.utc).isoformat()
+        integration_settings = current.integration_settings
+        billing_settings = current.billing_settings
+
+        if "integrations" in payload:
+            updates = self._parse_update_payload(payload)
+            merged = OrganizationIntegrationSettings.from_mapping(
+                {
+                    **current.integration_settings.integrations,
+                    **updates.integrations,
+                }
+            )
+            validate_organization_integration_settings(merged, supported_integrations=self._supported_integrations)
+            integration_settings = self._with_supported_defaults(merged)
+            self._store.put_settings(
+                _document_to_item(
+                    OrganizationIntegrationSettingsDocument(
+                        workspace_id=workspace or current.workspace_id,
+                        account_id=account or current.account_id,
+                        integration_settings=integration_settings,
+                        billing_settings=current.billing_settings,
+                        source="stored",
+                        updated_at=updated_at,
+                    )
+                )
+            )
+
+        if "billing" in payload:
+            if account is None and current.account_id is None:
+                raise OrganizationIntegrationSettingsValidationError("account_id is required for billing settings")
+            billing_settings = self._parse_billing_payload(payload)
+            self._store.put_billing_settings(
+                _billing_settings_item(
+                    account or current.account_id,
+                    billing_settings,
+                    updated_at,
+                )
+            )
+
+        return OrganizationIntegrationSettingsDocument(
             workspace_id=workspace or current.workspace_id,
             account_id=account or current.account_id,
-            integration_settings=self._with_supported_defaults(merged),
+            integration_settings=integration_settings,
+            billing_settings=billing_settings,
             source="stored",
-            updated_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=updated_at,
         )
-        self._store.put_settings(_document_to_item(document))
-        return document
 
     def _parse_update_payload(self, payload: dict[str, Any]) -> OrganizationIntegrationSettings:
         integrations = payload.get("integrations")
@@ -214,6 +299,14 @@ class OrganizationIntegrationSettingsService:
             return None
         return OrganizationIntegrationSettingsDocument.from_item(item, source="stored")
 
+    def _get_billing_settings(self, *, account_id: str | None) -> tuple[AccountBillingSettings, str | None]:
+        if self._store is None:
+            return AccountBillingSettings(), None
+        item = self._store.get_billing_settings(account_id=account_id)
+        if item is None:
+            return AccountBillingSettings(), None
+        return AccountBillingSettings.from_item(item), _clean_identifier(item.get("updated_at"))
+
     def _with_supported_defaults(self, settings: OrganizationIntegrationSettings) -> OrganizationIntegrationSettings:
         return OrganizationIntegrationSettings.from_mapping(
             {
@@ -221,6 +314,17 @@ class OrganizationIntegrationSettingsService:
                 for integration_id in self._supported_integrations
             }
         )
+
+    def _parse_billing_payload(self, payload: dict[str, Any]) -> AccountBillingSettings:
+        billing = payload.get("billing")
+        if not isinstance(billing, dict):
+            raise OrganizationIntegrationSettingsValidationError("Request body billing must be an object")
+        if "allowOverage" not in billing and "allow_overage" not in billing:
+            raise OrganizationIntegrationSettingsValidationError("billing.allowOverage is required")
+        allow_overage = billing.get("allowOverage", billing.get("allow_overage"))
+        if not isinstance(allow_overage, bool):
+            raise OrganizationIntegrationSettingsValidationError("billing.allowOverage must be a boolean")
+        return AccountBillingSettings(allow_overage=allow_overage)
 
 
 def validate_organization_integration_settings(
@@ -253,11 +357,29 @@ def _document_to_item(document: OrganizationIntegrationSettingsDocument) -> dict
     }
 
 
+def _billing_settings_item(account_id: str | None, settings: AccountBillingSettings, updated_at: str | None) -> dict[str, Any]:
+    account = _clean_identifier(account_id)
+    if account is None:
+        raise OrganizationIntegrationSettingsValidationError("account_id is required")
+    return {
+        "pk": _organization_billing_pk(account),
+        "sk": "BILLING",
+        "type": "ACCOUNT_BILLING_SETTINGS",
+        "account_id": account,
+        "updated_at": updated_at,
+        "billing": settings.to_dict(),
+    }
+
+
 def _organization_settings_pk(workspace_id: str | None) -> str:
     return f"WORKSPACE#{_clean_identifier(workspace_id) or 'unknown'}"
 
 
 def _organization_settings_sk(account_id: str | None) -> str:
+    return f"ACCOUNT#{_clean_identifier(account_id) or 'unknown'}"
+
+
+def _organization_billing_pk(account_id: str | None) -> str:
     return f"ACCOUNT#{_clean_identifier(account_id) or 'unknown'}"
 
 
@@ -273,3 +395,24 @@ def _normalize_setting_dict(raw_setting: dict[str, Any]) -> OrganizationIntegrat
 def _clean_identifier(value: Any) -> str | None:
     cleaned = str(value or "").strip()
     return cleaned or None
+
+
+def _coerce_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        candidate = value.strip().lower()
+        if candidate in {"true", "1", "yes"}:
+            return True
+        if candidate in {"false", "0", "no"}:
+            return False
+    return default
+
+
+def _latest_updated_at(*values: str | None) -> str | None:
+    candidates = [str(value).strip() for value in values if str(value or "").strip()]
+    if not candidates:
+        return None
+    return max(candidates)

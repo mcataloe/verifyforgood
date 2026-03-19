@@ -4,8 +4,12 @@ import sys
 from decimal import Decimal
 from types import SimpleNamespace
 
+from charity_status.auth import InMemoryUsageStore
+from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
 from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status.scoring import SCORING_MODEL_VERSION
+from charity_status.core.models import AuthContext
 
 
 def _response_envelope(response):
@@ -62,6 +66,14 @@ def _mock_client(
 
 def _mock_enrichment(providers=None, failures=None):
     return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
+
+
+class _BillingSettingsResolver:
+    def __init__(self, allow_overage: bool) -> None:
+        self._allow_overage = allow_overage
+
+    def allow_overage(self, account_id: str) -> bool:
+        return self._allow_overage
 
 
 def test_invalid_ein_still_returns_400():
@@ -357,7 +369,15 @@ def test_get_organization_integrations_returns_current_settings():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:read",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:read",),
+                metadata={},
+                workspace_id="ws_1",
+                account_id="acct_1",
+                plan="growth",
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+            )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -377,6 +397,7 @@ def test_get_organization_integrations_returns_current_settings():
     assert body["workspace_id"] == "ws_1"
     assert body["integrations"]["candid"]["enabled"] is True
     assert body["integrations"]["charityNavigator"]["enabled"] is False
+    assert body["billing"]["allowOverage"] is True
 
 
 def test_put_organization_integrations_updates_settings():
@@ -389,7 +410,15 @@ def test_put_organization_integrations_updates_settings():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id="ws_1",
+                account_id="acct_1",
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -414,9 +443,100 @@ def test_put_organization_integrations_updates_settings():
     assert result["statusCode"] == 200
     assert body["source"] == "stored"
     assert body["integrations"]["candid"]["requiredForEvaluation"] is True
+    assert body["billing"]["allowOverage"] is True
 
     fetched = module.organization_integration_settings_store.get_settings(workspace_id="ws_1", account_id="acct_1")
     assert fetched["integrations"]["candid"]["enabled"] is True
+
+
+def test_put_organization_integrations_allows_billing_update_for_growth_plan():
+    module = _load_module()
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id="ws_1",
+                account_id="acct_1",
+                plan="growth",
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {
+        "httpMethod": "PUT",
+        "resource": "/v1/organizations/integrations",
+        "path": "/v1/organizations/integrations",
+        "headers": {},
+        "body": json.dumps({"billing": {"allowOverage": False}}),
+    }
+    result = module.handler(event, None)
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["billing"]["allowOverage"] is False
+    fetched = module.organization_integration_settings_store.get_billing_settings(account_id="acct_1")
+    assert fetched["billing"]["allowOverage"] is False
+
+
+def test_put_organization_integrations_rejects_integration_update_for_growth_plan():
+    module = _load_module()
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id="ws_1",
+                account_id="acct_1",
+                plan="growth",
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {
+        "httpMethod": "PUT",
+        "resource": "/v1/organizations/integrations",
+        "path": "/v1/organizations/integrations",
+        "headers": {},
+        "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": False}}}),
+    }
+    result = module.handler(event, None)
+    message = _response_error_message(result)
+
+    assert result["statusCode"] == 403
+    assert "integration settings changes" in message
 
 
 def test_put_organization_integrations_rejects_required_disabled():
@@ -429,7 +549,15 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=("verify:write",), metadata={}, workspace_id="ws_1", account_id="acct_1", plan_id="growth")
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id="ws_1",
+                account_id="acct_1",
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -453,6 +581,92 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     assert result["statusCode"] == 400
     assert "requiredForEvaluation" in message
+
+
+def test_handler_returns_hard_stop_quota_response_when_overage_disabled():
+    module = _load_module()
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store.increment_usage("acct_1", month_key, 250)
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(
+        store,
+        billing_settings_resolver=_BillingSettingsResolver(False),
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return AuthContext(
+                account_id="acct_1",
+                credential_id="key_1",
+                auth_method="api_key",
+                plan="free",
+                scopes=("verify:read",),
+                rate_limit_profile="free",
+                workspace_id="ws_1",
+                subject="api_key:key_1",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+                metadata={},
+            )
+
+    module.auth_context_provider = _AuthProvider()
+
+    event = {
+        "httpMethod": "GET",
+        "resource": "/v1/nonprofit/{ein}",
+        "path": "/v1/nonprofit/123456789",
+        "pathParameters": {"ein": "123456789"},
+        "headers": {},
+    }
+    result = module.handler(event, None)
+    envelope = _response_envelope(result)
+
+    assert result["statusCode"] == 429
+    assert envelope["errors"][0]["code"] == "quota_exceeded_hard_stop"
+    assert "enable pay per request" in envelope["errors"][0]["message"]
+
+
+def test_batch_hard_stop_uses_batch_item_count():
+    module = _load_module()
+    module.SERVING_DDB_ENABLED = False
+    module.BATCH_VERIFY_MAX_SIZE = 25
+    module.athena_client = _mock_client(record=_sample_record("Batch Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store.increment_usage("acct_1", month_key, 9999)
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(
+        store,
+        billing_settings_resolver=_BillingSettingsResolver(False),
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return AuthContext(
+                account_id="acct_1",
+                credential_id="key_1",
+                auth_method="api_key",
+                plan="growth",
+                scopes=("verify:write",),
+                rate_limit_profile="growth",
+                workspace_id="ws_1",
+                subject="api_key:key_1",
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+                metadata={},
+            )
+
+    module.auth_context_provider = _AuthProvider()
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/v1/verify/batch",
+        "path": "/v1/verify/batch",
+        "headers": {},
+        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
+    }
+    result = module.handler(event, None)
+
+    assert result["statusCode"] == 429
+    assert _response_envelope(result)["errors"][0]["code"] == "quota_exceeded_hard_stop"
 
 
 def test_post_verify_batch_all_success():

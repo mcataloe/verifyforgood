@@ -287,7 +287,7 @@
                 "type": "text"
               }
             ],
-            "description": "Get organization integration settings. Auth: x-api-key. Variables: baseUrl.",
+            "description": "Get customer-managed settings. Response includes account billing overage settings and organization integration settings. Auth: x-api-key. Variables: baseUrl.",
             "url": "{{baseUrl}}/v1/organizations/integrations"
           }
         },
@@ -309,9 +309,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"integrations\": {\n    \"candid\": {\n      \"enabled\": true,\n      \"requiredForEvaluation\": false\n    },\n    \"charityNavigator\": {\n      \"enabled\": false,\n      \"requiredForEvaluation\": false\n    }\n  }\n}"
+              "raw": "{\n  \"billing\": {\n    \"allowOverage\": false\n  },\n  \"integrations\": {\n    \"candid\": {\n      \"enabled\": true,\n      \"requiredForEvaluation\": false\n    },\n    \"charityNavigator\": {\n      \"enabled\": false,\n      \"requiredForEvaluation\": false\n    }\n  }\n}"
             },
-            "description": "Update organization integration settings. Auth: x-api-key. Variables: baseUrl.",
+            "description": "Update customer-managed settings. billing.allowOverage is available on all plans; integration-setting changes still require a plan with organization settings access. Auth: x-api-key. Variables: baseUrl.",
             "url": "{{baseUrl}}/v1/organizations/integrations"
           }
         },

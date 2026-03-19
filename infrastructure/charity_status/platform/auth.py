@@ -99,16 +99,31 @@ class OAuthClientCredentialsService:
 
 
 class ApiKeyQuotaMeteringHook:
-    def __init__(self, usage_store: UsageStore, entitlement_service: EntitlementService | None = None):
+    def __init__(
+        self,
+        usage_store: UsageStore,
+        entitlement_service: EntitlementService | None = None,
+        billing_settings_resolver: Any | None = None,
+    ):
         self._usage_store = usage_store
         self._entitlement_service = entitlement_service or EntitlementService()
+        self._billing_settings_resolver = billing_settings_resolver
 
     def on_request(self, auth_context: AuthContext, route_key: str) -> None:
         if not auth_context.account_id or not auth_context.plan:
             return
         principal = _from_context(auth_context)
-        month_key, _, _ = enforce_quota_and_scope(principal, route_key, self._usage_store, self._entitlement_service)
+        billable_units = _billable_units(route_key, auth_context.metadata)
+        month_key, _, _ = enforce_quota_and_scope(
+            principal,
+            route_key,
+            self._usage_store,
+            self._entitlement_service,
+            self._billing_settings_resolver,
+            consumed_units=billable_units,
+        )
         auth_context.metadata["quota_month"] = month_key
+        auth_context.metadata["billing_allow_overage"] = "true" if self._allow_overage(str(auth_context.account_id)) else "false"
 
     def on_response(self, auth_context: AuthContext, route_key: str, status_code: int) -> None:
         if not auth_context.account_id:
@@ -124,7 +139,7 @@ class ApiKeyQuotaMeteringHook:
         entitlement = auth_context.entitlements or DEFAULT_PLANS.get(str(auth_context.plan), DEFAULT_PLANS["free"]).entitlements
         current = self._usage_store.get_usage(str(auth_context.account_id), month_key)
         decision = check_quota_and_calculate(plan=entitlement, used_units=current, consumed_units=billable_units, period_key=month_key)
-        if decision.projected_usage > decision.limit_units:
+        if decision.projected_usage > decision.limit_units and not self._allow_overage(str(auth_context.account_id), metadata=auth_context.metadata):
             return
         increment_usage = getattr(self._usage_store, "increment_usage", None)
         if callable(increment_usage):
@@ -132,6 +147,16 @@ class ApiKeyQuotaMeteringHook:
             return
         for _ in range(billable_units):
             self._usage_store.increment(str(auth_context.account_id), month_key)
+
+    def _allow_overage(self, account_id: str, *, metadata: dict[str, str] | None = None) -> bool:
+        cached = (metadata or {}).get("billing_allow_overage")
+        if cached == "true":
+            return True
+        if cached == "false":
+            return False
+        if self._billing_settings_resolver is None:
+            return True
+        return bool(self._billing_settings_resolver.allow_overage(account_id))
 
 
 def load_api_key_store(raw_json: str) -> StaticApiKeyStore:

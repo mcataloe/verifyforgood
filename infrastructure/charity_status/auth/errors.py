@@ -19,3 +19,8 @@ class FeatureUnavailableError(AuthorizationError):
 
 class QuotaExceededError(ValueError):
     status_code = 429
+    code = "rate_limited"
+
+    def __init__(self, message: str, *, code: str | None = None):
+        super().__init__(message)
+        self.code = str(code or self.code)

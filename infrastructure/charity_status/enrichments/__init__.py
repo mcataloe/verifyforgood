@@ -17,6 +17,7 @@ from .models import (
     normalize_integration_id,
 )
 from .organization_store import (
+    AccountBillingSettings,
     DynamoOrganizationIntegrationSettingsStore,
     InMemoryOrganizationIntegrationSettingsStore,
     OrganizationIntegrationSettingsDocument,
@@ -42,6 +43,7 @@ __all__ = [
     "IntegrationBinding",
     "IntegrationEvaluation",
     "IntegrationState",
+    "AccountBillingSettings",
     "OrganizationIntegrationSetting",
     "OrganizationIntegrationSettings",
     "TenantIntegrationSetting",

@@ -21,6 +21,7 @@ from charity_status.auth import (
     load_admin_key_store,
 )
 from charity_status.billing import EntitlementService, ResponseShapingService
+from charity_status.billing.service import DEFAULT_PLANS
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
@@ -233,6 +234,7 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
             quota_metering_hook = ApiKeyQuotaMeteringHook(
                 usage_store=usage_store,
                 entitlement_service=_get_entitlement_service(),
+                billing_settings_resolver=_get_organization_integration_settings_service(),
             )
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
@@ -538,6 +540,7 @@ def handler(event, context):
 
     try:
         auth_context = _get_auth_context_provider().extract_context(event or {})
+        _prepare_quota_request_metadata(event or {}, auth_context)
         api_context = ResponseContext(
             request_id=api_context.request_id,
             plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
@@ -561,7 +564,7 @@ def handler(event, context):
     except AuthorizationError as exc:
         return fail(exc.status_code, str(exc))
     except QuotaExceededError as exc:
-        return fail(exc.status_code, str(exc))
+        return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
     if _is_ops_request(event, method):
         status_code, payload = _handle_ops_request(event)
@@ -765,6 +768,31 @@ def _route_key(event: dict[str, Any]) -> str:
     return normalize_route_key(f"{method} {resource or path or '/'}")
 
 
+def _prepare_quota_request_metadata(event: dict[str, Any], auth_context: Any) -> None:
+    metadata = getattr(auth_context, "metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    if not _is_batch_verify_request(event):
+        metadata.pop("batch_items_count", None)
+        return
+    body = event.get("body")
+    if not body:
+        metadata.pop("batch_items_count", None)
+        return
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        metadata.pop("batch_items_count", None)
+        return
+    if isinstance(payload, list):
+        metadata["batch_items_count"] = str(len(payload))
+        return
+    if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        metadata["batch_items_count"] = str(len(payload["items"]))
+        return
+    metadata.pop("batch_items_count", None)
+
+
 def _parse_post_request(event: dict) -> VerificationInput:
     body = event.get("body")
     if not body:
@@ -862,12 +890,27 @@ def _handle_organization_integrations_request(
         return error_response(400, "Request body must be valid JSON", response_context=response_context)
     if not isinstance(payload, dict):
         return error_response(400, "Request body must be a JSON object", response_context=response_context)
+    if "integrations" in payload and not _allows_organization_settings_management(auth_context):
+        return error_response(
+            403,
+            "Plan entitlement does not allow integration settings changes",
+            response_context=response_context,
+            code="forbidden",
+        )
     document = service.update_settings(
         workspace_id=workspace_id,
         account_id=account_id,
         payload=payload,
     )
     return json_response(200, document.to_dict(), response_context=response_context)
+
+
+def _allows_organization_settings_management(auth_context: Any) -> bool:
+    entitlements = getattr(auth_context, "entitlements", None)
+    if entitlements is None:
+        plan_code = str(getattr(auth_context, "plan", getattr(auth_context, "plan_id", "free")) or "free")
+        entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
+    return entitlements.allows_capability("organization_settings")
 
 
 def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:

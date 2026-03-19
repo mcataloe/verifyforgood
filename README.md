@@ -2,6 +2,10 @@
 
 Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
 
+Customer-facing overview:
+
+- `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
+
 ## Current Architecture
 
 - Runtime: Python 3.11
@@ -957,7 +961,8 @@ Quota enforcement:
 
 - deterministic monthly quota checks run before endpoint execution
 - usage is metered through auth/quota hooks and principal context abstraction
-- over-limit requests return `429`
+- overage is allowed by default and continues to meter beyond included usage
+- over-limit requests return `429` only when the customer disables overage with `billing.allowOverage=false`
 
 Terraform/env settings:
 
@@ -1150,7 +1155,7 @@ Response fields:
 
 ### `GET /v1/organizations/integrations`
 
-Returns the current organization-level third-party integration settings for the authenticated workspace/account context.
+Returns the current customer-managed settings for the authenticated workspace/account context. This response now includes both workspace-aware integration settings and account-wide billing overage settings.
 
 Response fields:
 
@@ -1158,6 +1163,7 @@ Response fields:
 - `account_id`
 - `source` (`default` or `stored`)
 - `updated_at` (when settings were previously persisted)
+- `billing.allowOverage`
 - `integrations.candid.enabled`
 - `integrations.candid.requiredForEvaluation`
 - `integrations.charityNavigator.enabled`
@@ -1165,17 +1171,21 @@ Response fields:
 
 Organizations without persisted settings return backward-compatible defaults:
 
+- `billing.allowOverage=true`
 - `enabled=false`
 - `requiredForEvaluation=false`
 
 ### `PUT /v1/organizations/integrations`
 
-Updates organization-level third-party integration settings for the authenticated workspace/account context.
+Updates customer-managed settings for the authenticated workspace/account context.
 
 Request body:
 
 ```json
 {
+  "billing": {
+    "allowOverage": false
+  },
   "integrations": {
     "candid": {
       "enabled": true,
@@ -1188,6 +1198,14 @@ Request body:
   }
 }
 ```
+
+Behavior:
+
+- request body may include `billing`, `integrations`, or both
+- `billing.allowOverage` defaults to `true` when no stored account billing setting exists
+- `billing` updates are allowed across all plans
+- `integrations` updates remain entitlement-gated; lower-tier plans receive `403` for integration-setting changes
+- when `billing.allowOverage=false`, requests that would exceed the included monthly limit return `429` with `quota_exceeded_hard_stop`
 
 Validation:
 

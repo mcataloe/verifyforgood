@@ -28,8 +28,6 @@ CAPABILITY_BY_ROUTE: dict[str, str] = {
     "GET /v1/nonprofits/{ein}/sources/{source_name}": "financial_trends",
     "GET /v1/nonprofits/{ein}/compliance": "risk_flags",
     "GET /v1/nonprofits/{ein}/federal-awards": "risk_flags",
-    "GET /v1/organizations/integrations": "organization_settings",
-    "PUT /v1/organizations/integrations": "organization_settings",
 }
 
 ROUTE_FEATURE_REQUIREMENTS: dict[str, str] = {

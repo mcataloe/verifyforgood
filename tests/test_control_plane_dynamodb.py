@@ -11,6 +11,15 @@ from charity_status.auth.errors import QuotaExceededError
 from charity_status.auth.oauth import authenticate_oauth_client_credentials
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
 from charity_status.control_plane import Account, ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, ManagedApiKey, ManagedSubscription
+from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+
+
+class _BillingSettingsResolver:
+    def __init__(self, allow_overage: bool) -> None:
+        self._allow_overage = allow_overage
+
+    def allow_overage(self, account_id: str) -> bool:
+        return self._allow_overage
 
 
 def _query_stub():
@@ -126,11 +135,41 @@ def test_dynamo_usage_persists_quota_state_across_service_reinitialization():
 
     reloaded_store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
     try:
-        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", reloaded_store)
+        enforce_quota_and_scope(
+            principal,
+            "GET /v1/nonprofit/{ein}",
+            reloaded_store,
+            billing_settings_resolver=_BillingSettingsResolver(False),
+        )
     except QuotaExceededError:
         pass
     else:
         assert False, "Expected QuotaExceededError"
+
+
+def test_dynamo_organization_settings_billing_round_trip():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    store = DynamoOrganizationIntegrationSettingsStore("organization-settings", dynamodb_resource=resource)
+    service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=store,
+    )
+
+    updated = service.update_settings(
+        workspace_id="ws_1",
+        account_id="acct_1",
+        payload={"billing": {"allowOverage": False}},
+    )
+    reloaded = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=DynamoOrganizationIntegrationSettingsStore("organization-settings", dynamodb_resource=resource),
+    )
+    current = reloaded.get_settings(workspace_id="ws_1", account_id="acct_1")
+
+    assert updated.billing_settings.allow_overage is False
+    assert current.billing_settings.allow_overage is False
+    assert current.to_dict()["billing"]["allowOverage"] is False
 
 
 def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(monkeypatch):

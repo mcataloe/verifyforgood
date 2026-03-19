@@ -8,7 +8,17 @@ from types import SimpleNamespace
 from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
+from charity_status.billing.service import monthly_period_for
 from charity_status.platform.auth import ApiKeyAuthContextProvider
+from charity_status.platform.auth import ApiKeyQuotaMeteringHook
+
+
+class _BillingSettingsResolver:
+    def __init__(self, allow_overage: bool) -> None:
+        self._allow_overage = allow_overage
+
+    def allow_overage(self, account_id: str) -> bool:
+        return self._allow_overage
 
 
 def test_valid_key_authenticates():
@@ -104,7 +114,7 @@ def test_missing_key_rejected():
         assert False, "Expected AuthenticationError"
 
 
-def test_quota_exceeded():
+def test_quota_allows_overage_by_default():
     display_key, record = build_api_key_record(
         key_id="dev_001",
         secret="test-secret",
@@ -115,17 +125,63 @@ def test_quota_exceeded():
     )
     principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
     store = InMemoryUsageStore()
-    store._usage[("acct_1", "2099-01")] = 250
+    month_key = monthly_period_for()
+    store._usage[("acct_1", month_key)] = 250
+
+    resolved_month, used, limit = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", store)
+
+    assert resolved_month == month_key
+    assert used == 250
+    assert limit == 250
+
+
+def test_quota_hard_stop_when_overage_disabled():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:read"],
+        plan_id="free",
+    )
+    principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store._usage[("acct_1", month_key)] = 250
     try:
-        # Force deterministic bucket for assertion by patching method inputs.
-        # This uses service logic directly via helper contract by faking current month write after first pass.
-        month_key, _, _ = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
-        store._usage[("acct_1", month_key)] = 250
-        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", store)
-    except QuotaExceededError:
-        pass
+        enforce_quota_and_scope(
+            principal,
+            "GET /v1/nonprofit/{ein}",
+            store,
+            billing_settings_resolver=_BillingSettingsResolver(False),
+        )
+    except QuotaExceededError as exc:
+        assert exc.code == "quota_exceeded_hard_stop"
+        assert "enable pay per request" in str(exc)
     else:
         assert False, "Expected QuotaExceededError"
+
+
+def test_quota_metering_continues_past_limit_when_overage_allowed():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:read"],
+        plan_id="free",
+    )
+    event = {"headers": {"x-api-key": display_key}}
+    context = ApiKeyAuthContextProvider(StaticApiKeyStore([record])).extract_context(event)
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store._usage[("acct_1", month_key)] = 250
+
+    hook = ApiKeyQuotaMeteringHook(store, billing_settings_resolver=_BillingSettingsResolver(True))
+    hook.on_request(context, "GET /v1/nonprofit/{ein}")
+    hook.on_response(context, "GET /v1/nonprofit/{ein}", 200)
+
+    assert store.get_usage("acct_1", month_key) == 251
 
 
 def test_scoped_access_denied():
