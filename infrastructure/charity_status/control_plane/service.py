@@ -177,6 +177,7 @@ class ControlPlaneService:
                 status="active",
                 effective_from=account.created_at,
                 effective_to=None,
+                updated_at=account.created_at,
             )
         )
         return account.to_dict()
@@ -397,6 +398,16 @@ class ControlPlaneService:
             status=normalized.status,
             effective_from=normalized.effective_from,
             effective_to=normalized.effective_to,
+            stripe_customer_id=current.stripe_customer_id if current else None,
+            stripe_subscription_id=current.stripe_subscription_id if current else None,
+            billing_status=current.billing_status if current else None,
+            billing_period_start=current.billing_period_start if current else None,
+            billing_period_end=current.billing_period_end if current else None,
+            pending_plan_code=current.pending_plan_code if current else None,
+            pending_checkout_session_id=current.pending_checkout_session_id if current else None,
+            pending_checkout_session_url=current.pending_checkout_session_url if current else None,
+            pending_checkout_expires_at=current.pending_checkout_expires_at if current else None,
+            updated_at=_utcnow(),
         )
 
 

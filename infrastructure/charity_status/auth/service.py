@@ -31,6 +31,7 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "GET /v1/nonprofits/{ein}/federal-awards": "federal_awards:read",
     "GET /v1/organization/settings": "verify:read",
     "PUT /v1/organization/settings": "verify:write",
+    "POST /v1/organization/billing/checkout-session": "verify:write",
 }
 
 
@@ -174,6 +175,8 @@ def enforce_quota_and_scope(
         )
     month_key = monthly_period_for()
     used = usage_store.get_usage(principal.account_id, month_key)
+    if consumed_units <= 0:
+        return month_key, used, resolved.entitlements.monthly_request_limit
     decision = check_quota_and_calculate(
         plan=resolved.entitlements,
         used_units=used,

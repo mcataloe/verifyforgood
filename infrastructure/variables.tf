@@ -620,6 +620,25 @@ variable "organization_integration_settings_json" {
   default     = "[]"
 }
 
+variable "stripe_billing_enabled" {
+  description = "Enable Stripe-hosted billing checkout enrollment endpoints."
+  type        = bool
+  default     = false
+}
+
+variable "stripe_price_ids_json" {
+  description = "JSON object mapping paid plan codes to Stripe Price IDs for hosted checkout."
+  type        = string
+  default     = "{}"
+}
+
+variable "stripe_secret_key" {
+  description = "Stripe secret API key used for hosted checkout session creation."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "ops_metadata_prefix" {
   description = "S3 prefix for operational ingest/refresh run metadata and diagnostics."
   type        = string

@@ -166,6 +166,16 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         "status": subscription.status,
         "effective_from": subscription.effective_from,
         "effective_to": subscription.effective_to,
+        "stripe_customer_id": subscription.stripe_customer_id,
+        "stripe_subscription_id": subscription.stripe_subscription_id,
+        "billing_status": subscription.billing_status,
+        "billing_period_start": subscription.billing_period_start,
+        "billing_period_end": subscription.billing_period_end,
+        "pending_plan_code": subscription.pending_plan_code,
+        "pending_checkout_session_id": subscription.pending_checkout_session_id,
+        "pending_checkout_session_url": subscription.pending_checkout_session_url,
+        "pending_checkout_expires_at": subscription.pending_checkout_expires_at,
+        "updated_at": subscription.updated_at,
     }
 
 
@@ -226,6 +236,16 @@ def _subscription_from_item(item: dict[str, Any]) -> ManagedSubscription:
         status=str(item.get("status") or "active"),
         effective_from=_optional_string(item.get("effective_from")),
         effective_to=_optional_string(item.get("effective_to")),
+        stripe_customer_id=_optional_string(item.get("stripe_customer_id")),
+        stripe_subscription_id=_optional_string(item.get("stripe_subscription_id")),
+        billing_status=_optional_string(item.get("billing_status")),
+        billing_period_start=_optional_string(item.get("billing_period_start")),
+        billing_period_end=_optional_string(item.get("billing_period_end")),
+        pending_plan_code=_optional_string(item.get("pending_plan_code")),
+        pending_checkout_session_id=_optional_string(item.get("pending_checkout_session_id")),
+        pending_checkout_session_url=_optional_string(item.get("pending_checkout_session_url")),
+        pending_checkout_expires_at=_optional_string(item.get("pending_checkout_expires_at")),
+        updated_at=_optional_string(item.get("updated_at")),
     )
 
 

@@ -155,6 +155,16 @@ class EntitlementService:
             status=str(candidate.status or "active").lower(),
             effective_from=candidate.effective_from,
             effective_to=candidate.effective_to,
+            stripe_customer_id=candidate.stripe_customer_id,
+            stripe_subscription_id=candidate.stripe_subscription_id,
+            billing_status=candidate.billing_status,
+            billing_period_start=candidate.billing_period_start,
+            billing_period_end=candidate.billing_period_end,
+            pending_plan_code=candidate.pending_plan_code,
+            pending_checkout_session_id=candidate.pending_checkout_session_id,
+            pending_checkout_session_url=candidate.pending_checkout_session_url,
+            pending_checkout_expires_at=candidate.pending_checkout_expires_at,
+            updated_at=candidate.updated_at,
         )
         if not self.subscription_is_active(resolved_subscription, now=now):
             resolved_subscription = Subscription(
@@ -163,6 +173,16 @@ class EntitlementService:
                 status=resolved_subscription.status,
                 effective_from=resolved_subscription.effective_from,
                 effective_to=resolved_subscription.effective_to,
+                stripe_customer_id=resolved_subscription.stripe_customer_id,
+                stripe_subscription_id=resolved_subscription.stripe_subscription_id,
+                billing_status=resolved_subscription.billing_status,
+                billing_period_start=resolved_subscription.billing_period_start,
+                billing_period_end=resolved_subscription.billing_period_end,
+                pending_plan_code=resolved_subscription.pending_plan_code,
+                pending_checkout_session_id=resolved_subscription.pending_checkout_session_id,
+                pending_checkout_session_url=resolved_subscription.pending_checkout_session_url,
+                pending_checkout_expires_at=resolved_subscription.pending_checkout_expires_at,
+                updated_at=resolved_subscription.updated_at,
             )
         return ResolvedEntitlements(
             subscription=resolved_subscription,
@@ -179,6 +199,16 @@ class EntitlementService:
             status=str(subscription.status or "active").strip().lower(),
             effective_from=subscription.effective_from,
             effective_to=subscription.effective_to,
+            stripe_customer_id=subscription.stripe_customer_id,
+            stripe_subscription_id=subscription.stripe_subscription_id,
+            billing_status=subscription.billing_status,
+            billing_period_start=subscription.billing_period_start,
+            billing_period_end=subscription.billing_period_end,
+            pending_plan_code=subscription.pending_plan_code,
+            pending_checkout_session_id=subscription.pending_checkout_session_id,
+            pending_checkout_session_url=subscription.pending_checkout_session_url,
+            pending_checkout_expires_at=subscription.pending_checkout_expires_at,
+            updated_at=subscription.updated_at,
         )
         if not normalized.account_id:
             raise ValueError("account_id is required")

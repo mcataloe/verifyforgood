@@ -89,6 +89,8 @@ api_auth_enabled                       = false
 oauth_m2m_enabled                      = false
 organization_integration_settings_json = "[]"
 tenant_integration_settings_json       = "[]"
+stripe_billing_enabled                 = false
+stripe_price_ids_json                  = "{}"
 ops_metadata_prefix                    = "ops/"
 serving_dynamodb_enabled               = true
 

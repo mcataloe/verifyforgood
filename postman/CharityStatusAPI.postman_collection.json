@@ -43,6 +43,18 @@
       "value": "client_replace_me"
     },
     {
+      "key": "planCode",
+      "value": "growth"
+    },
+    {
+      "key": "successUrl",
+      "value": "https://example.com/billing/success"
+    },
+    {
+      "key": "cancelUrl",
+      "value": "https://example.com/billing/cancel"
+    },
+    {
       "key": "ein",
       "value": "123456789"
     },
@@ -313,6 +325,30 @@
             },
             "description": "Update customer-managed settings. billing.allowOverage is available on all plans; integration-setting changes still require a plan with organization settings access. Auth: x-api-key. Variables: baseUrl. Full example payload included in the request body.",
             "url": "{{baseUrl}}/v1/organization/settings"
+          }
+        },
+        {
+          "name": "POST /v1/organization/billing/checkout-session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_code\": \"{{planCode}}\",\n  \"success_url\": \"{{successUrl}}\",\n  \"cancel_url\": \"{{cancelUrl}}\"\n}"
+            },
+            "description": "Create or reuse a Stripe-hosted Checkout session for paid-plan enrollment. Auth: x-api-key. Variables: baseUrl, planCode, successUrl, cancelUrl. The response returns the Checkout URL; payment entry stays on Stripe-hosted pages.",
+            "url": "{{baseUrl}}/v1/organization/billing/checkout-session"
           }
         },
         {

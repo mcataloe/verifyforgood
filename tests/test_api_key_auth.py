@@ -162,6 +162,33 @@ def test_quota_hard_stop_when_overage_disabled():
         assert False, "Expected QuotaExceededError"
 
 
+def test_non_billable_checkout_route_bypasses_quota_hard_stop():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:write"],
+        plan_id="free",
+    )
+    principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store._usage[("acct_1", month_key)] = 250
+
+    resolved_month, used, limit = enforce_quota_and_scope(
+        principal,
+        "POST /v1/organization/billing/checkout-session",
+        store,
+        billing_settings_resolver=_BillingSettingsResolver(False),
+        consumed_units=0,
+    )
+
+    assert resolved_month == month_key
+    assert used == 250
+    assert limit == 250
+
+
 def test_quota_metering_continues_past_limit_when_overage_allowed():
     display_key, record = build_api_key_record(
         key_id="dev_001",

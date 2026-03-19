@@ -166,6 +166,9 @@ resource "aws_lambda_function" "query" {
       ADMIN_KEY_RECORDS_JSON                           = var.admin_key_records_json
       ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
       TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
+      STRIPE_BILLING_ENABLED                           = tostring(var.stripe_billing_enabled)
+      STRIPE_PRICE_IDS                                 = var.stripe_price_ids_json
+      STRIPE_SECRET_KEY                                = var.stripe_secret_key
       ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                              = var.ops_metadata_prefix

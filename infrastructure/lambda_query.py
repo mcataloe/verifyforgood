@@ -21,6 +21,7 @@ from charity_status.auth import (
     load_admin_key_store,
 )
 from charity_status.billing import EntitlementService, ResponseShapingService
+from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
 from charity_status.billing.service import DEFAULT_PLANS
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
@@ -118,6 +119,7 @@ ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
 )
+STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -133,6 +135,7 @@ oauth_client_credentials_service: OAuthClientCredentialsService | None = None
 control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
 response_shaping_service: ResponseShapingService | None = None
+billing_checkout_service: BillingCheckoutService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -277,6 +280,16 @@ def _get_response_shaping_service() -> ResponseShapingService:
     if response_shaping_service is None:
         response_shaping_service = ResponseShapingService()
     return response_shaping_service
+
+
+def _get_billing_checkout_service() -> BillingCheckoutService:
+    global billing_checkout_service
+    if billing_checkout_service is None:
+        billing_checkout_service = BillingCheckoutService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+        )
+    return billing_checkout_service
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -587,6 +600,15 @@ def handler(event, context):
             pass
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
+    if _is_organization_checkout_request(event, method):
+        try:
+            response = _handle_organization_checkout_request(event, auth_context, response_context=api_context)
+        except BillingCheckoutError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
     if _is_organization_settings_request(event, method):
         try:
             response = _handle_organization_settings_request(event, auth_context, response_context=api_context)
@@ -868,6 +890,13 @@ def _is_organization_settings_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/settings") or path.endswith("/organization/settings")
 
 
+def _is_organization_checkout_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/checkout-session") or path.endswith("/organization/billing/checkout-session")
+
+
 def _handle_organization_settings_request(
     event: dict,
     auth_context: Any,
@@ -903,6 +932,23 @@ def _handle_organization_settings_request(
         payload=payload,
     )
     return json_response(200, document.to_dict(), response_context=response_context)
+
+
+def _handle_organization_checkout_request(
+    event: dict,
+    auth_context: Any,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    _workspace_id, account_id = _require_organization_context(auth_context)
+    if not account_id:
+        raise AuthorizationError("Billing checkout requires authenticated account context")
+    payload = _parse_json_body(event)
+    checkout = _get_billing_checkout_service().create_checkout_session(
+        account_id=account_id,
+        payload=payload,
+    )
+    return json_response(200, checkout, response_context=response_context)
 
 
 def _allows_organization_settings_management(auth_context: Any) -> bool:

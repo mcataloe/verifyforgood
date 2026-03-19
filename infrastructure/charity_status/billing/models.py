@@ -19,6 +19,16 @@ class Subscription:
     status: str
     effective_from: str | None = None
     effective_to: str | None = None
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    billing_status: str | None = None
+    billing_period_start: str | None = None
+    billing_period_end: str | None = None
+    pending_plan_code: str | None = None
+    pending_checkout_session_id: str | None = None
+    pending_checkout_session_url: str | None = None
+    pending_checkout_expires_at: str | None = None
+    updated_at: str | None = None
 
 
 @dataclass(frozen=True)

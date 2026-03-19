@@ -74,6 +74,16 @@ class ManagedSubscription:
     status: str
     effective_from: str | None = None
     effective_to: str | None = None
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    billing_status: str | None = None
+    billing_period_start: str | None = None
+    billing_period_end: str | None = None
+    pending_plan_code: str | None = None
+    pending_checkout_session_id: str | None = None
+    pending_checkout_session_url: str | None = None
+    pending_checkout_expires_at: str | None = None
+    updated_at: str | None = None
 
     def to_dict(self) -> dict[str, str | None]:
         return {
@@ -91,4 +101,14 @@ class ManagedSubscription:
             status=self.status,
             effective_from=self.effective_from,
             effective_to=self.effective_to,
+            stripe_customer_id=self.stripe_customer_id,
+            stripe_subscription_id=self.stripe_subscription_id,
+            billing_status=self.billing_status,
+            billing_period_start=self.billing_period_start,
+            billing_period_end=self.billing_period_end,
+            pending_plan_code=self.pending_plan_code,
+            pending_checkout_session_id=self.pending_checkout_session_id,
+            pending_checkout_session_url=self.pending_checkout_session_url,
+            pending_checkout_expires_at=self.pending_checkout_expires_at,
+            updated_at=self.updated_at,
         )

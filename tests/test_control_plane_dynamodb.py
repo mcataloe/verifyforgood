@@ -172,6 +172,40 @@ def test_dynamo_organization_settings_billing_round_trip():
     assert current.to_dict()["billing"]["allowOverage"] is False
 
 
+def test_dynamo_control_plane_persists_pending_stripe_checkout_linkage():
+    table = FakeDynamoTable()
+    resource = FakeDynamoResource(table)
+    store = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource)
+    service = ControlPlaneService(store=store)
+    account = service.create_account({"name": "Billing Account", "ein": "123456789"})
+    account_id = account["id"]
+
+    service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account_id,
+            plan_code="free",
+            status="active",
+            effective_from="2026-03-18T00:00:00+00:00",
+            stripe_customer_id="cus_test_123",
+            billing_status="checkout_pending",
+            pending_plan_code="growth",
+            pending_checkout_session_id="cs_test_123",
+            pending_checkout_session_url="https://checkout.stripe.com/c/pay/cs_test_123",
+            pending_checkout_expires_at="2099-03-20T00:00:00+00:00",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+
+    reloaded = DynamoControlPlaneStore("control-plane", dynamodb_resource=resource).get_subscription(account_id)
+
+    assert reloaded is not None
+    assert reloaded.stripe_customer_id == "cus_test_123"
+    assert reloaded.billing_status == "checkout_pending"
+    assert reloaded.pending_plan_code == "growth"
+    assert reloaded.pending_checkout_session_id == "cs_test_123"
+    assert reloaded.pending_checkout_session_url == "https://checkout.stripe.com/c/pay/cs_test_123"
+
+
 def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(monkeypatch):
     import charity_status.control_plane.dynamodb_store as dynamodb_module
 

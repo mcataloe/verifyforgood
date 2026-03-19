@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 from charity_status.auth import InMemoryUsageStore
 from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
+from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status.scoring import SCORING_MODEL_VERSION
@@ -74,6 +76,50 @@ class _BillingSettingsResolver:
 
     def allow_overage(self, account_id: str) -> bool:
         return self._allow_overage
+
+
+class _StripeCheckoutClient:
+    def __init__(self) -> None:
+        self.session_calls = 0
+
+    def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
+        return "cus_test_123"
+
+    def create_checkout_session(
+        self,
+        *,
+        customer_id: str,
+        account_id: str,
+        plan_code: str,
+        price_id: str,
+        success_url: str,
+        cancel_url: str,
+        idempotency_key: str,
+    ) -> CheckoutSessionResult:
+        self.session_calls += 1
+        return CheckoutSessionResult(
+            session_id="cs_test_123",
+            url="https://checkout.stripe.com/c/pay/cs_test_123",
+            expires_at="2099-03-20T00:00:00+00:00",
+        )
+
+
+class _FailingStripeCheckoutClient:
+    def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
+        return "cus_test_123"
+
+    def create_checkout_session(
+        self,
+        *,
+        customer_id: str,
+        account_id: str,
+        plan_code: str,
+        price_id: str,
+        success_url: str,
+        cancel_url: str,
+        idempotency_key: str,
+    ) -> CheckoutSessionResult:
+        raise BillingProviderError("Stripe rejected the request during checkout session creation")
 
 
 def test_invalid_ein_still_returns_400():
@@ -581,6 +627,180 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     assert result["statusCode"] == 400
     assert "requiredForEvaluation" in message
+
+
+def test_post_organization_billing_checkout_session_returns_checkout_url():
+    module = _load_module()
+    stripe_client = _StripeCheckoutClient()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Billing Account", "ein": "123456789"})
+    module.billing_checkout_service = BillingCheckoutService(
+        store=module.control_plane_service.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth"},
+        ),
+        stripe_client=stripe_client,
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="free",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/v1/organization/billing/checkout-session",
+        "path": "/v1/organization/billing/checkout-session",
+        "headers": {},
+        "body": json.dumps(
+            {
+                "plan_code": "growth",
+                "success_url": "https://example.com/success",
+                "cancel_url": "https://example.com/cancel",
+            }
+        ),
+    }
+    result = module.handler(event, None)
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["plan_code"] == "growth"
+    assert body["checkout_url"] == "https://checkout.stripe.com/c/pay/cs_test_123"
+    assert body["reused"] is False
+    assert stripe_client.session_calls == 1
+
+
+def test_post_organization_billing_checkout_session_rejects_invalid_plan():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Billing Account", "ein": "123456789"})
+    module.billing_checkout_service = BillingCheckoutService(
+        store=module.control_plane_service.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth"},
+        ),
+        stripe_client=_StripeCheckoutClient(),
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="free",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/checkout-session",
+            "path": "/v1/organization/billing/checkout-session",
+            "headers": {},
+            "body": json.dumps(
+                {
+                    "plan_code": "unknown",
+                    "success_url": "https://example.com/success",
+                    "cancel_url": "https://example.com/cancel",
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert "plan_code is invalid" in _response_error_message(result)
+
+
+def test_post_organization_billing_checkout_session_returns_provider_error():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Billing Account", "ein": "123456789"})
+    module.billing_checkout_service = BillingCheckoutService(
+        store=module.control_plane_service.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth"},
+        ),
+        stripe_client=_FailingStripeCheckoutClient(),
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:write",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="free",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/checkout-session",
+            "path": "/v1/organization/billing/checkout-session",
+            "headers": {},
+            "body": json.dumps(
+                {
+                    "plan_code": "growth",
+                    "success_url": "https://example.com/success",
+                    "cancel_url": "https://example.com/cancel",
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 502
+    assert "Stripe rejected the request" in _response_error_message(result)
 
 
 def test_handler_returns_hard_stop_quota_response_when_overage_disabled():

@@ -11,7 +11,7 @@ Customer-facing overview:
 - Runtime: Python 3.11
 - Infrastructure: Terraform
 - Compute: AWS Lambda
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
@@ -963,6 +963,7 @@ Quota enforcement:
 - usage is metered through auth/quota hooks and principal context abstraction
 - overage is allowed by default and continues to meter beyond included usage
 - over-limit requests return `429` only when the customer disables overage with `billing.allowOverage=false`
+- the non-billable enrollment route `POST /v1/organization/billing/checkout-session` stays available so customers can upgrade even when request overage is disabled
 
 Terraform/env settings:
 
@@ -974,6 +975,9 @@ Terraform/env settings:
 - `oauth_token_ttl_seconds`
 - `organization_integration_settings_json`
 - `tenant_integration_settings_json` (legacy alias)
+- `stripe_billing_enabled`
+- `stripe_price_ids_json`
+- `stripe_secret_key`
 
 Local dev note:
 
@@ -998,7 +1002,7 @@ Admin control-plane authentication:
 
 ## Billing Domain Model (Phase 12B)
 
-Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/` (no external payment processor dependency yet).
+Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
 
 Core billing entities:
 
@@ -1034,6 +1038,7 @@ External model remains simple:
 
 - API clients still see standard HTTP auth/quota behavior (`401`/`403`/`429`)
 - richer usage and overage accounting is internal/domain-ready for future billing processor integration
+- paid-plan enrollment now creates Stripe-hosted Checkout sessions with automatic tax enabled and no custom fee line items layered on top of the advertised plan price
 
 ## API Contract
 
@@ -1212,6 +1217,57 @@ Validation:
 - `requiredForEvaluation=true` with `enabled=false` returns `400`; the API does not silently enable the integration
 - unsupported integration ids return `400`
 - omitted integrations preserve their current values; unspecified organizations continue to default to disabled/not required
+
+### `POST /v1/organization/billing/checkout-session`
+
+Creates or reuses a Stripe-hosted Checkout session for the authenticated customer account.
+
+Request body:
+
+```json
+{
+  "plan_code": "growth",
+  "success_url": "https://example.com/billing/success",
+  "cancel_url": "https://example.com/billing/cancel"
+}
+```
+
+Behavior:
+
+- only paid plans with configured Stripe Price IDs are eligible for Checkout
+- the account must be active and the caller must have authenticated account context
+- the stored Stripe customer id is reused when present; otherwise the API creates one customer record for the account
+- duplicate requests for the same unexpired pending plan return the existing Checkout URL instead of creating a second session
+- Checkout is always Stripe-hosted; the API does not collect or store card details
+- Stripe automatic tax is enabled and the API does not add custom fee logic on top of the plan price configured in Stripe
+
+Response fields:
+
+- `plan_code`
+- `checkout_url`
+- `expires_at`
+- `reused`
+
+Stripe configuration:
+
+- `STRIPE_BILLING_ENABLED=true` enables the route
+- `STRIPE_SECRET_KEY` must contain a Stripe secret key for the target mode
+- `STRIPE_PRICE_IDS` must be a JSON object mapping paid plan codes to Stripe Price IDs, for example:
+
+```json
+{
+  "starter": "price_123",
+  "growth": "price_456",
+  "pro": "price_789"
+}
+```
+
+Local Stripe test mode:
+
+- use a Stripe test secret key in `STRIPE_SECRET_KEY`
+- configure test-mode Price IDs in `STRIPE_PRICE_IDS`
+- send `success_url` and `cancel_url` values that point at your local or test frontend
+- Stripe test cards stay entirely inside the hosted Checkout page; this API does not render payment forms locally
 
 ## Admin Control Plane
 
