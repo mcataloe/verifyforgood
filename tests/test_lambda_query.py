@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from charity_status.auth import InMemoryUsageStore
 from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
 from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from charity_status.billing.models import Subscription
 from charity_status.billing.plan_changes import BillingPlanChangeService
 from charity_status.billing.portal import BillingPortalService, PortalSessionResult
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
@@ -1183,6 +1184,48 @@ def test_handler_returns_hard_stop_quota_response_when_overage_disabled():
     assert result["statusCode"] == 429
     assert envelope["errors"][0]["code"] == "quota_exceeded_hard_stop"
     assert "enable pay per request" in envelope["errors"][0]["message"]
+
+
+def test_handler_restricts_product_access_when_payment_failed():
+    module = _load_module()
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(InMemoryUsageStore(), billing_settings_resolver=_BillingSettingsResolver(True))
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return AuthContext(
+                account_id="acct_1",
+                credential_id="key_1",
+                auth_method="api_key",
+                plan="growth",
+                scopes=("verify:read",),
+                rate_limit_profile="growth",
+                workspace_id="ws_1",
+                subject="api_key:key_1",
+                subscription=Subscription(
+                    account_id="acct_1",
+                    plan_code="growth",
+                    status="active",
+                    billing_status="payment_failed",
+                ),
+                entitlements=DEFAULT_ENTITLEMENTS["growth"],
+                metadata={},
+            )
+
+    module.auth_context_provider = _AuthProvider()
+
+    event = {
+        "httpMethod": "GET",
+        "resource": "/v1/nonprofit/{ein}",
+        "path": "/v1/nonprofit/123456789",
+        "pathParameters": {"ein": "123456789"},
+        "headers": {},
+    }
+    result = module.handler(event, None)
+    envelope = _response_envelope(result)
+
+    assert result["statusCode"] == 402
+    assert envelope["errors"][0]["code"] == "billing_past_due"
+    assert "temporarily restricted" in envelope["errors"][0]["message"]
 
 
 def test_batch_hard_stop_uses_batch_item_count():

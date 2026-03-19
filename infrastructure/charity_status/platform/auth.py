@@ -262,6 +262,7 @@ def _to_context(principal: AuthenticatedPrincipal, entitlement_service: Entitlem
         metadata={
             "principal_type": principal.auth_method,
             "subscription_status": resolved.subscription.status,
+            "billing_status": str(resolved.subscription.billing_status or resolved.subscription.status or ""),
             "requests_per_minute": str(resolved.entitlements.requests_per_minute),
             "monthly_request_limit": str(resolved.entitlements.monthly_request_limit),
         },

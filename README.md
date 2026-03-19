@@ -1304,6 +1304,23 @@ Plan-change timing:
 - `change_type=downgrade_scheduled`: current plan remains active until `pending_plan_effective_at`
 - `change_type=pending_change_cleared`: a previously scheduled downgrade was removed and the current plan remains in force
 
+### Billing Enforcement
+
+Protected product endpoints enforce both billing state and usage limits.
+
+Behavior:
+
+- `active`: access continues normally, subject to existing feature gating and quota rules
+- `past_due`, `payment_failed`, `unpaid`: product access returns `402` until billing is resolved; self-service billing routes remain available
+- `canceled`, `incomplete_expired`: product access returns `402` until billing is reactivated; self-service billing routes remain available
+- hard-stop overage behavior remains unchanged; when overage is disabled the API still returns `429 quota_exceeded_hard_stop`
+
+Transition rules:
+
+- pending downgrades do not reduce current-cycle entitlements before `pending_plan_effective_at`
+- enforcement decisions use subscription and billing state only; they do not inspect tax or fee fields
+- enforcement does not introduce new charges or infer payment obligations
+
 ### `POST /v1/organization/billing/portal-session`
 
 Creates a Stripe-hosted customer portal session for the authenticated customer account.
@@ -1369,6 +1386,7 @@ State synchronization:
 - updates local billing status and effective subscription status
 - updates current billing period start/end
 - resolves plan changes from Stripe price ids or checkout metadata
+- updates the stored billing state used by request-time auth and quota enforcement
 - captures invoice subtotal, tax, total, and currency for analytics/reporting
 
 Stripe webhook configuration:

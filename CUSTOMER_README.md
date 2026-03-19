@@ -225,6 +225,16 @@ Portal behavior:
 - `renewal_date`
 - `pending_downgrade` when a lower tier is already scheduled for the next billing cycle
 
+## Billing Enforcement
+
+Product access depends on both plan entitlements and billing state.
+
+- `active`: access continues normally
+- `past_due`, `payment_failed`, `unpaid`: product access is temporarily restricted until billing is resolved
+- `canceled`: product access is blocked until the subscription is reactivated
+- scheduled downgrades do not reduce current-cycle access before the next renewal
+- billing self-service routes remain available during billing restrictions
+
 ## Tenant Setup
 
 Each managed customer account includes:

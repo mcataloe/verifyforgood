@@ -9,6 +9,16 @@ class AuthorizationError(ValueError):
     status_code = 403
 
 
+class BillingAccessError(AuthorizationError):
+    status_code = 402
+    code = "billing_restricted"
+
+    def __init__(self, message: str, *, code: str | None = None, billing_status: str | None = None):
+        super().__init__(message)
+        self.code = str(code or self.code)
+        self.billing_status = billing_status
+
+
 class FeatureUnavailableError(AuthorizationError):
     def __init__(self, message: str, *, feature_flag: str | None = None, capability: str | None = None, upgrade_plan: str | None = None):
         super().__init__(message)

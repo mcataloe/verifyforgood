@@ -1,5 +1,5 @@
 from .admin import StaticAdminKeyStore, StoredAdminKeyRecord, authenticate_admin_key, build_admin_key_record, load_admin_key_store
-from .errors import AuthenticationError, AuthorizationError, FeatureUnavailableError, QuotaExceededError
+from .errors import AuthenticationError, AuthorizationError, BillingAccessError, FeatureUnavailableError, QuotaExceededError
 from .models import ApiKeyPrincipal, ApiPlan, OAuthClientPrincipal
 from .oauth import (
     DEFAULT_OAUTH_TOKEN_TTL_SECONDS,
@@ -29,6 +29,7 @@ __all__ = [
     "ApiPlan",
     "AuthenticationError",
     "AuthorizationError",
+    "BillingAccessError",
     "FeatureUnavailableError",
     "QuotaExceededError",
     "StaticAdminKeyStore",

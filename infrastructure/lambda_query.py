@@ -627,7 +627,7 @@ def handler(event, context):
             },
         )
     except AuthorizationError as exc:
-        return fail(exc.status_code, str(exc))
+        return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     except QuotaExceededError as exc:
         return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
@@ -667,7 +667,7 @@ def handler(event, context):
         except BillingPlanChangeError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc))
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
     if _is_organization_portal_request(event, method):
@@ -676,7 +676,7 @@ def handler(event, context):
         except BillingPortalError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc))
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
     if _is_organization_subscription_visibility_request(event, method):
@@ -685,7 +685,7 @@ def handler(event, context):
         except BillingCheckoutError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc))
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
     if _is_organization_settings_request(event, method):
@@ -694,7 +694,7 @@ def handler(event, context):
         except OrganizationIntegrationSettingsValidationError as exc:
             response = fail(400, str(exc))
         except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc))
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
 

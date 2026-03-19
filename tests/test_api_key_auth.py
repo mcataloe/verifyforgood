@@ -6,8 +6,10 @@ import sys
 from types import SimpleNamespace
 
 from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
-from charity_status.auth.errors import AuthenticationError, AuthorizationError, QuotaExceededError
+from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
+from charity_status.auth.models import ApiPlan, AuthenticatedPrincipal
+from charity_status.billing import DEFAULT_ENTITLEMENTS, Subscription
 from charity_status.billing.service import monthly_period_for
 from charity_status.platform.auth import ApiKeyAuthContextProvider
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
@@ -214,6 +216,112 @@ def test_non_billable_plan_change_route_bypasses_quota_hard_stop():
     assert resolved_month == month_key
     assert used == 250
     assert limit == 250
+
+
+def test_active_paid_subscription_allows_product_access():
+    principal = AuthenticatedPrincipal(
+        credential_id="key_1",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        plan=ApiPlan(plan_id="growth", monthly_limit=10000, entitlements=DEFAULT_ENTITLEMENTS["growth"]),
+        scopes=("verify:read",),
+        auth_method="api_key",
+        rate_limit_profile="growth",
+        subscription=Subscription(
+            account_id="acct_1",
+            plan_code="growth",
+            status="active",
+            billing_status="active",
+        ),
+        entitlements=DEFAULT_ENTITLEMENTS["growth"],
+    )
+
+    resolved_month, used, limit = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
+
+    assert resolved_month == monthly_period_for()
+    assert used == 0
+    assert limit == 10000
+
+
+def test_past_due_billing_restricts_product_access():
+    principal = AuthenticatedPrincipal(
+        credential_id="key_1",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        plan=ApiPlan(plan_id="growth", monthly_limit=10000, entitlements=DEFAULT_ENTITLEMENTS["growth"]),
+        scopes=("verify:read",),
+        auth_method="api_key",
+        rate_limit_profile="growth",
+        subscription=Subscription(
+            account_id="acct_1",
+            plan_code="growth",
+            status="active",
+            billing_status="past_due",
+        ),
+        entitlements=DEFAULT_ENTITLEMENTS["growth"],
+    )
+
+    try:
+        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
+    except BillingAccessError as exc:
+        assert exc.code == "billing_past_due"
+        assert exc.status_code == 402
+    else:
+        assert False, "Expected BillingAccessError"
+
+
+def test_canceled_subscription_blocks_product_access():
+    principal = AuthenticatedPrincipal(
+        credential_id="key_1",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        plan=ApiPlan(plan_id="growth", monthly_limit=10000, entitlements=DEFAULT_ENTITLEMENTS["growth"]),
+        scopes=("verify:read",),
+        auth_method="api_key",
+        rate_limit_profile="growth",
+        subscription=Subscription(
+            account_id="acct_1",
+            plan_code="growth",
+            status="canceled",
+            billing_status="canceled",
+        ),
+        entitlements=DEFAULT_ENTITLEMENTS["growth"],
+    )
+
+    try:
+        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
+    except BillingAccessError as exc:
+        assert exc.code == "billing_canceled"
+        assert exc.status_code == 402
+    else:
+        assert False, "Expected BillingAccessError"
+
+
+def test_pending_downgrade_does_not_reduce_current_cycle_entitlements():
+    principal = AuthenticatedPrincipal(
+        credential_id="key_1",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        plan=ApiPlan(plan_id="pro", monthly_limit=100000, entitlements=DEFAULT_ENTITLEMENTS["pro"]),
+        scopes=("verify:write",),
+        auth_method="api_key",
+        rate_limit_profile="pro",
+        subscription=Subscription(
+            account_id="acct_1",
+            plan_code="pro",
+            status="active",
+            billing_status="active",
+            pending_plan_code="growth",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+        ),
+        entitlements=DEFAULT_ENTITLEMENTS["pro"],
+    )
+
+    resolved_month, used, limit = enforce_quota_and_scope(principal, "PUT /v1/organization/settings", InMemoryUsageStore())
+
+    assert resolved_month == monthly_period_for()
+    assert used == 0
+    assert limit == 100000
 
 
 def test_quota_metering_continues_past_limit_when_overage_allowed():

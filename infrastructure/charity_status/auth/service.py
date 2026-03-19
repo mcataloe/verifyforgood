@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from charity_status.api import normalize_route_key
-from charity_status.auth.errors import AuthenticationError, AuthorizationError, FeatureUnavailableError, QuotaExceededError
+from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, FeatureUnavailableError, QuotaExceededError
 from charity_status.auth.models import ApiKeyPrincipal, ApiPlan, AuthenticatedPrincipal
 from charity_status.billing import EntitlementService, Subscription, missing_route_requirement, recommended_upgrade_plan
 from charity_status.billing.service import DEFAULT_PLANS, check_feature_entitlement, check_quota_and_calculate, monthly_period_for
@@ -31,9 +31,20 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "GET /v1/nonprofits/{ein}/federal-awards": "federal_awards:read",
     "GET /v1/organization/settings": "verify:read",
     "PUT /v1/organization/settings": "verify:write",
+    "GET /v1/organization/billing/subscription": "verify:read",
     "POST /v1/organization/billing/checkout-session": "verify:write",
     "POST /v1/organization/billing/plan-change": "verify:write",
+    "POST /v1/organization/billing/portal-session": "verify:write",
 }
+
+NON_BLOCKING_BILLING_ROUTE_KEYS: set[str] = {
+    "GET /v1/organization/billing/subscription",
+    "POST /v1/organization/billing/checkout-session",
+    "POST /v1/organization/billing/plan-change",
+    "POST /v1/organization/billing/portal-session",
+}
+RESTRICTED_BILLING_STATUSES: set[str] = {"past_due", "payment_failed", "unpaid"}
+BLOCKED_BILLING_STATUSES: set[str] = {"canceled", "incomplete_expired"}
 
 
 @dataclass(frozen=True)
@@ -162,6 +173,11 @@ def enforce_quota_and_scope(
         fallback_plan_code=principal.plan.plan_id,
         subscription=principal.subscription,
     )
+    _enforce_billing_state(
+        resolved.subscription,
+        route_key=route_key,
+        consumed_units=consumed_units,
+    )
     missing_requirement = missing_route_requirement(resolved.entitlements, route_key)
     if missing_requirement is not None:
         requirement_type, requirement_name = missing_requirement
@@ -191,6 +207,26 @@ def enforce_quota_and_scope(
             code="quota_exceeded_hard_stop",
         )
     return month_key, used, resolved.entitlements.monthly_request_limit
+
+
+def _enforce_billing_state(subscription: Subscription, *, route_key: str, consumed_units: int) -> None:
+    if consumed_units <= 0 or route_key in NON_BLOCKING_BILLING_ROUTE_KEYS:
+        return
+    subscription_status = str(subscription.status or "").strip().lower()
+    billing_status = str(subscription.billing_status or "").strip().lower()
+    effective_status = billing_status or subscription_status
+    if subscription_status == "canceled" or effective_status in BLOCKED_BILLING_STATUSES:
+        raise BillingAccessError(
+            "Subscription is canceled. Access to product endpoints is blocked until billing is reactivated.",
+            code="billing_canceled",
+            billing_status=effective_status or subscription_status or None,
+        )
+    if effective_status in RESTRICTED_BILLING_STATUSES:
+        raise BillingAccessError(
+            "Billing is past due. Access to product endpoints is temporarily restricted until payment is resolved.",
+            code="billing_past_due",
+            billing_status=effective_status,
+        )
 
 
 def hash_secret(secret: str) -> str:
