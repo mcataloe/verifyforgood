@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalSessionStub } from "../app/portalSession";
 
@@ -9,7 +9,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({ endpoints, session }: SettingsPageProps) {
   return (
-    <div className="portal-page-grid">
+    <Grid className="portal-page-grid">
       <Panel title="Organization settings anchor" subtitle="Designed around the existing `GET/PUT /v1/organization/settings` contract.">
         <p>
           Future settings slices should load and persist against <code>{endpoints.organizationSettings}</code>{" "}
@@ -38,6 +38,6 @@ export function SettingsPage({ endpoints, session }: SettingsPageProps) {
           </div>
         </dl>
       </Panel>
-    </div>
+    </Grid>
   );
 }

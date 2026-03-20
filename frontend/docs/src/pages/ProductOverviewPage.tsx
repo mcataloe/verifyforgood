@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function ProductOverviewPage() {
   return (
-    <div className="docs-page-grid">
+    <Grid className="docs-page-grid">
       <Panel title="Current product shape" subtitle="Content structure that can serve customers and internal references.">
         <ul className="docs-list">
           <li>Verification by EIN and name-based search.</li>
@@ -19,6 +19,6 @@ export function ProductOverviewPage() {
           <li>Portal and marketing remain separate runtimes with their own concerns.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

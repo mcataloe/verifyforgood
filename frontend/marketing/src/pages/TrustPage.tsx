@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function TrustPage() {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Trust posture" subtitle="Public trust cues should reflect the actual platform, not generic claims.">
         <ul className="marketing-list">
           <li>Deterministic scoring and audit-friendly evidence remain central product claims.</li>
@@ -18,6 +18,6 @@ export function TrustPage() {
           <li>Future trust content can grow here without inheriting authenticated-app layout assumptions.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

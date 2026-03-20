@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalSessionStub } from "../app/portalSession";
 
@@ -9,7 +9,7 @@ interface ApiAccessPageProps {
 
 export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
   return (
-    <div className="portal-page-grid">
+    <Grid className="portal-page-grid">
       <Panel title="Authentication-adjacent shell" subtitle="Credential workflows stay stubbed for now.">
         <p>
           Customers currently authenticate through issued API keys or OAuth client credentials.
@@ -37,6 +37,6 @@ export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
           <li>No user-role assumptions baked into page state.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

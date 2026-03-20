@@ -5,7 +5,7 @@ This directory contains the intentionally reusable frontend building blocks for 
 Current package boundaries:
 
 - `ui/`
-  - minimal visual primitives, shared layout shells, and styling tokens
+  - design tokens, theme variables, layout primitives, and minimal shared UI building blocks
 - `types/`
   - shared TypeScript contracts for app metadata, runtime config, and backend transport envelopes
 - `api/`

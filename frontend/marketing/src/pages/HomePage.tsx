@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { MarketingEndpoints } from "../app/marketingEndpoints";
 
@@ -9,7 +9,7 @@ interface HomePageProps {
 
 export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="What VerifyForGood does" subtitle="The public narrative should stay product-first.">
         <ul className="marketing-list">
           <li>Verify nonprofit status using IRS and filing-backed data.</li>
@@ -32,6 +32,6 @@ export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
           <code>{endpoints.nonprofitVerify}</code> in <strong>{runtimeConfig.environment}</strong>.
         </p>
       </Panel>
-    </div>
+    </Grid>
   );
 }

@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function FaqPage() {
   return (
-    <div className="docs-page-grid">
+    <Grid className="docs-page-grid">
       <Panel title="Common questions" subtitle="Support-oriented placeholders grounded in current docs.">
         <ul className="docs-list">
           <li>
@@ -27,6 +27,6 @@ export function FaqPage() {
           <li>Integration and troubleshooting notes.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Inline, Page, Panel, ThemeRoot } from "@charity-status/shared-ui";
 import type { FrontendAppInfo, FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
@@ -21,7 +21,7 @@ export function PortalLayout({
   session,
 }: PortalLayoutProps) {
   return (
-    <div className="portal-shell">
+    <Page className="portal-shell">
       <aside className="portal-shell__sidebar">
         <div className="portal-shell__sidebar-copy">
           <p className="portal-shell__eyebrow">Authenticated Surface</p>
@@ -46,26 +46,28 @@ export function PortalLayout({
           ))}
         </nav>
 
-        <Panel title="Session stub" subtitle="Auth stays abstracted in this phase.">
-          <dl className="portal-shell__details">
-            <div>
-              <dt>Organization</dt>
-              <dd>{session.organization_name}</dd>
-            </div>
-            <div>
-              <dt>Workspace</dt>
-              <dd>{session.workspace_id}</dd>
-            </div>
-            <div>
-              <dt>Account</dt>
-              <dd>{session.account_id}</dd>
-            </div>
-            <div>
-              <dt>Plan</dt>
-              <dd>{session.plan}</dd>
-            </div>
-          </dl>
-        </Panel>
+        <ThemeRoot tone="inverse">
+          <Panel title="Session stub" subtitle="Auth stays abstracted in this phase.">
+            <dl className="portal-shell__details">
+              <div>
+                <dt>Organization</dt>
+                <dd>{session.organization_name}</dd>
+              </div>
+              <div>
+                <dt>Workspace</dt>
+                <dd>{session.workspace_id}</dd>
+              </div>
+              <div>
+                <dt>Account</dt>
+                <dd>{session.account_id}</dd>
+              </div>
+              <div>
+                <dt>Plan</dt>
+                <dd>{session.plan}</dd>
+              </div>
+            </dl>
+          </Panel>
+        </ThemeRoot>
       </aside>
 
       <div className="portal-shell__main">
@@ -76,17 +78,17 @@ export function PortalLayout({
             <p>{currentRoute.description}</p>
           </div>
 
-          <div className="portal-shell__status-row">
+          <Inline className="portal-shell__status-row">
             <span className="portal-shell__status-pill">Env: {runtimeConfig.environment}</span>
             <span className="portal-shell__status-pill">Plan: {session.plan}</span>
             <span className="portal-shell__status-pill">
               Auth: {session.auth_mode.replaceAll("_", " ")}
             </span>
-          </div>
+          </Inline>
         </header>
 
         <section className="portal-shell__content">{children}</section>
       </div>
-    </div>
+    </Page>
   );
 }

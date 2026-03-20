@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 const plans = [
   {
@@ -25,7 +25,7 @@ const plans = [
 
 export function PricingPage() {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Pricing posture" subtitle="This repo models plans and capabilities without publishing final public prices here.">
         <p>
           The public site should educate prospects on plan progression, free trial behavior, and
@@ -38,6 +38,6 @@ export function PricingPage() {
           <p>{plan.details}</p>
         </Panel>
       ))}
-    </div>
+    </Grid>
   );
 }

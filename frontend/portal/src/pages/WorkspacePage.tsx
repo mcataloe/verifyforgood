@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalSessionStub } from "../app/portalSession";
 
@@ -9,7 +9,7 @@ interface WorkspacePageProps {
 
 export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
   return (
-    <div className="portal-page-grid">
+    <Grid className="portal-page-grid">
       <Panel title="Workspace context" subtitle="Ready for tenant, account, and membership-aware slices.">
         <p>
           The backend already models both <code>workspace_id</code> and <code>account_id</code>.
@@ -42,6 +42,6 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
           <li>Defaults remain backward compatible when nothing has been persisted.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

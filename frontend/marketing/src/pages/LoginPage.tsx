@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function LoginPage() {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Portal entry point" subtitle="Public-site handoff into the separate authenticated product surface.">
         <p>
           The public site keeps login as a simple handoff page rather than embedding authenticated
@@ -18,6 +18,6 @@ export function LoginPage() {
           <li>Auth provider choices can evolve without forcing public-site rewrites.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

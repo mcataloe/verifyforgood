@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function ContactPage() {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Contact and demo" subtitle="This area should support both sales motion and self-serve conversion.">
         <ul className="marketing-list">
           <li>Future demo request flow.</li>
@@ -18,6 +18,6 @@ export function ContactPage() {
           <li>No public docs runtime or blog assumptions yet.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

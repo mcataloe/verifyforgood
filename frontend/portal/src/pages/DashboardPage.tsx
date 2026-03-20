@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalSessionStub } from "../app/portalSession";
@@ -15,11 +15,11 @@ export function DashboardPage({
   session,
 }: DashboardPageProps) {
   return (
-    <div className="portal-page-grid">
+    <Grid className="portal-page-grid">
       <Panel title="Portal readiness" subtitle="This shell is organized for future vertical slices.">
         <ul className="portal-list">
           <li>Workspace/account context is separated from page rendering.</li>
-          <li>Navigation reflects the backend’s current customer-facing surface.</li>
+          <li>Navigation reflects the backend's current customer-facing surface.</li>
           <li>Shared API/config packages already normalize early portal dependencies.</li>
         </ul>
       </Panel>
@@ -58,6 +58,6 @@ export function DashboardPage({
           </li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

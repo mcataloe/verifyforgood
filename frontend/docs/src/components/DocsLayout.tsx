@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Page, Panel } from "@charity-status/shared-ui";
 import type { FrontendAppInfo, FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { DocsRouteDefinition } from "../app/docsRoutes";
@@ -18,7 +18,7 @@ export function DocsLayout({
   runtimeConfig,
 }: DocsLayoutProps) {
   return (
-    <div className="docs-shell">
+    <Page className="docs-shell">
       <aside className="docs-shell__sidebar">
         <div className="docs-shell__intro">
           <p className="docs-shell__eyebrow">Documentation Surface</p>
@@ -70,6 +70,6 @@ export function DocsLayout({
 
         <section className="docs-shell__content">{children}</section>
       </main>
-    </div>
+    </Page>
   );
 }

@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { DocsEndpoints } from "../app/docsEndpoints";
 
@@ -12,10 +12,10 @@ export function GettingStartedPage({
   runtimeConfig,
 }: GettingStartedPageProps) {
   return (
-    <div className="docs-page-grid">
+    <Grid className="docs-page-grid">
       <Panel title="Start here" subtitle="The first docs stop for customers and developers.">
         <ol className="docs-list docs-list--ordered">
-          <li>Understand the product’s verification and monitoring use cases.</li>
+          <li>Understand the product's verification and monitoring use cases.</li>
           <li>Pick an auth mode: API key or OAuth client credentials.</li>
           <li>Test the core API flows against the current `/{runtimeConfig.apiVersion}` routes.</li>
           <li>Expand into settings, usage, billing, and integrations as adoption grows.</li>
@@ -35,6 +35,6 @@ export function GettingStartedPage({
           </li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function ProductPage() {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Core product story" subtitle="Deliberate placeholders for future richer content blocks.">
         <ul className="marketing-list">
           <li>Verification by EIN with deterministic scoring and explainable outputs.</li>
@@ -18,6 +18,6 @@ export function ProductPage() {
           <li>Conversion modules tied to demo and trial journeys.</li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }

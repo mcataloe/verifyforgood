@@ -1,0 +1,87 @@
+:root,
+[data-theme="default"] {
+  color-scheme: light;
+
+  /* Colors */
+  --vf-color-forest-950: #14231f;
+  --vf-color-forest-900: #17342c;
+  --vf-color-forest-700: #29453d;
+  --vf-color-forest-600: #35564d;
+  --vf-color-sage-700: #465f57;
+  --vf-color-sage-600: #53675f;
+  --vf-color-sage-500: #5b6c64;
+  --vf-color-sage-400: #7d928b;
+  --vf-color-cream-50: #f7f3e8;
+  --vf-color-cream-100: #f4f1ea;
+  --vf-color-cream-200: #eceee9;
+  --vf-color-surface-0: #ffffff;
+  --vf-color-surface-100: #eef0e7;
+  --vf-color-surface-200: #e6ebe5;
+  --vf-color-gold-400: #e0b449;
+  --vf-color-mint-400: #6fa791;
+
+  /* Spacing */
+  --vf-space-1: 0.25rem;
+  --vf-space-2: 0.5rem;
+  --vf-space-3: 0.75rem;
+  --vf-space-4: 1rem;
+  --vf-space-5: 1.25rem;
+  --vf-space-6: 1.5rem;
+  --vf-space-7: 2rem;
+  --vf-space-8: 2.5rem;
+  --vf-space-9: 3rem;
+
+  /* Typography */
+  --vf-font-sans: "Trebuchet MS", "Gill Sans", sans-serif;
+  --vf-font-serif: "Palatino Linotype", Georgia, serif;
+  --vf-font-display: Georgia, "Times New Roman", serif;
+  --vf-font-mono: "Courier New", monospace;
+  --vf-font-size-xs: 0.78rem;
+  --vf-font-size-sm: 0.92rem;
+  --vf-font-size-md: 1rem;
+  --vf-font-size-lg: 1.1rem;
+  --vf-font-size-xl: 1.25rem;
+  --vf-font-size-2xl: 1.8rem;
+  --vf-font-size-3xl: 2rem;
+  --vf-line-body: 1.7;
+  --vf-line-tight: 1.1;
+  --vf-letter-eyebrow: 0.12em;
+
+  /* Radius */
+  --vf-radius-sm: 0.75rem;
+  --vf-radius-md: 1rem;
+  --vf-radius-lg: 1.5rem;
+  --vf-radius-xl: 1.75rem;
+  --vf-radius-pill: 999px;
+
+  /* Elevation */
+  --vf-shadow-sm: 0 18px 48px rgba(16, 37, 29, 0.08);
+  --vf-shadow-md: 0 24px 80px rgba(16, 37, 29, 0.12);
+  --vf-shadow-none: none;
+
+  /* Layout */
+  --vf-container-narrow: 48rem;
+  --vf-container-content: 72rem;
+  --vf-container-wide: 84rem;
+  --vf-grid-min-card: 16.25rem;
+
+  /* Semantic theme */
+  --vf-theme-text: var(--vf-color-forest-950);
+  --vf-theme-muted: var(--vf-color-sage-700);
+  --vf-theme-panel-bg: rgba(255, 255, 255, 0.86);
+  --vf-theme-panel-border: rgba(23, 52, 44, 0.12);
+  --vf-theme-panel-shadow: var(--vf-shadow-sm);
+  --vf-theme-accent: var(--vf-color-forest-900);
+  --vf-theme-accent-contrast: var(--vf-color-cream-50);
+}
+
+[data-theme="inverse"] {
+  color-scheme: dark;
+  --vf-theme-text: var(--vf-color-cream-50);
+  --vf-theme-muted: rgba(247, 243, 232, 0.74);
+  --vf-theme-panel-bg: rgba(255, 255, 255, 0.07);
+  --vf-theme-panel-border: rgba(247, 243, 232, 0.14);
+  --vf-theme-panel-shadow: var(--vf-shadow-none);
+  --vf-theme-accent: var(--vf-color-cream-50);
+  --vf-theme-accent-contrast: var(--vf-color-forest-900);
+}

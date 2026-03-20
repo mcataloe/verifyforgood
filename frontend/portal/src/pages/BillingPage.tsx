@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalSessionStub } from "../app/portalSession";
 
@@ -9,7 +9,7 @@ interface BillingPageProps {
 
 export function BillingPage({ endpoints, session }: BillingPageProps) {
   return (
-    <div className="portal-page-grid">
+    <Grid className="portal-page-grid">
       <Panel title="Usage and billing IA" subtitle="Aligned to the current customer-facing billing routes.">
         <ul className="portal-list">
           <li>
@@ -38,6 +38,6 @@ export function BillingPage({ endpoints, session }: BillingPageProps) {
           Current stubbed plan for this workspace: <strong>{session.plan}</strong>
         </p>
       </Panel>
-    </div>
+    </Grid>
   );
 }

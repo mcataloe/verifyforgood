@@ -1,8 +1,8 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 
 export function IntegrationsPage() {
   return (
-    <div className="docs-page-grid">
+    <Grid className="docs-page-grid">
       <Panel title="Integration examples" subtitle="A central place for workflow-oriented reference content.">
         <ul className="docs-list">
           <li>API-first nonprofit verification workflows.</li>
@@ -19,6 +19,6 @@ export function IntegrationsPage() {
           <li>Escalate exceptions or missing required integrations into a manual review path.</li>
         </ol>
       </Panel>
-    </div>
+    </Grid>
   );
 }

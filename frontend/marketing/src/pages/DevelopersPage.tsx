@@ -1,4 +1,4 @@
-import { Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { MarketingEndpoints } from "../app/marketingEndpoints";
 
@@ -9,7 +9,7 @@ interface DevelopersPageProps {
 
 export function DevelopersPage({ endpoints, runtimeConfig }: DevelopersPageProps) {
   return (
-    <div className="marketing-page-grid">
+    <Grid className="marketing-page-grid">
       <Panel title="Developer onboarding" subtitle="A public-facing API path without turning this shell into docs infrastructure yet.">
         <ul className="marketing-list">
           <li>Primary auth modes: API keys and OAuth client credentials.</li>
@@ -34,6 +34,6 @@ export function DevelopersPage({ endpoints, runtimeConfig }: DevelopersPageProps
           </li>
         </ul>
       </Panel>
-    </div>
+    </Grid>
   );
 }
