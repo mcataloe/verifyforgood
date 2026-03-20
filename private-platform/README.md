@@ -34,6 +34,7 @@ Future private repo responsibilities:
 - all billing and subscription workflow logic
 - control-plane and operator workflow orchestration
 - Lambda entrypoints and transport response shaping
+- canonical private backend entrypoint mapping and shared runtime contract exports
 
 Internal service areas now defined:
 
@@ -54,3 +55,10 @@ Boundary rule:
 
 - private-platform may depend on public-core
 - public-core must not depend on private-platform
+
+Transition helpers now present:
+
+- `charity_status_platform.runtime.entrypoints`
+  - canonical internal map of the live `infrastructure/lambda_*.py` handlers
+- `charity_status_platform.runtime.backend_contracts`
+  - compatibility root for API response-envelope and route-version helpers while the live implementation still lives under `charity_status.api`

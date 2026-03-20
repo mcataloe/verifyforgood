@@ -178,6 +178,13 @@ Private-platform service areas now defined in the repo:
 - `charity_status_platform.runtime`
 - `charity_status_platform.notifications`
 
+Private runtime transition helpers now defined:
+
+- `charity_status_platform.runtime.entrypoints`
+  - canonical map of the currently deployed backend entrypoints
+- `charity_status_platform.runtime.backend_contracts`
+  - canonical private-platform compatibility root for API response-envelope and route-version helpers while those contracts still live under `charity_status.api`
+
 ## Dependency Rules
 
 Required dependency direction:

@@ -5,6 +5,7 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
+- `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
 
 ## Current Architecture
 
@@ -46,6 +47,32 @@ Adapter boundary guidance now used in mixed infrastructure-facing modules:
 - service modules own application rules and orchestration
 - adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
 - runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
+
+## Stage-1 Backend Readiness
+
+The repository now has first-stage backend split scaffolding in place for:
+
+- `public-core/`
+- `private-platform/`
+- `infrastructure/`
+
+The key practical rules at this point are:
+
+- keep deterministic open-safe logic in `public-core/`
+- keep customer/account/auth/billing/admin/backend orchestration in `private-platform/`
+- keep `infrastructure/` focused on deploy-time entrypoints, Terraform, and runtime wiring
+
+For the current live system:
+
+- `infrastructure/lambda_*.py` remains the deployed handler surface
+- `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
+- `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
+
+Testing guidance is now explicit:
+
+- `public-core/tests/` is the future home for pure public-core unit tests
+- `private-platform/tests/` is the future home for private-platform unit and boundary tests
+- root `tests/` remains the active integration and compatibility suite while runtime imports still rely on `infrastructure/`
 
 ## Repo Split Scaffolding (Phase 11B)
 

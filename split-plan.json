@@ -116,6 +116,24 @@
     "infrastructure/lambda_form990_orchestrator.py",
     "infrastructure/lambda_form990_worker.py"
   ],
+  "shared_contracts": [
+    "infrastructure/charity_status/api/routes.py",
+    "infrastructure/charity_status/api/responses.py",
+    "infrastructure/charity_status/core/interfaces.py",
+    "private-platform/src/charity_status_platform/runtime/backend_contracts.py",
+    "private-platform/src/charity_status_platform/runtime/entrypoints.py"
+  ],
+  "test_layers": {
+    "public_core_unit": [
+      "public-core/tests/"
+    ],
+    "private_platform_unit": [
+      "private-platform/tests/"
+    ],
+    "integration_and_compatibility": [
+      "tests/"
+    ]
+  },
   "highest_risk_refactors": [
     "infrastructure/lambda_query.py",
     "infrastructure/charity_status/core/models.py",
@@ -129,7 +147,8 @@
     "charity_status_platform may depend on charity_status",
     "charity_status must not depend on charity_status_platform",
     "infrastructure may package and deploy entrypoints but must not contain business logic",
-    "all billing stays private-platform"
+    "all billing stays private-platform",
+    "shared backend transport contracts stay private-platform/runtime until explicitly extracted elsewhere"
   ],
   "migration_sequence": [
     "document target architecture and tighten split scaffolding",
