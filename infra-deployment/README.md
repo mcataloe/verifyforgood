@@ -9,6 +9,10 @@ Current deployment assets remain under:
 - `infrastructure/backend-*.hcl`
 - Lambda packaging scripts and zip outputs
 
+Current in-repo boundary note:
+
+- `infrastructure/README.md` now documents the short-term dual role of `infrastructure/` and its long-term deployment-only direction
+
 Target deployment-oriented structure after migration:
 
 - `infrastructure/terraform/`

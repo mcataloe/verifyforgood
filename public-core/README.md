@@ -12,6 +12,11 @@ Target package root after extraction:
 
 - `public-core/src/charity_status/`
 
+Scaffolding added in this repo phase:
+
+- `public-core/src/charity_status/__init__.py`
+- `public-core/src/charity_status/README.md`
+
 ## Intended Public-Core Scope
 
 - deterministic normalization

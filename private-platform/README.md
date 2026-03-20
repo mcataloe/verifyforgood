@@ -14,6 +14,11 @@ Target package root after extraction:
 
 - `private-platform/src/charity_status_platform/`
 
+Scaffolding added in this repo phase:
+
+- `private-platform/src/charity_status_platform/__init__.py`
+- `private-platform/src/charity_status_platform/README.md`
+
 Future private repo responsibilities:
 
 - runtime auth integration

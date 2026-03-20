@@ -21,6 +21,39 @@ def test_repo_target_architecture_doc_exists():
     assert "What Should Be Done First" in text
 
 
+def test_package_scaffolding_roots_exist():
+    public_root = Path("public-core/src/charity_status")
+    private_root = Path("private-platform/src/charity_status_platform")
+    infrastructure_doc = Path("infrastructure/README.md")
+
+    assert public_root.exists()
+    assert (public_root / "__init__.py").exists()
+    assert (public_root / "README.md").exists()
+
+    assert private_root.exists()
+    assert (private_root / "__init__.py").exists()
+    assert (private_root / "README.md").exists()
+
+    assert infrastructure_doc.exists()
+
+
+def test_package_scaffolding_docs_define_boundaries():
+    public_text = Path("public-core/src/charity_status/README.md").read_text(encoding="utf-8")
+    private_text = Path("private-platform/src/charity_status_platform/README.md").read_text(encoding="utf-8")
+    infrastructure_text = Path("infrastructure/README.md").read_text(encoding="utf-8")
+
+    assert "Forbidden contents" in public_text
+    assert "Dependency direction" in public_text
+    assert "platform billing" in public_text
+
+    assert "Forbidden contents" in private_text
+    assert "Dependency direction" in private_text
+    assert "may depend on `charity_status`" in private_text
+
+    assert "Target role" in infrastructure_text
+    assert "deployment/config/wiring only" in infrastructure_text
+
+
 def test_split_plan_referenced_paths_exist():
     payload = json.loads(Path("split-plan.json").read_text(encoding="utf-8"))
     include_paths = []
