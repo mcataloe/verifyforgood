@@ -127,6 +127,7 @@ Current discovery-stage architecture:
   - current sync status
   - download / extraction / processing statuses
   - destination raw S3 prefix
+  - downloaded ZIP S3 key and extracted file count when available
   - last error and attempt timestamps
 - TEOS ZIP manifest state keys live under:
   - `form990/normalized/manifests/teos-zip/state/latest/year=<YEAR>/source_batch=<ZIP_BASENAME>.json`
@@ -134,7 +135,8 @@ Current discovery-stage architecture:
 - raw source persistence stores original IRS artifacts unchanged under a dedicated prefix separate from extracted filing XML.
 - raw source object keys preserve history by including stable source identity plus source signature; the bucket does not rely on S3 versioning for historical retention.
 - raw extracted XML now has a source-batch-aware key contract available for ZIP-backed processing:
-  - `form990/raw/year=<YEAR>/source_batch=<ZIP_BASENAME>/ein=<EIN>/<IRS_OBJECT_ID>.xml`
+  - filing-ingest writes per-record raw XML under `form990/raw/year=<YEAR>/source_batch=<ZIP_BASENAME>/ein=<EIN>/<IRS_OBJECT_ID>.xml`
+  - TEOS ZIP sync writes extracted raw XML members under `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/<xml file>`
 - latest downloaded-source state is stored as per-source state entries so the pipeline can skip already persisted artifacts with unchanged signatures.
 - source diffs classify:
   - new sources
@@ -257,6 +259,11 @@ Phase 10G ZIP discovery/reconciliation extension:
   - persist per-batch manifest state independently from CSV/source-download state
   - download only new or changed ZIP batches; unchanged remote ZIPs are marked `skipped_unchanged` and are not redownloaded
   - preserve a destination raw XML prefix per ZIP batch for future extraction phases
+- TEOS ZIP raw extraction behavior:
+  - only ZIP batches scheduled by the manifest `should_download` logic are downloaded
+  - each selected ZIP is downloaded independently, so one changed batch can be reprocessed without forcing other yearly ZIPs to redownload
+  - extracted XML members are written under `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/`
+  - rerunning an unchanged batch does not redownload it; rerunning a changed batch overwrites the extracted member keys for that batch deterministically
 - raw source downloads are persisted separately from extracted filing XML:
   - raw IRS source artifacts: `form990/raw-sources/{year}/{source_kind}/{archive_key}/{source_signature}/{filename}`
   - downloaded-source state: `form990/normalized/manifests/source-download/state/latest/{year}/{source_kind}/{archive_key}.json`

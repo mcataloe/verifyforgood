@@ -11,6 +11,7 @@ from infrastructure.charity_status.form990.storage import (
     normalized_metadata_key,
     raw_source_key,
     raw_xml_key,
+    teos_raw_xml_member_key,
     teos_raw_xml_source_batch_prefix,
     teos_zip_manifest_run_catalog_key,
     teos_zip_manifest_state_key,
@@ -39,6 +40,7 @@ def test_storage_key_generation_is_stable():
     assert teos_zip_manifest_state_key("form990/normalized/manifests/", "2025", "2025_TEOS_XML_01A") == "form990/normalized/manifests/teos-zip/state/latest/year=2025/source_batch=2025_TEOS_XML_01A.json"
     assert teos_zip_manifest_run_catalog_key("form990/normalized/manifests/", "run1", "2025") == "form990/normalized/manifests/teos-zip/runs/run1/year=2025/catalog.json"
     assert teos_raw_xml_source_batch_prefix("form990/raw/", "2025", "2025_TEOS_XML_01A") == "form990/raw/year=2025/source_batch=2025_TEOS_XML_01A"
+    assert teos_raw_xml_member_key("teos/raw/xml/", "2025", "2025_TEOS_XML_01A", "nested/202500123_public.xml") == "teos/raw/xml/year=2025/source_batch=2025_TEOS_XML_01A/nested_202500123_public.xml"
     assert filing_catalog_key("form990/normalized/manifests/", "run1") == "form990/normalized/manifests/filings/run1/catalog.json"
     assert filing_diff_key("form990/normalized/manifests/", "run1") == "form990/normalized/manifests/filings/run1/diff.json"
     assert filing_manifest_key("form990/normalized/manifests/", "run1", 3) == "form990/normalized/manifests/filings/run1/batch_00003.json"

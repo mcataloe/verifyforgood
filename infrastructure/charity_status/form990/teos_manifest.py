@@ -46,6 +46,8 @@ class TeosZipManifestRecord:
     extraction_status: str
     processing_status: str
     destination_raw_s3_prefix: str
+    downloaded_zip_s3_key: str | None = None
+    extracted_file_count: int | None = None
     last_error: str | None = None
     download_attempted_at: str | None = None
     extraction_attempted_at: str | None = None
@@ -73,6 +75,8 @@ class TeosZipManifestRecord:
             extraction_status=str(payload.get("extraction_status") or DEFAULT_STEP_STATUS),
             processing_status=str(payload.get("processing_status") or DEFAULT_STEP_STATUS),
             destination_raw_s3_prefix=str(payload.get("destination_raw_s3_prefix") or ""),
+            downloaded_zip_s3_key=_as_optional_text(payload.get("downloaded_zip_s3_key")),
+            extracted_file_count=_as_optional_int(payload.get("extracted_file_count")),
             last_error=_as_optional_text(payload.get("last_error")),
             download_attempted_at=_as_optional_text(payload.get("download_attempted_at")),
             extraction_attempted_at=_as_optional_text(payload.get("extraction_attempted_at")),
@@ -119,6 +123,12 @@ class TeosZipManifestRepository(Protocol):
     def load_year_records(self, tax_year: str) -> list[TeosZipManifestRecord]:
         ...
 
+    def load_record(self, tax_year: str, zip_basename: str) -> TeosZipManifestRecord | None:
+        ...
+
+    def save_record(self, record: TeosZipManifestRecord) -> None:
+        ...
+
     def sync_discovered_records(
         self,
         *,
@@ -158,6 +168,25 @@ class S3TeosZipManifestRepository:
             if isinstance(payload, dict):
                 records.append(TeosZipManifestRecord.from_dict(payload))
         return sorted(records, key=lambda item: (item.tax_year, item.zip_basename))
+
+    def load_record(self, tax_year: str, zip_basename: str) -> TeosZipManifestRecord | None:
+        key = teos_zip_manifest_state_key(self._manifest_prefix, tax_year, zip_basename)
+        try:
+            body = self._s3.get_object(Bucket=self._bucket, Key=key)["Body"].read().decode("utf-8")
+            payload = json.loads(body)
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        return TeosZipManifestRecord.from_dict(payload)
+
+    def save_record(self, record: TeosZipManifestRecord) -> None:
+        key = teos_zip_manifest_state_key(self._manifest_prefix, record.tax_year, record.zip_basename)
+        self._s3.put_object(
+            Bucket=self._bucket,
+            Key=key,
+            Body=json.dumps(record.to_dict(), sort_keys=True).encode("utf-8"),
+        )
 
     def sync_discovered_records(
         self,
@@ -325,6 +354,8 @@ def _merge_discovered_record(
             extraction_status=DEFAULT_STEP_STATUS,
             processing_status=DEFAULT_STEP_STATUS,
             destination_raw_s3_prefix=destination_prefix,
+            downloaded_zip_s3_key=None,
+            extracted_file_count=None,
             created_at=checked_at,
             updated_at=checked_at,
         )
@@ -344,6 +375,8 @@ def _merge_discovered_record(
         extraction_status=previous.extraction_status or DEFAULT_STEP_STATUS,
         processing_status=previous.processing_status or DEFAULT_STEP_STATUS,
         destination_raw_s3_prefix=destination_prefix,
+        downloaded_zip_s3_key=previous.downloaded_zip_s3_key,
+        extracted_file_count=previous.extracted_file_count,
         last_error=None,
         download_attempted_at=previous.download_attempted_at,
         extraction_attempted_at=previous.extraction_attempted_at,
@@ -369,6 +402,8 @@ def _mark_not_listed(previous: TeosZipManifestRecord, *, checked_at: str) -> Teo
         extraction_status=previous.extraction_status,
         processing_status=previous.processing_status,
         destination_raw_s3_prefix=previous.destination_raw_s3_prefix,
+        downloaded_zip_s3_key=previous.downloaded_zip_s3_key,
+        extracted_file_count=previous.extracted_file_count,
         last_error=previous.last_error,
         download_attempted_at=previous.download_attempted_at,
         extraction_attempted_at=previous.extraction_attempted_at,
@@ -415,6 +450,8 @@ def _merge_probe_failure(
             extraction_status=DEFAULT_STEP_STATUS,
             processing_status=DEFAULT_STEP_STATUS,
             destination_raw_s3_prefix=destination_prefix,
+            downloaded_zip_s3_key=None,
+            extracted_file_count=None,
             last_error=probe_outcome.error,
             created_at=checked_at,
             updated_at=checked_at,
@@ -435,6 +472,8 @@ def _merge_probe_failure(
         extraction_status=previous.extraction_status or DEFAULT_STEP_STATUS,
         processing_status=previous.processing_status or DEFAULT_STEP_STATUS,
         destination_raw_s3_prefix=destination_prefix,
+        downloaded_zip_s3_key=previous.downloaded_zip_s3_key,
+        extracted_file_count=previous.extracted_file_count,
         last_error=probe_outcome.error,
         download_attempted_at=previous.download_attempted_at,
         extraction_attempted_at=previous.extraction_attempted_at,

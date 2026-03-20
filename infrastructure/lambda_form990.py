@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -31,6 +32,7 @@ from charity_status.form990.source_catalog import (
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
 from charity_status.form990.teos_manifest import S3TeosZipManifestRepository, TeosZipManifestRecord
 from charity_status.form990.teos_zip_probe import TeosZipProbeFailure, TeosZipProbeResult, probe_teos_zip_metadata
+from charity_status.form990.teos_zip_raw_sync import TeosZipExtractionError, extract_teos_zip_from_s3
 from charity_status.form990.teos_zip_discovery import fetch_teos_download_page_html, parse_teos_zip_links
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
@@ -38,6 +40,7 @@ from charity_status.form990.storage import checkpoint_key, discovery_diff_key, d
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
+TEOS_RAW_XML_PREFIX = os.environ.get("FORM990_TEOS_RAW_XML_PREFIX", "teos/raw/xml/").strip()
 RAW_SOURCE_PREFIX = os.environ.get("FORM990_RAW_SOURCE_PREFIX", "form990/raw-sources/")
 METADATA_PREFIX = os.environ.get("FORM990_METADATA_PREFIX", "form990/normalized/metadata/")
 MANIFEST_PREFIX = os.environ.get("FORM990_MANIFEST_PREFIX", "form990/normalized/manifests/")
@@ -229,11 +232,13 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "scheduled_sources": prepared["scheduled_sources"][:10],
         "skipped_source_count": prepared["skipped_source_count"],
         "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "teos_zip_extracted_file_count": download_manifest.get("extracted_file_count", 0),
         "teos_zip_manifest": prepared["teos_zip_manifest"],
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
         "source_download_manifest_key": download_manifest.get("manifest_key"),
+        "source_download_manifest_keys": download_manifest.get("manifest_keys", []),
         "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
         "filing_catalog_key": reconciliation.catalog_key,
         "filing_diff_key": reconciliation.diff_key,
@@ -270,6 +275,7 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         scheduled_source_count=prepared["scheduled_source_count"],
         skipped_source_count=prepared["skipped_source_count"],
         downloaded_source_count=download_manifest.get("downloaded_count", 0),
+        teos_zip_extracted_file_count=download_manifest.get("extracted_file_count", 0),
         filings_discovered=len(reconciliation.current_records),
         selected_records=len(selected_records),
         parsed_count=int(ingest_result.get("parsed_count") or 0),
@@ -368,6 +374,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "skipped_source_count": prepared["skipped_source_count"],
         "scheduled_source_count": prepared["scheduled_source_count"],
         "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "teos_zip_extracted_file_count": download_manifest.get("extracted_file_count", 0),
         "teos_zip_manifest": prepared["teos_zip_manifest"],
         "filings_discovered": len(reconciliation.current_records),
         "filings_new": reconciliation.new_count,
@@ -384,6 +391,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
         "source_download_manifest_key": download_manifest.get("manifest_key"),
+        "source_download_manifest_keys": download_manifest.get("manifest_keys", []),
         "source_download_state_prefix": source_download_state_prefix(MANIFEST_PREFIX),
         "filing_catalog_key": reconciliation.catalog_key,
         "filing_diff_key": reconciliation.diff_key,
@@ -641,7 +649,11 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
     )
     teos_zip_manifest_records = tuple(item for item in teos_zip_manifest.pop("_records", ()) if isinstance(item, TeosZipManifestRecord))
     selected_sources = select_sources_by_years(discovered_sources, set(selected_years))
-    selected_source_dicts = [item.to_dict() for item in selected_sources]
+    selected_source_dicts = _merge_selected_sources_with_teos_manifest(
+        selected_sources=[item.to_dict() for item in selected_sources],
+        teos_zip_manifest_records=teos_zip_manifest_records,
+        target_years=selected_years,
+    )
     downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
     download_plan = _plan_selected_source_downloads(
         selected_sources=selected_source_dicts,
@@ -735,7 +747,7 @@ def _sync_teos_zip_manifest_state(
             s3_client=s3_client,
             bucket=BUCKET or "",
             manifest_prefix=MANIFEST_PREFIX,
-            raw_xml_prefix=RAW_PREFIX,
+            raw_xml_prefix=TEOS_RAW_XML_PREFIX,
         )
         manifest_summary = repository.sync_discovered_records(
             run_id=run_id,
@@ -878,6 +890,65 @@ def _plan_selected_source_downloads(
     return {"to_download": to_download, "skipped": skipped}
 
 
+def _merge_selected_sources_with_teos_manifest(
+    *,
+    selected_sources: list[dict[str, Any]],
+    teos_zip_manifest_records: tuple[TeosZipManifestRecord, ...],
+    target_years: list[str],
+) -> list[dict[str, Any]]:
+    merged = list(selected_sources)
+    existing_identities = {_source_identity(item) for item in selected_sources if isinstance(item, dict)}
+    allowed_years = {str(year).strip() for year in target_years if str(year).strip()}
+
+    for record in teos_zip_manifest_records:
+        if record.tax_year not in allowed_years:
+            continue
+        if record.current_sync_status == "not_listed":
+            continue
+        source = _teos_manifest_record_to_source(record)
+        identity = _source_identity(source)
+        if identity in existing_identities:
+            continue
+        existing_identities.add(identity)
+        merged.append(source)
+
+    return merged
+
+
+def _teos_manifest_record_to_source(record: TeosZipManifestRecord) -> dict[str, Any]:
+    archive_key = derive_source_archive_key(record.zip_basename)
+    source_url = str(record.resolved_source_url or record.source_url or "").strip()
+    filename = f"{record.zip_basename}.zip"
+    page_url = FORM990_IRS_DOWNLOADS_PAGE_URL
+    signature = compute_source_signature(
+        source_year=record.tax_year,
+        source_kind=SOURCE_KIND_ZIP_ARCHIVE,
+        source_url=source_url,
+        source_filename=filename,
+        source_archive_key=archive_key,
+        page_url=page_url,
+        source_etag=record.etag,
+        source_last_modified=record.last_modified,
+    )
+    return {
+        "source_year": record.tax_year,
+        "year": record.tax_year,
+        "source_kind": SOURCE_KIND_ZIP_ARCHIVE,
+        "source_url": source_url,
+        "zip_url": source_url,
+        "source_filename": filename,
+        "source_archive_key": archive_key,
+        "source_archive": archive_key,
+        "archive_name": archive_key,
+        "source_signature": signature,
+        "page_url": page_url,
+        "source_page_url": page_url,
+        "source_etag": record.etag,
+        "source_last_modified": record.last_modified,
+        "discovered_at": record.discovered_at,
+    }
+
+
 def _build_teos_zip_download_source(source: dict[str, Any], record: TeosZipManifestRecord) -> dict[str, Any]:
     page_url = str(source.get("page_url") or source.get("source_page_url") or "").strip()
     signature = compute_source_signature(
@@ -927,17 +998,162 @@ def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConf
 
 def _download_selected_sources(service: Form990IngestService, prepared: dict[str, Any]) -> dict[str, Any]:
     if not prepared["scheduled_sources"]:
-        return {"manifest_key": None, "downloaded_count": 0, "downloads": []}
-    return execute_source_download_batch(
-        sources=prepared["scheduled_sources"],
-        bucket=BUCKET or "",
-        raw_source_prefix=RAW_SOURCE_PREFIX,
-        manifest_prefix=MANIFEST_PREFIX,
+        return {"manifest_key": None, "manifest_keys": [], "downloaded_count": 0, "downloads": [], "extracted_file_count": 0}
+
+    repository = S3TeosZipManifestRepository(
         s3_client=service.s3,
-        run_id=prepared["run_id"],
-        batch_index=0,
-        timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+        raw_xml_prefix=TEOS_RAW_XML_PREFIX,
     )
+    teos_manifest_lookup = {
+        (record.tax_year, derive_source_archive_key(record.zip_basename)): record
+        for record in prepared.get("teos_zip_manifest_records", ())
+        if isinstance(record, TeosZipManifestRecord)
+    }
+
+    non_teos_sources: list[dict[str, Any]] = []
+    teos_zip_sources: list[dict[str, Any]] = []
+    for source in prepared["scheduled_sources"]:
+        if _is_teos_zip_source(source, teos_manifest_lookup):
+            teos_zip_sources.append(source)
+        else:
+            non_teos_sources.append(source)
+
+    manifest_keys: list[str] = []
+    downloads: list[dict[str, Any]] = []
+    downloaded_count = 0
+    extracted_file_count = 0
+    batch_index = 0
+
+    if non_teos_sources:
+        batch_manifest = execute_source_download_batch(
+            sources=non_teos_sources,
+            bucket=BUCKET or "",
+            raw_source_prefix=RAW_SOURCE_PREFIX,
+            manifest_prefix=MANIFEST_PREFIX,
+            s3_client=service.s3,
+            run_id=prepared["run_id"],
+            batch_index=batch_index,
+            timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+        )
+        if batch_manifest.get("manifest_key"):
+            manifest_keys.append(str(batch_manifest["manifest_key"]))
+        downloads.extend(batch_manifest.get("downloads", []))
+        downloaded_count += int(batch_manifest.get("downloaded_count", 0) or 0)
+        batch_index += 1
+
+    for source in teos_zip_sources:
+        manifest_record = teos_manifest_lookup.get((str(source.get("source_year") or "").strip(), str(source.get("source_archive_key") or "").strip()))
+        if manifest_record is None:
+            continue
+        current_batch_index = batch_index
+        batch_index += 1
+        try:
+            batch_manifest = execute_source_download_batch(
+                sources=[source],
+                bucket=BUCKET or "",
+                raw_source_prefix=RAW_SOURCE_PREFIX,
+                manifest_prefix=MANIFEST_PREFIX,
+                s3_client=service.s3,
+                run_id=prepared["run_id"],
+                batch_index=current_batch_index,
+                timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+            )
+            if batch_manifest.get("manifest_key"):
+                manifest_keys.append(str(batch_manifest["manifest_key"]))
+            downloads.extend(batch_manifest.get("downloads", []))
+            downloaded_count += int(batch_manifest.get("downloaded_count", 0) or 0)
+            download_entry = next(
+                (
+                    item
+                    for item in batch_manifest.get("downloads", [])
+                    if isinstance(item, dict) and str(item.get("status") or "") == "downloaded"
+                ),
+                None,
+            )
+            if not isinstance(download_entry, dict) or not download_entry.get("raw_source_s3_key"):
+                continue
+
+            updated_record = replace(
+                manifest_record,
+                download_status="downloaded",
+                download_attempted_at=str(download_entry.get("downloaded_at") or datetime.now(timezone.utc).isoformat()),
+                downloaded_zip_s3_key=str(download_entry.get("raw_source_s3_key") or ""),
+                last_error=None,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            repository.save_record(updated_record)
+
+            extraction_result = extract_teos_zip_from_s3(
+                s3_client=service.s3,
+                bucket=BUCKET or "",
+                zip_s3_key=str(download_entry.get("raw_source_s3_key") or ""),
+                raw_xml_prefix=TEOS_RAW_XML_PREFIX,
+                tax_year=manifest_record.tax_year,
+                zip_basename=manifest_record.zip_basename,
+                max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
+            )
+            extracted_file_count += extraction_result.extracted_file_count
+            repository.save_record(
+                replace(
+                    updated_record,
+                    extraction_status="extracted",
+                    extraction_attempted_at=extraction_result.extracted_at,
+                    destination_raw_s3_prefix=extraction_result.destination_raw_s3_prefix,
+                    extracted_file_count=extraction_result.extracted_file_count,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+            )
+            _log_structured(
+                "form990.teos_zip.extracted",
+                tax_year=manifest_record.tax_year,
+                zip_basename=manifest_record.zip_basename,
+                raw_source_s3_key=download_entry.get("raw_source_s3_key"),
+                destination_raw_s3_prefix=extraction_result.destination_raw_s3_prefix,
+                extracted_file_count=extraction_result.extracted_file_count,
+            )
+        except Exception as exc:
+            attempt_at = datetime.now(timezone.utc).isoformat()
+            existing = repository.load_record(manifest_record.tax_year, manifest_record.zip_basename) or manifest_record
+            failure_record = replace(
+                existing,
+                download_attempted_at=existing.download_attempted_at or attempt_at,
+                download_status="failed" if not existing.downloaded_zip_s3_key else existing.download_status,
+                extraction_attempted_at=attempt_at if existing.downloaded_zip_s3_key else existing.extraction_attempted_at,
+                extraction_status="failed" if existing.downloaded_zip_s3_key else existing.extraction_status,
+                last_error=str(exc),
+                updated_at=attempt_at,
+            )
+            repository.save_record(failure_record)
+            _log_structured(
+                "form990.teos_zip.process_failed",
+                tax_year=manifest_record.tax_year,
+                zip_basename=manifest_record.zip_basename,
+                source_url=source.get("source_url"),
+                error=str(exc),
+            )
+
+    return {
+        "manifest_key": manifest_keys[0] if manifest_keys else None,
+        "manifest_keys": manifest_keys,
+        "downloaded_count": downloaded_count,
+        "downloads": downloads,
+        "extracted_file_count": extracted_file_count,
+    }
+
+
+def _is_teos_zip_source(
+    source: dict[str, Any],
+    teos_manifest_lookup: dict[tuple[str, str], TeosZipManifestRecord],
+) -> bool:
+    if not isinstance(source, dict) or str(source.get("source_kind") or "").strip() != SOURCE_KIND_ZIP_ARCHIVE:
+        return False
+    identity = (
+        str(source.get("source_year") or "").strip(),
+        str(source.get("source_archive_key") or "").strip(),
+    )
+    return identity in teos_manifest_lookup
 
 
 def _resolve_selected_csv_sources(selected_sources: list[dict[str, Any]], downloaded_state: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -999,6 +1215,7 @@ def _validate_handler_config() -> list[str]:
             "FORM990_MANIFEST_PREFIX": MANIFEST_PREFIX,
             "FORM990_METADATA_PREFIX": METADATA_PREFIX,
             "FORM990_RAW_PREFIX": RAW_PREFIX,
+            "FORM990_TEOS_RAW_XML_PREFIX": TEOS_RAW_XML_PREFIX,
             "FORM990_RAW_SOURCE_PREFIX": RAW_SOURCE_PREFIX,
         },
         positive_ints={
@@ -1173,6 +1390,7 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "scheduled_source_count": response.get("scheduled_source_count"),
         "skipped_source_count": response.get("skipped_source_count"),
         "downloaded_source_count": response.get("downloaded_source_count"),
+        "teos_zip_extracted_file_count": response.get("teos_zip_extracted_file_count"),
         "teos_zip_manifest": response.get("teos_zip_manifest"),
         "filings_discovered": response.get("filings_discovered"),
         "filings_new": response.get("filings_new"),
@@ -1184,6 +1402,7 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "discovery_manifest_key": response.get("discovery_manifest_key"),
         "discovery_diff_key": response.get("discovery_diff_key"),
         "source_download_manifest_key": response.get("source_download_manifest_key"),
+        "source_download_manifest_keys": response.get("source_download_manifest_keys"),
         "source_download_state_prefix": response.get("source_download_state_prefix"),
         "filing_catalog_key": response.get("filing_catalog_key"),
         "filing_diff_key": response.get("filing_diff_key"),

@@ -116,6 +116,12 @@ def teos_raw_xml_source_batch_prefix(prefix: str, tax_year: str | None, source_b
     return f"{base}/year={year}/source_batch={batch}"
 
 
+def teos_raw_xml_member_key(prefix: str, tax_year: str | None, source_batch: str | None, member_name: str | None) -> str:
+    base = teos_raw_xml_source_batch_prefix(prefix, tax_year, source_batch)
+    member = _safe_path_segment(member_name, default="unknown_member.xml")
+    return f"{base}/{member}"
+
+
 def raw_xml_key(
     prefix: str,
     ein: str | None,

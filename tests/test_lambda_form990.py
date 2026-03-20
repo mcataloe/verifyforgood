@@ -1,6 +1,8 @@
 import importlib
+import io
 import json
 import sys
+import zipfile
 
 from infrastructure.charity_status.form990.models import Form990IndexRecord
 from infrastructure.charity_status.form990.source_catalog import Form990SourceArtifact, normalize_configured_sources
@@ -52,10 +54,21 @@ class _Body:
     def __init__(self, value):
         self._value = value
 
-    def read(self):
+    def read(self, size: int = -1):
         if isinstance(self._value, bytes):
-            return self._value
-        return str(self._value).encode("utf-8")
+            if size is None or size < 0:
+                value, self._value = self._value, b""
+                return value
+            value = self._value[:size]
+            self._value = self._value[size:]
+            return value
+        text = str(self._value).encode("utf-8")
+        if size is None or size < 0:
+            self._value = b""
+            return text
+        value = text[:size]
+        self._value = text[size:]
+        return value
 
 
 class _ReconciliationResult:
@@ -231,6 +244,14 @@ def test_lambda_form990_index_filters_by_ein_and_limit(monkeypatch):
         {"index_url": "https://example.org/index.json", "download_raw": False, "eins": ["987654321"], "limit": 1},
         None,
     )
+
+
+def _zip_payload(entries):
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, payload in entries.items():
+            archive.writestr(name, payload)
+    return stream.getvalue()
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -372,7 +393,8 @@ def test_discovery_mode_skips_unchanged_teos_zip_on_rerun(monkeypatch):
     calls = {"count": 0}
 
     def _download_batch(**kwargs):
-        calls["count"] += 1
+        if any(source["source_kind"] == "zip_archive" for source in kwargs["sources"]):
+            calls["count"] += 1
         downloads = []
         for source in kwargs["sources"]:
             state_key = (
@@ -424,10 +446,183 @@ def test_discovery_mode_skips_unchanged_teos_zip_on_rerun(monkeypatch):
     assert first_result["statusCode"] == 200
     assert second_result["statusCode"] == 200
     assert calls["count"] == 1
-    assert first_body["scheduled_source_count"] == 1
+    assert first_body["scheduled_source_count"] == 2
     assert second_body["scheduled_source_count"] == 0
-    assert second_body["skipped_source_count"] == 1
+    assert second_body["skipped_source_count"] == 2
     assert second_body["teos_zip_manifest"]["skipped_download_count"] == 1
+
+
+def test_discovery_mode_extracts_downloaded_teos_zip_to_lineage_prefix(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: [
+        TeosZipDiscoveryRecord(
+            tax_year=str(target_year),
+            source_url=f"https://apps.irs.gov/pub/epostcard/990/xml/{target_year}/{target_year}_TEOS_XML_11C.zip",
+            source_filename=f"{target_year}_TEOS_XML_11C.zip",
+            zip_basename=f"{target_year}_TEOS_XML_11C",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            page_url=page_url,
+        )
+    ]
+    module.probe_teos_zip_metadata = lambda source_url, timeout_seconds=60, now=None, max_attempts=3, opener=None: module.TeosZipProbeResult(
+        source_url=source_url,
+        resolved_source_url=source_url,
+        etag='"etag-11c"',
+        last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+        content_length=1234,
+        checked_at="2026-01-01T00:00:00+00:00",
+        method_used="HEAD",
+    )
+
+    def _download_batch(**kwargs):
+        downloads = []
+        for source in kwargs["sources"]:
+            if source["source_kind"] == "zip_archive":
+                raw_key = f"form990/raw-sources/{source['source_year']}/{source['source_kind']}/{source['source_archive_key']}/{source['source_signature']}/{source['source_filename']}"
+                fake_s3.put_object(
+                    Bucket="test-bucket",
+                    Key=raw_key,
+                    Body=_zip_payload(
+                        {
+                            "202500123_public.xml": b"<Return>one</Return>",
+                            "nested/202500124_public.xml": b"<Return>two</Return>",
+                        }
+                    ),
+                )
+                downloads.append(
+                    {
+                        **source,
+                        "status": "downloaded",
+                        "raw_source_s3_key": raw_key,
+                        "downloaded_at": "2026-01-01T00:00:00+00:00",
+                        "content_length": 1234,
+                        "content_type": "application/zip",
+                    }
+                )
+            else:
+                raw_key = f"form990/raw-sources/{source['source_year']}/{source['source_kind']}/{source['source_archive_key']}/{source['source_signature']}/{source['source_filename']}"
+                fake_s3.put_object(Bucket="test-bucket", Key=raw_key, Body=b"ein\n123456789\n")
+                downloads.append(
+                    {
+                        **source,
+                        "status": "downloaded",
+                        "raw_source_s3_key": raw_key,
+                        "downloaded_at": "2026-01-01T00:00:00+00:00",
+                        "content_length": 10,
+                        "content_type": "text/csv",
+                    }
+                )
+        return {"manifest_key": "manifest.json", "downloaded_count": len(downloads), "downloads": downloads}
+
+    module.execute_source_download_batch = _download_batch
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler(
+        {
+            "run_id": "run1",
+            "mode": "incremental",
+            "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}],
+        },
+        None,
+    )
+    body = _response_data(result)
+    manifest_payload = json.loads(
+        fake_s3.store[
+            (
+                "test-bucket",
+                "form990/normalized/manifests/teos-zip/state/latest/year=2024/source_batch=2024_TEOS_XML_11C.json",
+            )
+        ]["Body"].decode("utf-8")
+    )
+
+    assert result["statusCode"] == 200
+    assert body["teos_zip_extracted_file_count"] == 2
+    assert ("test-bucket", "teos/raw/xml/year=2024/source_batch=2024_TEOS_XML_11C/202500123_public.xml") in fake_s3.store
+    assert ("test-bucket", "teos/raw/xml/year=2024/source_batch=2024_TEOS_XML_11C/nested_202500124_public.xml") in fake_s3.store
+    assert manifest_payload["download_status"] == "downloaded"
+    assert manifest_payload["extraction_status"] == "extracted"
+    assert manifest_payload["extracted_file_count"] == 2
+
+
+def test_discovery_mode_records_teos_zip_extraction_failure_without_crashing_run(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: [
+        TeosZipDiscoveryRecord(
+            tax_year=str(target_year),
+            source_url=f"https://apps.irs.gov/pub/epostcard/990/xml/{target_year}/{target_year}_TEOS_XML_11C.zip",
+            source_filename=f"{target_year}_TEOS_XML_11C.zip",
+            zip_basename=f"{target_year}_TEOS_XML_11C",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            page_url=page_url,
+        )
+    ]
+    module.probe_teos_zip_metadata = lambda source_url, timeout_seconds=60, now=None, max_attempts=3, opener=None: module.TeosZipProbeResult(
+        source_url=source_url,
+        resolved_source_url=source_url,
+        etag='"etag-11c"',
+        last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+        content_length=1234,
+        checked_at="2026-01-01T00:00:00+00:00",
+        method_used="HEAD",
+    )
+
+    def _download_batch(**kwargs):
+        downloads = []
+        for source in kwargs["sources"]:
+            raw_key = f"form990/raw-sources/{source['source_year']}/{source['source_kind']}/{source['source_archive_key']}/{source['source_signature']}/{source['source_filename']}"
+            fake_s3.put_object(Bucket="test-bucket", Key=raw_key, Body=b"not-a-zip")
+            downloads.append(
+                {
+                    **source,
+                    "status": "downloaded",
+                    "raw_source_s3_key": raw_key,
+                    "downloaded_at": "2026-01-01T00:00:00+00:00",
+                    "content_length": 9,
+                    "content_type": "application/zip",
+                }
+            )
+        return {"manifest_key": "manifest.json", "downloaded_count": len(downloads), "downloads": downloads}
+
+    module.execute_source_download_batch = _download_batch
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler(
+        {
+            "run_id": "run1",
+            "mode": "incremental",
+            "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}],
+        },
+        None,
+    )
+    body = _response_data(result)
+    manifest_payload = json.loads(
+        fake_s3.store[
+            (
+                "test-bucket",
+                "form990/normalized/manifests/teos-zip/state/latest/year=2024/source_batch=2024_TEOS_XML_11C.json",
+            )
+        ]["Body"].decode("utf-8")
+    )
+
+    assert result["statusCode"] == 200
+    assert body["teos_zip_extracted_file_count"] == 0
+    assert manifest_payload["download_status"] == "downloaded"
+    assert manifest_payload["extraction_status"] == "failed"
+    assert "bad zip archive" in manifest_payload["last_error"]
 
 
 def test_static_manifest_is_default_discovery_mode(monkeypatch):

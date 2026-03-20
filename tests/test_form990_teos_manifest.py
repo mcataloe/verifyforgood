@@ -51,7 +51,7 @@ def test_teos_manifest_sync_persists_state_and_run_catalog():
         s3_client=s3,
         bucket="test-bucket",
         manifest_prefix="form990/normalized/manifests/",
-        raw_xml_prefix="form990/raw/",
+        raw_xml_prefix="teos/raw/xml/",
     )
 
     summary = repository.sync_discovered_records(
@@ -82,7 +82,7 @@ def test_teos_manifest_sync_persists_state_and_run_catalog():
     assert state_payload["current_sync_status"] == "discovered"
     assert state_payload["download_status"] == "scheduled"
     assert state_payload["etag"] == '"etag-1"'
-    assert state_payload["destination_raw_s3_prefix"] == "form990/raw/year=2025/source_batch=2025_TEOS_XML_01A"
+    assert state_payload["destination_raw_s3_prefix"] == "teos/raw/xml/year=2025/source_batch=2025_TEOS_XML_01A"
 
 
 def test_teos_manifest_sync_marks_missing_records_not_listed():
@@ -91,7 +91,7 @@ def test_teos_manifest_sync_marks_missing_records_not_listed():
         s3_client=s3,
         bucket="test-bucket",
         manifest_prefix="form990/normalized/manifests/",
-        raw_xml_prefix="form990/raw/",
+        raw_xml_prefix="teos/raw/xml/",
     )
     repository.sync_discovered_records(
         run_id="run1",
@@ -155,7 +155,7 @@ def test_teos_manifest_sync_marks_unchanged_zip_as_skipped_unchanged():
         s3_client=s3,
         bucket="test-bucket",
         manifest_prefix="form990/normalized/manifests/",
-        raw_xml_prefix="form990/raw/",
+        raw_xml_prefix="teos/raw/xml/",
     )
     initial_probe = TeosZipProbeResult(
         source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
@@ -193,7 +193,7 @@ def test_teos_manifest_sync_records_probe_failures_without_aborting_year_sync():
         s3_client=s3,
         bucket="test-bucket",
         manifest_prefix="form990/normalized/manifests/",
-        raw_xml_prefix="form990/raw/",
+        raw_xml_prefix="teos/raw/xml/",
     )
 
     summary = repository.sync_discovered_records(
