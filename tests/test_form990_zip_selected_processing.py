@@ -109,6 +109,38 @@ def test_zip_loader_supports_legacy_download990xml_archive_hint():
     assert loader.zip_extracted_count == 1
 
 
+def test_zip_loader_normalizes_public_suffix_in_teos_member_names():
+    s3 = FakeS3()
+    zip_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_01a/sig/2026_TEOS_XML_01A.zip"
+    s3.put_object(
+        Bucket="test-bucket",
+        Key=zip_key,
+        Body=_zip_payload({"202503609349100000_public.xml": b"<Return>public</Return>"}),
+    )
+    loader = ZipBackedXmlLoader(
+        s3_client=s3,
+        bucket="test-bucket",
+        zip_sources=[_source(year="2026", archive_key="2026_teos_xml_01a", s3_key=zip_key)],
+        allow_url_fallback=False,
+    )
+    record = Form990IndexRecord(
+        ein="921704368",
+        tax_year=None,
+        filing_date=None,
+        return_type="990PF",
+        irs_object_id="202503609349100000",
+        xml_url="https://apps.irs.gov/pub/epostcard/cor/202503609349100000_public.xml",
+        source_year="2026",
+        source_archive="index_2026",
+        source_signature="sig",
+    )
+    xml_bytes, source_ref = loader.load(record)
+    assert xml_bytes == b"<Return>public</Return>"
+    assert source_ref.endswith(f"{zip_key}#202503609349100000_public.xml")
+    assert loader.zip_extracted_count == 1
+    assert loader.url_fallback_count == 0
+
+
 def test_zip_loader_falls_back_to_xml_url_when_member_not_found(monkeypatch):
     s3 = FakeS3()
     zip_key = "form990/raw-sources/2024/zip_archive/2024_teos_xml_ct1/sig/2024_TEOS_XML_CT1.zip"

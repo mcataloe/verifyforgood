@@ -32,7 +32,9 @@ FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FI
 FORM990_ZIP_URL_FALLBACK_ENABLED = os.environ.get("FORM990_ZIP_URL_FALLBACK_ENABLED", "true").lower() == "true"
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
+logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
 
 
 def handler(event, context):
@@ -118,6 +120,14 @@ def _process_chunk(message: dict[str, Any]) -> None:
         zip_sources = chunk_payload.get("zip_sources")
         if not isinstance(zip_sources, list):
             zip_sources = select_zip_sources_for_records(records, load_downloaded_source_state(s3, BUCKET, MANIFEST_PREFIX))
+        _log_structured(
+            "form990.worker.chunk_zip_sources_resolved",
+            run_id=run_id,
+            chunk_id=chunk_id,
+            task_type=task_type,
+            record_count=len(records),
+            zip_source_count=len(zip_sources),
+        )
         loader = ZipBackedXmlLoader(
             s3_client=s3,
             bucket=BUCKET,
@@ -127,6 +137,7 @@ def _process_chunk(message: dict[str, Any]) -> None:
             max_xml_file_size_bytes=FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES,
         )
         result = service.ingest_index_payload(payload=records, download_raw=True, record_downloader=loader.load)
+        result["zip_source_count"] = len(zip_sources)
         result["zip_resolved_count"] = loader.zip_extracted_count
         result["zip_fallback_url_count"] = loader.url_fallback_count
         result["zip_unresolved_count"] = loader.unresolved_count
@@ -158,6 +169,7 @@ def _process_chunk(message: dict[str, Any]) -> None:
             processed_records=result.get("records_processed"),
             parsed_count=result.get("parsed_count"),
             failed_count=result.get("failed_count"),
+            zip_source_count=result.get("zip_source_count"),
             zip_resolved_count=result.get("zip_resolved_count"),
             zip_fallback_url_count=result.get("zip_fallback_url_count"),
         )

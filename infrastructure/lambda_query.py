@@ -1239,6 +1239,13 @@ def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[s
         )
         return 500, {"message": "Failed to queue Form 990 run"}
 
+    logger.info(
+        "form990.manual_trigger_queued run_id=%s mode=%s target_years=%s",
+        run_id,
+        request_payload["mode"],
+        json.dumps(target_years),
+    )
+
     return 202, {
         "status": "queued",
         "run_id": run_id,

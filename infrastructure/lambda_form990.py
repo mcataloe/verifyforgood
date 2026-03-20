@@ -81,7 +81,9 @@ FORM990_CHUNK_SIZE = int(os.environ.get("FORM990_CHUNK_SIZE", "250"))
 FORM990_WORK_QUEUE_URL = os.environ.get("FORM990_WORK_QUEUE_URL", "").strip()
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
+logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
 VALID_FORM990_SOURCE_MODES = {"configured", "irs_page", "static_manifest"}
 
 

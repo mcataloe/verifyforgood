@@ -14,6 +14,7 @@ from charity_status.form990.models import Form990IndexRecord
 from charity_status.form990.source_catalog import derive_source_archive_key
 
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
 
 
 class ZipMemberNotFoundError(RuntimeError):
@@ -63,6 +64,7 @@ class ZipBackedXmlLoader:
                 "form990.zip.resolve_hit",
                 source_year=record.source_year,
                 source_archive=record.source_archive,
+                zip_source_archive_key=resolution.zip_source.get("source_archive_key"),
                 irs_object_id=record.irs_object_id,
                 member_name=resolution.member_name,
             )
@@ -75,6 +77,7 @@ class ZipBackedXmlLoader:
                 source_archive=record.source_archive,
                 irs_object_id=record.irs_object_id,
                 xml_url=record.xml_url,
+                candidate_zip_source_count=len(self._zip_sources_by_year.get(str(record.source_year or "").strip(), [])),
             )
             return (
                 _download_xml_url(record.xml_url, timeout_seconds=self.url_timeout_seconds),
@@ -86,6 +89,7 @@ class ZipBackedXmlLoader:
             source_year=record.source_year,
             source_archive=record.source_archive,
             irs_object_id=record.irs_object_id,
+            candidate_zip_source_count=len(self._zip_sources_by_year.get(str(record.source_year or "").strip(), [])),
         )
         raise ZipMemberNotFoundError(f"unable to resolve filing XML for object_id={record.irs_object_id or 'unknown'}")
 
@@ -201,6 +205,9 @@ def _member_object_id(member_name: str) -> str:
     lower = name.lower()
     if lower.endswith(".xml"):
         name = name[:-4]
+        lower = lower[:-4]
+    if lower.endswith("_public"):
+        name = name[: -len("_public")]
     return name.strip()
 
 
