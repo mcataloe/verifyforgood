@@ -13,7 +13,7 @@ It lives under the repository root so marketing, portal, shared UI foundations, 
 - `shared/`
   - reusable frontend code and documented shared boundaries
 - `docs/`
-  - reserved home for future frontend-specific docs surfaces
+  - documentation application shell for customer, developer, and internal reference content
 
 ## Dependency Direction
 
@@ -25,6 +25,7 @@ It lives under the repository root so marketing, portal, shared UI foundations, 
 Current workspace packages:
 
 - `@charity-status/marketing`
+- `@charity-status/docs`
 - `@charity-status/portal`
 - `@charity-status/shared-api`
 - `@charity-status/shared-config`
@@ -38,10 +39,6 @@ App-specific code belongs in `marketing/` or `portal/` when it is tied to that s
 
 Reusable code belongs in `shared/` only when both apps can consume the same implementation without app-specific conditionals.
 
-## Placeholder-Only Directories
-
-- `docs/` does not have a `package.json` yet because this phase only reserves the boundary; no docs runtime has been chosen.
-
 See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands
@@ -52,6 +49,7 @@ Run these from this directory:
 npm install
 npm run typecheck
 npm run build
+npm run dev:docs
 npm run dev:marketing
 npm run dev:portal
 ```

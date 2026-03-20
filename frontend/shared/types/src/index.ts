@@ -1,4 +1,4 @@
-export type FrontendSurface = "marketing" | "portal";
+export type FrontendSurface = "docs" | "marketing" | "portal";
 
 export interface FrontendAppInfo {
   surface: FrontendSurface;

@@ -2,12 +2,14 @@
   "name": "charity-status-frontend-workspace",
   "private": true,
   "workspaces": [
+    "docs",
     "marketing",
     "portal",
     "shared/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @charity-status/marketing && npm run build --workspace @charity-status/portal",
+    "build": "npm run build --workspace @charity-status/marketing && npm run build --workspace @charity-status/portal && npm run build --workspace @charity-status/docs",
+    "dev:docs": "npm run dev --workspace @charity-status/docs",
     "dev:marketing": "npm run dev --workspace @charity-status/marketing",
     "dev:portal": "npm run dev --workspace @charity-status/portal",
     "typecheck": "npm run typecheck --workspaces --if-present"
