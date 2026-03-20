@@ -137,7 +137,13 @@ def ingest_form990_records(
                     xml_bytes = downloaded
             else:
                 xml_bytes = downloader(record.xml_url)
-            raw_key = raw_xml_key(raw_prefix, metadata.ein, metadata.tax_year, metadata.irs_object_id)
+            raw_key = raw_xml_key(
+                raw_prefix,
+                metadata.ein,
+                metadata.tax_year,
+                metadata.irs_object_id,
+                source_batch=record.source_archive,
+            )
             s3_client.put_object(Bucket=bucket, Key=raw_key, Body=xml_bytes)
 
             parsed = parse_xml(xml_bytes)

@@ -54,6 +54,41 @@ def test_ingest_manifest_and_result_success():
     assert any(item["Key"].startswith("form990/normalized/manifests/") for item in s3.objects)
 
 
+def test_ingest_uses_source_batch_aware_raw_xml_key_when_source_archive_present():
+    records = parse_index_records(
+        [
+            {
+                "ein": "123456789",
+                "tax_year": "2025",
+                "filing_date": "2026-01-15",
+                "return_type": "990",
+                "irs_object_id": "obj-batch-1",
+                "xml_url": "https://example.org/obj-batch-1.xml",
+                "source_archive": "2025_TEOS_XML_01A",
+            }
+        ]
+    )
+    s3 = FakeS3()
+    xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
+
+    ingest_form990_records(
+        records=records,
+        bucket="test-bucket",
+        raw_prefix="form990/raw/",
+        metadata_prefix="form990/normalized/metadata/",
+        manifest_prefix="form990/normalized/manifests/",
+        metrics_prefix="form990/normalized/metrics/",
+        governance_prefix="form990/normalized/governance/",
+        quality_prefix="form990/normalized/quality/",
+        relationships_prefix="form990/normalized/relationships/",
+        s3_client=s3,
+        download_raw=True,
+        downloader=lambda url: xml_content,
+    )
+
+    assert any(item["Key"] == "form990/raw/year=2025/source_batch=2025_TEOS_XML_01A/ein=123456789/obj-batch-1.xml" for item in s3.objects)
+
+
 def test_ingest_malformed_xml_fallback():
     records = parse_index_records([
         {

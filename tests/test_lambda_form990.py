@@ -4,6 +4,7 @@ import sys
 
 from infrastructure.charity_status.form990.models import Form990IndexRecord
 from infrastructure.charity_status.form990.source_catalog import Form990SourceArtifact, normalize_configured_sources
+from infrastructure.charity_status.form990.teos_zip_discovery import TeosZipDiscoveryRecord
 
 
 def _response_envelope(response):
@@ -81,6 +82,8 @@ def _load_module(monkeypatch):
     monkeypatch.setattr("boto3.client", lambda name: fake_s3)
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
+    module.fetch_teos_download_page_html = lambda page_url, timeout_seconds=60: "<html></html>"
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: []
     return module, fake_s3
 
 
@@ -294,6 +297,42 @@ def test_discovery_mode_persists_source_catalog_and_downloads_csv(monkeypatch):
     assert ("test-bucket", body["discovery_manifest_key"]) in fake_s3.store
     assert ("test-bucket", body["discovery_diff_key"]) in fake_s3.store
     assert body["source_download_manifest_key"].endswith("batch_00000.json")
+
+
+def test_discovery_mode_syncs_teos_zip_manifest_foundation(monkeypatch):
+    module, fake_s3 = _load_module(monkeypatch)
+    module.fetch_teos_download_page_html = lambda page_url, timeout_seconds=60: "<html></html>"
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: [
+        TeosZipDiscoveryRecord(
+            tax_year=str(target_year),
+            source_url=f"https://apps.irs.gov/pub/epostcard/990/xml/{target_year}/{target_year}_TEOS_XML_01A.zip",
+            source_filename=f"{target_year}_TEOS_XML_01A.zip",
+            zip_basename=f"{target_year}_TEOS_XML_01A",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            page_url=page_url,
+        )
+    ]
+    module.execute_source_download_batch = lambda **kwargs: {"manifest_key": None, "downloaded_count": 0, "downloads": []}
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult()
+    module.Form990IngestService.ingest_index_payload = lambda self, payload, download_raw=True, record_downloader=None: {
+        "status": "success",
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "records": [],
+    }
+
+    result = module.handler({"run_id": "run1", "mode": "incremental", "source_catalog": [{"year": "2024", "index_url": "https://example.org/index_2024.csv"}]}, None)
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["teos_zip_manifest"]["discovered_count"] == 1
+    assert body["teos_zip_manifest"]["new_count"] == 1
+    assert body["teos_zip_manifest"]["catalog_keys"] == [
+        "form990/normalized/manifests/teos-zip/runs/run1/year=2024/catalog.json"
+    ]
+    assert ("test-bucket", "form990/normalized/manifests/teos-zip/state/latest/year=2024/source_batch=2024_TEOS_XML_01A.json") in fake_s3.store
+    assert ("test-bucket", "form990/normalized/manifests/teos-zip/runs/run1/year=2024/catalog.json") in fake_s3.store
 
 
 def test_static_manifest_is_default_discovery_mode(monkeypatch):

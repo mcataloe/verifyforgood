@@ -89,6 +89,7 @@ Operational note:
 
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
 - `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
+- each discovery run also scrapes the IRS Form 990 downloads page to discover TEOS ZIP batches for the selected target years and persists a separate ZIP manifest state for later download/extract/process phases
 - `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
 - static discovery can also synthesize one next-year TEOS source set from the latest explicit TEOS year in the manifest so the pipeline can keep pace when the checked-in manifest lags by one year.
 - generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
@@ -98,8 +99,8 @@ Operational note:
 Current discovery-stage architecture:
 
 - supports `mode=bootstrap` and `mode=incremental` (default).
-- normal runtime discovery is deterministic and repo-backed; it normalizes the static manifest into the same source artifact catalog previously used for configured sources and IRS-page links.
-- the static manifest is authoritative because scraping/parsing the IRS downloads HTML page proved unreliable for newest-year discovery.
+- current CSV/source-catalog selection remains deterministic and repo-backed; it normalizes the static manifest into the same source artifact catalog previously used for configured sources and IRS-page links.
+- TEOS ZIP tracking now has a separate manifest-driven sync foundation sourced from the IRS downloads page each run for the selected target years.
 - source artifacts capture:
   - source year
   - source kind (`csv_index` or `zip_archive`)
@@ -114,8 +115,24 @@ Current discovery-stage architecture:
   - latest discovery state
   - per-run discovery catalog manifests
   - per-run discovery diff manifests
+- TEOS ZIP manifest sync persists separate per-batch state entries with:
+  - source URL
+  - ZIP basename
+  - tax year
+  - discovered timestamp
+  - last checked timestamp
+  - content length / etag / last modified when known
+  - current sync status
+  - download / extraction / processing statuses
+  - destination raw S3 prefix
+  - last error and attempt timestamps
+- TEOS ZIP manifest state keys live under:
+  - `form990/normalized/manifests/teos-zip/state/latest/year=<YEAR>/source_batch=<ZIP_BASENAME>.json`
+  - `form990/normalized/manifests/teos-zip/runs/{run_id}/year=<YEAR>/catalog.json`
 - raw source persistence stores original IRS artifacts unchanged under a dedicated prefix separate from extracted filing XML.
 - raw source object keys preserve history by including stable source identity plus source signature; the bucket does not rely on S3 versioning for historical retention.
+- raw extracted XML now has a source-batch-aware key contract available for ZIP-backed processing:
+  - `form990/raw/year=<YEAR>/source_batch=<ZIP_BASENAME>/ein=<EIN>/<IRS_OBJECT_ID>.xml`
 - latest downloaded-source state is stored as per-source state entries so the pipeline can skip already persisted artifacts with unchanged signatures.
 - source diffs classify:
   - new sources
@@ -231,6 +248,11 @@ Phase 10G ZIP discovery/reconciliation extension:
   - discovery state: `form990/normalized/manifests/discovery/state/latest_sources.json`
   - discovery run manifest: `form990/normalized/manifests/discovery/runs/{run_id}/catalog.json`
   - discovery diff manifest: `form990/normalized/manifests/discovery/runs/{run_id}/diff.json`
+- TEOS ZIP discovery foundation:
+  - scrape the IRS downloads page each run and filter TEOS ZIP links by target year
+  - normalize ZIP basename and absolute URL for deterministic manifest comparison
+  - persist per-batch manifest state independently from CSV/source-download state
+  - preserve a destination raw XML prefix per ZIP batch for future extraction phases
 - raw source downloads are persisted separately from extracted filing XML:
   - raw IRS source artifacts: `form990/raw-sources/{year}/{source_kind}/{archive_key}/{source_signature}/{filename}`
   - downloaded-source state: `form990/normalized/manifests/source-download/state/latest/{year}/{source_kind}/{archive_key}.json`

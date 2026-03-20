@@ -26,9 +26,11 @@ from charity_status.form990.source_catalog import (
     source_years,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
+from charity_status.form990.teos_manifest import S3TeosZipManifestRepository
+from charity_status.form990.teos_zip_discovery import fetch_teos_download_page_html, parse_teos_zip_links
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
-from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key
+from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key, teos_zip_manifest_state_prefix
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -223,6 +225,7 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "scheduled_sources": prepared["scheduled_sources"][:10],
         "skipped_source_count": prepared["skipped_source_count"],
         "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "teos_zip_manifest": prepared["teos_zip_manifest"],
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
         "discovery_manifest_key": prepared["discovery_manifest_key"],
         "discovery_diff_key": prepared["discovery_diff_key"],
@@ -361,6 +364,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "skipped_source_count": prepared["skipped_source_count"],
         "scheduled_source_count": prepared["scheduled_source_count"],
         "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "teos_zip_manifest": prepared["teos_zip_manifest"],
         "filings_discovered": len(reconciliation.current_records),
         "filings_new": reconciliation.new_count,
         "filings_changed": reconciliation.changed_count,
@@ -420,6 +424,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "skipped_source_count": prepared["skipped_source_count"],
         "scheduled_source_count": prepared["scheduled_source_count"],
         "downloaded_source_count": download_manifest.get("downloaded_count", 0),
+        "teos_zip_manifest": prepared["teos_zip_manifest"],
         "filings_discovered": len(reconciliation.current_records),
         "filings_new": reconciliation.new_count,
         "filings_changed": reconciliation.changed_count,
@@ -624,6 +629,12 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         diff_payload=diff_payload,
         now=now_dt,
     )
+    teos_zip_manifest = _sync_teos_zip_manifest_state(
+        service.s3,
+        run_id=run_id,
+        target_years=selected_years,
+        now=now_dt,
+    )
     selected_sources = select_sources_by_years(discovered_sources, set(selected_years))
     selected_source_dicts = [item.to_dict() for item in selected_sources]
     downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
@@ -641,6 +652,7 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         selected_source_count=len(selected_sources),
         scheduled_source_count=len(actionable_sources),
         skipped_source_count=len(download_plan["skipped"]),
+        teos_zip_discovered_count=teos_zip_manifest.get("discovered_count", 0),
     )
     return {
         "run_id": run_id,
@@ -658,6 +670,7 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         "scheduled_source_count": len(actionable_sources),
         "scheduled_sources": actionable_sources,
         "skipped_sources": download_plan["skipped"],
+        "teos_zip_manifest": teos_zip_manifest,
         "policy": {
             "mode_requested": mode,
             "effective_mode": policy_metadata.get("effective_mode"),
@@ -673,6 +686,61 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         },
         **persisted_keys,
     }
+
+
+def _sync_teos_zip_manifest_state(
+    s3_client: Any,
+    *,
+    run_id: str,
+    target_years: list[str],
+    now: datetime,
+) -> dict[str, Any]:
+    summary = {
+        "run_id": run_id,
+        "checked_at": now.isoformat(),
+        "state_prefix": teos_zip_manifest_state_prefix(MANIFEST_PREFIX),
+        "catalog_keys": [],
+        "target_years": list(target_years),
+        "discovered_count": 0,
+        "new_count": 0,
+        "changed_count": 0,
+        "removed_count": 0,
+        "unchanged_count": 0,
+        "error": None,
+    }
+    page_url = FORM990_IRS_DOWNLOADS_PAGE_URL.strip()
+    if not page_url or not target_years:
+        return summary
+
+    try:
+        html = fetch_teos_download_page_html(page_url=page_url, timeout_seconds=INDEX_FETCH_TIMEOUT_SECONDS)
+        discovered_sources = []
+        for year in target_years:
+            discovered_sources.extend(parse_teos_zip_links(html, page_url=page_url, target_year=year, now=now))
+        repository = S3TeosZipManifestRepository(
+            s3_client=s3_client,
+            bucket=BUCKET or "",
+            manifest_prefix=MANIFEST_PREFIX,
+            raw_xml_prefix=RAW_PREFIX,
+        )
+        return {
+            **summary,
+            **repository.sync_discovered_records(
+                run_id=run_id,
+                discovered_sources=discovered_sources,
+                checked_years=target_years,
+                checked_at=now,
+            ).to_dict(),
+        }
+    except Exception as exc:
+        _log_structured(
+            "form990.teos_zip_manifest.sync_failed",
+            run_id=run_id,
+            target_years=target_years,
+            page_url=page_url,
+            error=str(exc),
+        )
+        return {**summary, "error": str(exc)}
 
 
 def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConfig:
@@ -941,6 +1009,7 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "scheduled_source_count": response.get("scheduled_source_count"),
         "skipped_source_count": response.get("skipped_source_count"),
         "downloaded_source_count": response.get("downloaded_source_count"),
+        "teos_zip_manifest": response.get("teos_zip_manifest"),
         "filings_discovered": response.get("filings_discovered"),
         "filings_new": response.get("filings_new"),
         "filings_changed": response.get("filings_changed"),
