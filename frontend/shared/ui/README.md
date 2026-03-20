@@ -5,6 +5,7 @@ This package contains the smallest justified shared UI primitive for the current
 Current scope:
 
 - reusable frame component used by both app shells
+- reusable panel primitive for application surfaces
 - shared base stylesheet consumed by both apps
 
 Out of scope:
