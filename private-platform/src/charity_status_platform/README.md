@@ -29,3 +29,14 @@ Current monorepo note:
 
 - this directory is scaffolding only in the current phase
 - the live implementation still exists primarily under `infrastructure/lambda_*.py` and `infrastructure/charity_status/`
+
+Internal service-area package roots:
+
+- `identity_access/`
+- `customer_accounts/`
+- `billing_usage/`
+- `admin_operations/`
+- `runtime/`
+- `notifications/`
+
+Each package is intentionally a compatibility boundary first. The current implementation still lives under the existing `charity_status` modules, but future portal/admin/backend work should be added under these service-area roots rather than expanding ad hoc private logic elsewhere.

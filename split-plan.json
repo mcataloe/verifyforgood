@@ -40,6 +40,35 @@
     "include": [
       "private-platform/"
     ],
+    "service_areas": {
+      "identity_access": [
+        "infrastructure/charity_status/auth/",
+        "infrastructure/charity_status/platform/auth.py"
+      ],
+      "customer_accounts": [
+        "infrastructure/charity_status/control_plane/",
+        "infrastructure/charity_status/enrichments/organization_store.py",
+        "infrastructure/charity_status/enrichments/organization_settings_service.py",
+        "infrastructure/charity_status/enrichments/organization_settings_stores.py"
+      ],
+      "billing_usage": [
+        "infrastructure/charity_status/billing/",
+        "infrastructure/charity_status/auth/service.py"
+      ],
+      "admin_operations": [
+        "infrastructure/charity_status/ops/"
+      ],
+      "runtime": [
+        "infrastructure/charity_status/platform/",
+        "infrastructure/lambda_query.py",
+        "infrastructure/lambda_refresh.py",
+        "infrastructure/lambda_ingest.py",
+        "infrastructure/lambda_form990.py",
+        "infrastructure/lambda_form990_orchestrator.py",
+        "infrastructure/lambda_form990_worker.py"
+      ],
+      "notifications": []
+    },
     "candidate_modules": [
       "infrastructure/charity_status/auth/",
       "infrastructure/charity_status/billing/",

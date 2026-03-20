@@ -61,6 +61,8 @@ def test_split_plan_referenced_paths_exist():
         include_paths.extend(payload.get(section, {}).get("include", []))
         include_paths.extend(payload.get(section, {}).get("candidate_modules", []))
         include_paths.extend(payload.get(section, {}).get("mixed_before_extract", []))
+        for paths in payload.get(section, {}).get("service_areas", {}).values():
+            include_paths.extend(paths)
 
     include_paths.extend(payload.get("entrypoints", []))
     include_paths.extend(payload.get("highest_risk_refactors", []))

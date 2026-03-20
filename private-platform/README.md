@@ -18,6 +18,12 @@ Scaffolding added in this repo phase:
 
 - `private-platform/src/charity_status_platform/__init__.py`
 - `private-platform/src/charity_status_platform/README.md`
+- `private-platform/src/charity_status_platform/identity_access/`
+- `private-platform/src/charity_status_platform/customer_accounts/`
+- `private-platform/src/charity_status_platform/billing_usage/`
+- `private-platform/src/charity_status_platform/admin_operations/`
+- `private-platform/src/charity_status_platform/runtime/`
+- `private-platform/src/charity_status_platform/notifications/`
 
 Future private repo responsibilities:
 
@@ -28,3 +34,23 @@ Future private repo responsibilities:
 - all billing and subscription workflow logic
 - control-plane and operator workflow orchestration
 - Lambda entrypoints and transport response shaping
+
+Internal service areas now defined:
+
+- `identity_access`
+  - API key auth, admin auth, OAuth client credentials, auth context providers
+- `customer_accounts`
+  - account provisioning, credential management, organization-level settings
+- `billing_usage`
+  - subscription lifecycle, Stripe flows, usage metering, quota enforcement, budget controls
+- `admin_operations`
+  - internal ops visibility and admin workflow support
+- `runtime`
+  - runtime builders, adapter assembly, and handler-side composition support
+- `notifications`
+  - reserved home for future internal notifications, support, and eventing work
+
+Boundary rule:
+
+- private-platform may depend on public-core
+- public-core must not depend on private-platform

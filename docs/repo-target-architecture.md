@@ -169,6 +169,15 @@ Key design decisions:
 - `private-platform` uses a distinct package root, `charity_status_platform`, to avoid namespace confusion with `charity_status`.
 - `infrastructure/` should end in a deployment-only role. It should package and wire entrypoints, not own business logic.
 
+Private-platform service areas now defined in the repo:
+
+- `charity_status_platform.identity_access`
+- `charity_status_platform.customer_accounts`
+- `charity_status_platform.billing_usage`
+- `charity_status_platform.admin_operations`
+- `charity_status_platform.runtime`
+- `charity_status_platform.notifications`
+
 ## Dependency Rules
 
 Required dependency direction:
@@ -181,6 +190,15 @@ Billing rule:
 
 - No subscription, plan, quota, entitlement, Stripe, billing status, or customer billing workflow logic belongs in `public-core`.
 - Public-core should accept a billing-agnostic access or capability input when plan-derived behavior is needed.
+
+What makes logic private-platform rather than public-core:
+
+- it is tenant/customer/account specific
+- it owns credentials or authz policy
+- it enforces usage, billing, or budget controls
+- it coordinates admin/operator workflows
+- it depends on proprietary platform integrations or support flows
+- it is runtime-composition or handler orchestration logic rather than reusable domain logic
 
 Additional guardrails:
 

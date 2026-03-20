@@ -1,5 +1,14 @@
-"""Future private-platform package root.
+"""Private-platform package root.
 
-This package is intentionally minimal during the scaffolding phase.
-The live implementation still runs from the current monorepo paths.
+This package defines the internal service-area boundaries for proprietary
+platform logic while preserving compatibility with the current monorepo paths.
 """
+
+__all__ = [
+    "identity_access",
+    "customer_accounts",
+    "billing_usage",
+    "admin_operations",
+    "runtime",
+    "notifications",
+]
