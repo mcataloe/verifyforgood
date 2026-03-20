@@ -6,6 +6,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
+from charity_status.branding import load_branding_config
+
 from .routes import API_RELEASE, API_VERSION
 
 
@@ -98,6 +100,9 @@ def error_response(
     meta: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    response_meta = dict(meta or {})
+    if status_code >= 500:
+        response_meta.setdefault("support", load_branding_config().support_details())
     body = {
         "api_version": API_VERSION,
         "api_release": API_RELEASE,
@@ -105,7 +110,7 @@ def error_response(
         "deprecation": response_context.deprecation.to_dict(),
         "plan": response_context.plan,
         "data": {},
-        "meta": meta or {},
+        "meta": response_meta,
         "errors": [
             {
                 "code": str(code or _default_error_code(status_code)),

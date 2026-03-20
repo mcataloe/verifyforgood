@@ -27,7 +27,9 @@ from .naming import (
 )
 from charity_status.branding import (
     DEFAULT_APP_NAME,
+    DEFAULT_DOMAIN,
     DEFAULT_PUBLIC_BRAND_NAME,
+    DEFAULT_SUPPORT_EMAIL,
     DEFAULT_USER_AGENT_VERSION,
     BrandingConfig,
     default_runtime_user_agent,
@@ -57,7 +59,9 @@ __all__ = [
     "validate_resource_name",
     "validateResourceName",
     "DEFAULT_APP_NAME",
+    "DEFAULT_DOMAIN",
     "DEFAULT_PUBLIC_BRAND_NAME",
+    "DEFAULT_SUPPORT_EMAIL",
     "DEFAULT_USER_AGENT_VERSION",
     "BrandingConfig",
     "load_branding_config",

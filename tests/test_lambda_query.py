@@ -1264,6 +1264,7 @@ def test_post_organization_billing_checkout_session_returns_provider_error():
 
     assert result["statusCode"] == 502
     assert "Stripe rejected the request" in _response_error_message(result)
+    assert _response_envelope(result)["meta"]["support"]["brand_name"] == "VerifyForGood"
 
 
 def test_handler_returns_hard_stop_quota_response_when_overage_disabled():

@@ -2,6 +2,8 @@
 
 Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
 
+The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
+
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
@@ -49,9 +51,12 @@ Internal runtime naming is capability-based even when customer-facing materials 
 
 - `APP_NAME` controls neutral internal/runtime identity such as outbound user-agent strings
 - `PUBLIC_BRAND_NAME` controls customer-visible labels used in external systems such as billing metadata
+- `SUPPORT_EMAIL` controls customer-facing support contact details surfaced by the branding layer
+- `DOMAIN` controls the public product domain surfaced by the branding layer; it does not rename infrastructure resources or Route53-managed endpoints by itself
 - public routes and API payloads stay unchanged unless a separate contract change explicitly requires them
 - customer-facing docs may still use a configured public brand; internal module and runtime identifiers should stay brand-neutral
 - deployment-specific bootstrap/state files may still carry existing live names until a separate migration updates those resources deliberately
+- branding defaults now target `VerifyForGood`, but those values remain runtime configuration rather than core platform identifiers
 
 ## Public-Core Boundary (Phase 11A)
 
@@ -625,7 +630,9 @@ Recommended Lambda environment variables for the new normalized platform model:
 
 ```text
 APP_NAME=verification-platform
-PUBLIC_BRAND_NAME=Verification Platform
+PUBLIC_BRAND_NAME=VerifyForGood
+SUPPORT_EMAIL=support@verifyforgood.com
+DOMAIN=verifyforgood.com
 
 THIRD_PARTY_INTEGRATIONS_ENABLED=false
 
@@ -649,6 +656,8 @@ ENRICHMENT_STATE_REGISTRY_COLORADO_APP_TOKEN=
 ENRICHMENT_STATE_REGISTRY_KENTUCKY_ENABLED=false
 ENRICHMENT_STATE_REGISTRY_KENTUCKY_COMPANIES_URL=
 ```
+
+Customer-facing server-error responses now add `meta.support` from this same branding configuration so support contact changes do not require edits to domain or handler logic.
 
 Organization integration settings are env-backed JSON keyed by `workspace_id` with `account_id` fallback:
 

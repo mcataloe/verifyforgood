@@ -52,3 +52,20 @@ def test_error_response_sets_deprecation_headers_when_endpoint_is_deprecated():
     assert response["headers"]["Sunset"] == "2026-12-31"
     assert body["errors"] == [{"code": "gone", "message": "Endpoint retired"}]
     assert body["deprecation"]["recommended_version"] == "v2"
+
+
+def test_error_response_includes_configured_support_metadata_for_server_errors(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BRAND_NAME", "VerifyForGood")
+    monkeypatch.setenv("SUPPORT_EMAIL", "support@verifyforgood.com")
+    monkeypatch.setenv("DOMAIN", "api.verifyforgood.com")
+    response_context = build_response_context(None, None, plan="growth")
+
+    response = error_response(502, "Upstream provider failed", response_context=response_context, code="billing_provider_error")
+    body = json.loads(response["body"])
+
+    assert body["meta"]["support"] == {
+        "brand_name": "VerifyForGood",
+        "support_email": "support@verifyforgood.com",
+        "domain": "api.verifyforgood.com",
+        "homepage_url": "https://api.verifyforgood.com",
+    }

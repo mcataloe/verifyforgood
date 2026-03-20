@@ -164,22 +164,25 @@ resource "aws_lambda_function" "query" {
       OAUTH_CLIENT_RECORDS_JSON                        = var.oauth_client_records_json
       OAUTH_TOKEN_TTL_SECONDS                          = tostring(var.oauth_token_ttl_seconds)
       ADMIN_KEY_RECORDS_JSON                           = var.admin_key_records_json
-      APP_NAME                                         = var.app_name
-      PUBLIC_BRAND_NAME                                = var.public_brand_name
-      ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
-      TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
-      STRIPE_BILLING_ENABLED                           = tostring(var.stripe_billing_enabled)
-      STRIPE_PRICE_IDS                                 = var.stripe_price_ids_json
-      STRIPE_SECRET_KEY                                = var.stripe_secret_key
-      STRIPE_WEBHOOK_SECRET                            = var.stripe_webhook_secret
-      FREE_TRIAL_ENABLED                               = tostring(var.free_trial_enabled)
-      FREE_TRIAL_DURATION_DAYS                         = tostring(var.free_trial_duration_days)
-      FREE_TRIAL_PLAN_CODE                             = var.free_trial_plan_code
-      FREE_TRIAL_MONTHLY_REQUEST_LIMIT                 = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
-      ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
-      OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
-      FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
+      # Public brand settings stay configurable and separate from core platform identity.
+      APP_NAME                               = var.app_name
+      PUBLIC_BRAND_NAME                      = var.public_brand_name
+      SUPPORT_EMAIL                          = var.support_email
+      DOMAIN                                 = var.domain
+      ORGANIZATION_INTEGRATION_SETTINGS_JSON = var.organization_integration_settings_json
+      TENANT_INTEGRATION_SETTINGS_JSON       = var.tenant_integration_settings_json
+      STRIPE_BILLING_ENABLED                 = tostring(var.stripe_billing_enabled)
+      STRIPE_PRICE_IDS                       = var.stripe_price_ids_json
+      STRIPE_SECRET_KEY                      = var.stripe_secret_key
+      STRIPE_WEBHOOK_SECRET                  = var.stripe_webhook_secret
+      FREE_TRIAL_ENABLED                     = tostring(var.free_trial_enabled)
+      FREE_TRIAL_DURATION_DAYS               = tostring(var.free_trial_duration_days)
+      FREE_TRIAL_PLAN_CODE                   = var.free_trial_plan_code
+      FREE_TRIAL_MONTHLY_REQUEST_LIMIT       = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
+      ORGANIZATION_SETTINGS_TABLE_NAME       = aws_dynamodb_table.organization_settings.name
+      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
+      FORM990_ORCHESTRATOR_FUNCTION_NAME     = aws_lambda_function.form990_orchestrator.function_name
     }
   }
 }
@@ -273,19 +276,22 @@ resource "aws_lambda_function" "refresh" {
       ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
       ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
-      APP_NAME                                         = var.app_name
-      PUBLIC_BRAND_NAME                                = var.public_brand_name
-      PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
-      APP_ENV                                          = var.environment
-      REFRESH_MODE                                     = var.refresh_mode
-      REFRESH_BATCH_SIZE                               = tostring(var.refresh_batch_size)
-      FORCE_REFRESH                                    = tostring(var.refresh_force)
-      REFRESH_SOURCE_DETECTION_ENABLED                 = tostring(var.refresh_source_detection_enabled)
-      BOOTSTRAP_NONPROD_OVERRIDE                       = tostring(var.bootstrap_nonprod_override)
-      BOOTSTRAP_START_AFTER_EIN                        = var.bootstrap_start_after_ein
-      BOOTSTRAP_MAX_BATCHES_PER_RUN                    = tostring(var.bootstrap_max_batches_per_run)
-      OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
+      # Public brand settings stay configurable and separate from core platform identity.
+      APP_NAME                         = var.app_name
+      PUBLIC_BRAND_NAME                = var.public_brand_name
+      SUPPORT_EMAIL                    = var.support_email
+      DOMAIN                           = var.domain
+      PROFILE_TABLE_NAME               = aws_dynamodb_table.profiles.name
+      APP_ENV                          = var.environment
+      REFRESH_MODE                     = var.refresh_mode
+      REFRESH_BATCH_SIZE               = tostring(var.refresh_batch_size)
+      FORCE_REFRESH                    = tostring(var.refresh_force)
+      REFRESH_SOURCE_DETECTION_ENABLED = tostring(var.refresh_source_detection_enabled)
+      BOOTSTRAP_NONPROD_OVERRIDE       = tostring(var.bootstrap_nonprod_override)
+      BOOTSTRAP_START_AFTER_EIN        = var.bootstrap_start_after_ein
+      BOOTSTRAP_MAX_BATCHES_PER_RUN    = tostring(var.bootstrap_max_batches_per_run)
+      OPS_METADATA_BUCKET              = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX              = var.ops_metadata_prefix
     }
   }
 }

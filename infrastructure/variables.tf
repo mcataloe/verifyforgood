@@ -17,7 +17,19 @@ variable "app_name" {
 variable "public_brand_name" {
   description = "Public-facing product label used when external integrations need a customer-visible brand name."
   type        = string
-  default     = "Verification Platform"
+  default     = "VerifyForGood"
+}
+
+variable "support_email" {
+  description = "Customer-facing support email exposed by the branding layer for public messaging and support-oriented error responses."
+  type        = string
+  default     = "support@verifyforgood.com"
+}
+
+variable "domain" {
+  description = "Customer-facing product domain used by the branding layer. This does not manage Route53 or API custom-domain infrastructure."
+  type        = string
+  default     = "verifyforgood.com"
 }
 
 variable "resource_name_strategy" {

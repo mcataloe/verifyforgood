@@ -1,8 +1,10 @@
-# Charity Status API for Customers
+# VerifyForGood Customer API
 
 ## Overview
 
-Charity Status API helps customers verify and monitor U.S. nonprofits using IRS Exempt Organizations data, Form 990 filing data, and selected enrichment sources.
+VerifyForGood helps customers verify and monitor U.S. nonprofits using IRS Exempt Organizations data, Form 990 filing data, and selected enrichment sources.
+
+Branding is configuration-driven. The internal platform stays capability-based, while public-facing values such as brand name, support contact, and domain are injected through the shared branding layer.
 
 Typical customer workflows include:
 
@@ -54,6 +56,16 @@ Customers with an active paid subscription can change plans through `POST /v1/or
 Customers with an existing Stripe billing profile can open the Stripe-hosted customer portal through `POST /v1/organization/billing/portal-session`.
 
 Customers can retrieve a product-focused billing summary through `GET /v1/organization/billing/subscription`.
+
+## Branding and Support
+
+Customer-visible branding defaults to:
+
+- `PUBLIC_BRAND_NAME=VerifyForGood`
+- `SUPPORT_EMAIL=support@verifyforgood.com`
+- `DOMAIN=verifyforgood.com`
+
+Server-side error responses may include `meta.support` with those configured values so customer guidance can change without altering internal service names or route contracts.
 
 ## Free Trial
 
