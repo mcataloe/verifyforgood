@@ -1,44 +1,112 @@
 {
   "public_repo": {
+    "package_root": "public-core/src/charity_status",
     "include": [
-      "public-core/",
-      "infrastructure/charity_status/api/",
-      "infrastructure/charity_status/core/",
+      "public-core/"
+    ],
+    "candidate_modules": [
       "infrastructure/charity_status/decision/",
-      "infrastructure/charity_status/enrichments/",
       "infrastructure/charity_status/evidence/",
-      "infrastructure/charity_status/form990/",
-      "infrastructure/charity_status/models.py",
       "infrastructure/charity_status/normalization/",
       "infrastructure/charity_status/policy/",
-      "infrastructure/charity_status/query/",
       "infrastructure/charity_status/scoring/",
-      "infrastructure/charity_status/serving/",
       "infrastructure/charity_status/sources/",
-      "tests/"
+      "infrastructure/charity_status/state_registry/",
+      "infrastructure/charity_status/query/verification.py",
+      "infrastructure/charity_status/query/nonprofit_lookup.py",
+      "infrastructure/charity_status/query/source_views.py",
+      "infrastructure/charity_status/enrichments/service.py",
+      "infrastructure/charity_status/serving/materializer.py",
+      "infrastructure/charity_status/serving/refresh.py",
+      "infrastructure/charity_status/serving/change_detection.py",
+      "infrastructure/charity_status/serving/models.py",
+      "infrastructure/charity_status/form990/"
     ],
-    "exclude": [
-      "infrastructure/*.tf",
-      "infrastructure/*.tfvars",
-      "infrastructure/lambda_*.py",
-      "infrastructure/charity_status/platform/"
+    "mixed_before_extract": [
+      "infrastructure/charity_status/core/",
+      "infrastructure/charity_status/query/",
+      "infrastructure/charity_status/enrichments/",
+      "infrastructure/charity_status/serving/",
+      "infrastructure/charity_status/form990/"
+    ],
+    "notes": [
+      "Public-core is deterministic nonprofit/domain logic only.",
+      "All billing stays private-platform.",
+      "AWS, Stripe, env parsing, and transport response shaping stay out of public-core."
     ]
   },
   "private_repo": {
+    "package_root": "private-platform/src/charity_status_platform",
     "include": [
-      "private-platform/",
+      "private-platform/"
+    ],
+    "candidate_modules": [
+      "infrastructure/charity_status/auth/",
+      "infrastructure/charity_status/billing/",
+      "infrastructure/charity_status/control_plane/",
+      "infrastructure/charity_status/ingest/",
+      "infrastructure/charity_status/ops/",
+      "infrastructure/charity_status/platform/",
+      "infrastructure/charity_status/query/athena.py",
+      "infrastructure/charity_status/serving/dynamodb_store.py",
+      "infrastructure/charity_status/enrichments/organization_store.py",
       "infrastructure/lambda_query.py",
       "infrastructure/lambda_refresh.py",
       "infrastructure/lambda_ingest.py",
       "infrastructure/lambda_form990.py",
-      "infrastructure/charity_status/platform/"
+      "infrastructure/lambda_form990_orchestrator.py",
+      "infrastructure/lambda_form990_worker.py"
+    ],
+    "notes": [
+      "Private-platform owns all platform billing.",
+      "Private-platform owns runtime orchestration, control-plane, auth, ops, and proprietary adapters."
     ]
   },
   "infra_repo": {
     "include": [
-      "infra-deployment/",
+      "infra-deployment/"
+    ],
+    "deployment_assets": [
       "infrastructure/*.tf",
-      "infrastructure/*.tfvars"
+      "infrastructure/backend-*.hcl",
+      "infrastructure/*.tfvars",
+      "infrastructure/*.tfvars.example"
+    ],
+    "notes": [
+      "Infrastructure should converge on deploy/config/wiring only.",
+      "Business logic should migrate out before extraction."
     ]
-  }
+  },
+  "entrypoints": [
+    "infrastructure/charity_status/api/routes.py",
+    "infrastructure/charity_status/api/responses.py",
+    "infrastructure/lambda_query.py",
+    "infrastructure/lambda_refresh.py",
+    "infrastructure/lambda_ingest.py",
+    "infrastructure/lambda_form990.py",
+    "infrastructure/lambda_form990_orchestrator.py",
+    "infrastructure/lambda_form990_worker.py"
+  ],
+  "highest_risk_refactors": [
+    "infrastructure/lambda_query.py",
+    "infrastructure/charity_status/core/models.py",
+    "infrastructure/charity_status/billing/",
+    "infrastructure/charity_status/query/athena.py",
+    "infrastructure/charity_status/enrichments/organization_store.py",
+    "infrastructure/charity_status/form990/",
+    "infrastructure/charity_status/serving/"
+  ],
+  "dependency_rules": [
+    "charity_status_platform may depend on charity_status",
+    "charity_status must not depend on charity_status_platform",
+    "infrastructure may package and deploy entrypoints but must not contain business logic",
+    "all billing stays private-platform"
+  ],
+  "migration_sequence": [
+    "document target architecture and tighten split scaffolding",
+    "remove core-to-billing dependency and split mixed adapters from domain logic",
+    "extract low-risk deterministic public-core packages",
+    "extract private-platform orchestration, billing, auth, control-plane, and adapters",
+    "reduce infrastructure to deployment/config/wiring only"
+  ]
 }

@@ -1,63 +1,42 @@
-# Repository Split Guide (Phase 11B Scaffold)
+# Repository Split Guide
 
-This guide defines how to split this monorepo into:
+This guide defines the intended split between:
 
-1. public core repository
-2. private platform repository
-3. infrastructure deployment repository
+1. `public-core/`
+2. `private-platform/`
+3. `infrastructure/`
 
-## Goals
+The detailed current-state assessment and target-state map live in:
 
-- keep deterministic nonprofit domain logic open and canonical
-- isolate deployment/runtime/platform specifics
-- preserve current behavior while enabling low-risk extraction
+- `docs/repo-target-architecture.md`
 
-## Public Repository Contents
+## Current Direction
 
-Primary package scope:
+- `public-core/` is for deterministic nonprofit/domain logic only.
+- `private-platform/` is for all platform behavior, including auth, control-plane, operator workflows, runtime composition, proprietary adapters, and all billing.
+- `infrastructure/` is for deployment/config/wiring only.
 
-- `charity_status` domain modules (normalization, scoring, policy, evidence, decision, source models)
-- query/use-case logic without platform-specific deployment coupling
-- deterministic serving/materialization logic
-- tests that validate deterministic domain behavior
+## Key Boundary Rules
 
-Scaffold:
+- `charity_status_platform` may depend on `charity_status`
+- `charity_status` must not depend on `charity_status_platform`
+- `infrastructure/` should deploy packaged entrypoints, not contain business logic
 
-- `public-core/pyproject.toml`
-- `public-core/README.md`
+Billing rule:
 
-## Private Platform Repository Contents
+- billing is private-platform only
+- public-core must not own subscription, plan, quota, entitlement, Stripe, or customer billing workflow logic
 
-- Lambda runtime handlers
-- auth context integration adapters
-- quota/metering implementations
-- proprietary provider integrations
-- customer/workflow-specific orchestration
+## Practical Migration Guidance
 
-Scaffold:
-
-- `private-platform/README.md`
-
-## Infrastructure Repository Contents
-
-- Terraform modules/stacks
-- environment tfvars and deployment scripts
-- account/region-specific pipeline wiring
-
-Scaffold:
-
-- `infra-deployment/README.md`
-
-## Practical Migration Steps
-
-1. Copy paths listed in `split-plan.json.public_repo.include` into the public repo.
-2. Move lambda entrypoints and `charity_status/platform` into the private platform repo.
-3. Move Terraform and environment deployment artifacts into infra repo.
-4. In public repo, switch `public-core/pyproject.toml` package discovery to local `src/` after physical move.
-5. Repoint private platform imports to consume published public-core package.
+1. Fix boundary violations before moving code.
+2. Extract low-risk deterministic public-core packages first.
+3. Move private-platform orchestration and adapters after seam fixes land.
+4. Reduce `infrastructure/` to Terraform, env config, deployment scripts, and temporary shims last.
 
 ## Guardrails
 
-- Do not copy secrets into the public repo.
-- Keep policy/scoring/evidence deterministic and test-covered in the public repo.
-- Keep provider-specific runtime credentials and account configuration private.
+- Do not copy secrets into public artifacts.
+- Keep public-core open-safe and deployment-agnostic.
+- Keep AWS, Stripe, env parsing, and operator workflows private.
+- Avoid moving runtime entrypoints and refactoring mixed modules in the same change.

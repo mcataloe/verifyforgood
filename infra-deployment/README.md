@@ -9,8 +9,21 @@ Current deployment assets remain under:
 - `infrastructure/backend-*.hcl`
 - Lambda packaging scripts and zip outputs
 
+Target deployment-oriented structure after migration:
+
+- `infrastructure/terraform/`
+- `infrastructure/env/`
+- `infrastructure/scripts/`
+- `infrastructure/lambda_shims/`
+
 Future extracted repo should contain:
 
 - Terraform modules/environments
 - CI/CD deploy pipelines
 - environment-specific config and secrets handling
+- packaging and deployment shims only
+
+Boundary rule:
+
+- deployment artifacts belong here
+- business logic does not
