@@ -4,6 +4,7 @@ Current role:
 
 - this directory still contains both deployment assets and active Python runtime code
 - Terraform, env files, Lambda entrypoints, and the current `charity_status` implementation all still live here today
+- Terraform resource names are centralized in `main.tf` locals and can opt into the standardized `<namespace>-<platform>-<purpose>-<environment>-<region>` pattern without forcing immediate renames of deployed infrastructure
 
 Target role:
 
@@ -34,3 +35,4 @@ Dependency direction:
 Migration note:
 
 - this boundary is documented now so later refactors can move code out incrementally without breaking current deployment assumptions
+- naming is decoupled from product branding so infrastructure identity does not have to change when customer-facing names do

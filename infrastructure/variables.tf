@@ -8,6 +8,23 @@ variable "environment" {
   type        = string
 }
 
+variable "resource_name_strategy" {
+  description = "Physical resource naming mode. Use legacy to preserve existing deployed names; use standardized to opt into <namespace>-<platform>-<purpose>-<environment>-<region>."
+  type        = string
+  default     = "legacy"
+
+  validation {
+    condition     = contains(["legacy", "standardized"], var.resource_name_strategy)
+    error_message = "resource_name_strategy must be either legacy or standardized."
+  }
+}
+
+variable "resource_name_overrides" {
+  description = "Optional per-resource physical name overrides keyed by the main.tf resource_names map. Overrides take precedence over both legacy and standardized naming."
+  type        = map(string)
+  default     = {}
+}
+
 variable "source_data_prefix" {
   description = "Shared S3 prefix under the source bucket where all EO BMF CSV files are stored."
   type        = string
@@ -237,7 +254,7 @@ variable "form990_queue_batch_size" {
 }
 
 variable "athena_workgroup_name" {
-  description = "Athena workgroup name used for EO BMF queries."
+  description = "Legacy Athena workgroup base name used when resource_name_strategy=legacy."
   type        = string
   default     = "irs-eo-bmf"
 }
@@ -261,7 +278,7 @@ variable "route53_zone_name" {
 }
 
 variable "base_name" {
-  description = "Base name for resources."
+  description = "Legacy brand-derived base name used when resource_name_strategy=legacy."
   type        = string
 }
 

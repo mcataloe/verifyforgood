@@ -2,6 +2,7 @@
 
 aws_region                 = "us-east-1"
 environment                = "dev"
+resource_name_strategy     = "legacy"
 source_data_prefix         = "eo_bmf/"
 athena_workgroup_name      = "irs-eo-bmf"
 form990_raw_prefix         = "form990/raw/"

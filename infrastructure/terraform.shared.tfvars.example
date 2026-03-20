@@ -1,5 +1,6 @@
 base_name            = "charitystatusapi"
 aws_region           = "us-east-1"
+resource_name_strategy = "legacy"
 source_data_prefix   = "eo_bmf/"
 athena_workgroup_name = "irs-eo-bmf"
 

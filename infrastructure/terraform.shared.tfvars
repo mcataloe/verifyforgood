@@ -1,7 +1,8 @@
-base_name             = "charitystatusapi"
-aws_region            = "us-east-1"
-source_data_prefix    = "eo_bmf/"
-athena_workgroup_name = "irs-eo-bmf"
+base_name              = "charitystatusapi"
+aws_region             = "us-east-1"
+resource_name_strategy = "legacy"
+source_data_prefix     = "eo_bmf/"
+athena_workgroup_name  = "irs-eo-bmf"
 
 form990_raw_prefix                       = "form990/raw/"
 form990_raw_source_prefix                = "form990/raw-sources/"

@@ -34,6 +34,8 @@ Naming philosophy:
 - branding such as `CharityStatusAPI`, `VerifyForGood`, or future product names must not be embedded in infrastructure resource names
 - purpose tokens should describe the resource role (`profiles`, `query-api`, `source-data-bucket`) rather than the brand
 - names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
+- Terraform keeps `resource_name_strategy = "legacy"` by default so existing deployed resources are not renamed accidentally; set it to `standardized` only as part of an explicit migration plan
+- `resource_name_overrides` can pin individual physical names when migrating one resource at a time
 
 Namespace token guidance:
 
