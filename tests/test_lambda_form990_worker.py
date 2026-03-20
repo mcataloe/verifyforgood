@@ -229,3 +229,74 @@ def test_worker_skips_chunk_when_result_already_succeeded(monkeypatch):
     event = {"Records": [{"body": json.dumps({"run_id": "r5", "chunk_id": "c5", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 2})}]}
     result = module.handler(event, None)
     assert result["status"] == "success"
+
+
+def test_worker_processes_source_batch_chunk_success(monkeypatch):
+    fake_s3 = FakeS3()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_BUCKET", "test-bucket")
+    monkeypatch.setenv("OPS_METADATA_PREFIX", "ops")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3)
+    sys.modules.pop("infrastructure.lambda_form990_worker", None)
+    module = importlib.import_module("infrastructure.lambda_form990_worker")
+    chunk_key = "ops/form990-runs/r6/chunks/c6.json"
+    fake_s3.put_object(
+        Bucket="test-bucket",
+        Key=chunk_key,
+        Body=json.dumps(
+            {
+                "task_type": "source_batch",
+                "source_batches": [
+                    {
+                        "tax_year": "2025",
+                        "zip_basename": "2025_TEOS_XML_11A",
+                    }
+                ],
+            }
+        ).encode("utf-8"),
+    )
+    module.S3TeosZipManifestRepository.load_record = lambda self, tax_year, zip_basename: type(
+        "_Record",
+        (),
+        {
+            "tax_year": tax_year,
+            "zip_basename": zip_basename,
+            "processing_status": "pending",
+            "last_error": None,
+        },
+    )()
+    module.process_teos_manifest_batch = lambda **kwargs: type(
+        "_Result",
+        (),
+        {
+            "manifest_record": type(
+                "_Manifest",
+                (),
+                {
+                    "tax_year": "2025",
+                    "zip_basename": "2025_TEOS_XML_11A",
+                    "processing_status": "success",
+                    "last_error": None,
+                },
+            )(),
+            "source_object_keys": ("teos/raw/xml/year=2025/source_batch=2025_TEOS_XML_11A/202500123_public.xml",),
+            "ingest_result": {
+                "records_processed": 1,
+                "parsed_count": 1,
+                "failed_count": 0,
+                "manifest_s3_key": "form990/normalized/manifests/manifest_20260101T000000Z.json",
+            },
+            "skipped": False,
+        },
+    )()
+    module._update_run_status = lambda *args, **kwargs: None
+    module._write_summary_snapshot = lambda *args, **kwargs: None
+    event = {"Records": [{"body": json.dumps({"run_id": "r6", "chunk_id": "c6", "chunk_s3_bucket": "test-bucket", "chunk_s3_key": chunk_key, "attempt": 1})}]}
+
+    result = module.handler(event, None)
+
+    assert result["status"] == "success"
+    stored = json.loads(fake_s3.store[("test-bucket", "ops/form990-runs/r6/results/c6.json")]["Body"].decode("utf-8"))
+    assert stored["task_type"] == "source_batch"
+    assert stored["result"]["status"] == "success"
+    assert stored["result"]["source_batch_count"] == 1

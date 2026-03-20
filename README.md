@@ -160,11 +160,14 @@ Known supported discovery filename patterns include:
 - `{year}_TEOS_XML_CT1.zip`
 - `download990xml_{year}_{n}.zip`
 
-Later phases will extend the same flow to:
+The current TEOS flow now runs as:
 
-- reconcile CSV index catalogs
-- extract selected filings from ZIP archives
-- parse and normalize filing XML
+- discover yearly CSV and TEOS ZIP sources
+- scrape and probe TEOS ZIP batches into per-batch manifest state
+- download only new or changed source artifacts
+- extract selected TEOS ZIP batches into `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/`
+- process extracted source batches from those manifest-tracked raw prefixes
+- write normalized filings, metrics, governance, quality, and relationships datasets
 
 Historical notes on the pre-refactor filing-stage flow:
 
@@ -215,13 +218,14 @@ Operational run guidance:
   - malformed ZIP/XML and ZIP-member misses are recorded explicitly
   - worker chunk retries are resumable; succeeded chunks are short-circuited to avoid duplicate processing
 
-Filing-level reconciliation now runs after raw source persistence:
+CSV reconciliation still runs after raw source persistence for catalog visibility and filing state updates:
 
 - yearly CSV indexes are the authoritative filing catalog for incremental Form 990 selection
 - the reconciler reads the downloaded raw CSV artifacts from S3 and diffs filing rows against latest filing state
 - only new, changed, or incomplete filings are selected for downstream ingest
-- selected filings are resolved against raw ZIP source artifacts in S3 and extracted from ZIP members as the primary XML path
-- direct `xml_url` download is used only as fallback when ZIP-member resolution fails and a trustworthy URL is available
+- TEOS downstream processing no longer depends on a flat yearly ZIP-member lookup
+- extracted raw XML is associated to a specific ZIP batch through manifest state plus `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/`
+- batch reruns are driven by TEOS manifest state (`processing_status`) rather than forcing a full-year replay
 - historical source retention still comes from object keys/manifests, not S3 versioning
 
 Phase 10G ZIP discovery/reconciliation extension:
@@ -264,6 +268,11 @@ Phase 10G ZIP discovery/reconciliation extension:
   - each selected ZIP is downloaded independently, so one changed batch can be reprocessed without forcing other yearly ZIPs to redownload
   - extracted XML members are written under `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/`
   - rerunning an unchanged batch does not redownload it; rerunning a changed batch overwrites the extracted member keys for that batch deterministically
+- TEOS ZIP source-batch processing behavior:
+  - processing reads raw XML inputs from the manifest record's `destination_raw_s3_prefix`
+  - each source batch is processed independently and updates manifest `processing_status`, `processing_attempted_at`, and `last_error`
+  - unchanged batches with terminal `processing_status=success` are skipped safely on rerun
+  - changed or failed batches can be replayed in isolation without forcing unrelated source batches through the same path
 - raw source downloads are persisted separately from extracted filing XML:
   - raw IRS source artifacts: `form990/raw-sources/{year}/{source_kind}/{archive_key}/{source_signature}/{filename}`
   - downloaded-source state: `form990/normalized/manifests/source-download/state/latest/{year}/{source_kind}/{archive_key}.json`
@@ -276,9 +285,8 @@ Phase 10G ZIP discovery/reconciliation extension:
   - select target years for source and filing work
   - download only source artifacts missing from downloaded-source state or changed by source signature
   - reconcile filing rows from the downloaded yearly CSV indexes
-  - resolve selected filings to ZIP members and extract only required XML entries where feasible
-  - parse only selected filing XML and persist normalized outputs
-  - use URL fallback only when ZIP resolution cannot locate the filing XML
+  - process TEOS XML by source batch from extracted raw prefixes tracked in the TEOS manifest
+  - persist normalized outputs and update filing state from source-batch processing results
 
 "Already on file" now means the latest filing state contains a complete terminal outcome for that filing:
 
@@ -292,9 +300,10 @@ Phase 10H parallel chunk processing:
   - `inline` (existing single-invocation processing)
   - `orchestrated` (SQS chunking + worker Lambdas)
 - orchestrated flow:
-  - orchestrator discovers sources, reconciles CSV filings, and writes selected filing chunks to S3
+  - orchestrator discovers sources, reconciles CSV filings, and writes source-batch chunks to S3 when TEOS manifest-tracked raw batches are available
+  - legacy non-TEOS or not-yet-extracted paths can still fall back to selected filing chunks
   - orchestrator enqueues chunk messages to SQS
-  - worker Lambda processes selected filings using ZIP-backed extraction first, then URL fallback when needed
+  - worker Lambda processes queued TEOS source batches directly from `teos/raw/xml/year=<YEAR>/source_batch=<ZIP_BASENAME>/`
   - `dev` should use orchestrated scheduling rather than inline processing for daily Form 990 runs
   - per-run/per-chunk artifacts are persisted under:
     - `ops/form990-runs/{run_id}/run.json`
@@ -305,6 +314,7 @@ Phase 10H parallel chunk processing:
   - worker failures leave SQS messages unacked for retry
   - after max receives, messages move to DLQ
   - run metadata includes `chunk_status_counts` (`queued`, `running`, `succeeded`, `failed`, `dlq`)
+  - operators can rerun a failed source batch by triggering a new manual Form 990 run after the underlying ZIP batch is redownloaded or re-extracted; unchanged successful batches remain skipped by manifest state
 
 ## Phase 10E: Post-Ingest Incremental Refresh
 

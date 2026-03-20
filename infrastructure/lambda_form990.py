@@ -30,6 +30,11 @@ from charity_status.form990.source_catalog import (
     source_years,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
+from charity_status.form990.teos_batch_processing import (
+    PROCESSING_STATUS_PENDING,
+    process_teos_manifest_batch,
+    should_process_teos_batch,
+)
 from charity_status.form990.teos_manifest import S3TeosZipManifestRepository, TeosZipManifestRecord
 from charity_status.form990.teos_zip_probe import TeosZipProbeFailure, TeosZipProbeResult, probe_teos_zip_metadata
 from charity_status.form990.teos_zip_raw_sync import TeosZipExtractionError, extract_teos_zip_from_s3
@@ -184,8 +189,22 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         csv_sources=csv_sources,
     )
     selected_records = [_record_to_dict(item) for item in reconciliation.selected_records]
+    teos_batches = _load_current_teos_manifest_records(service, prepared)
+    use_teos_batch_processing = _has_teos_processing_state(teos_batches)
     zip_loader: ZipBackedXmlLoader | None = None
-    if selected_records:
+    source_batch_results: list[dict[str, Any]] = []
+    processable_teos_batches: list[TeosZipManifestRecord] = []
+    if use_teos_batch_processing:
+        processable_teos_batches = [item for item in teos_batches if should_process_teos_batch(item)]
+        source_batch_results = [
+            _process_teos_batch_for_response(
+                service=service,
+                manifest_record=record,
+            )
+            for record in processable_teos_batches
+        ]
+        ingest_result = _aggregate_source_batch_results(source_batch_results)
+    elif selected_records:
         zip_loader = _build_zip_loader(service.s3, selected_records, downloaded_state)
         ingest_result = service.ingest_index_payload(
             payload=selected_records,
@@ -215,7 +234,7 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         }
     response = {
         "status": str(ingest_result.get("status") or "success"),
-        "stage": "csv_reconciliation",
+        "stage": "source_batch_processing" if use_teos_batch_processing else "csv_reconciliation",
         "execution_mode": "inline",
         "mode": prepared["mode"],
         "run_id": prepared["run_id"],
@@ -249,17 +268,22 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
         "policy": prepared["policy"],
-        "next_stage": "zip_extraction",
-        "next_stage_implemented": False,
+        "next_stage": "normalized_parsing" if use_teos_batch_processing else "zip_extraction",
+        "next_stage_implemented": bool(use_teos_batch_processing),
+        "source_batch_count": len(teos_batches),
+        "processable_source_batch_count": len(processable_teos_batches),
+        "processed_source_batch_count": len(source_batch_results),
+        "source_batches": source_batch_results[:10],
         "selected_records": len(selected_records),
         "selected_filings": selected_records[:10],
         "processed_records": int(ingest_result.get("records_processed") or 0),
         "parsed_count": int(ingest_result.get("parsed_count") or 0),
         "failed_count": int(ingest_result.get("failed_count") or 0),
+        "manifest_s3_keys": ingest_result.get("manifest_s3_keys", []),
         "zip_resolved_count": int(zip_loader.zip_extracted_count) if zip_loader else 0,
         "zip_fallback_url_count": int(zip_loader.url_fallback_count) if zip_loader else 0,
         "zip_unresolved_count": int(zip_loader.unresolved_count) if zip_loader else 0,
-        "batch_count": 1 if selected_records else 0,
+        "batch_count": len(processable_teos_batches) if use_teos_batch_processing else (1 if selected_records else 0),
         "checkpoint_key": checkpoint_key(MANIFEST_PREFIX),
         "manifest_s3_key": ingest_result.get("manifest_s3_key"),
     }
@@ -279,6 +303,8 @@ def _run_discovery_ingestion(service: Form990IngestService, payload: dict[str, A
         filings_discovered=len(reconciliation.current_records),
         selected_records=len(selected_records),
         parsed_count=int(ingest_result.get("parsed_count") or 0),
+        source_batch_count=len(teos_batches),
+        processable_source_batch_count=len(processable_teos_batches),
         zip_resolved_count=int(zip_loader.zip_extracted_count) if zip_loader else 0,
         zip_fallback_url_count=int(zip_loader.url_fallback_count) if zip_loader else 0,
     )
@@ -305,6 +331,9 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         run_id=prepared["run_id"],
         csv_sources=csv_sources,
     )
+    teos_batches = _load_current_teos_manifest_records(service, prepared)
+    use_teos_batch_processing = _has_teos_processing_state(teos_batches)
+    processable_teos_batches = [item for item in teos_batches if should_process_teos_batch(item)]
     selected_records = reconciliation.selected_records
     chunk_size = int(payload.get("chunk_size") or FORM990_CHUNK_SIZE)
     if chunk_size < 1:
@@ -314,52 +343,89 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
     bucket = OPS_METADATA_BUCKET or BUCKET or ""
     prefix = OPS_METADATA_PREFIX.strip("/") or "ops"
     chunks = []
-    chunk: list[dict[str, Any]] = []
     chunk_index = 0
-    for record in selected_records:
-        chunk.append(_record_to_dict(record))
-        if len(chunk) < chunk_size:
-            continue
-        chunks.append(
-            _queue_filing_records_chunk(
-                service=service,
-                queue=queue,
-                bucket=bucket,
-                prefix=prefix,
-                run_id=run_id,
-                chunk_index=chunk_index,
-                records=chunk,
-                mode=prepared["mode"],
-                source_mode=prepared["source_mode"],
+    if use_teos_batch_processing:
+        batch_chunk: list[TeosZipManifestRecord] = []
+        for record in processable_teos_batches:
+            batch_chunk.append(record)
+            if len(batch_chunk) < chunk_size:
+                continue
+            chunks.append(
+                _queue_source_batch_chunk(
+                    service=service,
+                    queue=queue,
+                    bucket=bucket,
+                    prefix=prefix,
+                    run_id=run_id,
+                    chunk_index=chunk_index,
+                    source_batches=batch_chunk,
+                    mode=prepared["mode"],
+                    source_mode=prepared["source_mode"],
+                )
             )
-        )
-        chunk = []
-        chunk_index += 1
-    if chunk:
-        chunks.append(
-            _queue_filing_records_chunk(
-                service=service,
-                queue=queue,
-                bucket=bucket,
-                prefix=prefix,
-                run_id=run_id,
-                chunk_index=chunk_index,
-                records=chunk,
-                mode=prepared["mode"],
-                source_mode=prepared["source_mode"],
+            batch_chunk = []
+            chunk_index += 1
+        if batch_chunk:
+            chunks.append(
+                _queue_source_batch_chunk(
+                    service=service,
+                    queue=queue,
+                    bucket=bucket,
+                    prefix=prefix,
+                    run_id=run_id,
+                    chunk_index=chunk_index,
+                    source_batches=batch_chunk,
+                    mode=prepared["mode"],
+                    source_mode=prepared["source_mode"],
+                )
             )
-        )
+    else:
+        chunk: list[dict[str, Any]] = []
+        for record in selected_records:
+            chunk.append(_record_to_dict(record))
+            if len(chunk) < chunk_size:
+                continue
+            chunks.append(
+                _queue_filing_records_chunk(
+                    service=service,
+                    queue=queue,
+                    bucket=bucket,
+                    prefix=prefix,
+                    run_id=run_id,
+                    chunk_index=chunk_index,
+                    records=chunk,
+                    mode=prepared["mode"],
+                    source_mode=prepared["source_mode"],
+                )
+            )
+            chunk = []
+            chunk_index += 1
+        if chunk:
+            chunks.append(
+                _queue_filing_records_chunk(
+                    service=service,
+                    queue=queue,
+                    bucket=bucket,
+                    prefix=prefix,
+                    run_id=run_id,
+                    chunk_index=chunk_index,
+                    records=chunk,
+                    mode=prepared["mode"],
+                    source_mode=prepared["source_mode"],
+                )
+            )
 
     run_store = S3RunStore(bucket=bucket, prefix=prefix, s3_client=service.s3)
     selected_count = len(selected_records)
-    zip_source_count = _count_zip_sources_for_records(selected_records, downloaded_state)
+    source_batch_count = len(teos_batches)
+    processable_source_batch_count = len(processable_teos_batches)
     chunk_count = len(chunks)
     sample_chunks = chunks[:10]
     run_summary = {
         "ingest_run_id": run_id,
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
-        "stage": "csv_reconciliation",
+        "stage": "source_batch_processing" if use_teos_batch_processing else "csv_reconciliation",
         "status": "queued" if chunk_count else "success",
         "source_mode": prepared["source_mode"],
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -382,7 +448,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
         "selected_records": selected_count,
-        "zip_source_count": zip_source_count,
+        "source_batch_count": source_batch_count,
+        "processable_source_batch_count": processable_source_batch_count,
         "chunk_size": chunk_size,
         "chunk_count": chunk_count,
         "chunk_status_counts": {"queued": chunk_count, "running": 0, "succeeded": 0, "failed": 0, "dlq": 0},
@@ -410,7 +477,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         service.s3,
         {
             "run_id": run_id,
-            "stage": "zip_extraction",
+            "stage": "source_batch_processing" if use_teos_batch_processing else "zip_extraction",
             "status": "queued" if chunk_count else "success",
             "chunk_count": chunk_count,
             "selected_records": selected_count,
@@ -420,7 +487,7 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
 
     return {
         "status": "queued" if chunk_count else "success",
-        "stage": "zip_extraction",
+        "stage": "source_batch_processing" if use_teos_batch_processing else "zip_extraction",
         "mode": prepared["mode"],
         "execution_mode": "orchestrated",
         "run_id": run_id,
@@ -443,7 +510,8 @@ def _run_discovery_orchestrated(service: Form990IngestService, payload: dict[str
         "filings_incomplete": reconciliation.incomplete_count,
         "filings_skipped": reconciliation.unchanged_count,
         "selected_records": selected_count,
-        "zip_source_count": zip_source_count,
+        "source_batch_count": source_batch_count,
+        "processable_source_batch_count": processable_source_batch_count,
         "chunk_size": chunk_size,
         "chunk_count": chunk_count,
         "discovery_state_key": discovery_state_key(MANIFEST_PREFIX),
@@ -502,6 +570,169 @@ def _queue_filing_records_chunk(
         ),
     )
     return {"chunk_id": chunk_id, "chunk_index": chunk_index, "record_count": len(records), "chunk_s3_key": chunk_key}
+
+
+def _queue_source_batch_chunk(
+    *,
+    service: Form990IngestService,
+    queue: Any,
+    bucket: str,
+    prefix: str,
+    run_id: str,
+    chunk_index: int,
+    source_batches: list[TeosZipManifestRecord],
+    mode: str,
+    source_mode: str,
+) -> dict[str, Any]:
+    chunk_id = f"{run_id}-{chunk_index:05d}"
+    chunk_key = f"{prefix}/form990-runs/{run_id}/chunks/{chunk_id}.json"
+    chunk_payload = {
+        "run_id": run_id,
+        "chunk_id": chunk_id,
+        "chunk_index": chunk_index,
+        "task_type": "source_batch",
+        "stage": "source_batch_processing",
+        "source_batches": [_teos_batch_to_dict(item) for item in source_batches],
+        "mode": mode,
+        "source_mode": source_mode,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    service.s3.put_object(Bucket=bucket, Key=chunk_key, Body=json.dumps(chunk_payload, sort_keys=True).encode("utf-8"))
+    queue.send_message(
+        QueueUrl=FORM990_WORK_QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "run_id": run_id,
+                "chunk_id": chunk_id,
+                "chunk_index": chunk_index,
+                "chunk_s3_bucket": bucket,
+                "chunk_s3_key": chunk_key,
+                "attempt": 1,
+            },
+            sort_keys=True,
+        ),
+    )
+    return {
+        "chunk_id": chunk_id,
+        "chunk_index": chunk_index,
+        "source_batch_count": len(source_batches),
+        "chunk_s3_key": chunk_key,
+    }
+
+
+def _load_current_teos_manifest_records(service: Form990IngestService, prepared: dict[str, Any]) -> list[TeosZipManifestRecord]:
+    repository = S3TeosZipManifestRepository(
+        s3_client=service.s3,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+        raw_xml_prefix=TEOS_RAW_XML_PREFIX,
+    )
+    records: list[TeosZipManifestRecord] = []
+    seen: set[tuple[str, str]] = set()
+    for year in prepared.get("target_years", []):
+        for record in repository.load_year_records(str(year)):
+            identity = (record.tax_year, record.zip_basename)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            records.append(record)
+    return sorted(records, key=lambda item: (item.tax_year, item.zip_basename))
+
+
+def _has_teos_processing_state(records: list[TeosZipManifestRecord]) -> bool:
+    return any(
+        str(record.extraction_status or "").strip().lower() == "extracted"
+        or str(record.download_status or "").strip().lower() == "failed"
+        or str(record.extraction_status or "").strip().lower() == "failed"
+        for record in records
+    )
+
+
+def _process_teos_batch_for_response(
+    *,
+    service: Form990IngestService,
+    manifest_record: TeosZipManifestRecord,
+) -> dict[str, Any]:
+    repository = S3TeosZipManifestRepository(
+        s3_client=service.s3,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+        raw_xml_prefix=TEOS_RAW_XML_PREFIX,
+    )
+    result = process_teos_manifest_batch(
+        service=service,
+        repository=repository,
+        manifest_record=manifest_record,
+        bucket=BUCKET or "",
+        manifest_prefix=MANIFEST_PREFIX,
+    )
+    return {
+        "tax_year": result.manifest_record.tax_year,
+        "zip_basename": result.manifest_record.zip_basename,
+        "processing_status": result.manifest_record.processing_status,
+        "destination_raw_s3_prefix": result.manifest_record.destination_raw_s3_prefix,
+        "source_object_count": len(result.source_object_keys),
+        "records_processed": int(result.ingest_result.get("records_processed") or 0),
+        "parsed_count": int(result.ingest_result.get("parsed_count") or 0),
+        "failed_count": int(result.ingest_result.get("failed_count") or 0),
+        "manifest_s3_key": result.ingest_result.get("manifest_s3_key"),
+        "last_error": result.manifest_record.last_error,
+        "skipped": result.skipped,
+    }
+
+
+def _aggregate_source_batch_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    if not results:
+        return {
+            "status": "success",
+            "records_processed": 0,
+            "parsed_count": 0,
+            "failed_count": 0,
+            "manifest_s3_key": None,
+            "manifest_s3_keys": [],
+            "filing_records_s3_key": None,
+            "metrics_s3_key": None,
+            "governance_s3_key": None,
+            "quality_s3_key": None,
+            "relationships_s3_key": None,
+            "records": [],
+        }
+    failed_batches = sum(1 for item in results if int(item.get("failed_count") or 0) > 0)
+    parsed_count = sum(int(item.get("parsed_count") or 0) for item in results)
+    failed_count = sum(int(item.get("failed_count") or 0) for item in results)
+    records_processed = sum(int(item.get("records_processed") or 0) for item in results)
+    manifest_keys = [str(item.get("manifest_s3_key") or "").strip() for item in results if str(item.get("manifest_s3_key") or "").strip()]
+    if failed_batches and parsed_count:
+        status = "partial_success"
+    elif failed_batches:
+        status = "failed"
+    else:
+        status = "success"
+    return {
+        "status": status,
+        "records_processed": records_processed,
+        "parsed_count": parsed_count,
+        "failed_count": failed_count,
+        "manifest_s3_key": manifest_keys[0] if manifest_keys else None,
+        "manifest_s3_keys": manifest_keys,
+        "filing_records_s3_key": None,
+        "metrics_s3_key": None,
+        "governance_s3_key": None,
+        "quality_s3_key": None,
+        "relationships_s3_key": None,
+        "records": [],
+    }
+
+
+def _teos_batch_to_dict(record: TeosZipManifestRecord) -> dict[str, Any]:
+    return {
+        "tax_year": record.tax_year,
+        "zip_basename": record.zip_basename,
+        "destination_raw_s3_prefix": record.destination_raw_s3_prefix,
+        "download_status": record.download_status,
+        "extraction_status": record.extraction_status,
+        "processing_status": record.processing_status,
+    }
 
 
 def _resolve_source_catalog(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -681,6 +912,7 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         "source_mode": source_mode,
         "source_catalog_count": len(discovered_sources),
         "source_years": discovered_years,
+        "target_years": selected_years,
         "new_sources": len(diff.new_sources),
         "removed_sources": len(diff.removed_sources),
         "changed_sources": len(diff.changed_sources),
@@ -1080,6 +1312,7 @@ def _download_selected_sources(service: Form990IngestService, prepared: dict[str
                 download_status="downloaded",
                 download_attempted_at=str(download_entry.get("downloaded_at") or datetime.now(timezone.utc).isoformat()),
                 downloaded_zip_s3_key=str(download_entry.get("raw_source_s3_key") or ""),
+                processing_status=PROCESSING_STATUS_PENDING,
                 last_error=None,
                 updated_at=datetime.now(timezone.utc).isoformat(),
             )
@@ -1102,6 +1335,7 @@ def _download_selected_sources(service: Form990IngestService, prepared: dict[str
                     extraction_attempted_at=extraction_result.extracted_at,
                     destination_raw_s3_prefix=extraction_result.destination_raw_s3_prefix,
                     extracted_file_count=extraction_result.extracted_file_count,
+                    processing_status=PROCESSING_STATUS_PENDING,
                     updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
@@ -1392,6 +1626,9 @@ def _persist_ingest_ops_run(service: Form990IngestService, response: dict[str, A
         "downloaded_source_count": response.get("downloaded_source_count"),
         "teos_zip_extracted_file_count": response.get("teos_zip_extracted_file_count"),
         "teos_zip_manifest": response.get("teos_zip_manifest"),
+        "source_batch_count": response.get("source_batch_count"),
+        "processable_source_batch_count": response.get("processable_source_batch_count"),
+        "processed_source_batch_count": response.get("processed_source_batch_count"),
         "filings_discovered": response.get("filings_discovered"),
         "filings_new": response.get("filings_new"),
         "filings_changed": response.get("filings_changed"),

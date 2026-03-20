@@ -338,6 +338,14 @@ def _merge_discovered_record(
 
     decision = _download_decision(previous=previous, probe_outcome=probe_outcome)
     current_sync_status = _current_sync_status(previous=previous, source=source, destination_prefix=destination_prefix, probe_outcome=probe_outcome)
+    extraction_status = _next_step_status(
+        previous_status=previous.extraction_status if previous else None,
+        should_reset=decision.should_download,
+    )
+    processing_status = _next_step_status(
+        previous_status=previous.processing_status if previous else None,
+        should_reset=decision.should_download,
+    )
     if previous is None:
         return TeosZipManifestRecord(
             tax_year=source.tax_year,
@@ -351,8 +359,8 @@ def _merge_discovered_record(
             last_modified=_probe_attr(probe_outcome, "last_modified"),
             current_sync_status=current_sync_status,
             download_status=_decision_status(decision),
-            extraction_status=DEFAULT_STEP_STATUS,
-            processing_status=DEFAULT_STEP_STATUS,
+            extraction_status=extraction_status,
+            processing_status=processing_status,
             destination_raw_s3_prefix=destination_prefix,
             downloaded_zip_s3_key=None,
             extracted_file_count=None,
@@ -372,8 +380,8 @@ def _merge_discovered_record(
         last_modified=_probe_attr(probe_outcome, "last_modified") or previous.last_modified,
         current_sync_status=current_sync_status,
         download_status=_decision_status(decision),
-        extraction_status=previous.extraction_status or DEFAULT_STEP_STATUS,
-        processing_status=previous.processing_status or DEFAULT_STEP_STATUS,
+        extraction_status=extraction_status,
+        processing_status=processing_status,
         destination_raw_s3_prefix=destination_prefix,
         downloaded_zip_s3_key=previous.downloaded_zip_s3_key,
         extracted_file_count=previous.extracted_file_count,
@@ -525,6 +533,12 @@ def _probe_attr(probe_outcome: TeosZipProbeResult | None, attr_name: str, defaul
 
 def _decision_status(decision: TeosZipDownloadDecision) -> str:
     return DOWNLOAD_SCHEDULED_STATUS if decision.should_download else DOWNLOAD_SKIPPED_UNCHANGED_STATUS
+
+
+def _next_step_status(*, previous_status: str | None, should_reset: bool) -> str:
+    if should_reset:
+        return DEFAULT_STEP_STATUS
+    return str(previous_status or DEFAULT_STEP_STATUS)
 
 
 def _is_probe_result(value: Any) -> bool:

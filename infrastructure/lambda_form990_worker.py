@@ -11,6 +11,8 @@ from charity_status.form990 import Form990IngestService
 from charity_status.form990.filing_reconciliation import update_filing_state_from_ingest_result
 from charity_status.form990.hardening import classify_error, validate_runtime_config
 from charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state
+from charity_status.form990.teos_batch_processing import process_teos_manifest_batch
+from charity_status.form990.teos_manifest import S3TeosZipManifestRepository
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 
@@ -23,6 +25,7 @@ METRICS_PREFIX = os.environ.get("FORM990_METRICS_PREFIX", "form990/normalized/me
 GOVERNANCE_PREFIX = os.environ.get("FORM990_GOVERNANCE_PREFIX", "form990/normalized/governance/")
 QUALITY_PREFIX = os.environ.get("FORM990_QUALITY_PREFIX", "form990/normalized/quality/")
 RELATIONSHIPS_PREFIX = os.environ.get("FORM990_RELATIONSHIPS_PREFIX", "form990/normalized/relationships/")
+TEOS_RAW_XML_PREFIX = os.environ.get("FORM990_TEOS_RAW_XML_PREFIX", "teos/raw/xml/")
 FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "300"))
 FORM990_ZIP_FETCH_TIMEOUT_SECONDS = int(os.environ.get("FORM990_ZIP_FETCH_TIMEOUT_SECONDS", "120"))
 FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES", str(20 * 1024 * 1024)))
@@ -71,6 +74,18 @@ def _process_chunk(message: dict[str, Any]) -> None:
     task_type = str(chunk_payload.get("task_type") or "filing_records").strip().lower()
     if task_type in {"source_catalog", "source_download"}:
         _process_source_download_chunk(
+            s3=s3,
+            run_id=run_id,
+            chunk_id=chunk_id,
+            chunk_bucket=chunk_bucket,
+            result_key=result_key,
+            attempt=attempt,
+            started_at=started_at,
+            chunk_payload=chunk_payload,
+        )
+        return
+    if task_type == "source_batch":
+        _process_source_batch_chunk(
             s3=s3,
             run_id=run_id,
             chunk_id=chunk_id,
@@ -252,6 +267,121 @@ def _process_source_download_chunk(
         raise
 
 
+def _process_source_batch_chunk(
+    *,
+    s3: Any,
+    run_id: str,
+    chunk_id: str,
+    chunk_bucket: str,
+    result_key: str,
+    attempt: int,
+    started_at: str,
+    chunk_payload: dict[str, Any],
+) -> None:
+    source_batches = chunk_payload.get("source_batches")
+    if not isinstance(source_batches, list):
+        raise ValueError("source batch chunk payload source_batches must be an array")
+
+    _update_run_status(s3, run_id, "running")
+    service = Form990IngestService(
+        bucket=BUCKET,
+        raw_prefix=RAW_PREFIX,
+        metadata_prefix=METADATA_PREFIX,
+        manifest_prefix=MANIFEST_PREFIX,
+        metrics_prefix=METRICS_PREFIX,
+        governance_prefix=GOVERNANCE_PREFIX,
+        quality_prefix=QUALITY_PREFIX,
+        relationships_prefix=RELATIONSHIPS_PREFIX,
+        s3_client=s3,
+    )
+    repository = S3TeosZipManifestRepository(
+        s3_client=s3,
+        bucket=BUCKET,
+        manifest_prefix=MANIFEST_PREFIX,
+        raw_xml_prefix=TEOS_RAW_XML_PREFIX,
+    )
+    try:
+        batch_results: list[dict[str, Any]] = []
+        overall_status = "success"
+        for item in source_batches:
+            if not isinstance(item, dict):
+                raise ValueError("source batch entries must be objects")
+            tax_year = str(item.get("tax_year") or "").strip()
+            zip_basename = str(item.get("zip_basename") or "").strip()
+            if not tax_year or not zip_basename:
+                raise ValueError("source batch entries must include tax_year and zip_basename")
+            manifest_record = repository.load_record(tax_year, zip_basename)
+            if manifest_record is None:
+                raise ValueError(f"manifest record not found for source batch {tax_year}/{zip_basename}")
+            processing_result = process_teos_manifest_batch(
+                service=service,
+                repository=repository,
+                manifest_record=manifest_record,
+                bucket=BUCKET,
+                manifest_prefix=MANIFEST_PREFIX,
+            )
+            result_payload = {
+                "tax_year": processing_result.manifest_record.tax_year,
+                "zip_basename": processing_result.manifest_record.zip_basename,
+                "processing_status": processing_result.manifest_record.processing_status,
+                "source_object_count": len(processing_result.source_object_keys),
+                "records_processed": int(processing_result.ingest_result.get("records_processed") or 0),
+                "parsed_count": int(processing_result.ingest_result.get("parsed_count") or 0),
+                "failed_count": int(processing_result.ingest_result.get("failed_count") or 0),
+                "manifest_s3_key": processing_result.ingest_result.get("manifest_s3_key"),
+                "last_error": processing_result.manifest_record.last_error,
+                "skipped": processing_result.skipped,
+            }
+            batch_results.append(result_payload)
+            if result_payload["failed_count"] > 0:
+                overall_status = "partial_success" if overall_status == "success" else overall_status
+        completed_at = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "run_id": run_id,
+            "chunk_id": chunk_id,
+            "status": "succeeded",
+            "task_type": "source_batch",
+            "attempt": attempt,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "result": {
+                "stage": "source_batch_processing",
+                "status": overall_status,
+                "source_batch_count": len(batch_results),
+                "records_processed": sum(int(item["records_processed"]) for item in batch_results),
+                "parsed_count": sum(int(item["parsed_count"]) for item in batch_results),
+                "failed_count": sum(int(item["failed_count"]) for item in batch_results),
+                "source_batches": batch_results,
+            },
+        }
+        s3.put_object(Bucket=chunk_bucket, Key=result_key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+        _update_run_status(s3, run_id, "succeeded")
+        _write_summary_snapshot(s3, run_id, chunk_bucket)
+    except Exception as exc:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        s3.put_object(
+            Bucket=chunk_bucket,
+            Key=result_key,
+            Body=json.dumps(
+                {
+                    "run_id": run_id,
+                    "chunk_id": chunk_id,
+                    "status": "failed",
+                    "task_type": "source_batch",
+                    "attempt": attempt,
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "error_type": classify_error(exc),
+                    "error": str(exc),
+                },
+                sort_keys=True,
+            ).encode("utf-8"),
+        )
+        _update_run_status(s3, run_id, "failed")
+        _write_summary_snapshot(s3, run_id, chunk_bucket)
+        raise
+
+
 def _update_run_status(s3: Any, run_id: str, status: str) -> None:
     store = S3RunStore(bucket=OPS_METADATA_BUCKET or BUCKET, prefix=OPS_METADATA_PREFIX, s3_client=s3)
     run = store.get_run("ingest", run_id) or {"ingest_run_id": run_id, "chunk_status_counts": {"queued": 0, "running": 0, "succeeded": 0, "failed": 0, "dlq": 0}}
@@ -307,6 +437,7 @@ def _validate_worker_config() -> list[str]:
             "FORM990_MANIFEST_PREFIX": MANIFEST_PREFIX,
             "FORM990_METADATA_PREFIX": METADATA_PREFIX,
             "FORM990_RAW_PREFIX": RAW_PREFIX,
+            "FORM990_TEOS_RAW_XML_PREFIX": TEOS_RAW_XML_PREFIX,
             "FORM990_RAW_SOURCE_PREFIX": RAW_SOURCE_PREFIX,
             "OPS_METADATA_PREFIX": OPS_METADATA_PREFIX,
         },

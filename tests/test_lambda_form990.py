@@ -3,9 +3,11 @@ import io
 import json
 import sys
 import zipfile
+from types import SimpleNamespace
 
 from infrastructure.charity_status.form990.models import Form990IndexRecord
 from infrastructure.charity_status.form990.source_catalog import Form990SourceArtifact, normalize_configured_sources
+from infrastructure.charity_status.form990.teos_manifest import TeosZipManifestRecord
 from infrastructure.charity_status.form990.teos_zip_discovery import TeosZipDiscoveryRecord
 
 
@@ -919,15 +921,47 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
 
+    module.fetch_teos_download_page_html = lambda page_url, timeout_seconds=60: "<html></html>"
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: [
+        TeosZipDiscoveryRecord(
+            tax_year=str(target_year),
+            source_url=f"https://apps.irs.gov/pub/epostcard/990/xml/{target_year}/{target_year}_TEOS_XML_11B.zip",
+            source_filename=f"{target_year}_TEOS_XML_11B.zip",
+            zip_basename=f"{target_year}_TEOS_XML_11B",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            page_url=page_url,
+        )
+    ]
+    module.probe_teos_zip_metadata = lambda source_url, timeout_seconds=60, now=None, max_attempts=3, opener=None: module.TeosZipProbeResult(
+        source_url=source_url,
+        resolved_source_url=source_url,
+        etag='"etag-11b"',
+        last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+        content_length=1234,
+        checked_at="2026-01-01T00:00:00+00:00",
+        method_used="HEAD",
+    )
     module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
         _source(source_year="2024", source_kind="csv_index", source_url="https://example.org/index_2024.csv", source_archive_key="index_2024"),
         _source(source_year="2024", source_kind="zip_archive", source_url="https://example.org/2024_TEOS_XML_11B.zip", source_archive_key="2024_teos_xml_11b"),
     ]
-    module.execute_source_download_batch = lambda **kwargs: {
-        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
-        "downloaded_count": len(kwargs["sources"]),
-        "downloads": list(kwargs["sources"]),
-    }
+    def _download_batch(**kwargs):
+        sources = kwargs["sources"]
+        source = sources[0]
+        status = "downloaded"
+        raw_key = f"form990/raw-sources/{source['source_year']}/{source['source_kind']}/{source['source_archive_key']}/sig/{source['source_filename']}"
+        return {
+            "manifest_key": f"form990/normalized/manifests/source-download/runs/run1/batch_{kwargs['batch_index']:05d}.json",
+            "downloaded_count": len(sources),
+            "downloads": [{**source, "status": status, "downloaded_at": "2026-01-01T00:00:00+00:00", "raw_source_s3_key": raw_key}],
+        }
+
+    module.execute_source_download_batch = _download_batch
+    module.extract_teos_zip_from_s3 = lambda **kwargs: SimpleNamespace(
+        destination_raw_s3_prefix="teos/raw/xml/year=2024/source_batch=2024_TEOS_XML_11B",
+        extracted_file_count=2,
+        extracted_at="2026-01-01T00:00:01+00:00",
+    )
     module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
         current_records=[
             Form990IndexRecord(
@@ -961,14 +995,13 @@ def test_orchestrated_mode_enqueues_source_chunks(monkeypatch):
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["execution_mode"] == "orchestrated"
-    assert body["stage"] == "zip_extraction"
+    assert body["stage"] == "source_batch_processing"
     assert body["chunk_count"] == 1
     assert len(fake_sqs.messages) == 1
     payload = json.loads(fake_sqs.messages[0]["MessageBody"])
     chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
-    assert chunk_body["task_type"] == "filing_records"
-    assert chunk_body["records"][0]["irs_object_id"] == "obj-1"
-    assert "zip_sources" not in chunk_body
+    assert chunk_body["task_type"] == "source_batch"
+    assert chunk_body["source_batches"][0]["zip_basename"] == "2024_TEOS_XML_11B"
 
 
 def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatch):
@@ -980,6 +1013,8 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
     monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
+    module.fetch_teos_download_page_html = lambda page_url, timeout_seconds=60: "<html></html>"
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: []
 
     module.discover_irs_form990_sources = lambda page_url, timeout_seconds=60, now=None: [
         _source(source_year="2023", source_kind="csv_index", source_url="https://example.org/index_2023.csv", source_archive_key="index_2023"),
@@ -1036,6 +1071,8 @@ def test_orchestrated_mode_continues_when_generated_sources_are_skipped(monkeypa
     monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
     sys.modules.pop("infrastructure.lambda_form990", None)
     module = importlib.import_module("infrastructure.lambda_form990")
+    module.fetch_teos_download_page_html = lambda page_url, timeout_seconds=60: "<html></html>"
+    module.parse_teos_zip_links = lambda html, page_url, target_year, now=None: []
 
     module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: [
         Form990SourceArtifact(
@@ -1115,6 +1152,101 @@ def test_orchestrated_mode_continues_when_generated_sources_are_skipped(monkeypa
     assert body["downloaded_source_count"] == 1
     assert body["chunk_count"] == 1
     assert len(fake_sqs.messages) == 1
+
+
+def test_orchestrated_mode_only_queues_changed_teos_source_batches(monkeypatch):
+    fake_s3 = FakeS3()
+    fake_sqs = FakeSQS()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
+    monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    module._prepare_discovery_run = lambda service, payload: {
+        "run_id": "run-batch",
+        "mode": "incremental",
+        "source_mode": "static_manifest",
+        "source_catalog_count": 0,
+        "source_years": ["2025"],
+        "target_years": ["2025"],
+        "new_sources": 0,
+        "removed_sources": 0,
+        "changed_sources": 0,
+        "unchanged_sources": 0,
+        "selected_source_count": 0,
+        "selected_sources": [],
+        "skipped_source_count": 0,
+        "scheduled_source_count": 0,
+        "scheduled_sources": [],
+        "skipped_sources": [],
+        "teos_zip_manifest": {},
+        "teos_zip_manifest_records": (),
+        "policy": {},
+        "discovery_manifest_key": "form990/normalized/manifests/discovery/runs/run-batch/catalog.json",
+        "discovery_diff_key": "form990/normalized/manifests/discovery/runs/run-batch/diff.json",
+    }
+    module._download_selected_sources = lambda service, prepared: {
+        "manifest_key": None,
+        "manifest_keys": [],
+        "downloaded_count": 0,
+        "downloads": [],
+        "extracted_file_count": 0,
+    }
+    module.load_downloaded_source_state = lambda *args, **kwargs: []
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(current_records=[], selected_records=[])
+    module._load_current_teos_manifest_records = lambda service, prepared: [
+        TeosZipManifestRecord(
+            tax_year="2025",
+            source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11A.zip",
+            zip_basename="2025_TEOS_XML_11A",
+            discovered_at="2026-03-20T00:00:00+00:00",
+            last_checked_at="2026-03-20T00:00:00+00:00",
+            resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11A.zip",
+            content_length=1234,
+            etag='"etag-11a"',
+            last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+            current_sync_status="changed",
+            download_status="downloaded",
+            extraction_status="extracted",
+            processing_status="pending",
+            destination_raw_s3_prefix="teos/raw/xml/year=2025/source_batch=2025_TEOS_XML_11A",
+            created_at="2026-03-20T00:00:00+00:00",
+            updated_at="2026-03-20T00:00:00+00:00",
+        ),
+        TeosZipManifestRecord(
+            tax_year="2025",
+            source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11B.zip",
+            zip_basename="2025_TEOS_XML_11B",
+            discovered_at="2026-03-20T00:00:00+00:00",
+            last_checked_at="2026-03-20T00:00:00+00:00",
+            resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_11B.zip",
+            content_length=2234,
+            etag='"etag-11b"',
+            last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+            current_sync_status="checked",
+            download_status="skipped_unchanged",
+            extraction_status="extracted",
+            processing_status="success",
+            destination_raw_s3_prefix="teos/raw/xml/year=2025/source_batch=2025_TEOS_XML_11B",
+            created_at="2026-03-20T00:00:00+00:00",
+            updated_at="2026-03-20T00:00:00+00:00",
+        ),
+    ]
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["chunk_count"] == 1
+    assert body["source_batch_count"] == 2
+    assert body["processable_source_batch_count"] == 1
+    payload = json.loads(fake_sqs.messages[0]["MessageBody"])
+    chunk_body = json.loads(fake_s3.store[("test-bucket", payload["chunk_s3_key"])]["Body"].decode("utf-8"))
+    assert chunk_body["task_type"] == "source_batch"
+    assert len(chunk_body["source_batches"]) == 1
+    assert chunk_body["source_batches"][0]["zip_basename"] == "2025_TEOS_XML_11A"
 
 
 def test_legacy_index_url_path_bypasses_static_manifest(monkeypatch):
