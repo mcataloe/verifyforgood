@@ -41,6 +41,12 @@ Contributor guidance:
 - Route handlers should orchestrate only; avoid source-specific or provider-specific business logic in handlers.
 - If adding auth/quotas, implement adapters behind `AuthContextProvider` and `QuotaMeteringHook` first, then inject.
 
+Adapter boundary guidance now used in mixed infrastructure-facing modules:
+
+- service modules own application rules and orchestration
+- adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
+- runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
+
 ## Repo Split Scaffolding (Phase 11B)
 
 Phase 11B adds non-breaking scaffolding to make a future public/private split low risk while keeping this repository fully functional today.

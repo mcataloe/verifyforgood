@@ -22,6 +22,7 @@ from charity_status.enrichments.providers import (
     USAspendingProvider,
 )
 from charity_status.query import AthenaQueryClient
+from charity_status.query.athena_adapter import create_athena_query_client
 from charity_status.state_registry import StateRegistryLookupService, build_state_registry_adapter_registry
 from charity_status.state_registry.adapters import (
     ColoradoBusinessRegistryAdapter,
@@ -113,7 +114,7 @@ class PlatformIntegrationsConfig:
 
 
 def build_athena_client(config: QueryRuntimeConfig) -> AthenaQueryClient:
-    return AthenaQueryClient(
+    return create_athena_query_client(
         database=config.database,
         table=config.table,
         workgroup=config.workgroup,

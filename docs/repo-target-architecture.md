@@ -189,6 +189,34 @@ Additional guardrails:
 - Response envelope shaping belongs in entrypoint or API layers, not domain services.
 - Operator workflows and customer-account lifecycle logic stay private.
 
+## Adapter Pattern In Practice
+
+The current repository now uses a practical service/adapter split in the highest-value mixed modules:
+
+- application/service modules own validation, merge rules, and domain orchestration
+- adapter modules own AWS SDK creation and cloud-specific persistence/query execution
+- entrypoints and runtime builders assemble the concrete adapters
+
+Current examples:
+
+- `enrichments/organization_settings_service.py`
+  - service and validation logic
+- `enrichments/organization_settings_stores.py`
+  - in-memory and Dynamo-backed store adapters
+- `query/athena_service.py`
+  - Athena-backed query behavior with an injected client dependency
+- `query/athena_adapter.py`
+  - boto3 Athena client creation and concrete adapter construction
+- `serving/storage_serialization.py`
+  - reusable profile item serialization for Dynamo persistence
+- `serving/dynamodb_adapter.py`
+  - Dynamo profile store adapter
+
+Compatibility shim rule:
+
+- existing import paths may remain as thin re-export modules while the live runtime transitions
+- new work should prefer the explicit `*_service.py`, `*_stores.py`, or `*_adapter.py` modules where they exist
+
 ## Current Coupling Points
 
 Concrete infrastructure/platform leakage found during assessment:
