@@ -8,6 +8,18 @@ variable "environment" {
   type        = string
 }
 
+variable "app_name" {
+  description = "Neutral internal application identifier used for runtime metadata such as outbound user-agent strings."
+  type        = string
+  default     = "verification-platform"
+}
+
+variable "public_brand_name" {
+  description = "Public-facing product label used when external integrations need a customer-visible brand name."
+  type        = string
+  default     = "Verification Platform"
+}
+
 variable "resource_name_strategy" {
   description = "Physical resource naming mode. Use legacy to preserve existing deployed names; use standardized to opt into <namespace>-<platform>-<purpose>-<environment>-<region>."
   type        = string
@@ -266,13 +278,13 @@ variable "enable_custom_domain" {
 }
 
 variable "root_domain_name" {
-  description = "Root DNS domain used for API custom domain resources (for example: charitystatusapi.com)."
+  description = "Root DNS domain used for API custom domain resources (for example: verification.example.com)."
   type        = string
   default     = ""
 }
 
 variable "route53_zone_name" {
-  description = "Optional Route53 hosted zone name override (for example: charitystatusapi.com.). If empty, root_domain_name is used."
+  description = "Optional Route53 hosted zone name override (for example: verification.example.com.). If empty, root_domain_name is used."
   type        = string
   default     = ""
 }

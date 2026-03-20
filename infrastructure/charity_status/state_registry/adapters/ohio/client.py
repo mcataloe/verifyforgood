@@ -4,6 +4,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable
 
+from charity_status.branding import default_runtime_user_agent
 from charity_status.state_registry.contracts import RawStateRegistryRecord
 from charity_status.state_registry.errors import StateRegistryError
 from charity_status.state_registry.portal_html import extract_table_records
@@ -19,10 +20,12 @@ class OhioRegistryClient:
         search_url: str = SEARCH_URL,
         timeout_seconds: int = 20,
         response_loader: Callable[[str], str] | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self._search_url = search_url
         self._timeout_seconds = timeout_seconds
         self._response_loader = response_loader
+        self._user_agent = str(user_agent or default_runtime_user_agent()).strip()
 
     def search(self, *, normalized_name: str) -> list[RawStateRegistryRecord]:
         if not normalized_name:
@@ -34,7 +37,7 @@ class OhioRegistryClient:
         params = urllib.parse.urlencode({"name": normalized_name})
         request = urllib.request.Request(
             f"{self._search_url}?{params}",
-            headers={"User-Agent": "CharityStatusAPI/1.0", "Accept": "text/html"},
+            headers={"User-Agent": self._user_agent, "Accept": "text/html"},
             method="GET",
         )
         try:

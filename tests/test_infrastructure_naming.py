@@ -11,7 +11,7 @@ def test_main_tf_defines_standardized_naming_locals_and_compatibility_map():
     assert 'legacy_resource_names = {' in content
     assert 'resource_names = {' in content
     assert 'resource_name_strategy == "standardized"' in content
-    assert "branding changes such as CharityStatusAPI -> VerifyForGood" in content
+    assert "resource identity stays stable across public-brand changes" in content
 
 
 def test_main_tf_routes_named_resources_through_centralized_locals():

@@ -31,7 +31,7 @@ Defaults for the current verification platform are:
 Naming philosophy:
 
 - infrastructure names identify ownership and deployment context, not marketing identity
-- branding such as `CharityStatusAPI`, `VerifyForGood`, or future product names must not be embedded in infrastructure resource names
+- branding such as current or future product names must not be embedded in infrastructure resource names
 - purpose tokens should describe the resource role (`profiles`, `query-api`, `source-data-bucket`) rather than the brand
 - names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
 - Terraform keeps `resource_name_strategy = "legacy"` by default so existing deployed resources are not renamed accidentally; set it to `standardized` only as part of an explicit migration plan
@@ -42,6 +42,16 @@ Namespace token guidance:
 - `namespace` is the short organizational token that scopes shared infrastructure ownership
 - use `n8x4` as the default unless a deployment explicitly requires a different namespace boundary
 - keep namespace changes intentional because the token is part of every generated resource name
+
+## Brand Separation
+
+Internal runtime naming is capability-based even when customer-facing materials use a product brand.
+
+- `APP_NAME` controls neutral internal/runtime identity such as outbound user-agent strings
+- `PUBLIC_BRAND_NAME` controls customer-visible labels used in external systems such as billing metadata
+- public routes and API payloads stay unchanged unless a separate contract change explicitly requires them
+- customer-facing docs may still use a configured public brand; internal module and runtime identifiers should stay brand-neutral
+- deployment-specific bootstrap/state files may still carry existing live names until a separate migration updates those resources deliberately
 
 ## Public-Core Boundary (Phase 11A)
 
@@ -614,6 +624,9 @@ Configuration (Terraform variables):
 Recommended Lambda environment variables for the new normalized platform model:
 
 ```text
+APP_NAME=verification-platform
+PUBLIC_BRAND_NAME=Verification Platform
+
 THIRD_PARTY_INTEGRATIONS_ENABLED=false
 
 INTEGRATION_CANDID_ENABLED=false

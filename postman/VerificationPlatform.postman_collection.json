@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "8d76ca6d-37e5-4d3e-b7d5-8e38b3c73e62",
-    "name": "CharityStatusAPI",
-    "description": "Runnable Postman collection for CharityStatusAPI endpoints grouped by Customer/Public, Admin, and Ops.",
+    "name": "VerificationPlatform",
+    "description": "Runnable Postman collection for verification platform endpoints grouped by Customer/Public, Admin, and Ops.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

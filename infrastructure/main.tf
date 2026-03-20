@@ -1,6 +1,6 @@
 locals {
   # Standardized infrastructure names use <namespace>-<platform>-<purpose>-<environment>-<region>
-  # so resource identity is stable across branding changes such as CharityStatusAPI -> VerifyForGood.
+  # so resource identity stays stable across public-brand changes.
   namespace        = "n8x4"
   platform         = "verification"
   region_short     = "use1"

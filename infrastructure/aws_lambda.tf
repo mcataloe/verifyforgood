@@ -164,6 +164,8 @@ resource "aws_lambda_function" "query" {
       OAUTH_CLIENT_RECORDS_JSON                        = var.oauth_client_records_json
       OAUTH_TOKEN_TTL_SECONDS                          = tostring(var.oauth_token_ttl_seconds)
       ADMIN_KEY_RECORDS_JSON                           = var.admin_key_records_json
+      APP_NAME                                         = var.app_name
+      PUBLIC_BRAND_NAME                                = var.public_brand_name
       ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
       TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
       STRIPE_BILLING_ENABLED                           = tostring(var.stripe_billing_enabled)
@@ -271,6 +273,8 @@ resource "aws_lambda_function" "refresh" {
       ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
       ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
+      APP_NAME                                         = var.app_name
+      PUBLIC_BRAND_NAME                                = var.public_brand_name
       PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
       APP_ENV                                          = var.environment
       REFRESH_MODE                                     = var.refresh_mode

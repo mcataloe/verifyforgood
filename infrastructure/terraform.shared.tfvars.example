@@ -1,4 +1,4 @@
-base_name            = "charitystatusapi"
+base_name            = "verification-platform"
 aws_region           = "us-east-1"
 resource_name_strategy = "legacy"
 source_data_prefix   = "eo_bmf/"
@@ -110,6 +110,6 @@ bootstrap_start_after_ein     = ""
 bootstrap_max_batches_per_run = 0
 
 batch_verify_max_size     = 25
-root_domain_name          = "charitystatusapi.com"
-route53_zone_name         = "charitystatusapi.com."
+root_domain_name          = "verification.example.com"
+route53_zone_name         = "verification.example.com."
 oauth_token_ttl_seconds   = 3600

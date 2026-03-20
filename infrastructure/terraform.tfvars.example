@@ -98,12 +98,12 @@ bootstrap_max_batches_per_run = 0
 batch_verify_max_size      = 25
 # refresh_schedule_expression = "cron(0 6 * * ? *)"
 enable_custom_domain       = false
-root_domain_name           = "charitystatusapi.com"
-# route53_zone_name        = "charitystatusapi.com."
+root_domain_name           = "verification.example.com"
+# route53_zone_name        = "verification.example.com."
 
 # Domain name is derived from base_name as "${base_name}.com".
 
 # Additional variables present in terraform-dev.tfvars but not actively assigned above.
-base_name                 = "charitystatusapi"
+base_name                 = "verification-platform"
 form990_schedule_expression = "cron(30 4 * * ? *)"
-route53_zone_name         = "charitystatusapi.com."
+route53_zone_name         = "verification.example.com."

@@ -5,6 +5,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from charity_status.branding import default_runtime_user_agent
 from charity_status.state_registry.contracts import RawStateRegistryRecord
 from charity_status.state_registry.errors import StateRegistryError
 
@@ -33,10 +34,12 @@ class ColoradoRegistryClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
         app_token: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self._base_url = base_url
         self._timeout_seconds = timeout_seconds
         self._app_token = app_token
+        self._user_agent = str(user_agent or default_runtime_user_agent()).strip()
 
     def search(self, *, normalized_name: str, limit: int = DEFAULT_LIMIT) -> list[RawStateRegistryRecord]:
         if not normalized_name:
@@ -80,7 +83,7 @@ class ColoradoRegistryClient:
     def _headers(self) -> dict[str, str]:
         headers = {
             "Accept": "application/json",
-            "User-Agent": "CharityStatusAPI/1.0",
+            "User-Agent": self._user_agent,
         }
         if self._app_token:
             headers["X-App-Token"] = self._app_token

@@ -10,6 +10,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from charity_status.billing.service import DEFAULT_PLANS, EntitlementService, PLAN_CODE_ALIASES, PLAN_CODES
+from charity_status.branding import DEFAULT_PUBLIC_BRAND_NAME, load_branding_config
 
 
 class BillingCheckoutError(ValueError):
@@ -42,6 +43,7 @@ class StripeCheckoutConfig:
     enabled: bool = False
     secret_key: str | None = None
     price_ids: dict[str, str] = field(default_factory=dict)
+    public_brand_name: str = DEFAULT_PUBLIC_BRAND_NAME
 
     def price_id_for_plan(self, plan_code: str) -> str | None:
         return self.price_ids.get(plan_code)
@@ -92,16 +94,27 @@ class ControlPlaneBillingStore(Protocol):
 
 def load_stripe_checkout_config(env: Mapping[str, str] | None = None) -> StripeCheckoutConfig:
     source = env or {}
+    branding = load_branding_config(source)
     enabled = _mapping_bool(source, "STRIPE_BILLING_ENABLED", False)
     secret_key = _clean_text(source.get("STRIPE_SECRET_KEY"))
     if not enabled:
-        return StripeCheckoutConfig(enabled=False, secret_key=secret_key, price_ids={})
+        return StripeCheckoutConfig(
+            enabled=False,
+            secret_key=secret_key,
+            price_ids={},
+            public_brand_name=branding.public_brand_name,
+        )
     price_ids = _parse_price_ids(source.get("STRIPE_PRICE_IDS"))
     if not secret_key:
         raise ValueError("STRIPE_SECRET_KEY is required when STRIPE_BILLING_ENABLED=true")
     if not price_ids:
         raise ValueError("STRIPE_PRICE_IDS is required when STRIPE_BILLING_ENABLED=true")
-    return StripeCheckoutConfig(enabled=True, secret_key=secret_key, price_ids=price_ids)
+    return StripeCheckoutConfig(
+        enabled=True,
+        secret_key=secret_key,
+        price_ids=price_ids,
+        public_brand_name=branding.public_brand_name,
+    )
 
 
 class BillingCheckoutService:
@@ -114,7 +127,10 @@ class BillingCheckoutService:
     ) -> None:
         self._store = store
         self._config = config
-        self._stripe_client = stripe_client or HttpStripeCheckoutClient(secret_key=config.secret_key or "")
+        self._stripe_client = stripe_client or HttpStripeCheckoutClient(
+            secret_key=config.secret_key or "",
+            public_brand_name=config.public_brand_name,
+        )
         self._entitlement_service = EntitlementService()
 
     def create_checkout_session(self, *, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -240,13 +256,14 @@ class BillingCheckoutService:
 class HttpStripeCheckoutClient:
     _base_url = "https://api.stripe.com/v1"
 
-    def __init__(self, *, secret_key: str) -> None:
+    def __init__(self, *, secret_key: str, public_brand_name: str = DEFAULT_PUBLIC_BRAND_NAME) -> None:
         self._secret_key = secret_key.strip()
+        self._public_brand_name = str(public_brand_name or DEFAULT_PUBLIC_BRAND_NAME).strip() or DEFAULT_PUBLIC_BRAND_NAME
 
     def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
         payload = {
             "name": account_name,
-            "description": f"CharityStatusAPI account {account_id}",
+            "description": f"{self._public_brand_name} account {account_id}",
             "metadata[account_id]": account_id,
         }
         if ein:
