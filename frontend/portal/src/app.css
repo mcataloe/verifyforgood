@@ -1,0 +1,12 @@
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(50, 110, 92, 0.25), transparent 38%),
+    linear-gradient(180deg, #eef6f3 0%, #e2ece8 100%);
+  color: #14231f;
+  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}

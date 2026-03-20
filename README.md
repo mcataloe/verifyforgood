@@ -9,6 +9,23 @@ Customer-facing overview:
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
 - `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
 
+## Frontend Workspace
+
+A dedicated frontend workspace now lives under `frontend/` at the repository root.
+
+- `frontend/marketing/` is the public marketing application shell
+- `frontend/portal/` is the authenticated customer portal shell
+- `frontend/shared/` is the home for intentionally reusable frontend code
+- `frontend/docs/` is a future frontend docs surface and is separate from the repository-level `docs/` directory, which continues to hold backend and architecture documentation
+
+See `frontend/README.md` for the dependency rules and current workspace layout.
+
+Important:
+
+- backend workflows remain unchanged
+- no repo-root Node workspace files are introduced
+- marketing and portal remain isolated from each other except through shared frontend packages
+
 ## Current Architecture
 
 - Runtime: Python 3.11

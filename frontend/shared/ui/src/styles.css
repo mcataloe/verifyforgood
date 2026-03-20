@@ -1,0 +1,54 @@
+:root {
+  color: #17211d;
+  background-color: #f4f5ef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.app-frame {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.app-frame__panel {
+  width: min(760px, 100%);
+  border: 1px solid rgba(15, 38, 30, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 80px rgba(16, 37, 29, 0.12);
+  padding: 2rem;
+  backdrop-filter: blur(12px);
+}
+
+.app-frame__eyebrow {
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.app-frame__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  color: #35564d;
+  font-size: 0.95rem;
+}
+
+.app-frame__description {
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.app-frame__content {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(15, 38, 30, 0.12);
+  font-size: 1rem;
+  line-height: 1.7;
+}

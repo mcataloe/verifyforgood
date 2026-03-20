@@ -1,0 +1,12 @@
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(247, 211, 84, 0.28), transparent 36%),
+    linear-gradient(180deg, #f6f7f1 0%, #eff2e7 100%);
+  color: #17211d;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+#root {
+  min-height: 100vh;
+}
