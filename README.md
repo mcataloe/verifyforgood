@@ -16,6 +16,31 @@ Customer-facing overview:
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
+## Infrastructure Naming
+
+Infrastructure resource names should be deterministic, composable, and independent from product branding. The shared naming helper lives at `infrastructure/charity_status/platform/naming.py` and builds names in this format:
+
+- `<namespace>-<platform>-<purpose>-<environment>-<region>`
+
+Defaults for the current verification platform are:
+
+- `namespace = n8x4`
+- `platform = verification`
+- `region = use1`
+
+Naming philosophy:
+
+- infrastructure names identify ownership and deployment context, not marketing identity
+- branding such as `CharityStatusAPI`, `VerifyForGood`, or future product names must not be embedded in infrastructure resource names
+- purpose tokens should describe the resource role (`profiles`, `query-api`, `source-data-bucket`) rather than the brand
+- names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
+
+Namespace token guidance:
+
+- `namespace` is the short organizational token that scopes shared infrastructure ownership
+- use `n8x4` as the default unless a deployment explicitly requires a different namespace boundary
+- keep namespace changes intentional because the token is part of every generated resource name
+
 ## Public-Core Boundary (Phase 11A)
 
 Phase 11A introduces explicit separation boundaries so domain logic can remain canonical/open while deployment/platform wiring can be isolated.

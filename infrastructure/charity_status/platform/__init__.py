@@ -16,6 +16,15 @@ from .auth import (
     load_oauth_client_store,
     load_oauth_token_store,
 )
+from .naming import (
+    DEFAULT_NAMESPACE,
+    DEFAULT_PLATFORM,
+    DEFAULT_REGION,
+    build_resource_name,
+    buildResourceName,
+    validate_resource_name,
+    validateResourceName,
+)
 
 __all__ = [
     "QueryRuntimeConfig",
@@ -32,4 +41,11 @@ __all__ = [
     "load_api_key_store",
     "load_oauth_client_store",
     "load_oauth_token_store",
+    "DEFAULT_NAMESPACE",
+    "DEFAULT_PLATFORM",
+    "DEFAULT_REGION",
+    "build_resource_name",
+    "buildResourceName",
+    "validate_resource_name",
+    "validateResourceName",
 ]
