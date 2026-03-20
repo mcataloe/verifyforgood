@@ -1,8 +1,16 @@
-# Shared Frontend Config Placeholder
+# Shared Config Package
 
-This directory reserves a clear home for future frontend-local shared config such as lint, formatting, or bundler conventions if they become justified.
+This package normalizes the small amount of runtime config that both frontend apps are expected to share.
 
-This phase intentionally keeps config lightweight:
+Current scope:
 
-- the workspace root owns `tsconfig.base.json`
-- no separate config package is introduced yet
+- API base URL normalization
+- API version normalization
+- frontend environment normalization from Vite env input
+
+What stays out:
+
+- app-specific feature flags
+- route-level config
+- portal-only entitlement or billing settings
+- marketing-only campaign or content configuration

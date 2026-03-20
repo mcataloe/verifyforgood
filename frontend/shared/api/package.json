@@ -1,0 +1,16 @@
+{
+  "name": "@charity-status/shared-api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@charity-status/shared-config": "0.0.0",
+    "@charity-status/shared-types": "0.0.0"
+  }
+}

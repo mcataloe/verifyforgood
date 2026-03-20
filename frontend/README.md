@@ -26,6 +26,8 @@ Current workspace packages:
 
 - `@charity-status/marketing`
 - `@charity-status/portal`
+- `@charity-status/shared-api`
+- `@charity-status/shared-config`
 - `@charity-status/shared-ui`
 - `@charity-status/shared-types`
 - `@charity-status/shared-utils`
@@ -39,7 +41,8 @@ Reusable code belongs in `shared/` only when both apps can consume the same impl
 ## Placeholder-Only Directories
 
 - `docs/` does not have a `package.json` yet because this phase only reserves the boundary; no docs runtime has been chosen.
-- `shared/config/` does not have a `package.json` yet because shared frontend config is intentionally kept lightweight and centered on the workspace root until stronger reuse appears.
+
+See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands
 

@@ -15,7 +15,7 @@ A dedicated frontend workspace now lives under `frontend/` at the repository roo
 
 - `frontend/marketing/` is the public marketing application shell
 - `frontend/portal/` is the authenticated customer portal shell
-- `frontend/shared/` is the home for intentionally reusable frontend code
+- `frontend/shared/` is the home for intentionally reusable frontend code, including minimal `ui`, `types`, `api`, `utils`, and `config` foundations
 - `frontend/docs/` is a future frontend docs surface and is separate from the repository-level `docs/` directory, which continues to hold backend and architecture documentation
 
 See `frontend/README.md` for the dependency rules and current workspace layout.
