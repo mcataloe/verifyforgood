@@ -19,9 +19,8 @@ classifiers = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "../infrastructure"}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["../infrastructure"]
+where = ["src"]
 include = ["charity_status*"]
-exclude = ["charity_status.platform*", "charity_status.future*"]

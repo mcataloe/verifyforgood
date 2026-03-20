@@ -272,3 +272,19 @@ The safest first implementation work is:
 3. only then begin extracting low-risk public-core packages
 
 That order minimizes churn, avoids broken imports, and preserves current runtime behavior while the split is still happening inside one repo.
+
+## First Official Public-Core Extractions
+
+The first low-risk modules suitable for extraction are:
+
+- `normalization/`
+- `sources/`
+- schema-only `evidence/models.py`
+- schema-only `policy/models.py`
+
+Why these qualify:
+
+- they are deterministic
+- they do not require auth, billing, tenant/customer, or deployment wiring
+- they do not require AWS/Stripe SDKs
+- they provide reusable validators, schemas, and domain-relevant canonical structures

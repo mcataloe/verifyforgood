@@ -11,6 +11,7 @@ Allowed contents:
 - pure use-case orchestration
 - interfaces or ports needed by reusable logic
 - parser and transformation code that does not require platform secrets or deployment-specific runtime wiring
+- validators and canonical schemas
 
 Forbidden contents:
 
@@ -29,4 +30,5 @@ Dependency direction:
 Current monorepo note:
 
 - this directory is scaffolding only in the current phase
-- the live implementation remains under `infrastructure/charity_status/`
+- the first extracted modules now live here
+- much of the live implementation still remains under `infrastructure/charity_status/`

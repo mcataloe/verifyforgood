@@ -7,6 +7,7 @@ In this monorepo phase, the canonical source still lives in:
 - `infrastructure/charity_status/`
 
 The `pyproject.toml` here is intentionally configured to package `charity_status` from that location so contributors can validate packaging boundaries before a physical repo split.
+The package now has an active `src/` root for the first extracted open-safe modules while the live application runtime still imports from `infrastructure/charity_status/`.
 
 Target package root after extraction:
 
@@ -16,6 +17,19 @@ Scaffolding added in this repo phase:
 
 - `public-core/src/charity_status/__init__.py`
 - `public-core/src/charity_status/README.md`
+
+Officially extracted modules in this phase:
+
+- `charity_status.normalization`
+- `charity_status.sources`
+- schema-only `charity_status.evidence`
+- schema-only `charity_status.policy`
+
+Compatibility note:
+
+- existing server/runtime imports are unchanged
+- `infrastructure/charity_status/` remains the live application path for now
+- extracted modules are copied into `public-core/src/charity_status/` first so future phases can flip imports safely
 
 ## Intended Public-Core Scope
 
