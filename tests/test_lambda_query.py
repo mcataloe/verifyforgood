@@ -2,6 +2,7 @@ import importlib
 import hashlib
 import hmac
 import json
+import re
 import sys
 from decimal import Decimal
 from time import time
@@ -1922,6 +1923,163 @@ def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
     assert missing["statusCode"] == 404
 
 
+def test_ops_form990_runs_post_queues_orchestrator(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+    captured = {}
+
+    class _LambdaClient:
+        def invoke(self, **kwargs):
+            captured.update(kwargs)
+            return {"StatusCode": 202}
+
+    module.lambda_invoke_client = _LambdaClient()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({"mode": "incremental", "target_years": ["2026"]}),
+        },
+        None,
+    )
+
+    body = _response_data(result)
+    invoke_payload = json.loads(captured["Payload"].decode("utf-8"))
+
+    assert result["statusCode"] == 202
+    assert _response_envelope(result)["plan"] == "admin"
+    assert captured["FunctionName"] == "form990-orchestrator"
+    assert captured["InvocationType"] == "Event"
+    assert body["status"] == "queued"
+    assert body["execution_mode"] == "orchestrated"
+    assert body["mode"] == "incremental"
+    assert body["target_years"] == ["2026"]
+    assert re.fullmatch(r"\d{8}T\d{6}Z-manual-[0-9a-f]{8}", body["run_id"])
+    assert body["inspection_paths"]["ingest_run"] == f"/v1/ops/ingest/runs/{body['run_id']}"
+    assert invoke_payload == {
+        "run_id": body["run_id"],
+        "execution_mode": "orchestrated",
+        "mode": "incremental",
+        "target_years": ["2026"],
+    }
+
+
+def test_ops_form990_runs_post_rejects_invalid_json(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": "{bad json",
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "Request body must be valid JSON"
+
+
+def test_ops_form990_runs_post_rejects_invalid_mode(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({"mode": "full"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "mode must be one of: incremental, bootstrap"
+
+
+def test_ops_form990_runs_post_rejects_invalid_target_years(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({"target_years": "2026"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "target_years must be an array of year strings"
+
+
+def test_ops_form990_runs_post_rejects_unknown_fields(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({"mode": "incremental", "unexpected": True}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "Unsupported request field(s): unexpected"
+
+
+def test_ops_form990_runs_post_requires_orchestrator_configuration(monkeypatch):
+    monkeypatch.delenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", raising=False)
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 503
+    assert _response_error_message(result) == "Form 990 orchestrator is not configured"
+
+
+def test_ops_form990_runs_post_returns_500_when_invoke_fails(monkeypatch):
+    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    class _LambdaClient:
+        def invoke(self, **kwargs):
+            raise RuntimeError("boom")
+
+    module.lambda_invoke_client = _LambdaClient()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
+            "headers": {"x-admin-key": admin_key},
+            "body": json.dumps({}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 500
+    assert _response_error_message(result) == "Failed to queue Form 990 run"
+
+
 def test_ops_routes_require_admin_key(monkeypatch):
     module, _admin_key = _load_admin_module(monkeypatch)
     module.OPS_METADATA_BUCKET = "test-bucket"
@@ -1931,7 +2089,7 @@ def test_ops_routes_require_admin_key(monkeypatch):
         get_run_items=lambda run_type, run_id, item_name: None,
     )
 
-    result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": {}}, None)
+    result = module.handler({"httpMethod": "POST", "resource": "/v1/ops/form990/runs", "headers": {}, "body": json.dumps({})}, None)
 
     assert result["statusCode"] == 401
     assert _response_envelope(result)["plan"] == "public"
@@ -1958,9 +2116,10 @@ def test_ops_routes_reject_customer_api_key(monkeypatch):
 
     result = module.handler(
         {
-            "httpMethod": "GET",
-            "resource": "/v1/ops/ingest/runs",
+            "httpMethod": "POST",
+            "resource": "/v1/ops/form990/runs",
             "headers": {"x-api-key": display_key},
+            "body": json.dumps({}),
         },
         None,
     )

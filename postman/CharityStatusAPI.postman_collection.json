@@ -674,8 +674,32 @@
     },
     {
       "name": "Ops",
-      "description": "Operational read endpoints. Auth: x-admin-key only.",
+      "description": "Operational admin endpoints. Auth: x-admin-key only.",
       "item": [
+        {
+          "name": "POST /v1/ops/form990/runs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-admin-key",
+                "value": "{{adminKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "description": "Queue a manual Form 990 orchestrator run. Auth: x-admin-key. Variables: baseUrl. Returns 202 with the generated ingest run id and inspection paths.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"incremental\",\n  \"target_years\": [\"2026\"]\n}"
+            },
+            "url": "{{baseUrl}}/v1/ops/form990/runs"
+          }
+        },
         {
           "name": "GET /v1/ops/ingest/runs",
           "request": {

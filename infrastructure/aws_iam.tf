@@ -43,6 +43,15 @@ resource "aws_iam_role_policy" "lambda_data_access" {
       },
       {
         Action = [
+          "lambda:InvokeFunction"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_lambda_function.form990_orchestrator.arn
+        ]
+      },
+      {
+        Action = [
           "dynamodb:GetItem",
           "dynamodb:Query",
           "dynamodb:PutItem",

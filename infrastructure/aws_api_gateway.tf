@@ -253,6 +253,18 @@ resource "aws_api_gateway_resource" "ops_ingest_run_filings" {
   path_part   = "filings"
 }
 
+resource "aws_api_gateway_resource" "ops_form990" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops.id
+  path_part   = "form990"
+}
+
+resource "aws_api_gateway_resource" "ops_form990_runs" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.ops_form990.id
+  path_part   = "runs"
+}
+
 resource "aws_api_gateway_resource" "ops_refresh" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.ops.id
@@ -800,6 +812,13 @@ resource "aws_api_gateway_method" "get_ops_ingest_run_filings" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_ops_form990_runs" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.ops_form990_runs.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "get_ops_refresh_runs" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.ops_refresh_runs.id
@@ -918,6 +937,15 @@ resource "aws_api_gateway_integration" "lambda_ops_ingest_run_filings_integratio
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "lambda_ops_form990_runs_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.ops_form990_runs.id
+  http_method             = aws_api_gateway_method.post_ops_form990_runs.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
 resource "aws_api_gateway_integration" "lambda_ops_refresh_runs_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.ops_refresh_runs.id
@@ -1003,6 +1031,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_ops_ingest_runs_integration,
     aws_api_gateway_integration.lambda_ops_ingest_run_id_integration,
     aws_api_gateway_integration.lambda_ops_ingest_run_filings_integration,
+    aws_api_gateway_integration.lambda_ops_form990_runs_integration,
     aws_api_gateway_integration.lambda_ops_refresh_runs_integration,
     aws_api_gateway_integration.lambda_ops_refresh_run_id_integration,
     aws_api_gateway_integration.lambda_ops_refresh_run_eins_integration,

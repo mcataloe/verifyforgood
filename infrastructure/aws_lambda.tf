@@ -177,6 +177,7 @@ resource "aws_lambda_function" "query" {
       ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
+      FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
     }
   }
 }

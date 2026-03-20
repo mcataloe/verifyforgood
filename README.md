@@ -1506,8 +1506,9 @@ Terraform/env settings:
 
 ## Operational Endpoints (Phase 10F)
 
-Operational diagnostics are exposed on a separate read-only surface under `/v1/ops/*`:
+Operational diagnostics and manual operator triggers are exposed on a separate admin-only surface under `/v1/ops/*`:
 
+- `POST /v1/ops/form990/runs`
 - `GET /v1/ops/ingest/runs`
 - `GET /v1/ops/ingest/runs/{ingest_run_id}`
 - `GET /v1/ops/ingest/runs/{ingest_run_id}/filings`
@@ -1521,6 +1522,7 @@ Authentication:
 - all `/v1/ops/*` routes require `x-admin-key`
 - customer API keys and OAuth customer auth are not sufficient for the ops surface
 - `GET /v1/ops/nonprofits/{ein}/pipeline-status` remains admin-only in the current design and may move to a separate customer-safe route later if needed
+- `POST /v1/ops/form990/runs` always queues the orchestrator asynchronously; it never forces inline execution through the API
 
 Run lifecycle status meanings:
 
@@ -1533,12 +1535,24 @@ Operational diagnostics are structured and safe:
 - error summaries are code-oriented and redacted where sensitive text is detected
 - stack traces are not returned from ops responses
 
+Manual Form 990 trigger contract:
+
+- request body supports:
+  - `mode`: optional `incremental` or `bootstrap`, default `incremental`
+  - `target_years`: optional array of year strings
+- successful requests return `202 Accepted` with:
+  - a generated `run_id`
+  - `execution_mode: "orchestrated"`
+  - inspection paths for the existing ingest run GET endpoints
+- follow-up inspection stays on the existing read endpoints; the trigger route does not block waiting for completion
+
 Common debugging workflow for stale nonprofit data:
 
-1. check latest ingest runs (`/v1/ops/ingest/runs`) and inspect run detail
-2. inspect filing items for the ingest run (`/v1/ops/ingest/runs/{id}/filings`)
-3. inspect linked refresh run and EIN outcomes (`/v1/ops/refresh/runs/{id}/eins`)
-4. inspect nonprofit pipeline status (`/v1/ops/nonprofits/{ein}/pipeline-status`) for latest materialized hash/timestamps and staleness indicators
+1. optionally queue a manual Form 990 run (`POST /v1/ops/form990/runs`) when you need an on-demand ingest
+2. check latest ingest runs (`/v1/ops/ingest/runs`) and inspect run detail
+3. inspect filing items for the ingest run (`/v1/ops/ingest/runs/{id}/filings`)
+4. inspect linked refresh run and EIN outcomes (`/v1/ops/refresh/runs/{id}/eins`)
+5. inspect nonprofit pipeline status (`/v1/ops/nonprofits/{ein}/pipeline-status`) for latest materialized hash/timestamps and staleness indicators
 
 ### `POST /v1/verify`
 

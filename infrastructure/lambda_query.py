@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 from collections import Counter
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -119,6 +121,7 @@ OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
 ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
+FORM990_ORCHESTRATOR_FUNCTION_NAME = os.environ.get("FORM990_ORCHESTRATOR_FUNCTION_NAME", "").strip()
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
@@ -134,6 +137,7 @@ auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: Any | None = None
 ops_run_store: Any | None = None
+lambda_invoke_client: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
@@ -428,6 +432,13 @@ def _get_ops_run_store() -> Any | None:
     return ops_run_store
 
 
+def _get_lambda_invoke_client() -> Any:
+    global lambda_invoke_client
+    if lambda_invoke_client is None:
+        lambda_invoke_client = boto3.client("lambda")
+    return lambda_invoke_client
+
+
 def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
     global organization_integration_settings_store
     if not ORGANIZATION_SETTINGS_TABLE_NAME:
@@ -513,6 +524,21 @@ def _parse_json_body(event: dict[str, Any]) -> dict[str, Any]:
     body = event.get("body")
     if not body:
         raise ValueError("Request body is required")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Request body must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
+
+
+def _parse_optional_json_body(event: dict[str, Any]) -> dict[str, Any]:
+    body = event.get("body")
+    if body is None:
+        return {}
+    if isinstance(body, str) and not body.strip():
+        return {}
     try:
         payload = json.loads(body)
     except json.JSONDecodeError as exc:
@@ -987,7 +1013,7 @@ def _is_stripe_webhook_request(event: dict, method: str) -> bool:
 
 
 def _is_ops_request(event: dict, method: str) -> bool:
-    if method != "GET":
+    if method not in {"GET", "POST"}:
         return False
     resource, path = _route_paths(event)
     return resource.startswith("/ops/") or path.startswith("/ops/")
@@ -1146,11 +1172,99 @@ def _allows_organization_settings_management(auth_context: Any) -> bool:
     return entitlements.allows_capability("organization_settings")
 
 
+def _generate_manual_form990_run_id() -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{timestamp}-manual-{secrets.token_hex(4)}"
+
+
+def _parse_manual_form990_request(event: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
+    payload = _parse_optional_json_body(event)
+    allowed_fields = {"mode", "target_years"}
+    unknown_fields = sorted(str(key) for key in payload.keys() if key not in allowed_fields)
+    if unknown_fields:
+        field_list = ", ".join(unknown_fields)
+        raise ValueError(f"Unsupported request field(s): {field_list}")
+
+    mode = str(payload.get("mode") or "incremental").strip().lower()
+    if mode not in {"incremental", "bootstrap"}:
+        raise ValueError("mode must be one of: incremental, bootstrap")
+
+    target_years_present = "target_years" in payload
+    target_years: list[str] = []
+    if target_years_present:
+        raw_target_years = payload.get("target_years")
+        if not isinstance(raw_target_years, list):
+            raise ValueError("target_years must be an array of year strings")
+        for item in raw_target_years:
+            if not isinstance(item, str):
+                raise ValueError("target_years must be an array of year strings")
+            year = item.strip()
+            if not year:
+                raise ValueError("target_years entries must be non-empty strings")
+            target_years.append(year)
+
+    return {"mode": mode}, target_years, target_years_present
+
+
+def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if not FORM990_ORCHESTRATOR_FUNCTION_NAME:
+        return 503, {"message": "Form 990 orchestrator is not configured"}
+
+    request_payload, target_years, target_years_present = _parse_manual_form990_request(event)
+    run_id = _generate_manual_form990_run_id()
+    triggered_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    invoke_payload: dict[str, Any] = {
+        "run_id": run_id,
+        "execution_mode": "orchestrated",
+        "mode": request_payload["mode"],
+    }
+    if target_years_present:
+        invoke_payload["target_years"] = target_years
+
+    try:
+        invoke_result = _get_lambda_invoke_client().invoke(
+            FunctionName=FORM990_ORCHESTRATOR_FUNCTION_NAME,
+            InvocationType="Event",
+            Payload=json.dumps(invoke_payload).encode("utf-8"),
+        )
+    except Exception:
+        logger.exception("form990.manual_trigger_invoke_failed", extra={"run_id": run_id})
+        return 500, {"message": "Failed to queue Form 990 run"}
+
+    status_code = int(invoke_result.get("StatusCode") or 0)
+    if status_code != 202:
+        logger.error(
+            "form990.manual_trigger_unexpected_status",
+            extra={"run_id": run_id, "status_code": status_code},
+        )
+        return 500, {"message": "Failed to queue Form 990 run"}
+
+    return 202, {
+        "status": "queued",
+        "run_id": run_id,
+        "execution_mode": "orchestrated",
+        "mode": request_payload["mode"],
+        "target_years": target_years,
+        "triggered_at": triggered_at,
+        "inspection_paths": {
+            "ingest_runs": "/v1/ops/ingest/runs",
+            "ingest_run": f"/v1/ops/ingest/runs/{run_id}",
+            "ingest_run_filings": f"/v1/ops/ingest/runs/{run_id}/filings",
+        },
+    }
+
+
 def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    if resource.endswith("/ops/form990/runs"):
+        if method != "POST":
+            return 404, {"message": "Ops route not found"}
+        return _handle_ops_form990_runs_request(event)
+
     run_store = _get_ops_run_store()
     if run_store is None:
         return 503, {"message": "Operational run store not configured"}
-    resource = _route_template(event)
     path_params = event.get("pathParameters") or {}
     query = event.get("queryStringParameters") or {}
     try:
