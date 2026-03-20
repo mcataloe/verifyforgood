@@ -8,6 +8,8 @@
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run --root ../.. --config vitest.config.ts shared/ui/src",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

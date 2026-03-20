@@ -10,11 +10,15 @@ interface ApiAccessPageProps {
 export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
   return (
     <Grid className="portal-page-grid">
-      <Panel title="Authentication-adjacent shell" subtitle="Credential workflows stay stubbed for now.">
+      <Panel
+        title="Authentication-adjacent shell"
+        subtitle="Credential workflows stay stubbed for now."
+      >
         <p>
-          Customers currently authenticate through issued API keys or OAuth client credentials.
-          This page reserves the portal home for future self-serve credential visibility without
-          assuming that issuance becomes a portal feature immediately.
+          Customers currently authenticate through issued API keys or OAuth
+          client credentials. This page reserves the portal home for future
+          self-serve credential visibility without assuming that issuance
+          becomes a portal feature immediately.
         </p>
         <dl className="portal-shell__details">
           <div>
@@ -30,7 +34,10 @@ export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
         </dl>
       </Panel>
 
-      <Panel title="Intentionally deferred" subtitle="Kept out of this bootstrap phase.">
+      <Panel
+        title="Intentionally deferred"
+        subtitle="Kept out of this bootstrap phase."
+      >
         <ul className="portal-list">
           <li>No full credential issuance or rotation workflow yet.</li>
           <li>No secret-display UX yet.</li>

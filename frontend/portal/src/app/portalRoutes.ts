@@ -12,31 +12,36 @@ export const portalRoutes: PortalRouteDefinition[] = [
     key: "dashboard",
     label: "Dashboard",
     hash: "#/dashboard",
-    description: "High-level authenticated entry point for future product signals and recent activity.",
+    description:
+      "High-level authenticated entry point for future product signals and recent activity.",
   },
   {
     key: "workspace",
     label: "Workspace",
     hash: "#/workspace",
-    description: "Organization and workspace context for account, tenant, and membership-aware slices.",
+    description:
+      "Organization and workspace context for account, tenant, and membership-aware slices.",
   },
   {
     key: "api-access",
     label: "API Access",
     hash: "#/api-access",
-    description: "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
+    description:
+      "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
   },
   {
     key: "usage-billing",
     label: "Usage & Billing",
     hash: "#/usage-billing",
-    description: "Subscription, checkout, Stripe portal, and usage-aware billing workflows.",
+    description:
+      "Subscription, checkout, Stripe portal, and usage-aware billing workflows.",
   },
   {
     key: "settings",
     label: "Settings",
     hash: "#/settings",
-    description: "Organization-level settings and future integrations configuration.",
+    description:
+      "Organization-level settings and future integrations configuration.",
   },
 ];
 

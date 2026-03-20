@@ -1,5 +1,8 @@
 import { Page, Panel } from "@charity-status/shared-ui";
-import type { FrontendAppInfo, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type {
+  FrontendAppInfo,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { DocsRouteDefinition } from "../app/docsRoutes";
 
@@ -43,7 +46,10 @@ export function DocsLayout({
           ))}
         </nav>
 
-        <Panel title="Current build context" subtitle="Docs remain content-focused and deployment-light.">
+        <Panel
+          title="Current build context"
+          subtitle="Docs remain content-focused and deployment-light."
+        >
           <dl className="docs-shell__details">
             <div>
               <dt>Audience</dt>

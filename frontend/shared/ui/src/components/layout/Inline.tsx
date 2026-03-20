@@ -6,12 +6,7 @@ type InlineProps = PropsWithChildren<{
   gap?: string;
 }>;
 
-export function Inline({
-  align,
-  children,
-  className,
-  gap,
-}: InlineProps) {
+export function Inline({ align, children, className, gap }: InlineProps) {
   const resolvedClassName = ["vf-inline", className].filter(Boolean).join(" ");
   const style = {
     "--vf-inline-align": align,

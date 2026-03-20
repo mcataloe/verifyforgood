@@ -1,11 +1,20 @@
-import type { ApiResponseEnvelope, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type {
+  ApiResponseEnvelope,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 import { buildApiUrl } from "./routes";
 
-type ApiRuntimeConfig = Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">;
+type ApiRuntimeConfig = Pick<
+  FrontendRuntimeConfig,
+  "apiBaseUrl" | "apiVersion"
+>;
 
 export type ApiRequestMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 
-type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export interface ApiRequestOptions<TBody> {
   runtimeConfig: ApiRuntimeConfig;

@@ -7,18 +7,33 @@ interface DevelopersPageProps {
   runtimeConfig: FrontendRuntimeConfig;
 }
 
-export function DevelopersPage({ endpoints, runtimeConfig }: DevelopersPageProps) {
+export function DevelopersPage({
+  endpoints,
+  runtimeConfig,
+}: DevelopersPageProps) {
   return (
     <Grid className="marketing-page-grid">
-      <Panel title="Developer onboarding" subtitle="A public-facing API path without turning this shell into docs infrastructure yet.">
+      <Panel
+        title="Developer onboarding"
+        subtitle="A public-facing API path without turning this shell into docs infrastructure yet."
+      >
         <ul className="marketing-list">
           <li>Primary auth modes: API keys and OAuth client credentials.</li>
-          <li>Customer-facing endpoints are versioned under <code>/{runtimeConfig.apiVersion}</code>.</li>
-          <li>Public docs can later expand from this page into the separate frontend docs surface.</li>
+          <li>
+            Customer-facing endpoints are versioned under{" "}
+            <code>/{runtimeConfig.apiVersion}</code>.
+          </li>
+          <li>
+            Public docs can later expand from this page into the separate
+            frontend docs surface.
+          </li>
         </ul>
       </Panel>
 
-      <Panel title="Early integration anchors" subtitle="Backed by the current live API contract.">
+      <Panel
+        title="Early integration anchors"
+        subtitle="Backed by the current live API contract."
+      >
         <ul className="marketing-list">
           <li>
             Search nonprofits: <code>{endpoints.nonprofitSearch}</code>

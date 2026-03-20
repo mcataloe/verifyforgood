@@ -11,7 +11,8 @@ import { getPortalSessionStub } from "./portalSession";
 import { portalRoutes, usePortalRoute } from "./portalRoutes";
 
 const appInfo: FrontendAppInfo = {
-  audience: "Authenticated customers managing verification workflows and account settings.",
+  audience:
+    "Authenticated customers managing verification workflows and account settings.",
   description:
     "Application shell for future authenticated product slices including workspace management, API access, usage, billing, and settings.",
   title: "Customer portal shell",
@@ -33,7 +34,11 @@ export function PortalApp() {
       session={session}
     >
       {currentRoute.key === "dashboard" ? (
-        <DashboardPage endpoints={endpoints} runtimeConfig={runtimeConfig} session={session} />
+        <DashboardPage
+          endpoints={endpoints}
+          runtimeConfig={runtimeConfig}
+          session={session}
+        />
       ) : null}
       {currentRoute.key === "workspace" ? (
         <WorkspacePage endpoints={endpoints} session={session} />

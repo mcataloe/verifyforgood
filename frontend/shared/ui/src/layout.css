@@ -35,7 +35,10 @@
 .vf-grid {
   display: grid;
   gap: var(--vf-grid-gap, var(--vf-space-4));
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--vf-grid-min, var(--vf-grid-min-card))), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--vf-grid-min, var(--vf-grid-min-card))), 1fr)
+  );
 }
 
 .vf-inline {

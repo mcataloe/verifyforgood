@@ -9,7 +9,9 @@ export interface MarketingEndpoints {
   sources: string;
 }
 
-export function marketingEndpoints(runtimeConfig: FrontendRuntimeConfig): MarketingEndpoints {
+export function marketingEndpoints(
+  runtimeConfig: FrontendRuntimeConfig,
+): MarketingEndpoints {
   return {
     filings: buildApiUrl("/nonprofit/{ein}/filings", runtimeConfig),
     nonprofitSearch: buildApiUrl("/nonprofits/search", runtimeConfig),

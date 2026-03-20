@@ -1,8 +1,16 @@
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(72, 124, 110, 0.16), transparent 28%),
-    linear-gradient(180deg, var(--vf-color-cream-100) 0%, var(--vf-color-cream-200) 100%);
+    radial-gradient(
+      circle at top left,
+      rgba(72, 124, 110, 0.16),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      var(--vf-color-cream-100) 0%,
+      var(--vf-color-cream-200) 100%
+    );
   color: var(--vf-color-forest-950);
   font-family: var(--vf-font-serif);
 }

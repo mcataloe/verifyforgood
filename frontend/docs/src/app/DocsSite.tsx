@@ -10,7 +10,8 @@ import { docsEndpoints } from "./docsEndpoints";
 import { docsRoutes, useDocsRoute } from "./docsRoutes";
 
 const appInfo: FrontendAppInfo = {
-  audience: "Customers, developers, and internal operators referencing product and API guidance.",
+  audience:
+    "Customers, developers, and internal operators referencing product and API guidance.",
   description:
     "Content-focused documentation shell for product overview, API onboarding, integration examples, and support-oriented reference.",
   title: "VerifyForGood documentation shell",
@@ -30,7 +31,10 @@ export function DocsSite() {
       runtimeConfig={runtimeConfig}
     >
       {currentRoute.key === "getting-started" ? (
-        <GettingStartedPage endpoints={endpoints} runtimeConfig={runtimeConfig} />
+        <GettingStartedPage
+          endpoints={endpoints}
+          runtimeConfig={runtimeConfig}
+        />
       ) : null}
       {currentRoute.key === "product-overview" ? <ProductOverviewPage /> : null}
       {currentRoute.key === "api-usage" ? (

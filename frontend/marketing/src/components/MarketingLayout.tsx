@@ -1,5 +1,14 @@
-import { Container, Inline, Page, Panel, Section } from "@charity-status/shared-ui";
-import type { FrontendAppInfo, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import {
+  Container,
+  Inline,
+  Page,
+  Panel,
+  Section,
+} from "@charity-status/shared-ui";
+import type {
+  FrontendAppInfo,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { MarketingRouteDefinition } from "../app/marketingRoutes";
 
@@ -27,7 +36,10 @@ export function MarketingLayout({
               <span>VerifyForGood</span>
             </a>
 
-            <nav className="marketing-shell__nav" aria-label="Marketing site navigation">
+            <nav
+              className="marketing-shell__nav"
+              aria-label="Marketing site navigation"
+            >
               {routes.map((route) => (
                 <a
                   key={route.key}
@@ -50,10 +62,16 @@ export function MarketingLayout({
               <h1>{app.title}</h1>
               <p className="marketing-shell__lede">{app.description}</p>
               <Inline className="marketing-shell__cta-row">
-                <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/product">
+                <a
+                  className="marketing-shell__cta marketing-shell__cta--primary"
+                  href="#/product"
+                >
                   Explore product
                 </a>
-                <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/login">
+                <a
+                  className="marketing-shell__cta marketing-shell__cta--secondary"
+                  href="#/login"
+                >
                   Portal login
                 </a>
               </Inline>

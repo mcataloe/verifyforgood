@@ -1,4 +1,7 @@
-import type { FrontendEnvironment, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type {
+  FrontendEnvironment,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 
 export interface SharedEnvSource {
   MODE?: string;
@@ -42,9 +45,14 @@ export function resolveFrontendEnvironment(
   return "development";
 }
 
-export function readRuntimeConfig(source: SharedEnvSource): FrontendRuntimeConfig {
+export function readRuntimeConfig(
+  source: SharedEnvSource,
+): FrontendRuntimeConfig {
   return {
-    environment: resolveFrontendEnvironment(source.VITE_APP_ENVIRONMENT, source.MODE),
+    environment: resolveFrontendEnvironment(
+      source.VITE_APP_ENVIRONMENT,
+      source.MODE,
+    ),
     apiBaseUrl: normalizeBaseUrl(source.VITE_API_BASE_URL),
     apiVersion: normalizeApiVersion(source.VITE_API_VERSION),
   };

@@ -10,7 +10,9 @@ export function ThemeRoot({
   className,
   tone = "default",
 }: ThemeRootProps) {
-  const resolvedClassName = ["vf-theme-root", className].filter(Boolean).join(" ");
+  const resolvedClassName = ["vf-theme-root", className]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className={resolvedClassName} data-theme={tone}>

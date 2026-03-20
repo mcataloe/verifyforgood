@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 
 export interface MarketingRouteDefinition {
-  key: "home" | "product" | "pricing" | "trust" | "developers" | "contact" | "login";
+  key:
+    | "home"
+    | "product"
+    | "pricing"
+    | "trust"
+    | "developers"
+    | "contact"
+    | "login";
   description: string;
   hash: string;
   label: string;
@@ -18,25 +25,29 @@ export const marketingRoutes: MarketingRouteDefinition[] = [
     key: "product",
     label: "Product",
     hash: "#/product",
-    description: "What customers can do with verification, source inspection, and monitoring.",
+    description:
+      "What customers can do with verification, source inspection, and monitoring.",
   },
   {
     key: "pricing",
     label: "Pricing",
     hash: "#/pricing",
-    description: "Plan structure and conversion guidance without locking in published prices here.",
+    description:
+      "Plan structure and conversion guidance without locking in published prices here.",
   },
   {
     key: "trust",
     label: "Security & Trust",
     hash: "#/trust",
-    description: "Reliability, deterministic scoring, and hosted billing/security posture.",
+    description:
+      "Reliability, deterministic scoring, and hosted billing/security posture.",
   },
   {
     key: "developers",
     label: "Developers",
     hash: "#/developers",
-    description: "API-oriented onboarding, auth modes, and integration entry points.",
+    description:
+      "API-oriented onboarding, auth modes, and integration entry points.",
   },
   {
     key: "contact",
@@ -56,7 +67,9 @@ const defaultRoute = marketingRoutes[0];
 
 export function resolveMarketingRoute(hash: string): MarketingRouteDefinition {
   const candidate = hash.trim() || defaultRoute.hash;
-  return marketingRoutes.find((route) => route.hash === candidate) ?? defaultRoute;
+  return (
+    marketingRoutes.find((route) => route.hash === candidate) ?? defaultRoute
+  );
 }
 
 export function useMarketingRoute(): MarketingRouteDefinition {

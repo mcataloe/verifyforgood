@@ -1,7 +1,13 @@
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
-import { normalizeApiVersion, normalizeBaseUrl } from "@charity-status/shared-config";
+import {
+  normalizeApiVersion,
+  normalizeBaseUrl,
+} from "@charity-status/shared-config";
 
-type ApiRoutingConfig = Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">;
+type ApiRoutingConfig = Pick<
+  FrontendRuntimeConfig,
+  "apiBaseUrl" | "apiVersion"
+>;
 
 export function versionPath(path: string, apiVersion = "v1"): string {
   const normalized = normalizePath(path);
@@ -10,7 +16,10 @@ export function versionPath(path: string, apiVersion = "v1"): string {
   if (normalized === "/") {
     return versionPrefix;
   }
-  if (normalized === versionPrefix || normalized.startsWith(`${versionPrefix}/`)) {
+  if (
+    normalized === versionPrefix ||
+    normalized.startsWith(`${versionPrefix}/`)
+  ) {
     return normalized;
   }
   return `${versionPrefix}${normalized}`;
@@ -47,6 +56,9 @@ export function buildApiUrl(path: string, config: ApiRoutingConfig): string {
 }
 
 function normalizePath(path: string): string {
-  const candidate = `/${String(path || "").trim().replace(/^\/+/, "").replace(/\/+$/, "")}`;
+  const candidate = `/${String(path || "")
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")}`;
   return candidate === "/" ? "/" : candidate;
 }

@@ -1,9 +1,21 @@
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(224, 180, 73, 0.34), transparent 32%),
-    radial-gradient(circle at top right, rgba(32, 120, 103, 0.16), transparent 28%),
-    linear-gradient(180deg, var(--vf-color-cream-50) 0%, var(--vf-color-surface-100) 100%);
+    radial-gradient(
+      circle at top left,
+      rgba(224, 180, 73, 0.34),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(32, 120, 103, 0.16),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      var(--vf-color-cream-50) 0%,
+      var(--vf-color-surface-100) 100%
+    );
   color: var(--vf-color-forest-950);
   font-family: var(--vf-font-display);
 }

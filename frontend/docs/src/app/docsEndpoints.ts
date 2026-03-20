@@ -10,9 +10,14 @@ export interface DocsEndpoints {
   verifyBatch: string;
 }
 
-export function docsEndpoints(runtimeConfig: FrontendRuntimeConfig): DocsEndpoints {
+export function docsEndpoints(
+  runtimeConfig: FrontendRuntimeConfig,
+): DocsEndpoints {
   return {
-    billingSubscription: buildApiUrl("/organization/billing/subscription", runtimeConfig),
+    billingSubscription: buildApiUrl(
+      "/organization/billing/subscription",
+      runtimeConfig,
+    ),
     nonprofitLookup: buildApiUrl("/nonprofit/{ein}", runtimeConfig),
     nonprofitSearch: buildApiUrl("/nonprofits/search", runtimeConfig),
     oauthToken: buildApiUrl("/oauth/token", runtimeConfig),

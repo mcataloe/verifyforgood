@@ -7,7 +7,11 @@ export interface FrontendAppInfo {
   audience: string;
 }
 
-export type FrontendEnvironment = "development" | "test" | "staging" | "production";
+export type FrontendEnvironment =
+  | "development"
+  | "test"
+  | "staging"
+  | "production";
 
 export interface FrontendRuntimeConfig {
   environment: FrontendEnvironment;

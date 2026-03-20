@@ -10,10 +10,14 @@ interface WorkspacePageProps {
 export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
   return (
     <Grid className="portal-page-grid">
-      <Panel title="Workspace context" subtitle="Ready for tenant, account, and membership-aware slices.">
+      <Panel
+        title="Workspace context"
+        subtitle="Ready for tenant, account, and membership-aware slices."
+      >
         <p>
-          The backend already models both <code>workspace_id</code> and <code>account_id</code>.
-          The portal shell keeps those concepts visible without assuming the future user-role model.
+          The backend already models both <code>workspace_id</code> and{" "}
+          <code>account_id</code>. The portal shell keeps those concepts visible
+          without assuming the future user-role model.
         </p>
         <dl className="portal-shell__details">
           <div>
@@ -31,15 +35,20 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
         </dl>
       </Panel>
 
-      <Panel title="Current backend anchor" subtitle="Settings are already keyed to workspace/account context.">
+      <Panel
+        title="Current backend anchor"
+        subtitle="Settings are already keyed to workspace/account context."
+      >
         <p>
-          Future organization management slices should align to the existing settings contract at{" "}
-          <code>{endpoints.organizationSettings}</code>.
+          Future organization management slices should align to the existing
+          settings contract at <code>{endpoints.organizationSettings}</code>.
         </p>
         <ul className="portal-list">
           <li>Integration toggles are workspace-aware.</li>
           <li>Billing overage preferences are account-wide.</li>
-          <li>Defaults remain backward compatible when nothing has been persisted.</li>
+          <li>
+            Defaults remain backward compatible when nothing has been persisted.
+          </li>
         </ul>
       </Panel>
     </Grid>

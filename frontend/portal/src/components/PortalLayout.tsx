@@ -1,5 +1,8 @@
 import { Inline, Page, Panel, ThemeRoot } from "@charity-status/shared-ui";
-import type { FrontendAppInfo, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type {
+  FrontendAppInfo,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalSessionStub } from "../app/portalSession";
@@ -47,7 +50,10 @@ export function PortalLayout({
         </nav>
 
         <ThemeRoot tone="inverse">
-          <Panel title="Session stub" subtitle="Auth stays abstracted in this phase.">
+          <Panel
+            title="Session stub"
+            subtitle="Auth stays abstracted in this phase."
+          >
             <dl className="portal-shell__details">
               <div>
                 <dt>Organization</dt>
@@ -79,8 +85,12 @@ export function PortalLayout({
           </div>
 
           <Inline className="portal-shell__status-row">
-            <span className="portal-shell__status-pill">Env: {runtimeConfig.environment}</span>
-            <span className="portal-shell__status-pill">Plan: {session.plan}</span>
+            <span className="portal-shell__status-pill">
+              Env: {runtimeConfig.environment}
+            </span>
+            <span className="portal-shell__status-pill">
+              Plan: {session.plan}
+            </span>
             <span className="portal-shell__status-pill">
               Auth: {session.auth_mode.replaceAll("_", " ")}
             </span>

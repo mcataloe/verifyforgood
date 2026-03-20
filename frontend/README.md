@@ -47,9 +47,42 @@ Run these from this directory:
 
 ```bash
 npm install
+npm run format
+npm run format:check
+npm run lint
+npm run test
 npm run typecheck
 npm run build
 npm run dev:docs
 npm run dev:marketing
 npm run dev:portal
 ```
+
+Per-package scripts mirror the same baseline where runtime behavior exists:
+
+- apps (`marketing`, `portal`, `docs`) expose `dev`, `build`, `lint`, `test`, and `typecheck`
+- shared runtime/helper packages expose `lint` and `typecheck`, plus `test` where they currently own behavior
+- `shared/types` stays type-only for now, so it does not force a placeholder runtime test surface
+
+## Tooling Baseline
+
+- ESLint is centralized in `eslint.config.js`
+- Prettier is centralized in `.prettierrc.json` and `.prettierignore`
+- Vitest is centralized in `vitest.config.ts` and `vitest.setup.ts`
+- package and app TypeScript configs extend `tsconfig.base.json`
+- frontend tooling config files are typechecked through `tsconfig.tooling.json`
+
+This keeps the frontend workspace internally consistent without introducing repo-root Node tooling into the Python/Terraform root.
+
+## Adding Apps And Packages
+
+When adding a new frontend app or shared package:
+
+- add it as an npm workspace in `package.json` if it is a new top-level workspace root
+- extend `tsconfig.base.json` from the package-local `tsconfig.json`
+- reuse the centralized ESLint, Prettier, and Vitest configs instead of copying config files into the package
+- add package scripts that match the current baseline:
+  - apps should expose `dev`, `build`, `lint`, `test`, and `typecheck`
+  - shared packages should expose `lint` and `typecheck`, plus `test` once they own real runtime behavior
+- keep tests close to the code they exercise under `src/**/*.test.ts` or `src/**/*.test.tsx`
+- update this README and any app/package README when the workspace shape changes

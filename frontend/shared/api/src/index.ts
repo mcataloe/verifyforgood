@@ -1,7 +1,4 @@
-export {
-  ApiRequestError,
-  requestApi,
-} from "./request";
+export { ApiRequestError, requestApi } from "./request";
 export {
   buildApiUrl,
   normalizeRouteKey,

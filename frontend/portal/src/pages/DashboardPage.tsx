@@ -16,15 +16,26 @@ export function DashboardPage({
 }: DashboardPageProps) {
   return (
     <Grid className="portal-page-grid">
-      <Panel title="Portal readiness" subtitle="This shell is organized for future vertical slices.">
+      <Panel
+        title="Portal readiness"
+        subtitle="This shell is organized for future vertical slices."
+      >
         <ul className="portal-list">
           <li>Workspace/account context is separated from page rendering.</li>
-          <li>Navigation reflects the backend's current customer-facing surface.</li>
-          <li>Shared API/config packages already normalize early portal dependencies.</li>
+          <li>
+            Navigation reflects the backend's current customer-facing surface.
+          </li>
+          <li>
+            Shared API/config packages already normalize early portal
+            dependencies.
+          </li>
         </ul>
       </Panel>
 
-      <Panel title="Current workspace" subtitle="Stubbed until real auth/session wiring lands.">
+      <Panel
+        title="Current workspace"
+        subtitle="Stubbed until real auth/session wiring lands."
+      >
         <dl className="portal-shell__details">
           <div>
             <dt>Workspace</dt>
@@ -45,7 +56,10 @@ export function DashboardPage({
         </dl>
       </Panel>
 
-      <Panel title="Early portal anchors" subtitle="Actual endpoints already exist in the backend.">
+      <Panel
+        title="Early portal anchors"
+        subtitle="Actual endpoints already exist in the backend."
+      >
         <ul className="portal-list">
           <li>
             Organization settings: <code>{endpoints.organizationSettings}</code>

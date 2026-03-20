@@ -6,12 +6,7 @@ type GridProps = PropsWithChildren<{
   minItemWidth?: string;
 }>;
 
-export function Grid({
-  children,
-  className,
-  gap,
-  minItemWidth,
-}: GridProps) {
+export function Grid({ children, className, gap, minItemWidth }: GridProps) {
   const resolvedClassName = ["vf-grid", className].filter(Boolean).join(" ");
   const style = {
     "--vf-grid-gap": gap,

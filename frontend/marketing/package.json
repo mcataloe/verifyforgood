@@ -6,6 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run --root .. --config vitest.config.ts marketing/src",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

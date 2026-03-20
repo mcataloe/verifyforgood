@@ -20,6 +20,14 @@ A dedicated frontend workspace now lives under `frontend/` at the repository roo
 
 See `frontend/README.md` for the dependency rules and current workspace layout.
 
+Frontend workspace commands now live under that nested workspace root:
+
+- `npm run format:check`
+- `npm run lint`
+- `npm run test`
+- `npm run typecheck`
+- `npm run build`
+
 Important:
 
 - backend workflows remain unchanged
