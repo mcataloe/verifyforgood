@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from infrastructure.charity_status.form990.teos_manifest import S3TeosZipManifestRepository
 from infrastructure.charity_status.form990.teos_zip_discovery import TeosZipDiscoveryRecord
+from infrastructure.charity_status.form990.teos_zip_probe import TeosZipProbeFailure, TeosZipProbeResult
 
 
 class FakeS3:
@@ -56,18 +57,31 @@ def test_teos_manifest_sync_persists_state_and_run_catalog():
     summary = repository.sync_discovered_records(
         run_id="run1",
         discovered_sources=[_record("2025", "2025_TEOS_XML_01A")],
+        probe_results={
+            ("2025", "2025_TEOS_XML_01A"): TeosZipProbeResult(
+                source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                etag='"etag-1"',
+                last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+                content_length=1234,
+                checked_at="2026-03-20T00:00:00+00:00",
+                method_used="HEAD",
+            )
+        },
         checked_at=datetime(2026, 3, 20, tzinfo=timezone.utc),
     )
 
     assert summary.discovered_count == 1
     assert summary.new_count == 1
     assert summary.changed_count == 0
+    assert summary.scheduled_download_count == 1
     assert summary.catalog_keys == ("form990/normalized/manifests/teos-zip/runs/run1/year=2025/catalog.json",)
 
     state_key = "form990/normalized/manifests/teos-zip/state/latest/year=2025/source_batch=2025_TEOS_XML_01A.json"
     state_payload = json.loads(s3.store[("test-bucket", state_key)]["Body"].decode("utf-8"))
     assert state_payload["current_sync_status"] == "discovered"
-    assert state_payload["download_status"] == "pending"
+    assert state_payload["download_status"] == "scheduled"
+    assert state_payload["etag"] == '"etag-1"'
     assert state_payload["destination_raw_s3_prefix"] == "form990/raw/year=2025/source_batch=2025_TEOS_XML_01A"
 
 
@@ -85,12 +99,43 @@ def test_teos_manifest_sync_marks_missing_records_not_listed():
             _record("2025", "2025_TEOS_XML_01A"),
             _record("2025", "2025_TEOS_XML_02A"),
         ],
+        probe_results={
+            ("2025", "2025_TEOS_XML_01A"): TeosZipProbeResult(
+                source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                etag='"etag-1"',
+                last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+                content_length=1234,
+                checked_at="2026-03-20T00:00:00+00:00",
+                method_used="HEAD",
+            ),
+            ("2025", "2025_TEOS_XML_02A"): TeosZipProbeResult(
+                source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_02A.zip",
+                resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_02A.zip",
+                etag='"etag-2"',
+                last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+                content_length=5678,
+                checked_at="2026-03-20T00:00:00+00:00",
+                method_used="HEAD",
+            ),
+        },
         checked_at="2026-03-20T00:00:00+00:00",
     )
 
     summary = repository.sync_discovered_records(
         run_id="run2",
         discovered_sources=[_record("2025", "2025_TEOS_XML_01A")],
+        probe_results={
+            ("2025", "2025_TEOS_XML_01A"): TeosZipProbeResult(
+                source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                etag='"etag-1"',
+                last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+                content_length=1234,
+                checked_at="2026-03-21T00:00:00+00:00",
+                method_used="HEAD",
+            )
+        },
         checked_at="2026-03-21T00:00:00+00:00",
     )
 
@@ -102,3 +147,71 @@ def test_teos_manifest_sync_marks_missing_records_not_listed():
     missing_payload = json.loads(s3.store[("test-bucket", missing_key)]["Body"].decode("utf-8"))
     assert missing_payload["current_sync_status"] == "not_listed"
     assert missing_payload["last_checked_at"] == "2026-03-21T00:00:00+00:00"
+
+
+def test_teos_manifest_sync_marks_unchanged_zip_as_skipped_unchanged():
+    s3 = FakeS3()
+    repository = S3TeosZipManifestRepository(
+        s3_client=s3,
+        bucket="test-bucket",
+        manifest_prefix="form990/normalized/manifests/",
+        raw_xml_prefix="form990/raw/",
+    )
+    initial_probe = TeosZipProbeResult(
+        source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+        resolved_source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+        etag='"etag-1"',
+        last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+        content_length=1234,
+        checked_at="2026-03-20T00:00:00+00:00",
+        method_used="HEAD",
+    )
+
+    repository.sync_discovered_records(
+        run_id="run1",
+        discovered_sources=[_record("2025", "2025_TEOS_XML_01A")],
+        probe_results={("2025", "2025_TEOS_XML_01A"): initial_probe},
+        checked_at="2026-03-20T00:00:00+00:00",
+    )
+    summary = repository.sync_discovered_records(
+        run_id="run2",
+        discovered_sources=[_record("2025", "2025_TEOS_XML_01A")],
+        probe_results={("2025", "2025_TEOS_XML_01A"): initial_probe},
+        checked_at="2026-03-21T00:00:00+00:00",
+    )
+
+    assert summary.unchanged_count == 1
+    assert summary.skipped_download_count == 1
+    state_key = "form990/normalized/manifests/teos-zip/state/latest/year=2025/source_batch=2025_TEOS_XML_01A.json"
+    state_payload = json.loads(s3.store[("test-bucket", state_key)]["Body"].decode("utf-8"))
+    assert state_payload["download_status"] == "skipped_unchanged"
+
+
+def test_teos_manifest_sync_records_probe_failures_without_aborting_year_sync():
+    s3 = FakeS3()
+    repository = S3TeosZipManifestRepository(
+        s3_client=s3,
+        bucket="test-bucket",
+        manifest_prefix="form990/normalized/manifests/",
+        raw_xml_prefix="form990/raw/",
+    )
+
+    summary = repository.sync_discovered_records(
+        run_id="run1",
+        discovered_sources=[_record("2025", "2025_TEOS_XML_01A")],
+        probe_results={
+            ("2025", "2025_TEOS_XML_01A"): TeosZipProbeFailure(
+                source_url="https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip",
+                checked_at="2026-03-20T00:00:00+00:00",
+                error="HTTP Error 500: Internal Server Error",
+            )
+        },
+        checked_at="2026-03-20T00:00:00+00:00",
+    )
+
+    assert summary.probe_failed_count == 1
+    state_key = "form990/normalized/manifests/teos-zip/state/latest/year=2025/source_batch=2025_TEOS_XML_01A.json"
+    state_payload = json.loads(s3.store[("test-bucket", state_key)]["Body"].decode("utf-8"))
+    assert state_payload["current_sync_status"] == "probe_failed"
+    assert state_payload["download_status"] == "probe_failed"
+    assert "HTTP Error 500" in state_payload["last_error"]

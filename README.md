@@ -90,6 +90,7 @@ Operational note:
 - `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
 - `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
 - each discovery run also scrapes the IRS Form 990 downloads page to discover TEOS ZIP batches for the selected target years and persists a separate ZIP manifest state for later download/extract/process phases
+- each discovered TEOS ZIP is probed with `HEAD` metadata before download; unchanged ZIP batches are skipped on rerun while the manifest still refreshes `last_checked_at`, `ETag`, `Last-Modified`, and `Content-Length` when available
 - `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
 - static discovery can also synthesize one next-year TEOS source set from the latest explicit TEOS year in the manifest so the pipeline can keep pace when the checked-in manifest lags by one year.
 - generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
@@ -117,6 +118,7 @@ Current discovery-stage architecture:
   - per-run discovery diff manifests
 - TEOS ZIP manifest sync persists separate per-batch state entries with:
   - source URL
+  - final resolved source URL when known
   - ZIP basename
   - tax year
   - discovered timestamp
@@ -251,7 +253,9 @@ Phase 10G ZIP discovery/reconciliation extension:
 - TEOS ZIP discovery foundation:
   - scrape the IRS downloads page each run and filter TEOS ZIP links by target year
   - normalize ZIP basename and absolute URL for deterministic manifest comparison
+  - probe each discovered ZIP with `HEAD` metadata and fall back to a minimal `GET` only when the server does not support `HEAD` cleanly
   - persist per-batch manifest state independently from CSV/source-download state
+  - download only new or changed ZIP batches; unchanged remote ZIPs are marked `skipped_unchanged` and are not redownloaded
   - preserve a destination raw XML prefix per ZIP batch for future extraction phases
 - raw source downloads are persisted separately from extracted filing XML:
   - raw IRS source artifacts: `form990/raw-sources/{year}/{source_kind}/{archive_key}/{source_signature}/{filename}`

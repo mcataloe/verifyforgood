@@ -19,6 +19,9 @@ from charity_status.form990.source_downloads import execute_source_download_batc
 from charity_status.form990.policy import IngestPolicyConfig, select_target_years
 from charity_status.form990.source_catalog import (
     Form990SourceArtifact,
+    SOURCE_KIND_ZIP_ARCHIVE,
+    compute_source_signature,
+    derive_source_archive_key,
     discovery_state_payload,
     diff_source_catalog,
     normalize_configured_sources,
@@ -26,7 +29,8 @@ from charity_status.form990.source_catalog import (
     source_years,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
-from charity_status.form990.teos_manifest import S3TeosZipManifestRepository
+from charity_status.form990.teos_manifest import S3TeosZipManifestRepository, TeosZipManifestRecord
+from charity_status.form990.teos_zip_probe import TeosZipProbeFailure, TeosZipProbeResult, probe_teos_zip_metadata
 from charity_status.form990.teos_zip_discovery import fetch_teos_download_page_html, parse_teos_zip_links
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
@@ -635,10 +639,15 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         target_years=selected_years,
         now=now_dt,
     )
+    teos_zip_manifest_records = tuple(item for item in teos_zip_manifest.pop("_records", ()) if isinstance(item, TeosZipManifestRecord))
     selected_sources = select_sources_by_years(discovered_sources, set(selected_years))
     selected_source_dicts = [item.to_dict() for item in selected_sources]
     downloaded_state = load_downloaded_source_state(service.s3, BUCKET or "", MANIFEST_PREFIX)
-    download_plan = plan_source_downloads(selected_source_dicts, downloaded_state)
+    download_plan = _plan_selected_source_downloads(
+        selected_sources=selected_source_dicts,
+        downloaded_state=downloaded_state,
+        teos_zip_manifest_records=teos_zip_manifest_records,
+    )
     actionable_sources = download_plan["to_download"]
     _log_structured(
         "form990.discovery.prepare",
@@ -671,6 +680,7 @@ def _prepare_discovery_run(service: Form990IngestService, payload: dict[str, Any
         "scheduled_sources": actionable_sources,
         "skipped_sources": download_plan["skipped"],
         "teos_zip_manifest": teos_zip_manifest,
+        "teos_zip_manifest_records": teos_zip_manifest_records,
         "policy": {
             "mode_requested": mode,
             "effective_mode": policy_metadata.get("effective_mode"),
@@ -706,6 +716,9 @@ def _sync_teos_zip_manifest_state(
         "changed_count": 0,
         "removed_count": 0,
         "unchanged_count": 0,
+        "scheduled_download_count": 0,
+        "skipped_download_count": 0,
+        "probe_failed_count": 0,
         "error": None,
     }
     page_url = FORM990_IRS_DOWNLOADS_PAGE_URL.strip()
@@ -717,20 +730,24 @@ def _sync_teos_zip_manifest_state(
         discovered_sources = []
         for year in target_years:
             discovered_sources.extend(parse_teos_zip_links(html, page_url=page_url, target_year=year, now=now))
+        probe_results = _probe_teos_zip_sources(discovered_sources, now=now)
         repository = S3TeosZipManifestRepository(
             s3_client=s3_client,
             bucket=BUCKET or "",
             manifest_prefix=MANIFEST_PREFIX,
             raw_xml_prefix=RAW_PREFIX,
         )
+        manifest_summary = repository.sync_discovered_records(
+            run_id=run_id,
+            discovered_sources=discovered_sources,
+            probe_results=probe_results,
+            checked_years=target_years,
+            checked_at=now,
+        )
         return {
             **summary,
-            **repository.sync_discovered_records(
-                run_id=run_id,
-                discovered_sources=discovered_sources,
-                checked_years=target_years,
-                checked_at=now,
-            ).to_dict(),
+            **manifest_summary.to_dict(),
+            "_records": manifest_summary.records,
         }
     except Exception as exc:
         _log_structured(
@@ -741,6 +758,153 @@ def _sync_teos_zip_manifest_state(
             error=str(exc),
         )
         return {**summary, "error": str(exc)}
+
+
+def _probe_teos_zip_sources(
+    discovered_sources: list[Any],
+    *,
+    now: datetime,
+) -> dict[tuple[str, str], TeosZipProbeResult | TeosZipProbeFailure]:
+    outcomes: dict[tuple[str, str], TeosZipProbeResult | TeosZipProbeFailure] = {}
+    for source in discovered_sources:
+        if not hasattr(source, "tax_year"):
+            continue
+        tax_year = str(getattr(source, "tax_year", "") or "").strip()
+        zip_basename = str(getattr(source, "zip_basename", "") or "").strip()
+        source_url = str(getattr(source, "source_url", "") or "").strip()
+        if not tax_year or not zip_basename or not source_url:
+            continue
+        identity = (tax_year, zip_basename)
+        try:
+            outcomes[identity] = probe_teos_zip_metadata(
+                source_url,
+                timeout_seconds=FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS,
+                now=now,
+            )
+        except Exception as exc:
+            _log_structured(
+                "form990.teos_zip_manifest.probe_failed",
+                tax_year=tax_year,
+                zip_basename=zip_basename,
+                source_url=source_url,
+                error=str(exc),
+            )
+            outcomes[identity] = TeosZipProbeFailure(
+                source_url=source_url,
+                checked_at=now.isoformat(),
+                error=str(exc),
+            )
+    return outcomes
+
+
+def _plan_selected_source_downloads(
+    *,
+    selected_sources: list[dict[str, Any]],
+    downloaded_state: list[dict[str, Any]],
+    teos_zip_manifest_records: tuple[TeosZipManifestRecord, ...],
+) -> dict[str, list[dict[str, Any]]]:
+    manifest_lookup = {
+        (record.tax_year, derive_source_archive_key(record.zip_basename)): record
+        for record in teos_zip_manifest_records
+    }
+    downloaded_by_identity = {
+        _source_identity(item): item
+        for item in downloaded_state
+        if isinstance(item, dict) and item.get("raw_source_s3_key")
+    }
+
+    generic_plan = plan_source_downloads(selected_sources, downloaded_state)
+    generic_to_download = {
+        _source_identity(item): item
+        for item in generic_plan["to_download"]
+        if isinstance(item, dict)
+    }
+    generic_skipped = {
+        _source_identity(item): item
+        for item in generic_plan["skipped"]
+        if isinstance(item, dict)
+    }
+
+    to_download: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+
+    for source in selected_sources:
+        if not isinstance(source, dict):
+            continue
+        identity = _source_identity(source)
+        manifest_record = manifest_lookup.get((str(source.get("source_year") or "").strip(), str(source.get("source_archive_key") or "").strip()))
+        if manifest_record is None or str(source.get("source_kind") or "").strip() != SOURCE_KIND_ZIP_ARCHIVE:
+            planned = generic_to_download.get(identity)
+            if planned is not None:
+                to_download.append(planned)
+                continue
+            skipped_entry = generic_skipped.get(identity)
+            if skipped_entry is not None:
+                skipped.append(skipped_entry)
+            continue
+
+        previous = downloaded_by_identity.get(identity)
+        if manifest_record.download_status == "probe_failed":
+            skipped.append(
+                {
+                    **source,
+                    "status": "skipped",
+                    "reason": "probe_failed",
+                    "raw_source_s3_key": previous.get("raw_source_s3_key") if previous else None,
+                    "downloaded_at": previous.get("downloaded_at") if previous else None,
+                    "content_length": previous.get("content_length") if previous else None,
+                    "content_type": previous.get("content_type") if previous else None,
+                    "error": manifest_record.last_error,
+                }
+            )
+            continue
+
+        if manifest_record.download_status == "scheduled" or previous is None:
+            to_download.append(_build_teos_zip_download_source(source, manifest_record))
+            continue
+
+        skipped.append(
+            {
+                **source,
+                "status": "skipped",
+                "reason": "unchanged_remote_zip",
+                "raw_source_s3_key": previous.get("raw_source_s3_key"),
+                "downloaded_at": previous.get("downloaded_at"),
+                "content_length": previous.get("content_length"),
+                "content_type": previous.get("content_type"),
+            }
+        )
+
+    return {"to_download": to_download, "skipped": skipped}
+
+
+def _build_teos_zip_download_source(source: dict[str, Any], record: TeosZipManifestRecord) -> dict[str, Any]:
+    page_url = str(source.get("page_url") or source.get("source_page_url") or "").strip()
+    signature = compute_source_signature(
+        source_year=str(source.get("source_year") or "").strip(),
+        source_kind=str(source.get("source_kind") or "").strip(),
+        source_url=str(record.resolved_source_url or source.get("source_url") or "").strip(),
+        source_filename=str(source.get("source_filename") or "").strip(),
+        source_archive_key=str(source.get("source_archive_key") or "").strip(),
+        page_url=page_url,
+        source_etag=record.etag,
+        source_last_modified=record.last_modified,
+    )
+    return {
+        **source,
+        "source_url": str(record.resolved_source_url or source.get("source_url") or "").strip(),
+        "source_signature": signature,
+        "source_etag": record.etag,
+        "source_last_modified": record.last_modified,
+    }
+
+
+def _source_identity(entry: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(entry.get("source_year") or "").strip(),
+        str(entry.get("source_kind") or "").strip(),
+        str(entry.get("source_archive_key") or "").strip(),
+    )
 
 
 def _build_policy_config(payload: dict[str, Any], mode: str) -> IngestPolicyConfig:
