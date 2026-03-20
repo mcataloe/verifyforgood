@@ -41,3 +41,11 @@ def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
     content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
     assert '"s3:*"' in content
     assert '"sqs:*"' in content
+
+
+def test_dev_form990_defaults_use_orchestrated_current_year_scope():
+    content = Path("infrastructure/terraform-dev.tfvars").read_text(encoding="utf-8")
+    assert 'form990_execution_mode' in content
+    assert '"orchestrated"' in content
+    assert "form990_incremental_year_window" in content
+    assert "= 1" in content

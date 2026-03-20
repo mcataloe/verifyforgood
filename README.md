@@ -91,6 +91,7 @@ Operational note:
 - `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
 - `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
 - static discovery can also synthesize one next-year TEOS source set from the latest explicit TEOS year in the manifest so the pipeline can keep pace when the checked-in manifest lags by one year.
+- generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
 - If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 
@@ -171,6 +172,7 @@ Recommended schedules:
 - non-production:
   - less frequent incremental schedule (for example every few days)
   - reconciliation disabled or manual-only unless explicitly needed
+  - for `dev`, prefer `form990_execution_mode = "orchestrated"` and `form990_incremental_year_window = 1` so scheduled runs stay bounded to the current year
 
 Operational run guidance:
 
@@ -213,6 +215,7 @@ Phase 10G ZIP discovery/reconciliation extension:
   - when enabled, the parser clones only the latest explicit TEOS-era year into a single next year
   - example: if `2025` is the highest explicit TEOS year, the runtime also synthesizes `2026` `index_2026.csv` plus the matching `2026_TEOS_XML_*` ZIP set
   - generated entries are marked with `generated://form990-next-year/...` in `page_url` so they remain backward-compatible but distinguishable from explicit manifest rows
+  - missing generated next-year sources are recorded as `skipped_unavailable` in source-download manifests/state and retried on later runs
   - disable with `FORM990_ENABLE_NEXT_YEAR_GENERATION=false` / Terraform `form990_enable_next_year_generation = false`
 - discovery keeps multiple source artifacts per year rather than collapsing to a single yearly link
 - discovery captures per-source metadata:
@@ -259,6 +262,7 @@ Phase 10H parallel chunk processing:
   - orchestrator discovers sources, reconciles CSV filings, and writes selected filing chunks to S3
   - orchestrator enqueues chunk messages to SQS
   - worker Lambda processes selected filings using ZIP-backed extraction first, then URL fallback when needed
+  - `dev` should use orchestrated scheduling rather than inline processing for daily Form 990 runs
   - per-run/per-chunk artifacts are persisted under:
     - `ops/form990-runs/{run_id}/run.json`
     - `ops/form990-runs/{run_id}/chunks/{chunk_id}.json`

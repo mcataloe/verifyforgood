@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import urllib.request
+from urllib.error import HTTPError
 from datetime import datetime, timezone
 from typing import Any
 
@@ -66,17 +67,71 @@ def execute_source_download_batch(
     downloader = downloader or download_source_bytes
     now_dt = now or datetime.now(timezone.utc)
     results: list[dict[str, Any]] = []
+    manifest_key = source_download_manifest_key(manifest_prefix, run_id=run_id, batch_index=batch_index)
 
     for source in sources:
         if not isinstance(source, dict):
             continue
         downloaded_at = datetime.now(timezone.utc).isoformat()
         source_url = str(source.get("source_url") or "")
-        body, content_type = retry_call(
-            lambda: downloader(source_url, timeout_seconds=timeout_seconds),
-            max_attempts=max_attempts,
-            is_retryable=is_transient_network_error,
+        state_entry_key = source_download_state_entry_key(
+            manifest_prefix,
+            str(source.get("source_year") or ""),
+            str(source.get("source_kind") or ""),
+            str(source.get("source_archive_key") or ""),
         )
+        try:
+            body, content_type = retry_call(
+                lambda: downloader(source_url, timeout_seconds=timeout_seconds),
+                max_attempts=max_attempts,
+                is_retryable=is_transient_network_error,
+            )
+        except Exception as exc:
+            if not _is_optional_generated_source_unavailable(source, exc):
+                result = {
+                    **source,
+                    "status": "failed",
+                    "reason": "source_download_failed",
+                    "raw_source_s3_key": None,
+                    "downloaded_at": downloaded_at,
+                    "content_length": None,
+                    "content_type": None,
+                    "error": str(exc),
+                }
+                results.append(result)
+                s3_client.put_object(Bucket=bucket, Key=state_entry_key, Body=json.dumps(_state_entry(result), sort_keys=True).encode("utf-8"))
+                _write_manifest(
+                    s3_client=s3_client,
+                    bucket=bucket,
+                    key=manifest_key,
+                    run_id=run_id,
+                    batch_index=batch_index,
+                    results=results,
+                    generated_at=now_dt,
+                    manifest_prefix=manifest_prefix,
+                )
+                raise
+            result = {
+                **source,
+                "status": "skipped_unavailable",
+                "reason": "generated_source_unavailable",
+                "raw_source_s3_key": None,
+                "downloaded_at": downloaded_at,
+                "content_length": None,
+                "content_type": None,
+                "error": str(exc),
+            }
+            results.append(result)
+            s3_client.put_object(Bucket=bucket, Key=state_entry_key, Body=json.dumps(_state_entry(result), sort_keys=True).encode("utf-8"))
+            _log_structured(
+                "form990.source_download.skipped_unavailable",
+                source_year=source.get("source_year"),
+                source_kind=source.get("source_kind"),
+                source_archive_key=source.get("source_archive_key"),
+                source_url=source_url,
+            )
+            continue
+
         raw_key = raw_source_key(
             raw_source_prefix,
             str(source.get("source_year") or ""),
@@ -104,12 +159,6 @@ def execute_source_download_batch(
             "content_type": content_type,
         }
         results.append(result)
-        state_entry_key = source_download_state_entry_key(
-            manifest_prefix,
-            str(source.get("source_year") or ""),
-            str(source.get("source_kind") or ""),
-            str(source.get("source_archive_key") or ""),
-        )
         s3_client.put_object(Bucket=bucket, Key=state_entry_key, Body=json.dumps(_state_entry(result), sort_keys=True).encode("utf-8"))
         _log_structured(
             "form990.source_download.completed",
@@ -120,24 +169,26 @@ def execute_source_download_batch(
             raw_source_s3_key=raw_key,
         )
 
-    manifest = {
-        "generated_at": now_dt.isoformat(),
-        "run_id": run_id,
-        "batch_index": batch_index,
-        "downloaded_count": len(results),
-        "downloads": results,
-        "source_download_state_prefix": source_download_state_prefix(manifest_prefix),
-    }
-    manifest_key = source_download_manifest_key(manifest_prefix, run_id=run_id, batch_index=batch_index)
-    s3_client.put_object(Bucket=bucket, Key=manifest_key, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
+    _write_manifest(
+        s3_client=s3_client,
+        bucket=bucket,
+        key=manifest_key,
+        run_id=run_id,
+        batch_index=batch_index,
+        results=results,
+        generated_at=now_dt,
+        manifest_prefix=manifest_prefix,
+    )
     _log_structured(
         "form990.source_download.batch_complete",
         run_id=run_id,
         batch_index=batch_index,
-        downloaded_count=len(results),
+        downloaded_count=sum(1 for item in results if str(item.get("status") or "") == "downloaded"),
+        skipped_unavailable_count=sum(1 for item in results if str(item.get("status") or "") == "skipped_unavailable"),
+        failed_count=sum(1 for item in results if str(item.get("status") or "") == "failed"),
         manifest_key=manifest_key,
     )
-    return {"manifest_key": manifest_key, **manifest}
+    return {"manifest_key": manifest_key, **_manifest_payload(results, run_id=run_id, batch_index=batch_index, generated_at=now_dt, manifest_prefix=manifest_prefix)}
 
 
 def load_downloaded_source_state(s3_client: Any, bucket: str, manifest_prefix: str) -> list[dict[str, Any]]:
@@ -200,11 +251,81 @@ def _state_entry(result: dict[str, Any]) -> dict[str, Any]:
         "page_url": result.get("page_url"),
         "source_etag": result.get("source_etag"),
         "source_last_modified": result.get("source_last_modified"),
+        "status": result.get("status"),
+        "reason": result.get("reason"),
         "raw_source_s3_key": result.get("raw_source_s3_key"),
         "downloaded_at": result.get("downloaded_at"),
         "content_length": result.get("content_length"),
         "content_type": result.get("content_type"),
     }
+
+
+def _write_manifest(
+    *,
+    s3_client: Any,
+    bucket: str,
+    key: str,
+    run_id: str,
+    batch_index: int,
+    results: list[dict[str, Any]],
+    generated_at: datetime,
+    manifest_prefix: str,
+) -> None:
+    payload = _manifest_payload(
+        results,
+        run_id=run_id,
+        batch_index=batch_index,
+        generated_at=generated_at,
+        manifest_prefix=manifest_prefix,
+    )
+    s3_client.put_object(Bucket=bucket, Key=key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+
+
+def _manifest_payload(
+    results: list[dict[str, Any]],
+    *,
+    run_id: str,
+    batch_index: int,
+    generated_at: datetime,
+    manifest_prefix: str,
+) -> dict[str, Any]:
+    return {
+        "generated_at": generated_at.isoformat(),
+        "run_id": run_id,
+        "batch_index": batch_index,
+        "downloaded_count": sum(1 for item in results if str(item.get("status") or "") == "downloaded"),
+        "skipped_unavailable_count": sum(1 for item in results if str(item.get("status") or "") == "skipped_unavailable"),
+        "failed_count": sum(1 for item in results if str(item.get("status") or "") == "failed"),
+        "downloads": results,
+        "source_download_state_prefix": source_download_state_prefix(manifest_prefix),
+    }
+
+
+def _is_optional_generated_source_unavailable(source: dict[str, Any], exc: Exception) -> bool:
+    if not _is_generated_source(source):
+        return False
+    status_code = _http_status_code(exc)
+    return status_code == 404
+
+
+def _is_generated_source(source: dict[str, Any]) -> bool:
+    page_url = str(source.get("page_url") or source.get("source_page_url") or "").strip().lower()
+    return page_url.startswith("generated://form990-next-year/")
+
+
+def _http_status_code(exc: Exception) -> int | None:
+    if isinstance(exc, HTTPError):
+        return int(exc.code)
+    status = getattr(exc, "status", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    code = getattr(response, "status_code", None)
+    if isinstance(code, int):
+        return code
+    return None
 
 
 def _source_identity(entry: dict[str, Any]) -> tuple[str, str, str]:

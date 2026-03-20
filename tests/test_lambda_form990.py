@@ -698,6 +698,96 @@ def test_orchestrated_mode_applies_target_year_policy_before_chunking(monkeypatc
     assert len(fake_sqs.messages) == 1
 
 
+def test_orchestrated_mode_continues_when_generated_sources_are_skipped(monkeypatch):
+    fake_s3 = FakeS3()
+    fake_sqs = FakeSQS()
+    monkeypatch.setenv("BUCKET", "test-bucket")
+    monkeypatch.setenv("FORM990_EXECUTION_MODE", "orchestrated")
+    monkeypatch.setenv("FORM990_WORK_QUEUE_URL", "https://sqs.example/work")
+    monkeypatch.setattr("boto3.client", lambda name: fake_s3 if name == "s3" else fake_sqs)
+    sys.modules.pop("infrastructure.lambda_form990", None)
+    module = importlib.import_module("infrastructure.lambda_form990")
+
+    module.discover_static_form990_sources = lambda now=None, enable_next_year_generation=True: [
+        Form990SourceArtifact(
+            source_year="2026",
+            source_kind="csv_index",
+            source_url="https://example.org/index_2026.csv",
+            source_filename="index_2026.csv",
+            source_archive_key="index_2026",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature="sig-index_2026",
+            page_url="generated://form990-next-year/2025-to-2026",
+        ),
+        Form990SourceArtifact(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_url="https://example.org/2026_TEOS_XML_03A.zip",
+            source_filename="2026_TEOS_XML_03A.zip",
+            source_archive_key="2026_teos_xml_03a",
+            discovered_at="2026-01-01T00:00:00+00:00",
+            source_signature="sig-2026-teos-03a",
+            page_url="generated://form990-next-year/2025-to-2026",
+        ),
+    ]
+    module.execute_source_download_batch = lambda **kwargs: {
+        "manifest_key": "form990/normalized/manifests/source-download/runs/run1/batch_00000.json",
+        "downloaded_count": 1,
+        "skipped_unavailable_count": 1,
+        "downloads": [
+            {
+                **kwargs["sources"][0],
+                "status": "downloaded",
+                "raw_source_s3_key": "form990/raw-sources/2026/csv_index/index_2026/sig/index_2026.csv",
+            },
+            {
+                **kwargs["sources"][1],
+                "status": "skipped_unavailable",
+                "reason": "generated_source_unavailable",
+                "raw_source_s3_key": None,
+            },
+        ],
+    }
+    module.reconcile_filing_catalog = lambda **kwargs: _ReconciliationResult(
+        current_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2026",
+                filing_date="2026-01-01",
+                return_type="990",
+                irs_object_id="obj-2026",
+                xml_url="https://example.org/obj-2026.xml",
+                source_year="2026",
+                source_archive="index_2026",
+                source_signature="sig-2026",
+            )
+        ],
+        selected_records=[
+            Form990IndexRecord(
+                ein="123456789",
+                tax_year="2026",
+                filing_date="2026-01-01",
+                return_type="990",
+                irs_object_id="obj-2026",
+                xml_url="https://example.org/obj-2026.xml",
+                source_year="2026",
+                source_archive="index_2026",
+                source_signature="sig-2026",
+            )
+        ],
+        new_count=1,
+    )
+
+    result = module.handler({"mode": "incremental"}, None)
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["execution_mode"] == "orchestrated"
+    assert body["downloaded_source_count"] == 1
+    assert body["chunk_count"] == 1
+    assert len(fake_sqs.messages) == 1
+
+
 def test_legacy_index_url_path_bypasses_static_manifest(monkeypatch):
     module, _ = _load_module(monkeypatch)
     called = {"fetch": 0}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.error import HTTPError
 
 from infrastructure.charity_status.form990.source_downloads import execute_source_download_batch, load_downloaded_source_state, plan_source_downloads
 
@@ -41,6 +42,13 @@ def _source(kind: str, url: str, archive_key: str, filename: str) -> dict[str, s
         "source_signature": f"sig-{archive_key}",
         "page_url": "https://example.org/page",
     }
+
+
+def _generated_source(kind: str, url: str, archive_key: str, filename: str) -> dict[str, str]:
+    source = _source(kind, url, archive_key, filename)
+    source["page_url"] = "generated://form990-next-year/2025-to-2026"
+    source["source_year"] = "2026"
+    return source
 
 
 def test_execute_source_download_batch_persists_raw_csv():
@@ -148,3 +156,60 @@ def test_execute_source_download_batch_retries_transient_download_errors():
     )
     assert manifest["downloaded_count"] == 1
     assert attempts["count"] == 3
+
+
+def test_execute_source_download_batch_skips_generated_source_404_and_writes_manifest():
+    s3 = FakeS3()
+
+    def _downloader(source_url, timeout_seconds):
+        if source_url.endswith("2026_TEOS_XML_03A.zip"):
+            raise HTTPError(source_url, 404, "Not Found", hdrs=None, fp=None)
+        return (b"PK\x03\x04fakezip", "application/zip")
+
+    manifest = execute_source_download_batch(
+        sources=[
+            _generated_source("zip_archive", "https://example.org/2026_TEOS_XML_02A.zip", "2026_teos_xml_02a", "2026_TEOS_XML_02A.zip"),
+            _generated_source("zip_archive", "https://example.org/2026_TEOS_XML_03A.zip", "2026_teos_xml_03a", "2026_TEOS_XML_03A.zip"),
+        ],
+        bucket="test-bucket",
+        raw_source_prefix="form990/raw-sources/",
+        manifest_prefix="form990/normalized/manifests/",
+        s3_client=s3,
+        run_id="run5",
+        batch_index=0,
+        timeout_seconds=10,
+        downloader=_downloader,
+    )
+
+    assert manifest["downloaded_count"] == 1
+    assert manifest["skipped_unavailable_count"] == 1
+    assert manifest["downloads"][1]["status"] == "skipped_unavailable"
+    assert manifest["downloads"][1]["reason"] == "generated_source_unavailable"
+    state = load_downloaded_source_state(s3, "test-bucket", "form990/normalized/manifests/")
+    skipped_state = next(item for item in state if item["source_archive_key"] == "2026_teos_xml_03a")
+    assert skipped_state["status"] == "skipped_unavailable"
+    assert skipped_state["raw_source_s3_key"] is None
+
+
+def test_execute_source_download_batch_fails_for_explicit_source_404():
+    s3 = FakeS3()
+
+    def _downloader(source_url, timeout_seconds):
+        raise HTTPError(source_url, 404, "Not Found", hdrs=None, fp=None)
+
+    try:
+        execute_source_download_batch(
+            sources=[_source("zip_archive", "https://example.org/2024_TEOS_XML_11B.zip", "2024_teos_xml_11b", "2024_TEOS_XML_11B.zip")],
+            bucket="test-bucket",
+            raw_source_prefix="form990/raw-sources/",
+            manifest_prefix="form990/normalized/manifests/",
+            s3_client=s3,
+            run_id="run6",
+            batch_index=0,
+            timeout_seconds=10,
+            downloader=_downloader,
+        )
+    except HTTPError as exc:
+        assert exc.code == 404
+    else:
+        raise AssertionError("expected explicit source 404 to fail the batch")
