@@ -22,6 +22,12 @@ It lives under the repository root so marketing, portal, shared UI foundations, 
 - both apps may depend on `shared/*`
 - `docs/` remains separate from marketing and portal runtime logic
 
+Public versus protected surfaces:
+
+- `marketing/` and `docs/` are public-facing runtime surfaces
+- `portal/` is the protected application surface
+- the portal now keeps a small public sign-in boundary inside the app, but authenticated routes stay isolated behind that gate
+
 Current workspace packages:
 
 - `@charity-status/marketing`

@@ -1,12 +1,12 @@
 import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { PortalEndpoints } from "../app/portalEndpoints";
-import type { PortalSessionStub } from "../app/portalSession";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
 
 interface DashboardPageProps {
   endpoints: PortalEndpoints;
   runtimeConfig: FrontendRuntimeConfig;
-  session: PortalSessionStub;
+  session: PortalAuthenticatedSession;
 }
 
 export function DashboardPage({
@@ -37,6 +37,10 @@ export function DashboardPage({
         subtitle="Stubbed until real auth/session wiring lands."
       >
         <dl className="portal-shell__details">
+          <div>
+            <dt>User</dt>
+            <dd>{session.user.email}</dd>
+          </div>
           <div>
             <dt>Workspace</dt>
             <dd>{session.workspace_id}</dd>
@@ -69,6 +73,9 @@ export function DashboardPage({
           </li>
           <li>
             OAuth token exchange: <code>{endpoints.oauthToken}</code>
+          </li>
+          <li>
+            Session roles: <code>{session.roles.join(", ")}</code>
           </li>
         </ul>
       </Panel>

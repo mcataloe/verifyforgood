@@ -5,20 +5,22 @@ import type {
 } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
-import type { PortalSessionStub } from "../app/portalSession";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
   currentRoute: PortalRouteDefinition;
+  onSignOut: () => Promise<void>;
   routes: PortalRouteDefinition[];
   runtimeConfig: FrontendRuntimeConfig;
-  session: PortalSessionStub;
+  session: PortalAuthenticatedSession;
 }
 
 export function PortalLayout({
   app,
   children,
   currentRoute,
+  onSignOut,
   routes,
   runtimeConfig,
   session,
@@ -51,10 +53,14 @@ export function PortalLayout({
 
         <ThemeRoot tone="inverse">
           <Panel
-            title="Session stub"
-            subtitle="Auth stays abstracted in this phase."
+            title="Session boundary"
+            subtitle="Mock browser-session state stands in for a future real identity provider."
           >
             <dl className="portal-shell__details">
+              <div>
+                <dt>User</dt>
+                <dd>{session.user.display_name}</dd>
+              </div>
               <div>
                 <dt>Organization</dt>
                 <dd>{session.organization_name}</dd>
@@ -68,8 +74,8 @@ export function PortalLayout({
                 <dd>{session.account_id}</dd>
               </div>
               <div>
-                <dt>Plan</dt>
-                <dd>{session.plan}</dd>
+                <dt>Roles</dt>
+                <dd>{session.roles.join(", ")}</dd>
               </div>
             </dl>
           </Panel>
@@ -92,8 +98,15 @@ export function PortalLayout({
               Plan: {session.plan}
             </span>
             <span className="portal-shell__status-pill">
-              Auth: {session.auth_mode.replaceAll("_", " ")}
+              Auth: {session.auth_method.replaceAll("_", " ")}
             </span>
+            <button
+              className="portal-shell__action"
+              onClick={() => void onSignOut()}
+              type="button"
+            >
+              Sign out
+            </button>
           </Inline>
         </header>
 

@@ -1,10 +1,10 @@
 import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
-import type { PortalSessionStub } from "../app/portalSession";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
 
 interface SettingsPageProps {
   endpoints: PortalEndpoints;
-  session: PortalSessionStub;
+  session: PortalAuthenticatedSession;
 }
 
 export function SettingsPage({ endpoints, session }: SettingsPageProps) {

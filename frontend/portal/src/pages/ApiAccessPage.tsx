@@ -1,10 +1,10 @@
 import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
-import type { PortalSessionStub } from "../app/portalSession";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
 
 interface ApiAccessPageProps {
   endpoints: PortalEndpoints;
-  session: PortalSessionStub;
+  session: PortalAuthenticatedSession;
 }
 
 export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
@@ -22,8 +22,12 @@ export function ApiAccessPage({ endpoints, session }: ApiAccessPageProps) {
         </p>
         <dl className="portal-shell__details">
           <div>
-            <dt>Auth mode</dt>
-            <dd>{session.auth_mode.replaceAll("_", " ")}</dd>
+            <dt>Portal auth mode</dt>
+            <dd>{session.auth_method.replaceAll("_", " ")}</dd>
+          </div>
+          <div>
+            <dt>Available scopes</dt>
+            <dd>{session.scopes.join(", ")}</dd>
           </div>
           <div>
             <dt>OAuth token route</dt>
