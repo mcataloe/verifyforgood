@@ -80,8 +80,21 @@ def test_step_functions_terraform_wires_role_logging_and_schedule_target():
     assert '"ecs:RunTask"' in content
     assert '"iam:PassRole"' in content
     assert '"lambda:InvokeFunction"' in content
+    assert "monthly_ingest_staging_lambda_arn_resolved" in content
+    assert "monthly_ingest_schedule_source_key_effective" in content
     assert 'resource "aws_cloudwatch_event_target" "monthly_ingest_state_machine_target"' in content
     assert '"states:StartExecution"' in content
+    assert "monthly-workflows/pending/${local.monthly_ingest_schedule_job_id}/source.zip" in content
+
+
+def test_monthly_ingest_lambda_terraform_wires_staging_lambda_resource():
+    content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+
+    assert 'resource "aws_lambda_function" "monthly_ingest_staging"' in content
+    assert 'handler       = "lambda_monthly_ingest_staging.handler"' in content
+    assert 'local.lambda_function_names.monthly_private_ingest_staging' in content
+    assert 'FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)' in content
+    assert 'MONTHLY_INGEST_WORKFLOW_NAME            = local.monthly_ingest_workflow_name' in content
 
 
 def test_monthly_ingest_variables_capture_existing_infra_references_and_timeouts():

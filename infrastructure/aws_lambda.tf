@@ -314,7 +314,6 @@ data "archive_file" "form990_zip" {
     "charity_status/query/**",
     "charity_status/normalization/**",
     "charity_status/scoring/**",
-    "charity_status/ingest/**",
     "charity_status/future/**",
     "lambda_ingest.py",
     "lambda_query.py",
@@ -477,6 +476,35 @@ resource "aws_lambda_event_source_mapping" "form990_worker_sqs" {
   event_source_arn = aws_sqs_queue.form990_work_queue.arn
   function_name    = aws_lambda_function.form990_worker.arn
   batch_size       = var.form990_queue_batch_size
+}
+
+resource "aws_lambda_function" "monthly_ingest_staging" {
+  count         = var.monthly_ingest_state_machine_enabled && trim(var.monthly_ingest_staging_lambda_arn, " ") == "" ? 1 : 0
+  function_name = local.lambda_function_names.monthly_private_ingest_staging
+  handler       = "lambda_monthly_ingest_staging.handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = min(var.monthly_ingest_staging_lambda_timeout_seconds, 900)
+  memory_size   = 1024
+
+  filename         = data.archive_file.form990_zip.output_path
+  source_code_hash = data.archive_file.form990_zip.output_base64sha256
+
+  environment {
+    variables = {
+      BUCKET                                  = aws_s3_bucket.irs_data.bucket
+      FORM990_RAW_SOURCE_PREFIX               = local.form990_raw_source_prefix_normalized
+      FORM990_MANIFEST_PREFIX                 = local.form990_manifest_prefix_normalized
+      FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
+      APP_ENV                                 = var.environment
+      AWS_REGION                              = var.aws_region
+      MONTHLY_INGEST_WORKFLOW_BASENAME        = var.monthly_ingest_workflow_basename
+      MONTHLY_INGEST_WORKFLOW_NAME            = local.monthly_ingest_workflow_name
+      MONTHLY_INGEST_WORKFLOW_VERSION         = var.monthly_ingest_workflow_version
+    }
+  }
+
+  tags = local.platform_common_tags
 }
 
 

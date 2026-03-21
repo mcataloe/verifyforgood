@@ -38,6 +38,7 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "monthly_ingest_state_machine_name" in content and "local.resource_names.monthly_ingest_state_machine" in content
     assert "monthly_ingest_state_machine_role_name" in content and "local.resource_names.monthly_ingest_state_machine_role" in content
     assert "monthly_ingest_schedule_rule_name" in content and "local.resource_names.monthly_ingest_schedule_rule" in content
+    assert "monthly_ingest_staging_lambda_name" in content and "local.lambda_function_names.monthly_private_ingest_staging" in content
     assert "glue_database_name" in content and "local.data_catalog_prefix" in content
     assert "ingest_lambda_name" in content and "local.lambda_function_names.regulatory_data_ingestion" in content
     assert "query_lambda_name" in content and "local.lambda_function_names.organization_verification_api" in content
@@ -51,6 +52,7 @@ def test_lambda_and_schedule_resources_use_neutral_capability_maps():
     assert "local.lambda_function_names.regulatory_data_ingestion" in content
     assert "local.lambda_function_names.organization_verification_api" in content
     assert "local.lambda_function_names.platform_refresh" in content
+    assert "local.lambda_function_names.monthly_private_ingest_staging" in content
     assert "local.lambda_function_names.regulatory_filing_ingestion" in content
     assert "local.lambda_function_names.regulatory_filing_orchestrator" in content
     assert "local.lambda_function_names.regulatory_filing_worker" in content
@@ -94,6 +96,7 @@ def test_infrastructure_naming_docs_capture_mapping_and_exceptions():
     assert "Legacy To Neutral Mapping" in content
     assert "`legacy_name_prefix`" in content
     assert "`lambda_function_names.regulatory_data_ingestion`" in content
+    assert "`lambda_function_names.monthly_private_ingest_staging`" in content
     assert "`charitystatusapi-dev` backend bucket/table" in content
     assert "4. Customer-facing/public contract" in content
 

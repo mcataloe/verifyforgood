@@ -332,7 +332,7 @@ variable "monthly_ingest_container_name" {
 }
 
 variable "monthly_ingest_staging_lambda_arn" {
-  description = "Optional staging Lambda ARN invoked before ECS processing when skip_staging=false."
+  description = "Optional external staging Lambda ARN invoked before ECS processing when skip_staging=false. Empty lets Terraform create and wire the in-repo staging Lambda."
   type        = string
   default     = ""
 }
@@ -344,7 +344,7 @@ variable "monthly_ingest_schedule_source_bucket" {
 }
 
 variable "monthly_ingest_schedule_source_key" {
-  description = "Optional source key passed by the monthly private-ingest EventBridge schedule."
+  description = "Optional pre-staged source key passed by the monthly private-ingest EventBridge schedule. When empty and skip_staging=false, the schedule uses an internal placeholder until the staging Lambda returns the real key."
   type        = string
   default     = ""
 }
@@ -380,7 +380,7 @@ variable "monthly_ingest_schedule_skip_staging" {
 }
 
 variable "monthly_ingest_schedule_context_json" {
-  description = "Optional JSON object passed as schedule_context in the monthly private-ingest EventBridge schedule input."
+  description = "Optional JSON object passed as schedule_context in the monthly private-ingest EventBridge schedule input. This is the preferred place to supply upstream ZIP metadata such as source_url, source_year, source_archive_key, source_filename, and source_timestamp."
   type        = string
   default     = "{}"
 }

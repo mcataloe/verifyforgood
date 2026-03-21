@@ -2,14 +2,16 @@
 
 ## Scope
 
-This phase introduces shared contracts, configuration, and documentation for a monthly ingest workflow that keeps heavy ZIP digestion off Lambda while avoiding persistent NAT gateway cost.
+This phase introduces the monthly schedule trigger plus the staging Lambda layer for a monthly ingest workflow that keeps heavy ZIP digestion off Lambda while avoiding persistent NAT gateway cost.
 
 Current phase boundaries:
 
-- define and wire the Step Functions state machine for endpoint lifecycle, optional staging, ECS execution, and cleanup
+- define and wire the Step Functions state machine for endpoint lifecycle, staging, ECS execution, and cleanup
+- wire the monthly EventBridge schedule to start the workflow
+- implement the staging Lambda that downloads the vendor ZIP and stores it under the existing raw-source S3 contract
 - centralize workflow naming, retry, timeout, and log-group conventions
 - reuse existing S3 key patterns for downloaded source artifacts
-- leave staging-Lambda business logic and ECS worker implementation details for later phases
+- leave ECS worker implementation details for later phases
 
 ## Target Flow
 
@@ -46,10 +48,18 @@ Implemented orchestration phases now are:
 - validate required workflow input
 - create `ecr.api`, `ecr.dkr`, and `logs` interface endpoints sequentially
 - poll each endpoint until it becomes `available`
-- optionally invoke a staging Lambda
+- invoke the staging Lambda unless `skip_staging=true`
 - run the ECS worker with `ecs:runTask.sync`
 - always walk a reverse-order cleanup chain for created endpoints
 - fail the Step Functions execution with structured JSON cause data when processing or cleanup fails
+
+The staging Lambda is intentionally narrow:
+
+- read upstream ZIP source metadata from `schedule_context`
+- download the ZIP from the vendor URL
+- write the ZIP unchanged into S3
+- return the resolved S3 bucket/key plus metadata for downstream processing
+- avoid ZIP extraction or record-level digestion
 
 ## Why ECS RunTask Owns Heavy Processing
 
@@ -114,6 +124,16 @@ The shared contract layer now defines:
   - `workflow_version`
   - optional `schedule_context`
   - optional `skip_staging`
+- staging result contract:
+  - `bucket`
+  - `key`
+  - alias fields `source_bucket` and `source_key` for Step Functions override compatibility
+  - `size`
+  - `checksum`
+  - `checksum_algorithm`
+  - optional `source_timestamp`
+  - `job_id`
+  - `correlation_id`
 - ECS runtime contract:
   - required environment variables derived from the Step Functions payload
   - a stable JSON payload handoff contract
@@ -133,6 +153,55 @@ The shared contract layer now defines:
   - staging Lambda timeout
   - ECS task timeout
   - overall state-machine timeout
+
+## Schedule And Staging Contract
+
+The EventBridge schedule starts the Step Functions workflow with:
+
+- `source_bucket`
+- `destination_bucket`
+- `destination_prefix`
+- `job_id`
+- `correlation_id`
+- `workflow_version`
+- `skip_staging`
+- `schedule_context`
+
+When `skip_staging=false`, the schedule can omit a real `source_key`. Terraform now supplies a non-persistent placeholder key and the staging Lambda replaces it with the actual staged object location before ECS runs.
+
+For the current Form 990 monthly staging path, `schedule_context` should provide staging metadata either at the top level or under `schedule_context.staging`:
+
+- `source_url`
+- optional `source_year`
+- optional `source_kind`
+- optional `source_archive_key`
+- optional `source_filename`
+- optional `source_signature`
+- optional `source_timestamp`
+
+If some fields are omitted, the staging helper infers them from the upstream ZIP URL when practical.
+
+## S3 Staging Contract
+
+The staging Lambda reuses the existing raw-source key strategy:
+
+- `form990/raw-sources/{source_year}/{source_kind}/{source_archive_key}/{source_signature}/{source_filename}`
+
+It also writes object metadata for:
+
+- `job_id`
+- `correlation_id`
+- `workflow_version`
+- `source_url`
+- `source_kind`
+- `source_year`
+- `source_archive_key`
+- `source_filename`
+- `source_timestamp` when supplied
+- `checksum_sha256`
+- `downloaded_at`
+
+That keeps the staged ZIP immutable, traceable, and reusable by later ECS processing or manual backfills.
 
 ## Cleanup And Failure Model
 
@@ -160,6 +229,6 @@ That separation supports future additions such as:
 
 ## TODO
 
-- TODO: implement the staging Lambda input/output behavior for monthly ZIP placement in S3
 - TODO: provision or connect the target ECS task definition, cluster, subnet, and security-group references per environment
 - TODO: connect task output artifacts to downstream dataset-specific manifests
+- TODO: add workflow-specific schedule builders if future monthly sources need stronger typed schedule_context helpers

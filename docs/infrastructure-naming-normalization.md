@@ -43,6 +43,7 @@ Use capability-oriented names going forward:
 | `ingest_lambda_name` | `lambda_function_names.regulatory_data_ingestion` | 2. Abstracted behind compatibility layer | Old local remains as alias for downstream references. |
 | `query_lambda_name` | `lambda_function_names.organization_verification_api` | 2. Abstracted behind compatibility layer | Preserves current Lambda resource identity. |
 | `refresh_lambda_name` | `lambda_function_names.platform_refresh` | 2. Abstracted behind compatibility layer | Preserves current Lambda resource identity. |
+| monthly ingest staging Lambda | `lambda_function_names.monthly_private_ingest_staging` | 2. Abstracted behind compatibility layer | Neutral internal label for the ZIP staging worker; physical name still follows the centralized resource-name strategy. |
 | `form990_ingest_lambda_name` | `lambda_function_names.regulatory_filing_ingestion` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |
 | `form990_orchestrator_lambda_name` | `lambda_function_names.regulatory_filing_orchestrator` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |
 | `form990_worker_lambda_name` | `lambda_function_names.regulatory_filing_worker` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |
@@ -74,6 +75,7 @@ Preserved intentionally:
 - backend bootstrap bucket and lock-table names
 - resource block addresses in Terraform state
 - customer-facing route names, env vars, and API contracts
+- the optional external `monthly_ingest_staging_lambda_arn` override for environments that want a separately managed staging Lambda
 
 ## Contributor Guidance
 
@@ -87,4 +89,5 @@ Preserved intentionally:
 
 - a later state-migration phase can decide whether to move backend bootstrap resources off `charitystatusapi-*`
 - ECS cluster names, task families, Step Functions names, and CloudWatch log groups for the monthly ingest workflow should use the neutral conventions above when those resources are wired in
+- later cleanup can decide whether any environment still needs the external staging-Lambda ARN override once the in-repo Lambda is fully standard
 - once downstream Terraform references stop using the alias locals, the compatibility aliases can be removed in a later cleanup pass

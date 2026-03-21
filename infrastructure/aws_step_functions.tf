@@ -6,19 +6,26 @@ locals {
   monthly_ingest_schedule_job_id            = trim(var.monthly_ingest_schedule_job_id, " ") != "" ? trim(var.monthly_ingest_schedule_job_id, " ") : "scheduled-${local.environment_slug}"
   monthly_ingest_schedule_correlation_id    = trim(var.monthly_ingest_schedule_correlation_id, " ") != "" ? trim(var.monthly_ingest_schedule_correlation_id, " ") : local.monthly_ingest_schedule_job_id
   monthly_ingest_schedule_context           = try(jsondecode(var.monthly_ingest_schedule_context_json), {})
-  monthly_ingest_staging_lambda_configured  = trim(var.monthly_ingest_staging_lambda_arn, " ") != ""
+  monthly_ingest_staging_lambda_arn_resolved = trim(var.monthly_ingest_staging_lambda_arn, " ") != "" ? trim(var.monthly_ingest_staging_lambda_arn, " ") : (
+    var.monthly_ingest_state_machine_enabled ? aws_lambda_function.monthly_ingest_staging[0].arn : ""
+  )
+  monthly_ingest_staging_lambda_configured = trim(local.monthly_ingest_staging_lambda_arn_resolved, " ") != ""
   monthly_ingest_pass_role_arns             = compact([trim(var.monthly_ingest_task_execution_role_arn, " "), trim(var.monthly_ingest_task_role_arn, " ")])
+  monthly_ingest_schedule_source_key_effective = trim(var.monthly_ingest_schedule_source_key, " ") != "" ? trim(var.monthly_ingest_schedule_source_key, " ") : "monthly-workflows/pending/${local.monthly_ingest_schedule_job_id}/source.zip"
   monthly_ingest_schedule_enabled = (
     var.monthly_ingest_state_machine_enabled
     && trim(var.monthly_ingest_schedule_expression, " ") != ""
     && trim(var.monthly_ingest_schedule_source_bucket, " ") != ""
-    && trim(var.monthly_ingest_schedule_source_key, " ") != ""
     && trim(var.monthly_ingest_schedule_destination_bucket, " ") != ""
     && trim(var.monthly_ingest_schedule_destination_prefix, " ") != ""
+    && (
+      var.monthly_ingest_schedule_skip_staging
+      || local.monthly_ingest_staging_lambda_configured
+    )
   )
   monthly_ingest_schedule_input = {
     source_bucket      = trim(var.monthly_ingest_schedule_source_bucket, " ")
-    source_key         = trim(var.monthly_ingest_schedule_source_key, " ")
+    source_key         = local.monthly_ingest_schedule_source_key_effective
     destination_bucket = trim(var.monthly_ingest_schedule_destination_bucket, " ")
     destination_prefix = trim(var.monthly_ingest_schedule_destination_prefix, " ")
     job_id             = local.monthly_ingest_schedule_job_id
@@ -42,7 +49,7 @@ locals {
     ecs_cluster_name_reference       = local.monthly_ingest_ecs_cluster_name_reference
     staging_lambda_enabled           = local.monthly_ingest_staging_lambda_configured
     staging_default_state            = local.monthly_ingest_staging_lambda_configured ? "InvokeStagingLambda" : "RecordStagingConfigurationError"
-    staging_lambda_arn               = trim(var.monthly_ingest_staging_lambda_arn, " ")
+    staging_lambda_arn               = local.monthly_ingest_staging_lambda_arn_resolved
     staging_lambda_timeout_seconds   = var.monthly_ingest_staging_lambda_timeout_seconds
     endpoint_poll_interval_seconds   = var.monthly_ingest_endpoint_poll_interval_seconds
     endpoint_ready_max_attempts      = var.monthly_ingest_endpoint_ready_max_attempts
@@ -146,7 +153,7 @@ resource "aws_iam_role_policy" "monthly_ingest_state_machine" {
           Sid      = "InvokeStagingLambda"
           Effect   = "Allow"
           Action   = ["lambda:InvokeFunction"]
-          Resource = [trim(var.monthly_ingest_staging_lambda_arn, " ")]
+          Resource = [local.monthly_ingest_staging_lambda_arn_resolved]
         }
       ] : [],
       length(local.monthly_ingest_pass_role_arns) > 0 ? [

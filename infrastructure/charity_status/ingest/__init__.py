@@ -1,5 +1,11 @@
 from .interfaces import EnrichmentProvider, FileIngestResult, IngestSource
 from .result import build_ingest_result
+from .staging import (
+    MonthlyIngestStagingResult,
+    STAGING_RESULT_REQUIRED_FIELDS,
+    shape_staging_result,
+    validate_staging_result_payload,
+)
 from .workflow import (
     ECS_TASK_REQUIRED_ENV_VARS,
     DEFAULT_AWS_REGION,
@@ -51,8 +57,10 @@ __all__ = [
     "EcsTaskRuntimeContract",
     "MonthlyIngestWorkflowConfig",
     "MonthlyIngestWorkflowInput",
+    "MonthlyIngestStagingResult",
     "STEP_FUNCTION_OPTIONAL_FIELDS",
     "STEP_FUNCTION_INPUT_FIELDS",
+    "STAGING_RESULT_REQUIRED_FIELDS",
     "VpcEndpointServiceConfig",
     "WorkflowRetryConfig",
     "build_ingest_result",
@@ -61,7 +69,9 @@ __all__ = [
     "default_step_function_log_group_name",
     "load_monthly_ingest_workflow_config",
     "shape_step_function_input",
+    "shape_staging_result",
     "validate_step_function_input_payload",
+    "validate_staging_result_payload",
     "workflow_artifact_index_key",
     "workflow_job_prefix",
     "workflow_manifest_key",

@@ -38,6 +38,7 @@ locals {
     monthly_ingest_state_machine_role = "${local.namespace}-${local.platform}-monthly-ingest-role-${local.environment_slug}-${local.region_short}"
     monthly_ingest_schedule_rule      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-${local.environment_slug}-${local.region_short}"
     monthly_ingest_schedule_role      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-role-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_staging_lambda     = "${local.namespace}-${local.platform}-monthly-ingest-staging-${local.environment_slug}-${local.region_short}"
     ingest_lambda                     = "${local.namespace}-${local.platform}-dataset-ingest-${local.environment_slug}-${local.region_short}"
     query_lambda                      = "${local.namespace}-${local.platform}-query-api-${local.environment_slug}-${local.region_short}"
     refresh_lambda                    = "${local.namespace}-${local.platform}-profile-refresh-${local.environment_slug}-${local.region_short}"
@@ -66,6 +67,7 @@ locals {
     monthly_ingest_state_machine_role = "${local.legacy_name_prefix}-monthly-ingest-role"
     monthly_ingest_schedule_rule      = "${local.legacy_name_prefix}-monthly-ingest-schedule"
     monthly_ingest_schedule_role      = "${local.legacy_name_prefix}-monthly-ingest-schedule-role"
+    monthly_ingest_staging_lambda     = "${local.legacy_name_prefix}-monthly-ingest-staging"
     ingest_lambda                     = "${local.legacy_name_prefix}-dataset-ingest"
     query_lambda                      = "${local.legacy_name_prefix}-query-api"
     refresh_lambda                    = "${local.legacy_name_prefix}-profile-refresh"
@@ -92,6 +94,7 @@ locals {
     regulatory_data_ingestion      = local.resource_names.ingest_lambda
     organization_verification_api  = local.resource_names.query_lambda
     platform_refresh               = local.resource_names.refresh_lambda
+    monthly_private_ingest_staging = local.resource_names.monthly_ingest_staging_lambda
     regulatory_filing_ingestion    = local.resource_names.form990_ingest_lambda
     regulatory_filing_orchestrator = local.resource_names.form990_orchestrator_lambda
     regulatory_filing_worker       = local.resource_names.form990_worker_lambda
@@ -123,6 +126,7 @@ locals {
   monthly_ingest_state_machine_role_name = local.resource_names.monthly_ingest_state_machine_role
   monthly_ingest_schedule_rule_name      = local.resource_names.monthly_ingest_schedule_rule
   monthly_ingest_schedule_role_name      = local.resource_names.monthly_ingest_schedule_role
+  monthly_ingest_staging_lambda_name     = local.lambda_function_names.monthly_private_ingest_staging
   ingest_lambda_name                     = local.lambda_function_names.regulatory_data_ingestion
   query_lambda_name                      = local.lambda_function_names.organization_verification_api
   refresh_lambda_name                    = local.lambda_function_names.platform_refresh
