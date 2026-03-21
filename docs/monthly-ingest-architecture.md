@@ -4,6 +4,15 @@
 
 This phase introduces the monthly schedule trigger plus the staging Lambda layer for a monthly ingest workflow that keeps heavy ZIP digestion off Lambda while avoiding persistent NAT gateway cost.
 
+Terminology used in this document:
+
+- workflow: the monthly private-ingest workflow
+- conductor: Step Functions
+- staging component: the staging Lambda
+- worker: the ECS Fargate worker
+- permanent network path: the S3 gateway endpoint
+- ephemeral network paths: the `ecr.api`, `ecr.dkr`, and `logs` interface endpoints
+
 Current phase boundaries:
 
 - define and wire the Step Functions state machine for endpoint lifecycle, staging, ECS execution, and cleanup

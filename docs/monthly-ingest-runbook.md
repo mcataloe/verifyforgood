@@ -4,6 +4,14 @@
 
 The monthly private-ingest workflow is a Step Functions Standard state machine that orchestrates temporary private-network access, optional staging, ECS processing, and endpoint cleanup for low-frequency bulk ingest jobs.
 
+Use the same terminology throughout operations and code review:
+
+- conductor: Step Functions
+- staging component: staging Lambda
+- worker: ECS Fargate worker
+- permanent endpoint: S3 gateway endpoint
+- ephemeral endpoints: `ecr.api`, `ecr.dkr`, and `logs`
+
 ## Execution Phases
 
 1. Validate the workflow input contract.
@@ -99,7 +107,7 @@ Key task-definition controls:
 
 ## Required External References
 
-This repository now defines the orchestration, but the following deployment-specific references must still be supplied per environment:
+This repository now defines the workflow, but the following deployment-specific references must still be supplied per environment:
 
 - VPC id
 - private subnet ids
@@ -107,7 +115,7 @@ This repository now defines the orchestration, but the following deployment-spec
 - task security group ids
 - ECS cluster ARN
 
-Terraform can now manage the task definition and ECS roles automatically. The remaining deployment-specific reference that still must be supplied separately is the ECS cluster ARN.
+Terraform can now manage the task definition, task roles, staging Lambda, and worker log group automatically when the external ARN overrides are left empty.
 
 The staging Lambda no longer has to be supplied externally. Terraform creates it automatically when `monthly_ingest_state_machine_enabled=true` and `monthly_ingest_staging_lambda_arn` is empty. Set `monthly_ingest_staging_lambda_arn` only when you want to point the workflow at a separately managed Lambda.
 

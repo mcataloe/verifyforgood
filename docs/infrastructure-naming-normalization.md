@@ -4,6 +4,8 @@
 
 Infrastructure naming should describe platform capability and deployment role, not historical product branding. This phase keeps deployed AWS resource identities stable while making the internal Terraform naming model easier to understand for contributors working under the `VerifyForGood` brand.
 
+For the short cross-repo naming rules, see `docs/contributor-naming-rules.md`.
+
 ## Strategy
 
 - canonical internal Terraform labels now prefer neutral capability names such as `organization_verification`, `regulatory_data_ingestion`, and `monthly_filing_ingestion`
@@ -11,6 +13,12 @@ Infrastructure naming should describe platform capability and deployment role, n
 - legacy locals remain as aliases where downstream Terraform references may still depend on them
 - backend bootstrap resources stay pinned to existing `charitystatusapi-*` names until an explicit state migration is planned
 - public routes, customer-visible API contracts, environment variables, and existing deployed identifiers are out of scope for this phase
+
+In practice:
+
+- product / brand naming belongs in customer-visible configuration
+- capability naming belongs in Terraform locals, task labels, workflow ids, and docs
+- legacy naming remains only where compatibility or resource stability still requires it
 
 ## Canonical Internal Conventions
 

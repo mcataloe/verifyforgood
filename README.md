@@ -7,20 +7,42 @@ The repository name remains `CharityStatusAPI`, but customer-facing branding is 
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
+- `docs/contributor-naming-rules.md` is the concise rule set for naming new internal modules, workflows, and infrastructure identifiers.
 - `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
 - `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
 - `docs/infrastructure-naming-normalization.md` documents the neutral infrastructure naming layer, compatibility aliases, and intentionally preserved legacy resource names.
-- `docs/monthly-ingest-architecture.md` documents the planned Step Functions + ECS monthly ingest architecture and its cost model.
+- `docs/monthly-ingest-architecture.md` documents the implemented monthly private-ingest architecture, runtime contracts, and cost model.
 - `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly private-ingest.
 
 ## Current Architecture
 
 - Runtime: Python 3.11
 - Infrastructure: Terraform
-- Compute: AWS Lambda
+- Compute: AWS Lambda + ECS Fargate
+- Orchestration: EventBridge + Step Functions for monthly private-ingest
 - API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
+
+## Naming Layers
+
+Three naming layers now coexist intentionally:
+
+- product / brand naming:
+  - customer-facing labels such as `VerifyForGood`
+  - use only where customers or external systems see the name
+- capability / domain naming:
+  - preferred internal naming such as `verification_platform`, `organization_verification`, and `monthly_ingest`
+  - use for new modules, workflow labels, service boundaries, and internal docs
+- legacy compatibility naming:
+  - preserved names such as `CharityStatusAPI`, `charity_status`, `charitystatusapi.*`, and `charitystatusapi-*` backend resources
+  - keep only where compatibility or deployed-resource stability still requires them
+
+Contributor shortcut:
+
+- new internals should be capability-oriented
+- existing legacy names should be wrapped or documented, not spread further
+- customer-facing/public contract terms should stay stable unless a contract change is intentional
 
 ## Infrastructure Naming
 
@@ -69,6 +91,12 @@ Capability-namespace guidance:
 - new internal wrappers may be introduced under `verification_platform` when they describe capabilities more clearly than legacy names
 - wrapper namespaces should re-export existing implementations before any deeper code movement or rename
 - new modules should prefer capability-oriented names such as `organization_verification` or `entity_resolution`, not product or repo branding
+
+If you are naming something new:
+
+- read `docs/contributor-naming-rules.md` first
+- use `docs/capability-naming-abstraction.md` for runtime/module mapping
+- use `docs/infrastructure-naming-normalization.md` for Terraform and physical-resource exceptions
 
 ## Public-Core Boundary (Phase 11A)
 
@@ -184,6 +212,36 @@ Operational note:
 - If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
 - the monthly ZIP-processing path documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md) now includes the Step Functions conductor, EventBridge schedule integration, staging Lambda S3 handoff, and a managed ECS task-definition pattern for the worker; environments still need an ECS cluster ARN plus image build/push automation.
+
+## Monthly Private-Ingest Overview
+
+The monthly private-ingest workflow is now implemented as:
+
+- EventBridge monthly schedule
+- Step Functions orchestration
+- staging Lambda for vendor ZIP download into S3
+- ECS Fargate worker for heavy ZIP digestion
+- reverse-order cleanup of ephemeral interface endpoints
+
+Permanent infrastructure for this path:
+
+- VPC
+- private subnets
+- ECS cluster
+- S3 bucket
+- S3 gateway endpoint
+
+Ephemeral infrastructure per execution:
+
+- `ecr.api` interface endpoint
+- `ecr.dkr` interface endpoint
+- `logs` interface endpoint
+- ECS task compute
+
+Operational entry points:
+
+- architecture and contracts: `docs/monthly-ingest-architecture.md`
+- deployment and troubleshooting: `docs/monthly-ingest-runbook.md`
 
 Current discovery-stage architecture:
 

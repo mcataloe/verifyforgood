@@ -97,6 +97,8 @@ def test_infrastructure_naming_docs_capture_mapping_and_exceptions():
     content = Path("docs/infrastructure-naming-normalization.md").read_text(encoding="utf-8")
 
     assert "Legacy To Neutral Mapping" in content
+    assert "product / brand naming" in content
+    assert "capability naming belongs in Terraform locals" in content
     assert "`legacy_name_prefix`" in content
     assert "`lambda_function_names.regulatory_data_ingestion`" in content
     assert "`lambda_function_names.monthly_private_ingest_staging`" in content
@@ -111,3 +113,27 @@ def test_readmes_link_to_infrastructure_naming_normalization_doc():
 
     assert "docs/infrastructure-naming-normalization.md" in root_readme
     assert "docs/infrastructure-naming-normalization.md" in infra_readme
+    assert "docs/contributor-naming-rules.md" in root_readme
+    assert "docs/contributor-naming-rules.md" in infra_readme
+
+
+def test_contributor_naming_rules_doc_captures_three_naming_layers_and_monthly_ingest_terms():
+    content = Path("docs/contributor-naming-rules.md").read_text(encoding="utf-8")
+
+    assert "Three Naming Layers" in content
+    assert "Product / Brand Naming" in content
+    assert "Capability / Domain Naming" in content
+    assert "Legacy Compatibility Naming" in content
+    assert "monthly private-ingest workflow" in content
+    assert "charitystatusapi.*" in content
+    assert "verification_platform.organization_verification" in content
+
+
+def test_capability_naming_doc_references_contributor_rules_and_layer_model():
+    content = Path("docs/capability-naming-abstraction.md").read_text(encoding="utf-8")
+
+    assert "docs/contributor-naming-rules.md" in content
+    assert "Three naming layers now apply" in content
+    assert "product / brand naming" in content
+    assert "capability / domain naming" in content
+    assert "legacy compatibility naming" in content

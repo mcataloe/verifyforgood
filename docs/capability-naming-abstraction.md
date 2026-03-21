@@ -6,6 +6,8 @@ The platform now supports a neutral internal namespace, `verification_platform`,
 
 This phase does not rename infrastructure resources, environment variables, or existing package roots. It introduces a capability-oriented naming layer so new internal code can describe what the system does without embedding product or repository branding in the module path.
 
+For the concise contributor rule set across runtime and infrastructure, see `docs/contributor-naming-rules.md`.
+
 ## Why This Exists
 
 Current naming already separates customer-facing brand configuration from many runtime concerns, but package imports still lean heavily on the legacy `charity_status` root inherited from the existing codebase and repository history.
@@ -19,6 +21,15 @@ The abstraction layer solves that incrementally:
 ## Naming Rule Going Forward
 
 New internal module names should describe capability and responsibility, not brand or repository identity.
+
+Three naming layers now apply:
+
+- product / brand naming:
+  - customer-facing labels such as `VerifyForGood`
+- capability / domain naming:
+  - preferred internal names such as `verification_platform` and `organization_verification`
+- legacy compatibility naming:
+  - preserved roots such as `charity_status`, `charitystatusapi`, and `CharityStatusAPI`
 
 Preferred pattern:
 
@@ -36,6 +47,8 @@ Avoid new module names that bake in:
 - repository names
 - customer-facing marketing terms
 - source-specific branding when a capability name is sufficient
+
+Keep public API contract terms unchanged unless a separate contract change is intentional. For example, existing `/v1/nonprofit/...` routes can remain even while internal modules move toward capability-oriented naming.
 
 ## Neutral Namespace Mapping
 
@@ -125,7 +138,7 @@ Contributor guidance:
 
 - do not add new implementation code under `charitystatusapi` or `CharityStatusAPI`
 - keep those packages as thin shims only
-- add any new capability naming under `verification_platform`
+- add any new capability-oriented naming under `verification_platform`
 - keep `charity_status` working until a later deprecation/removal phase is explicitly planned
 
 ## Future-Proofing Benefits

@@ -129,3 +129,17 @@ def test_monthly_ingest_variables_capture_existing_infra_references_and_timeouts
     assert 'variable "monthly_ingest_task_allowed_bucket_arns"' in content
     assert 'variable "monthly_ingest_endpoint_poll_interval_seconds"' in content
     assert 'variable "monthly_ingest_state_machine_timeout_seconds"' in content
+
+
+def test_monthly_ingest_docs_describe_permanent_ephemeral_and_troubleshooting_paths():
+    architecture = Path("docs/monthly-ingest-architecture.md").read_text(encoding="utf-8")
+    runbook = Path("docs/monthly-ingest-runbook.md").read_text(encoding="utf-8")
+
+    assert "Permanent infrastructure remains" in architecture
+    assert "Ephemeral infrastructure per run remains" in architecture
+    assert "conductor: Step Functions" in architecture
+    assert "staging component: the staging Lambda" in architecture
+    assert "worker: the ECS Fargate worker" in architecture
+    assert "permanent endpoint: S3 gateway endpoint" in runbook
+    assert "ephemeral endpoints: `ecr.api`, `ecr.dkr`, and `logs`" in runbook
+    assert "Troubleshooting sequence" in runbook
