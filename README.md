@@ -11,6 +11,7 @@ Customer-facing overview:
 - `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
 - `docs/infrastructure-naming-normalization.md` documents the neutral infrastructure naming layer, compatibility aliases, and intentionally preserved legacy resource names.
 - `docs/monthly-ingest-architecture.md` documents the planned Step Functions + ECS monthly ingest architecture and its cost model.
+- `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly private-ingest.
 
 ## Current Architecture
 

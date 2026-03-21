@@ -6,7 +6,7 @@ locals {
   region_short     = "use1"
   environment_slug = lower(var.environment)
 
-  domain_name                             = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
+  domain_name = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
   # Compatibility alias: physical resource names can stay pinned to legacy prefixes even while
   # internal identifiers adopt capability-oriented labels.
   stable_resource_prefix                  = local.environment_slug == "prod" ? var.base_name : "${var.base_name}-${local.environment_slug}"
@@ -24,49 +24,59 @@ locals {
   form990_relationships_prefix_normalized = "${trim(var.form990_relationships_prefix, "/")}/"
 
   standardized_resource_names = {
-    source_data_bucket          = "${local.namespace}-${local.platform}-irs-source-data-bucket-${local.environment_slug}-${local.region_short}"
-    athena_results_bucket       = "${local.namespace}-${local.platform}-athena-results-${local.environment_slug}-${local.region_short}"
-    profile_table               = "${local.namespace}-${local.platform}-profiles-${local.environment_slug}-${local.region_short}"
-    organization_settings_table = "${local.namespace}-${local.platform}-organization-settings-${local.environment_slug}-${local.region_short}"
-    control_plane_table         = "${local.namespace}-${local.platform}-control-plane-${local.environment_slug}-${local.region_short}"
-    athena_workgroup            = "${local.namespace}-${local.platform}-athena-workgroup-${local.environment_slug}-${local.region_short}"
-    api_gateway                 = "${local.namespace}-${local.platform}-api-${local.environment_slug}-${local.region_short}"
-    lambda_role                 = "${local.namespace}-${local.platform}-lambda-role-${local.environment_slug}-${local.region_short}"
-    lambda_data_policy          = "${local.namespace}-${local.platform}-lambda-data-policy-${local.environment_slug}-${local.region_short}"
-    ingest_lambda               = "${local.namespace}-${local.platform}-dataset-ingest-${local.environment_slug}-${local.region_short}"
-    query_lambda                = "${local.namespace}-${local.platform}-query-api-${local.environment_slug}-${local.region_short}"
-    refresh_lambda              = "${local.namespace}-${local.platform}-profile-refresh-${local.environment_slug}-${local.region_short}"
-    form990_ingest_lambda       = "${local.namespace}-${local.platform}-form990-ingest-${local.environment_slug}-${local.region_short}"
-    form990_orchestrator_lambda = "${local.namespace}-${local.platform}-form990-orchestrator-${local.environment_slug}-${local.region_short}"
-    form990_worker_lambda       = "${local.namespace}-${local.platform}-form990-worker-${local.environment_slug}-${local.region_short}"
-    form990_work_dlq            = "${local.namespace}-${local.platform}-form990-work-dlq-${local.environment_slug}-${local.region_short}"
-    form990_work_queue          = "${local.namespace}-${local.platform}-form990-work-queue-${local.environment_slug}-${local.region_short}"
-    daily_ingest_rule           = "${local.namespace}-${local.platform}-daily-ingest-${local.environment_slug}-${local.region_short}"
-    refresh_schedule_rule       = "${local.namespace}-${local.platform}-refresh-schedule-${local.environment_slug}-${local.region_short}"
-    form990_schedule_rule       = "${local.namespace}-${local.platform}-form990-schedule-${local.environment_slug}-${local.region_short}"
+    source_data_bucket                = "${local.namespace}-${local.platform}-irs-source-data-bucket-${local.environment_slug}-${local.region_short}"
+    athena_results_bucket             = "${local.namespace}-${local.platform}-athena-results-${local.environment_slug}-${local.region_short}"
+    ecs_cluster                       = "${local.namespace}-${local.platform}-platform-processing-${local.environment_slug}-${local.region_short}"
+    profile_table                     = "${local.namespace}-${local.platform}-profiles-${local.environment_slug}-${local.region_short}"
+    organization_settings_table       = "${local.namespace}-${local.platform}-organization-settings-${local.environment_slug}-${local.region_short}"
+    control_plane_table               = "${local.namespace}-${local.platform}-control-plane-${local.environment_slug}-${local.region_short}"
+    athena_workgroup                  = "${local.namespace}-${local.platform}-athena-workgroup-${local.environment_slug}-${local.region_short}"
+    api_gateway                       = "${local.namespace}-${local.platform}-api-${local.environment_slug}-${local.region_short}"
+    lambda_role                       = "${local.namespace}-${local.platform}-lambda-role-${local.environment_slug}-${local.region_short}"
+    lambda_data_policy                = "${local.namespace}-${local.platform}-lambda-data-policy-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_state_machine      = "${local.namespace}-${local.platform}-monthly-ingest-workflow-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_state_machine_role = "${local.namespace}-${local.platform}-monthly-ingest-role-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_schedule_rule      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_schedule_role      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-role-${local.environment_slug}-${local.region_short}"
+    ingest_lambda                     = "${local.namespace}-${local.platform}-dataset-ingest-${local.environment_slug}-${local.region_short}"
+    query_lambda                      = "${local.namespace}-${local.platform}-query-api-${local.environment_slug}-${local.region_short}"
+    refresh_lambda                    = "${local.namespace}-${local.platform}-profile-refresh-${local.environment_slug}-${local.region_short}"
+    form990_ingest_lambda             = "${local.namespace}-${local.platform}-form990-ingest-${local.environment_slug}-${local.region_short}"
+    form990_orchestrator_lambda       = "${local.namespace}-${local.platform}-form990-orchestrator-${local.environment_slug}-${local.region_short}"
+    form990_worker_lambda             = "${local.namespace}-${local.platform}-form990-worker-${local.environment_slug}-${local.region_short}"
+    form990_work_dlq                  = "${local.namespace}-${local.platform}-form990-work-dlq-${local.environment_slug}-${local.region_short}"
+    form990_work_queue                = "${local.namespace}-${local.platform}-form990-work-queue-${local.environment_slug}-${local.region_short}"
+    daily_ingest_rule                 = "${local.namespace}-${local.platform}-daily-ingest-${local.environment_slug}-${local.region_short}"
+    refresh_schedule_rule             = "${local.namespace}-${local.platform}-refresh-schedule-${local.environment_slug}-${local.region_short}"
+    form990_schedule_rule             = "${local.namespace}-${local.platform}-form990-schedule-${local.environment_slug}-${local.region_short}"
   }
 
   legacy_resource_names = {
-    source_data_bucket          = "${local.legacy_name_prefix}-irs-source-data-bucket"
-    athena_results_bucket       = "${local.legacy_name_prefix}-athena-results"
-    profile_table               = "${local.legacy_name_prefix}-profiles"
-    organization_settings_table = "${local.legacy_name_prefix}-organization-settings"
-    control_plane_table         = "${local.legacy_name_prefix}-control-plane"
-    athena_workgroup            = local.environment_slug == "prod" ? var.athena_workgroup_name : "${var.athena_workgroup_name}-${local.environment_slug}"
-    api_gateway                 = "${local.legacy_name_prefix}-api"
-    lambda_role                 = "${local.legacy_name_prefix}-lambda-role"
-    lambda_data_policy          = "${local.legacy_name_prefix}-lambda-data-policy"
-    ingest_lambda               = "${local.legacy_name_prefix}-dataset-ingest"
-    query_lambda                = "${local.legacy_name_prefix}-query-api"
-    refresh_lambda              = "${local.legacy_name_prefix}-profile-refresh"
-    form990_ingest_lambda       = "${local.legacy_name_prefix}-form990-ingest"
-    form990_orchestrator_lambda = "${local.legacy_name_prefix}-form990-orchestrator"
-    form990_worker_lambda       = "${local.legacy_name_prefix}-form990-worker"
-    form990_work_dlq            = "${local.legacy_name_prefix}-form990-work-dlq"
-    form990_work_queue          = "${local.legacy_name_prefix}-form990-work-queue"
-    daily_ingest_rule           = "${local.legacy_name_prefix}-daily-ingest"
-    refresh_schedule_rule       = "${local.legacy_name_prefix}-refresh-schedule"
-    form990_schedule_rule       = "${local.legacy_name_prefix}-form990-schedule"
+    source_data_bucket                = "${local.legacy_name_prefix}-irs-source-data-bucket"
+    athena_results_bucket             = "${local.legacy_name_prefix}-athena-results"
+    ecs_cluster                       = "${local.legacy_name_prefix}-platform-processing"
+    profile_table                     = "${local.legacy_name_prefix}-profiles"
+    organization_settings_table       = "${local.legacy_name_prefix}-organization-settings"
+    control_plane_table               = "${local.legacy_name_prefix}-control-plane"
+    athena_workgroup                  = local.environment_slug == "prod" ? var.athena_workgroup_name : "${var.athena_workgroup_name}-${local.environment_slug}"
+    api_gateway                       = "${local.legacy_name_prefix}-api"
+    lambda_role                       = "${local.legacy_name_prefix}-lambda-role"
+    lambda_data_policy                = "${local.legacy_name_prefix}-lambda-data-policy"
+    monthly_ingest_state_machine      = "${local.legacy_name_prefix}-monthly-ingest-workflow"
+    monthly_ingest_state_machine_role = "${local.legacy_name_prefix}-monthly-ingest-role"
+    monthly_ingest_schedule_rule      = "${local.legacy_name_prefix}-monthly-ingest-schedule"
+    monthly_ingest_schedule_role      = "${local.legacy_name_prefix}-monthly-ingest-schedule-role"
+    ingest_lambda                     = "${local.legacy_name_prefix}-dataset-ingest"
+    query_lambda                      = "${local.legacy_name_prefix}-query-api"
+    refresh_lambda                    = "${local.legacy_name_prefix}-profile-refresh"
+    form990_ingest_lambda             = "${local.legacy_name_prefix}-form990-ingest"
+    form990_orchestrator_lambda       = "${local.legacy_name_prefix}-form990-orchestrator"
+    form990_worker_lambda             = "${local.legacy_name_prefix}-form990-worker"
+    form990_work_dlq                  = "${local.legacy_name_prefix}-form990-work-dlq"
+    form990_work_queue                = "${local.legacy_name_prefix}-form990-work-queue"
+    daily_ingest_rule                 = "${local.legacy_name_prefix}-daily-ingest"
+    refresh_schedule_rule             = "${local.legacy_name_prefix}-refresh-schedule"
+    form990_schedule_rule             = "${local.legacy_name_prefix}-form990-schedule"
   }
 
   resource_names = {
@@ -79,12 +89,12 @@ locals {
   }
 
   lambda_function_names = {
-    regulatory_data_ingestion     = local.resource_names.ingest_lambda
-    organization_verification_api = local.resource_names.query_lambda
-    platform_refresh              = local.resource_names.refresh_lambda
-    regulatory_filing_ingestion   = local.resource_names.form990_ingest_lambda
+    regulatory_data_ingestion      = local.resource_names.ingest_lambda
+    organization_verification_api  = local.resource_names.query_lambda
+    platform_refresh               = local.resource_names.refresh_lambda
+    regulatory_filing_ingestion    = local.resource_names.form990_ingest_lambda
     regulatory_filing_orchestrator = local.resource_names.form990_orchestrator_lambda
-    regulatory_filing_worker      = local.resource_names.form990_worker_lambda
+    regulatory_filing_worker       = local.resource_names.form990_worker_lambda
   }
 
   queue_names = {
@@ -98,27 +108,32 @@ locals {
     monthly_filing_ingestion  = local.resource_names.form990_schedule_rule
   }
 
-  source_data_bucket_name          = local.resource_names.source_data_bucket
-  athena_results_bucket_name       = local.resource_names.athena_results_bucket
-  profile_table_name               = local.resource_names.profile_table
-  organization_settings_table_name = local.resource_names.organization_settings_table
-  control_plane_table_name         = local.resource_names.control_plane_table
-  glue_database_name               = "${local.data_catalog_prefix}_irs_db"
-  athena_workgroup_resource_name   = local.resource_names.athena_workgroup
-  api_gateway_name                 = local.resource_names.api_gateway
-  lambda_role_name                 = local.resource_names.lambda_role
-  lambda_data_policy_name          = local.resource_names.lambda_data_policy
-  ingest_lambda_name               = local.lambda_function_names.regulatory_data_ingestion
-  query_lambda_name                = local.lambda_function_names.organization_verification_api
-  refresh_lambda_name              = local.lambda_function_names.platform_refresh
-  form990_ingest_lambda_name       = local.lambda_function_names.regulatory_filing_ingestion
-  form990_orchestrator_lambda_name = local.lambda_function_names.regulatory_filing_orchestrator
-  form990_worker_lambda_name       = local.lambda_function_names.regulatory_filing_worker
-  form990_work_dlq_name            = local.queue_names.regulatory_filing_work_dead_letter
-  form990_work_queue_name          = local.queue_names.regulatory_filing_work
-  daily_ingest_rule_name           = local.scheduled_workflow_names.regulatory_data_ingestion
-  refresh_schedule_rule_name       = local.scheduled_workflow_names.platform_refresh
-  form990_schedule_rule_name       = local.scheduled_workflow_names.monthly_filing_ingestion
+  source_data_bucket_name                = local.resource_names.source_data_bucket
+  athena_results_bucket_name             = local.resource_names.athena_results_bucket
+  ecs_cluster_name                       = local.resource_names.ecs_cluster
+  profile_table_name                     = local.resource_names.profile_table
+  organization_settings_table_name       = local.resource_names.organization_settings_table
+  control_plane_table_name               = local.resource_names.control_plane_table
+  glue_database_name                     = "${local.data_catalog_prefix}_irs_db"
+  athena_workgroup_resource_name         = local.resource_names.athena_workgroup
+  api_gateway_name                       = local.resource_names.api_gateway
+  lambda_role_name                       = local.resource_names.lambda_role
+  lambda_data_policy_name                = local.resource_names.lambda_data_policy
+  monthly_ingest_state_machine_name      = local.resource_names.monthly_ingest_state_machine
+  monthly_ingest_state_machine_role_name = local.resource_names.monthly_ingest_state_machine_role
+  monthly_ingest_schedule_rule_name      = local.resource_names.monthly_ingest_schedule_rule
+  monthly_ingest_schedule_role_name      = local.resource_names.monthly_ingest_schedule_role
+  ingest_lambda_name                     = local.lambda_function_names.regulatory_data_ingestion
+  query_lambda_name                      = local.lambda_function_names.organization_verification_api
+  refresh_lambda_name                    = local.lambda_function_names.platform_refresh
+  form990_ingest_lambda_name             = local.lambda_function_names.regulatory_filing_ingestion
+  form990_orchestrator_lambda_name       = local.lambda_function_names.regulatory_filing_orchestrator
+  form990_worker_lambda_name             = local.lambda_function_names.regulatory_filing_worker
+  form990_work_dlq_name                  = local.queue_names.regulatory_filing_work_dead_letter
+  form990_work_queue_name                = local.queue_names.regulatory_filing_work
+  daily_ingest_rule_name                 = local.scheduled_workflow_names.regulatory_data_ingestion
+  refresh_schedule_rule_name             = local.scheduled_workflow_names.platform_refresh
+  form990_schedule_rule_name             = local.scheduled_workflow_names.monthly_filing_ingestion
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
@@ -215,7 +230,7 @@ locals {
     PlatformDomain    = "organization_verification"
     PlatformLayer     = "infrastructure"
     NamingStrategy    = var.resource_name_strategy
-  }, {
+    }, {
     Project     = var.base_name
     Environment = var.environment
     ManagedBy   = "terraform"

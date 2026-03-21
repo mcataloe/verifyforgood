@@ -12,6 +12,11 @@ DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_ECS_CLUSTER_NAME_REFERENCE = "resource_names.ecs_cluster"
 DEFAULT_STEP_FUNCTION_LOG_GROUP_PREFIX = "/aws/vendedlogs/states"
 DEFAULT_ECS_LOG_GROUP_PREFIX = "/aws/ecs"
+DEFAULT_ENDPOINT_POLL_INTERVAL_SECONDS = 20
+DEFAULT_ENDPOINT_READY_MAX_ATTEMPTS = 30
+DEFAULT_STAGING_LAMBDA_TIMEOUT_SECONDS = 900
+DEFAULT_ECS_TASK_TIMEOUT_SECONDS = 14400
+DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS = 21600
 
 STEP_FUNCTION_INPUT_FIELDS: tuple[str, ...] = (
     "source_bucket",
@@ -21,6 +26,10 @@ STEP_FUNCTION_INPUT_FIELDS: tuple[str, ...] = (
     "job_id",
     "correlation_id",
     "workflow_version",
+)
+STEP_FUNCTION_OPTIONAL_FIELDS: tuple[str, ...] = (
+    "schedule_context",
+    "skip_staging",
 )
 
 ECS_TASK_REQUIRED_ENV_VARS: tuple[str, ...] = (
@@ -45,9 +54,24 @@ class MonthlyIngestWorkflowInput:
     job_id: str
     correlation_id: str
     workflow_version: str = DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION
+    schedule_context: Mapping[str, Any] | None = None
+    skip_staging: bool = False
 
-    def to_dict(self) -> dict[str, str]:
-        return asdict(self)
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "source_bucket": self.source_bucket,
+            "source_key": self.source_key,
+            "destination_bucket": self.destination_bucket,
+            "destination_prefix": self.destination_prefix,
+            "job_id": self.job_id,
+            "correlation_id": self.correlation_id,
+            "workflow_version": self.workflow_version,
+        }
+        if isinstance(self.schedule_context, Mapping) and self.schedule_context:
+            payload["schedule_context"] = dict(self.schedule_context)
+        if self.skip_staging:
+            payload["skip_staging"] = True
+        return payload
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "MonthlyIngestWorkflowInput":
@@ -62,6 +86,8 @@ class MonthlyIngestWorkflowInput:
             job_id=_clean_text(payload.get("job_id")) or "",
             correlation_id=_clean_text(payload.get("correlation_id")) or "",
             workflow_version=_clean_text(payload.get("workflow_version")) or DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION,
+            schedule_context=_mapping_or_none(payload.get("schedule_context")),
+            skip_staging=_coerce_bool(payload.get("skip_staging"), default=False, field_name="skip_staging"),
         )
 
 
@@ -206,6 +232,11 @@ class MonthlyIngestWorkflowConfig:
     ecs_cluster_name_reference: str
     step_function_log_group_name: str
     ecs_task_log_group_name: str
+    endpoint_poll_interval_seconds: int = DEFAULT_ENDPOINT_POLL_INTERVAL_SECONDS
+    endpoint_ready_max_attempts: int = DEFAULT_ENDPOINT_READY_MAX_ATTEMPTS
+    staging_lambda_timeout_seconds: int = DEFAULT_STAGING_LAMBDA_TIMEOUT_SECONDS
+    ecs_task_timeout_seconds: int = DEFAULT_ECS_TASK_TIMEOUT_SECONDS
+    state_machine_timeout_seconds: int = DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS
     endpoint_services: tuple[VpcEndpointServiceConfig, ...] = field(default_factory=tuple)
     retry: WorkflowRetryConfig = field(default_factory=WorkflowRetryConfig)
     permanent_network_dependencies: tuple[str, ...] = ("s3_gateway",)
@@ -226,6 +257,16 @@ class MonthlyIngestWorkflowConfig:
             errors.append("step_function_log_group_name is required")
         if not _clean_text(self.ecs_task_log_group_name):
             errors.append("ecs_task_log_group_name is required")
+        if int(self.endpoint_poll_interval_seconds) < 1:
+            errors.append("endpoint_poll_interval_seconds must be at least 1")
+        if int(self.endpoint_ready_max_attempts) < 1:
+            errors.append("endpoint_ready_max_attempts must be at least 1")
+        if int(self.staging_lambda_timeout_seconds) < 1:
+            errors.append("staging_lambda_timeout_seconds must be at least 1")
+        if int(self.ecs_task_timeout_seconds) < 1:
+            errors.append("ecs_task_timeout_seconds must be at least 1")
+        if int(self.state_machine_timeout_seconds) < 1:
+            errors.append("state_machine_timeout_seconds must be at least 1")
         errors.extend(self.retry.validate())
         for endpoint in self.endpoint_services:
             if not _clean_text(endpoint.service_identifier):
@@ -253,18 +294,23 @@ def shape_step_function_input(
     job_id: str,
     correlation_id: str | None = None,
     workflow_version: str = DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION,
+    schedule_context: Mapping[str, Any] | None = None,
+    skip_staging: bool = False,
 ) -> MonthlyIngestWorkflowInput:
-    return MonthlyIngestWorkflowInput.from_mapping(
-        {
-            "source_bucket": source_bucket,
-            "source_key": source_key,
-            "destination_bucket": destination_bucket,
-            "destination_prefix": destination_prefix,
-            "job_id": job_id,
-            "correlation_id": correlation_id or job_id,
-            "workflow_version": workflow_version,
-        }
-    )
+    payload: dict[str, Any] = {
+        "source_bucket": source_bucket,
+        "source_key": source_key,
+        "destination_bucket": destination_bucket,
+        "destination_prefix": destination_prefix,
+        "job_id": job_id,
+        "correlation_id": correlation_id or job_id,
+        "workflow_version": workflow_version,
+    }
+    if isinstance(schedule_context, Mapping):
+        payload["schedule_context"] = dict(schedule_context)
+    if skip_staging:
+        payload["skip_staging"] = True
+    return MonthlyIngestWorkflowInput.from_mapping(payload)
 
 
 def validate_step_function_input_payload(payload: Mapping[str, Any] | None) -> list[str]:
@@ -274,6 +320,15 @@ def validate_step_function_input_payload(payload: Mapping[str, Any] | None) -> l
     for key in STEP_FUNCTION_INPUT_FIELDS:
         if not _clean_text(payload.get(key)):
             errors.append(f"{key} is required")
+    schedule_context = payload.get("schedule_context")
+    if schedule_context is not None and not isinstance(schedule_context, Mapping):
+        errors.append("schedule_context must be an object when provided")
+    skip_staging = payload.get("skip_staging")
+    if skip_staging is not None and not isinstance(skip_staging, bool):
+        try:
+            _coerce_bool(skip_staging, default=False, field_name="skip_staging")
+        except ValueError as exc:
+            errors.append(str(exc))
     return errors
 
 
@@ -367,6 +422,31 @@ def load_monthly_ingest_workflow_config(env: Mapping[str, str] | None = None) ->
         ecs_cluster_name_reference=ecs_cluster_name_reference,
         step_function_log_group_name=step_function_log_group_name,
         ecs_task_log_group_name=ecs_task_log_group_name,
+        endpoint_poll_interval_seconds=_positive_int(
+            source.get("MONTHLY_INGEST_ENDPOINT_POLL_INTERVAL_SECONDS"),
+            default=DEFAULT_ENDPOINT_POLL_INTERVAL_SECONDS,
+            field_name="MONTHLY_INGEST_ENDPOINT_POLL_INTERVAL_SECONDS",
+        ),
+        endpoint_ready_max_attempts=_positive_int(
+            source.get("MONTHLY_INGEST_ENDPOINT_READY_MAX_ATTEMPTS"),
+            default=DEFAULT_ENDPOINT_READY_MAX_ATTEMPTS,
+            field_name="MONTHLY_INGEST_ENDPOINT_READY_MAX_ATTEMPTS",
+        ),
+        staging_lambda_timeout_seconds=_positive_int(
+            source.get("MONTHLY_INGEST_STAGING_LAMBDA_TIMEOUT_SECONDS"),
+            default=DEFAULT_STAGING_LAMBDA_TIMEOUT_SECONDS,
+            field_name="MONTHLY_INGEST_STAGING_LAMBDA_TIMEOUT_SECONDS",
+        ),
+        ecs_task_timeout_seconds=_positive_int(
+            source.get("MONTHLY_INGEST_ECS_TASK_TIMEOUT_SECONDS"),
+            default=DEFAULT_ECS_TASK_TIMEOUT_SECONDS,
+            field_name="MONTHLY_INGEST_ECS_TASK_TIMEOUT_SECONDS",
+        ),
+        state_machine_timeout_seconds=_positive_int(
+            source.get("MONTHLY_INGEST_STATE_MACHINE_TIMEOUT_SECONDS"),
+            default=DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS,
+            field_name="MONTHLY_INGEST_STATE_MACHINE_TIMEOUT_SECONDS",
+        ),
         endpoint_services=default_interface_endpoint_services(),
         retry=retry,
     )
@@ -402,17 +482,47 @@ def _safe_path_segment(value: str | None, *, default: str) -> str:
     return candidate or default
 
 
+def _mapping_or_none(value: Any) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("schedule_context must be an object when provided")
+    return value
+
+
+def _coerce_bool(value: Any, *, default: bool, field_name: str) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    candidate = _clean_text(value)
+    if candidate is None:
+        return default
+    normalized = candidate.lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    raise ValueError(f"{field_name} must be a boolean when provided")
+
+
 __all__ = [
     "DEFAULT_AWS_REGION",
     "DEFAULT_APP_ENV",
     "DEFAULT_ECS_CLUSTER_NAME_REFERENCE",
+    "DEFAULT_ECS_TASK_TIMEOUT_SECONDS",
+    "DEFAULT_ENDPOINT_POLL_INTERVAL_SECONDS",
+    "DEFAULT_ENDPOINT_READY_MAX_ATTEMPTS",
     "DEFAULT_MONTHLY_INGEST_WORKFLOW_BASENAME",
     "DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION",
+    "DEFAULT_STAGING_LAMBDA_TIMEOUT_SECONDS",
+    "DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS",
     "ECS_TASK_REQUIRED_ENV_VARS",
     "EcsTaskOutputArtifact",
     "EcsTaskRuntimeContract",
     "MonthlyIngestWorkflowConfig",
     "MonthlyIngestWorkflowInput",
+    "STEP_FUNCTION_OPTIONAL_FIELDS",
     "STEP_FUNCTION_INPUT_FIELDS",
     "VpcEndpointServiceConfig",
     "WorkflowRetryConfig",

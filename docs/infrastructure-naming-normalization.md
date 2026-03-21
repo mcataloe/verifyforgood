@@ -51,6 +51,8 @@ Use capability-oriented names going forward:
 | `daily_ingest_rule_name` | `scheduled_workflow_names.regulatory_data_ingestion` | 2. Abstracted behind compatibility layer | EventBridge rule identity is still centrally controlled. |
 | `refresh_schedule_rule_name` | `scheduled_workflow_names.platform_refresh` | 2. Abstracted behind compatibility layer | EventBridge rule identity is still centrally controlled. |
 | `form990_schedule_rule_name` | `scheduled_workflow_names.monthly_filing_ingestion` | 2. Abstracted behind compatibility layer | Leaves future workflow expansion room. |
+| monthly ingest workflow state machine | `monthly_ingest_state_machine_name` | 2. Abstracted behind compatibility layer | Neutral internal identifier; physical name still follows the centralized resource-name strategy. |
+| monthly ingest schedule rule | `monthly_ingest_schedule_rule_name` | 2. Abstracted behind compatibility layer | Neutral schedule label for Step Functions orchestration. |
 | `Project = var.base_name` tag | `platform_common_tags` plus preserved `Project` | 2. Abstracted behind compatibility layer | Existing project tag is retained for continuity; neutral tags are added alongside it. |
 | `base_name` Terraform variable | `base_name` retained | 3. Must remain temporarily | It still anchors legacy physical names and bootstrap assumptions. |
 | `charitystatusapi-dev` backend bucket/table | preserved | 3. Must remain temporarily | Changing backend bootstrap names requires separate state migration planning. |

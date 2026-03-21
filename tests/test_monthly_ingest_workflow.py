@@ -49,6 +49,22 @@ def test_validate_step_function_input_payload_reports_missing_required_fields():
     assert "correlation_id is required" in errors
 
 
+def test_shape_step_function_input_supports_optional_schedule_context_and_skip_staging():
+    payload = shape_step_function_input(
+        source_bucket="source-bucket",
+        source_key="raw/monthly/2026-02.zip",
+        destination_bucket="dest-bucket",
+        destination_prefix="ops/manifests/",
+        job_id="job-123",
+        schedule_context={"trigger": "eventbridge"},
+        skip_staging=True,
+    )
+
+    assert payload.to_dict()["schedule_context"] == {"trigger": "eventbridge"}
+    assert payload.to_dict()["skip_staging"] is True
+    assert validate_step_function_input_payload(payload.to_dict()) == []
+
+
 def test_ecs_task_runtime_contract_builds_valid_environment():
     workflow_input = shape_step_function_input(
         source_bucket="source-bucket",
@@ -85,6 +101,11 @@ def test_monthly_ingest_workflow_config_loads_env_and_resolves_endpoint_services
             "MONTHLY_INGEST_RETRY_INTERVAL_SECONDS": "45",
             "MONTHLY_INGEST_RETRY_MAX_ATTEMPTS": "4",
             "MONTHLY_INGEST_RETRY_BACKOFF_RATE": "2.5",
+            "MONTHLY_INGEST_ENDPOINT_POLL_INTERVAL_SECONDS": "15",
+            "MONTHLY_INGEST_ENDPOINT_READY_MAX_ATTEMPTS": "12",
+            "MONTHLY_INGEST_STAGING_LAMBDA_TIMEOUT_SECONDS": "600",
+            "MONTHLY_INGEST_ECS_TASK_TIMEOUT_SECONDS": "3600",
+            "MONTHLY_INGEST_STATE_MACHINE_TIMEOUT_SECONDS": "4200",
         }
     )
 
@@ -97,6 +118,11 @@ def test_monthly_ingest_workflow_config_loads_env_and_resolves_endpoint_services
     assert config.retry.interval_seconds == 45
     assert config.retry.max_attempts == 4
     assert config.retry.backoff_rate == 2.5
+    assert config.endpoint_poll_interval_seconds == 15
+    assert config.endpoint_ready_max_attempts == 12
+    assert config.staging_lambda_timeout_seconds == 600
+    assert config.ecs_task_timeout_seconds == 3600
+    assert config.state_machine_timeout_seconds == 4200
     assert tuple(endpoint.service_identifier for endpoint in config.endpoint_services) == ("ecr.api", "ecr.dkr", "logs")
 
 

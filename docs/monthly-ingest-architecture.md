@@ -6,10 +6,10 @@ This phase introduces shared contracts, configuration, and documentation for a m
 
 Current phase boundaries:
 
-- define the Step Functions, ECS task, and VPC endpoint contracts
-- centralize workflow naming, retry, and log-group conventions
+- define and wire the Step Functions state machine for endpoint lifecycle, optional staging, ECS execution, and cleanup
+- centralize workflow naming, retry, timeout, and log-group conventions
 - reuse existing S3 key patterns for downloaded source artifacts
-- leave runtime orchestration, endpoint creation/deletion, and task execution wiring for later phases
+- leave staging-Lambda business logic and ECS worker implementation details for later phases
 
 ## Target Flow
 
@@ -40,6 +40,16 @@ Step Functions is the lifecycle coordinator because the workflow has explicit se
 - ensure endpoint cleanup still has a defined place in the control flow
 
 This keeps lifecycle concerns out of the processing container and makes retries explicit at the orchestration layer instead of embedding them in one large worker.
+
+Implemented orchestration phases now are:
+
+- validate required workflow input
+- create `ecr.api`, `ecr.dkr`, and `logs` interface endpoints sequentially
+- poll each endpoint until it becomes `available`
+- optionally invoke a staging Lambda
+- run the ECS worker with `ecs:runTask.sync`
+- always walk a reverse-order cleanup chain for created endpoints
+- fail the Step Functions execution with structured JSON cause data when processing or cleanup fails
 
 ## Why ECS RunTask Owns Heavy Processing
 
@@ -102,6 +112,8 @@ The shared contract layer now defines:
   - `job_id`
   - `correlation_id`
   - `workflow_version`
+  - optional `schedule_context`
+  - optional `skip_staging`
 - ECS runtime contract:
   - required environment variables derived from the Step Functions payload
   - a stable JSON payload handoff contract
@@ -117,6 +129,24 @@ The shared contract layer now defines:
   - ECS cluster name reference
   - log-group naming conventions
   - default retry parameters
+  - endpoint polling interval and max attempts
+  - staging Lambda timeout
+  - ECS task timeout
+  - overall state-machine timeout
+
+## Cleanup And Failure Model
+
+The state machine uses a shared cleanup chain instead of trying to embed teardown in the ECS worker:
+
+- any task-level failure stores structured failure metadata in workflow state
+- cleanup then checks each endpoint id and deletes only the endpoints that were actually created
+- cleanup delete failures are also captured and can fail the execution
+- failure output is serialized into the Step Functions execution cause so operators can inspect:
+  - stage of failure
+  - created endpoint ids
+  - cleanup status per endpoint
+  - staging status
+  - ECS response payload
 
 ## Future Workflow Expansion
 
@@ -130,8 +160,6 @@ That separation supports future additions such as:
 
 ## TODO
 
-- TODO: define the Step Functions state machine in infrastructure and wire these contracts into it
 - TODO: implement the staging Lambda input/output behavior for monthly ZIP placement in S3
-- TODO: implement ECS `RunTask` execution and task-definition wiring
-- TODO: implement endpoint create/delete actions around the ECS run
+- TODO: provision or connect the target ECS task definition, cluster, subnet, and security-group references per environment
 - TODO: connect task output artifacts to downstream dataset-specific manifests

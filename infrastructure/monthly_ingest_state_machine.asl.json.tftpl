@@ -1,0 +1,940 @@
+{
+  "Comment": "Monthly private-ingest workflow for ${workflow_name}",
+  "StartAt": "ValidateRequiredInput",
+  "TimeoutSeconds": ${state_machine_timeout_seconds},
+  "States": {
+    "ValidateRequiredInput": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            { "Variable": "$.source_bucket", "IsPresent": true },
+            { "Variable": "$.source_key", "IsPresent": true },
+            { "Variable": "$.destination_bucket", "IsPresent": true },
+            { "Variable": "$.destination_prefix", "IsPresent": true },
+            { "Variable": "$.job_id", "IsPresent": true },
+            { "Variable": "$.correlation_id", "IsPresent": true },
+            { "Variable": "$.workflow_version", "IsPresent": true }
+          ],
+          "Next": "InitializeExecution"
+        }
+      ],
+      "Default": "InvalidInput"
+    },
+    "InvalidInput": {
+      "Type": "Fail",
+      "Error": "MonthlyIngestInvalidInput",
+      "Cause": "source_bucket, source_key, destination_bucket, destination_prefix, job_id, correlation_id, and workflow_version are required."
+    },
+    "InitializeExecution": {
+      "Type": "Pass",
+      "Parameters": {
+        "execution": {
+          "workflow_name": "${workflow_name}",
+          "workflow_version.$": "$.workflow_version",
+          "app_env": "${app_env}",
+          "aws_region": "${aws_region}",
+          "ecs_cluster_name_reference": "${ecs_cluster_name_reference}",
+          "execution_id.$": "$$.Execution.Id",
+          "started_at.$": "$$.Execution.StartTime"
+        },
+        "resolved_input": {
+          "source_bucket.$": "$.source_bucket",
+          "source_key.$": "$.source_key",
+          "destination_bucket.$": "$.destination_bucket",
+          "destination_prefix.$": "$.destination_prefix",
+          "job_id.$": "$.job_id",
+          "correlation_id.$": "$.correlation_id",
+          "workflow_version.$": "$.workflow_version"
+        },
+        "created_endpoints": {
+          "ecr_api": { "endpoint_id": "", "status": "not_created", "service_identifier": "ecr.api" },
+          "ecr_dkr": { "endpoint_id": "", "status": "not_created", "service_identifier": "ecr.dkr" },
+          "logs": { "endpoint_id": "", "status": "not_created", "service_identifier": "logs" }
+        },
+        "endpoint_statuses": {
+          "ecr_api": { "status": "unknown" },
+          "ecr_dkr": { "status": "unknown" },
+          "logs": { "status": "unknown" }
+        },
+        "endpoint_wait_attempts": {
+          "ecr_api": { "value": 0 },
+          "ecr_dkr": { "value": 0 },
+          "logs": { "value": 0 }
+        },
+        "cleanup": {
+          "logs": { "status": "pending" },
+          "ecr_dkr": { "status": "pending" },
+          "ecr_api": { "status": "pending" }
+        },
+        "staging": { "status": "not_started" },
+        "ecs": { "status": "not_started" }
+      },
+      "ResultPath": "$.workflow",
+      "Next": "CreateEcrApiEndpoint"
+    },
+    "CreateEcrApiEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:createVpcEndpoint",
+      "Parameters": {
+        "VpcEndpointType": "Interface",
+        "VpcId": "${vpc_id}",
+        "ServiceName": "com.amazonaws.${aws_region}.ecr.api",
+        "SubnetIds": ${subnet_ids_json},
+        "SecurityGroupIds": ${endpoint_security_group_ids_json},
+        "PrivateDnsEnabled": true,
+        "TagSpecifications": [
+          {
+            "ResourceType": "vpc-endpoint",
+            "Tags": [
+              { "Key": "Name", "Value": "${workflow_name}-ecr-api" },
+              { "Key": "workflow_name", "Value": "${workflow_name}" },
+              { "Key": "workflow_environment", "Value": "${app_env}" },
+              { "Key": "endpoint_lifecycle", "Value": "ephemeral" },
+              { "Key": "endpoint_service", "Value": "ecr.api" },
+              { "Key": "job_id", "Value.$": "$.workflow.resolved_input.job_id" },
+              { "Key": "correlation_id", "Value.$": "$.workflow.resolved_input.correlation_id" }
+            ]
+          }
+        ]
+      },
+      "ResultSelector": {
+        "endpoint_id.$": "$.VpcEndpoint.VpcEndpointId",
+        "status": "created",
+        "service_identifier": "ecr.api",
+        "service_name": "com.amazonaws.${aws_region}.ecr.api"
+      },
+      "ResultPath": "$.workflow.created_endpoints.ecr_api",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "WaitEcrApiEndpoint"
+    },
+    "WaitEcrApiEndpoint": {
+      "Type": "Wait",
+      "Seconds": ${endpoint_poll_interval_seconds},
+      "Next": "DescribeEcrApiEndpoint"
+    },
+    "DescribeEcrApiEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:describeVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.ecr_api.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status.$": "$.VpcEndpoints[0].State",
+        "endpoint_id.$": "$.VpcEndpoints[0].VpcEndpointId"
+      },
+      "ResultPath": "$.workflow.endpoint_statuses.ecr_api",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "CheckEcrApiEndpointReady"
+    },
+    "CheckEcrApiEndpointReady": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_statuses.ecr_api.status",
+          "StringEquals": "available",
+          "Next": "CreateEcrDkrEndpoint"
+        },
+        {
+          "Or": [
+            { "Variable": "$.workflow.endpoint_statuses.ecr_api.status", "StringEquals": "deleted" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_api.status", "StringEquals": "deleting" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_api.status", "StringEquals": "failed" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_api.status", "StringEquals": "rejected" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_api.status", "StringEquals": "expired" }
+          ],
+          "Next": "RecordEcrApiEndpointFailure"
+        }
+      ],
+      "Default": "IncrementEcrApiEndpointWaitAttempts"
+    },
+    "IncrementEcrApiEndpointWaitAttempts": {
+      "Type": "Pass",
+      "Parameters": {
+        "value.$": "States.MathAdd($.workflow.endpoint_wait_attempts.ecr_api.value, 1)"
+      },
+      "ResultPath": "$.workflow.endpoint_wait_attempts.ecr_api",
+      "Next": "CheckEcrApiEndpointTimeout"
+    },
+    "CheckEcrApiEndpointTimeout": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_wait_attempts.ecr_api.value",
+          "NumericGreaterThanEquals": ${endpoint_ready_max_attempts},
+          "Next": "RecordEcrApiEndpointTimeout"
+        }
+      ],
+      "Default": "WaitEcrApiEndpoint"
+    },
+    "RecordEcrApiEndpointFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointUnavailable",
+        "Cause.$": "States.Format('Endpoint ecr.api entered terminal state {}', $.workflow.endpoint_statuses.ecr_api.status)",
+        "Stage": "create_ecr_api_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "RecordEcrApiEndpointTimeout": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointTimeout",
+        "Cause.$": "States.Format('Endpoint ecr.api did not become available after {} checks', $.workflow.endpoint_wait_attempts.ecr_api.value)",
+        "Stage": "create_ecr_api_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "CreateEcrDkrEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:createVpcEndpoint",
+      "Parameters": {
+        "VpcEndpointType": "Interface",
+        "VpcId": "${vpc_id}",
+        "ServiceName": "com.amazonaws.${aws_region}.ecr.dkr",
+        "SubnetIds": ${subnet_ids_json},
+        "SecurityGroupIds": ${endpoint_security_group_ids_json},
+        "PrivateDnsEnabled": true,
+        "TagSpecifications": [
+          {
+            "ResourceType": "vpc-endpoint",
+            "Tags": [
+              { "Key": "Name", "Value": "${workflow_name}-ecr-dkr" },
+              { "Key": "workflow_name", "Value": "${workflow_name}" },
+              { "Key": "workflow_environment", "Value": "${app_env}" },
+              { "Key": "endpoint_lifecycle", "Value": "ephemeral" },
+              { "Key": "endpoint_service", "Value": "ecr.dkr" },
+              { "Key": "job_id", "Value.$": "$.workflow.resolved_input.job_id" },
+              { "Key": "correlation_id", "Value.$": "$.workflow.resolved_input.correlation_id" }
+            ]
+          }
+        ]
+      },
+      "ResultSelector": {
+        "endpoint_id.$": "$.VpcEndpoint.VpcEndpointId",
+        "status": "created",
+        "service_identifier": "ecr.dkr",
+        "service_name": "com.amazonaws.${aws_region}.ecr.dkr"
+      },
+      "ResultPath": "$.workflow.created_endpoints.ecr_dkr",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "WaitEcrDkrEndpoint"
+    },
+    "WaitEcrDkrEndpoint": {
+      "Type": "Wait",
+      "Seconds": ${endpoint_poll_interval_seconds},
+      "Next": "DescribeEcrDkrEndpoint"
+    },
+    "DescribeEcrDkrEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:describeVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.ecr_dkr.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status.$": "$.VpcEndpoints[0].State",
+        "endpoint_id.$": "$.VpcEndpoints[0].VpcEndpointId"
+      },
+      "ResultPath": "$.workflow.endpoint_statuses.ecr_dkr",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "CheckEcrDkrEndpointReady"
+    },
+    "CheckEcrDkrEndpointReady": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status",
+          "StringEquals": "available",
+          "Next": "CreateLogsEndpoint"
+        },
+        {
+          "Or": [
+            { "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status", "StringEquals": "deleted" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status", "StringEquals": "deleting" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status", "StringEquals": "failed" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status", "StringEquals": "rejected" },
+            { "Variable": "$.workflow.endpoint_statuses.ecr_dkr.status", "StringEquals": "expired" }
+          ],
+          "Next": "RecordEcrDkrEndpointFailure"
+        }
+      ],
+      "Default": "IncrementEcrDkrEndpointWaitAttempts"
+    },
+    "IncrementEcrDkrEndpointWaitAttempts": {
+      "Type": "Pass",
+      "Parameters": {
+        "value.$": "States.MathAdd($.workflow.endpoint_wait_attempts.ecr_dkr.value, 1)"
+      },
+      "ResultPath": "$.workflow.endpoint_wait_attempts.ecr_dkr",
+      "Next": "CheckEcrDkrEndpointTimeout"
+    },
+    "CheckEcrDkrEndpointTimeout": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_wait_attempts.ecr_dkr.value",
+          "NumericGreaterThanEquals": ${endpoint_ready_max_attempts},
+          "Next": "RecordEcrDkrEndpointTimeout"
+        }
+      ],
+      "Default": "WaitEcrDkrEndpoint"
+    },
+    "RecordEcrDkrEndpointFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointUnavailable",
+        "Cause.$": "States.Format('Endpoint ecr.dkr entered terminal state {}', $.workflow.endpoint_statuses.ecr_dkr.status)",
+        "Stage": "create_ecr_dkr_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "RecordEcrDkrEndpointTimeout": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointTimeout",
+        "Cause.$": "States.Format('Endpoint ecr.dkr did not become available after {} checks', $.workflow.endpoint_wait_attempts.ecr_dkr.value)",
+        "Stage": "create_ecr_dkr_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "CreateLogsEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:createVpcEndpoint",
+      "Parameters": {
+        "VpcEndpointType": "Interface",
+        "VpcId": "${vpc_id}",
+        "ServiceName": "com.amazonaws.${aws_region}.logs",
+        "SubnetIds": ${subnet_ids_json},
+        "SecurityGroupIds": ${endpoint_security_group_ids_json},
+        "PrivateDnsEnabled": true,
+        "TagSpecifications": [
+          {
+            "ResourceType": "vpc-endpoint",
+            "Tags": [
+              { "Key": "Name", "Value": "${workflow_name}-logs" },
+              { "Key": "workflow_name", "Value": "${workflow_name}" },
+              { "Key": "workflow_environment", "Value": "${app_env}" },
+              { "Key": "endpoint_lifecycle", "Value": "ephemeral" },
+              { "Key": "endpoint_service", "Value": "logs" },
+              { "Key": "job_id", "Value.$": "$.workflow.resolved_input.job_id" },
+              { "Key": "correlation_id", "Value.$": "$.workflow.resolved_input.correlation_id" }
+            ]
+          }
+        ]
+      },
+      "ResultSelector": {
+        "endpoint_id.$": "$.VpcEndpoint.VpcEndpointId",
+        "status": "created",
+        "service_identifier": "logs",
+        "service_name": "com.amazonaws.${aws_region}.logs"
+      },
+      "ResultPath": "$.workflow.created_endpoints.logs",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "WaitLogsEndpoint"
+    },
+    "WaitLogsEndpoint": {
+      "Type": "Wait",
+      "Seconds": ${endpoint_poll_interval_seconds},
+      "Next": "DescribeLogsEndpoint"
+    },
+    "DescribeLogsEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:describeVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.logs.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status.$": "$.VpcEndpoints[0].State",
+        "endpoint_id.$": "$.VpcEndpoints[0].VpcEndpointId"
+      },
+      "ResultPath": "$.workflow.endpoint_statuses.logs",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "CheckLogsEndpointReady"
+    },
+    "CheckLogsEndpointReady": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_statuses.logs.status",
+          "StringEquals": "available",
+          "Next": "ShouldInvokeStagingLambda"
+        },
+        {
+          "Or": [
+            { "Variable": "$.workflow.endpoint_statuses.logs.status", "StringEquals": "deleted" },
+            { "Variable": "$.workflow.endpoint_statuses.logs.status", "StringEquals": "deleting" },
+            { "Variable": "$.workflow.endpoint_statuses.logs.status", "StringEquals": "failed" },
+            { "Variable": "$.workflow.endpoint_statuses.logs.status", "StringEquals": "rejected" },
+            { "Variable": "$.workflow.endpoint_statuses.logs.status", "StringEquals": "expired" }
+          ],
+          "Next": "RecordLogsEndpointFailure"
+        }
+      ],
+      "Default": "IncrementLogsEndpointWaitAttempts"
+    },
+    "IncrementLogsEndpointWaitAttempts": {
+      "Type": "Pass",
+      "Parameters": {
+        "value.$": "States.MathAdd($.workflow.endpoint_wait_attempts.logs.value, 1)"
+      },
+      "ResultPath": "$.workflow.endpoint_wait_attempts.logs",
+      "Next": "CheckLogsEndpointTimeout"
+    },
+    "CheckLogsEndpointTimeout": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.endpoint_wait_attempts.logs.value",
+          "NumericGreaterThanEquals": ${endpoint_ready_max_attempts},
+          "Next": "RecordLogsEndpointTimeout"
+        }
+      ],
+      "Default": "WaitLogsEndpoint"
+    },
+    "RecordLogsEndpointFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointUnavailable",
+        "Cause.$": "States.Format('Endpoint logs entered terminal state {}', $.workflow.endpoint_statuses.logs.status)",
+        "Stage": "create_logs_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "RecordLogsEndpointTimeout": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointTimeout",
+        "Cause.$": "States.Format('Endpoint logs did not become available after {} checks', $.workflow.endpoint_wait_attempts.logs.value)",
+        "Stage": "create_logs_endpoint"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "ShouldInvokeStagingLambda": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.skip_staging",
+          "BooleanEquals": true,
+          "Next": "RecordStagingSkipped"
+        }
+      ],
+      "Default": "${staging_default_state}"
+    },
+    "RecordStagingSkipped": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "skipped",
+        "reason": "skip_staging=true"
+      },
+      "ResultPath": "$.workflow.staging",
+      "Next": "RunMonthlyIngestTask"
+    },
+    "RecordStagingConfigurationError": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "not_configured",
+        "reason": "monthly_ingest_staging_lambda_arn is required when skip_staging=false"
+      },
+      "ResultPath": "$.workflow.staging",
+      "Next": "RecordStagingConfigurationFailure"
+    },
+    "RecordStagingConfigurationFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "StagingLambdaNotConfigured",
+        "Cause": "monthly_ingest_staging_lambda_arn is required when skip_staging=false",
+        "Stage": "staging"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "InvokeStagingLambda": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "TimeoutSeconds": ${staging_lambda_timeout_seconds},
+      "Parameters": {
+        "FunctionName": "${staging_lambda_arn}",
+        "Payload": {
+          "input.$": "$",
+          "resolved_input.$": "$.workflow.resolved_input",
+          "workflow_name": "${workflow_name}",
+          "workflow_version.$": "$.workflow.resolved_input.workflow_version",
+          "execution_id.$": "$$.Execution.Id"
+        }
+      },
+      "ResultSelector": {
+        "status": "invoked",
+        "status_code.$": "$.StatusCode",
+        "executed_version.$": "$.ExecutedVersion",
+        "payload.$": "$.Payload"
+      },
+      "ResultPath": "$.workflow.staging",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "DidStagingProvideSourceOverride"
+    },
+    "DidStagingProvideSourceOverride": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            { "Variable": "$.workflow.staging.payload.source_bucket", "IsPresent": true },
+            { "Variable": "$.workflow.staging.payload.source_key", "IsPresent": true }
+          ],
+          "Next": "ApplyStagingSourceOverride"
+        }
+      ],
+      "Default": "RunMonthlyIngestTask"
+    },
+    "ApplyStagingSourceOverride": {
+      "Type": "Pass",
+      "Parameters": {
+        "source_bucket.$": "$.workflow.staging.payload.source_bucket",
+        "source_key.$": "$.workflow.staging.payload.source_key",
+        "destination_bucket.$": "$.workflow.resolved_input.destination_bucket",
+        "destination_prefix.$": "$.workflow.resolved_input.destination_prefix",
+        "job_id.$": "$.workflow.resolved_input.job_id",
+        "correlation_id.$": "$.workflow.resolved_input.correlation_id",
+        "workflow_version.$": "$.workflow.resolved_input.workflow_version"
+      },
+      "ResultPath": "$.workflow.resolved_input",
+      "Next": "RunMonthlyIngestTask"
+    },
+    "RunMonthlyIngestTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "TimeoutSeconds": ${ecs_task_timeout_seconds},
+      "Parameters": {
+        "Cluster": "${ecs_cluster_arn}",
+        "TaskDefinition": "${ecs_task_definition_arn}",
+        "LaunchType": "FARGATE",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ${subnet_ids_json},
+            "SecurityGroups": ${task_security_group_ids_json},
+            "AssignPublicIp": "DISABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [
+            {
+              "Name": "${ecs_container_name}",
+              "Environment": [
+                { "Name": "MONTHLY_INGEST_WORKFLOW_NAME", "Value": "${workflow_name}" },
+                { "Name": "MONTHLY_INGEST_WORKFLOW_VERSION", "Value.$": "$.workflow.resolved_input.workflow_version" },
+                { "Name": "MONTHLY_INGEST_JOB_ID", "Value.$": "$.workflow.resolved_input.job_id" },
+                { "Name": "MONTHLY_INGEST_CORRELATION_ID", "Value.$": "$.workflow.resolved_input.correlation_id" },
+                { "Name": "MONTHLY_INGEST_SOURCE_BUCKET", "Value.$": "$.workflow.resolved_input.source_bucket" },
+                { "Name": "MONTHLY_INGEST_SOURCE_KEY", "Value.$": "$.workflow.resolved_input.source_key" },
+                { "Name": "MONTHLY_INGEST_DESTINATION_BUCKET", "Value.$": "$.workflow.resolved_input.destination_bucket" },
+                { "Name": "MONTHLY_INGEST_DESTINATION_PREFIX", "Value.$": "$.workflow.resolved_input.destination_prefix" },
+                { "Name": "MONTHLY_INGEST_INPUT_JSON", "Value.$": "States.JsonToString($.workflow.resolved_input)" }
+              ]
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.workflow.ecs",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.failure",
+          "Next": "DeleteLogsEndpointIfPresent"
+        }
+      ],
+      "Next": "DidEcsTaskFail"
+    },
+    "DidEcsTaskFail": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.ecs.failures[0]",
+          "IsPresent": true,
+          "Next": "RecordEcsTaskFailure"
+        },
+        {
+          "And": [
+            { "Variable": "$.workflow.ecs.tasks[0].containers[0].exitCode", "IsPresent": true },
+            { "Variable": "$.workflow.ecs.tasks[0].containers[0].exitCode", "NumericGreaterThan": 0 }
+          ],
+          "Next": "RecordEcsTaskFailure"
+        }
+      ],
+      "Default": "DeleteLogsEndpointIfPresent"
+    },
+    "RecordEcsTaskFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "MonthlyIngestTaskFailed",
+        "Cause.$": "States.JsonToString($.workflow.ecs)",
+        "Stage": "ecs_run_task"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "DeleteLogsEndpointIfPresent"
+    },
+    "DeleteLogsEndpointIfPresent": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.created_endpoints.logs.endpoint_id",
+          "StringEquals": "",
+          "Next": "MarkLogsEndpointCleanupSkipped"
+        }
+      ],
+      "Default": "DeleteLogsEndpoint"
+    },
+    "MarkLogsEndpointCleanupSkipped": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "skipped"
+      },
+      "ResultPath": "$.workflow.cleanup.logs",
+      "Next": "DeleteEcrDkrEndpointIfPresent"
+    },
+    "DeleteLogsEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:deleteVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.logs.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status": "deleted"
+      },
+      "ResultPath": "$.workflow.cleanup.logs",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.cleanup.logs",
+          "Next": "MarkLogsEndpointCleanupFailure"
+        }
+      ],
+      "Next": "DeleteEcrDkrEndpointIfPresent"
+    },
+    "MarkLogsEndpointCleanupFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "delete_failed",
+        "error.$": "$.workflow.cleanup.logs.Error",
+        "cause.$": "$.workflow.cleanup.logs.Cause"
+      },
+      "ResultPath": "$.workflow.cleanup.logs",
+      "Next": "DeleteEcrDkrEndpointIfPresent"
+    },
+    "DeleteEcrDkrEndpointIfPresent": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.created_endpoints.ecr_dkr.endpoint_id",
+          "StringEquals": "",
+          "Next": "MarkEcrDkrEndpointCleanupSkipped"
+        }
+      ],
+      "Default": "DeleteEcrDkrEndpoint"
+    },
+    "MarkEcrDkrEndpointCleanupSkipped": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "skipped"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_dkr",
+      "Next": "DeleteEcrApiEndpointIfPresent"
+    },
+    "DeleteEcrDkrEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:deleteVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.ecr_dkr.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status": "deleted"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_dkr",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.cleanup.ecr_dkr",
+          "Next": "MarkEcrDkrEndpointCleanupFailure"
+        }
+      ],
+      "Next": "DeleteEcrApiEndpointIfPresent"
+    },
+    "MarkEcrDkrEndpointCleanupFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "delete_failed",
+        "error.$": "$.workflow.cleanup.ecr_dkr.Error",
+        "cause.$": "$.workflow.cleanup.ecr_dkr.Cause"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_dkr",
+      "Next": "DeleteEcrApiEndpointIfPresent"
+    },
+    "DeleteEcrApiEndpointIfPresent": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.created_endpoints.ecr_api.endpoint_id",
+          "StringEquals": "",
+          "Next": "MarkEcrApiEndpointCleanupSkipped"
+        }
+      ],
+      "Default": "DeleteEcrApiEndpoint"
+    },
+    "MarkEcrApiEndpointCleanupSkipped": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "skipped"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_api",
+      "Next": "DidCleanupEncounterErrors"
+    },
+    "DeleteEcrApiEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ec2:deleteVpcEndpoints",
+      "Parameters": {
+        "VpcEndpointIds.$": "States.Array($.workflow.created_endpoints.ecr_api.endpoint_id)"
+      },
+      "ResultSelector": {
+        "status": "deleted"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_api",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": ${retry_interval_seconds},
+          "MaxAttempts": ${retry_max_attempts},
+          "BackoffRate": ${retry_backoff_rate}
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.workflow.cleanup.ecr_api",
+          "Next": "MarkEcrApiEndpointCleanupFailure"
+        }
+      ],
+      "Next": "DidCleanupEncounterErrors"
+    },
+    "MarkEcrApiEndpointCleanupFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "delete_failed",
+        "error.$": "$.workflow.cleanup.ecr_api.Error",
+        "cause.$": "$.workflow.cleanup.ecr_api.Cause"
+      },
+      "ResultPath": "$.workflow.cleanup.ecr_api",
+      "Next": "DidCleanupEncounterErrors"
+    },
+    "DidCleanupEncounterErrors": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflow.failure",
+          "IsPresent": true,
+          "Next": "AssembleFailureResult"
+        },
+        {
+          "Or": [
+            { "Variable": "$.workflow.cleanup.logs.status", "StringEquals": "delete_failed" },
+            { "Variable": "$.workflow.cleanup.ecr_dkr.status", "StringEquals": "delete_failed" },
+            { "Variable": "$.workflow.cleanup.ecr_api.status", "StringEquals": "delete_failed" }
+          ],
+          "Next": "RecordCleanupFailure"
+        }
+      ],
+      "Default": "AssembleSuccessResult"
+    },
+    "RecordCleanupFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "Error": "VpcEndpointCleanupFailed",
+        "Cause.$": "States.JsonToString($.workflow.cleanup)",
+        "Stage": "cleanup"
+      },
+      "ResultPath": "$.workflow.failure",
+      "Next": "AssembleFailureResult"
+    },
+    "AssembleSuccessResult": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "succeeded",
+        "workflow_name": "${workflow_name}",
+        "workflow_version.$": "$.workflow.resolved_input.workflow_version",
+        "job_id.$": "$.workflow.resolved_input.job_id",
+        "correlation_id.$": "$.workflow.resolved_input.correlation_id",
+        "source_bucket.$": "$.workflow.resolved_input.source_bucket",
+        "source_key.$": "$.workflow.resolved_input.source_key",
+        "destination_bucket.$": "$.workflow.resolved_input.destination_bucket",
+        "destination_prefix.$": "$.workflow.resolved_input.destination_prefix",
+        "execution.$": "$.workflow.execution",
+        "created_endpoints.$": "$.workflow.created_endpoints",
+        "cleanup.$": "$.workflow.cleanup",
+        "staging.$": "$.workflow.staging",
+        "ecs.$": "$.workflow.ecs"
+      },
+      "End": true
+    },
+    "AssembleFailureResult": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "failed",
+        "workflow_name": "${workflow_name}",
+        "workflow_version.$": "$.workflow.resolved_input.workflow_version",
+        "job_id.$": "$.workflow.resolved_input.job_id",
+        "correlation_id.$": "$.workflow.resolved_input.correlation_id",
+        "source_bucket.$": "$.workflow.resolved_input.source_bucket",
+        "source_key.$": "$.workflow.resolved_input.source_key",
+        "destination_bucket.$": "$.workflow.resolved_input.destination_bucket",
+        "destination_prefix.$": "$.workflow.resolved_input.destination_prefix",
+        "execution.$": "$.workflow.execution",
+        "created_endpoints.$": "$.workflow.created_endpoints",
+        "cleanup.$": "$.workflow.cleanup",
+        "staging.$": "$.workflow.staging",
+        "ecs.$": "$.workflow.ecs",
+        "failure.$": "$.workflow.failure"
+      },
+      "ResultPath": "$.workflow.result",
+      "Next": "SerializeFailureResult"
+    },
+    "SerializeFailureResult": {
+      "Type": "Pass",
+      "Parameters": {
+        "error": "MonthlyIngestWorkflowFailed",
+        "cause.$": "States.JsonToString($.workflow.result)"
+      },
+      "ResultPath": "$.workflow.failure_result",
+      "Next": "FailWorkflow"
+    },
+    "FailWorkflow": {
+      "Type": "Fail",
+      "ErrorPath": "$.workflow.failure_result.error",
+      "CausePath": "$.workflow.failure_result.cause"
+    }
+  }
+}

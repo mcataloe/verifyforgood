@@ -72,3 +72,18 @@ output "control_plane_dynamodb_table_name" {
   description = "DynamoDB table for control-plane accounts, subscriptions, managed credentials, and usage."
   value       = aws_dynamodb_table.control_plane.name
 }
+
+output "monthly_ingest_state_machine_name" {
+  description = "Step Functions state machine name for the monthly private-ingest workflow."
+  value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].name : null
+}
+
+output "monthly_ingest_state_machine_arn" {
+  description = "Step Functions state machine ARN for the monthly private-ingest workflow."
+  value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].arn : null
+}
+
+output "monthly_ingest_step_function_log_group_name" {
+  description = "CloudWatch log group used by the monthly private-ingest Step Functions workflow."
+  value       = var.monthly_ingest_state_machine_enabled ? aws_cloudwatch_log_group.monthly_ingest_state_machine[0].name : null
+}

@@ -241,6 +241,198 @@ variable "form990_chunk_size" {
   default     = 250
 }
 
+variable "monthly_ingest_state_machine_enabled" {
+  description = "Enable the Step Functions monthly private-ingest orchestration workflow."
+  type        = bool
+  default     = false
+}
+
+variable "monthly_ingest_schedule_expression" {
+  description = "Optional EventBridge schedule expression for the monthly private-ingest state machine. Empty disables the schedule."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_workflow_basename" {
+  description = "Basename for the monthly private-ingest workflow. The environment slug is appended when MONTHLY_INGEST_WORKFLOW_NAME is not explicitly set."
+  type        = string
+  default     = "monthly-ingest"
+}
+
+variable "monthly_ingest_workflow_name" {
+  description = "Optional explicit Step Functions workflow name override for monthly private-ingest orchestration."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_workflow_version" {
+  description = "Version string embedded into monthly private-ingest workflow input and runtime metadata."
+  type        = string
+  default     = "2026-03"
+}
+
+variable "monthly_ingest_vpc_id" {
+  description = "Existing VPC identifier used for on-demand interface endpoint creation."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_private_subnet_ids" {
+  description = "Existing private subnet identifiers shared by the ECS task and the temporary interface endpoints."
+  type        = list(string)
+  default     = []
+}
+
+variable "monthly_ingest_endpoint_security_group_ids" {
+  description = "Security groups attached to temporary interface endpoints for ECS image pull and logging access."
+  type        = list(string)
+  default     = []
+}
+
+variable "monthly_ingest_task_security_group_ids" {
+  description = "Security groups attached to the monthly private-ingest ECS task."
+  type        = list(string)
+  default     = []
+}
+
+variable "monthly_ingest_ecs_cluster_arn" {
+  description = "Existing ECS cluster ARN used by the monthly private-ingest RunTask step."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_ecs_cluster_name" {
+  description = "Existing ECS cluster name used for environment metadata and human-readable references. Empty falls back to the centralized resource name alias."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_task_definition_arn" {
+  description = "Existing ECS task definition ARN for the monthly private-ingest worker task."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_task_execution_role_arn" {
+  description = "Task execution role ARN passed through the Step Functions execution role for ECS RunTask."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_task_role_arn" {
+  description = "Application task role ARN passed through the Step Functions execution role for ECS RunTask."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_container_name" {
+  description = "Container name inside the ECS task definition that receives the monthly-ingest environment overrides."
+  type        = string
+  default     = "monthly-ingest"
+}
+
+variable "monthly_ingest_staging_lambda_arn" {
+  description = "Optional staging Lambda ARN invoked before ECS processing when skip_staging=false."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_source_bucket" {
+  description = "Optional source bucket passed by the monthly private-ingest EventBridge schedule."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_source_key" {
+  description = "Optional source key passed by the monthly private-ingest EventBridge schedule."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_destination_bucket" {
+  description = "Optional destination bucket passed by the monthly private-ingest EventBridge schedule."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_destination_prefix" {
+  description = "Optional destination prefix passed by the monthly private-ingest EventBridge schedule."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_job_id" {
+  description = "Optional job identifier used by the monthly private-ingest EventBridge schedule input."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_correlation_id" {
+  description = "Optional correlation identifier used by the monthly private-ingest EventBridge schedule input. Empty falls back to monthly_ingest_schedule_job_id."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_schedule_skip_staging" {
+  description = "Whether the EventBridge schedule should bypass the staging Lambda and assume the source key already exists in S3."
+  type        = bool
+  default     = false
+}
+
+variable "monthly_ingest_schedule_context_json" {
+  description = "Optional JSON object passed as schedule_context in the monthly private-ingest EventBridge schedule input."
+  type        = string
+  default     = "{}"
+}
+
+variable "monthly_ingest_endpoint_poll_interval_seconds" {
+  description = "Polling interval in seconds while waiting for temporary interface endpoints to become available."
+  type        = number
+  default     = 20
+}
+
+variable "monthly_ingest_endpoint_ready_max_attempts" {
+  description = "Maximum readiness polls for each temporary interface endpoint before the workflow fails and starts cleanup."
+  type        = number
+  default     = 30
+}
+
+variable "monthly_ingest_retry_interval_seconds" {
+  description = "Base retry interval for transient Step Functions AWS service task failures in the monthly private-ingest workflow."
+  type        = number
+  default     = 2
+}
+
+variable "monthly_ingest_retry_max_attempts" {
+  description = "Maximum transient retry attempts per AWS service task in the monthly private-ingest workflow."
+  type        = number
+  default     = 3
+}
+
+variable "monthly_ingest_retry_backoff_rate" {
+  description = "Exponential backoff rate for transient Step Functions AWS service task retries in the monthly private-ingest workflow."
+  type        = number
+  default     = 2
+}
+
+variable "monthly_ingest_staging_lambda_timeout_seconds" {
+  description = "Timeout in seconds for the staging Lambda Step Functions task."
+  type        = number
+  default     = 900
+}
+
+variable "monthly_ingest_ecs_task_timeout_seconds" {
+  description = "Timeout in seconds for the ECS RunTask.sync step."
+  type        = number
+  default     = 14400
+}
+
+variable "monthly_ingest_state_machine_timeout_seconds" {
+  description = "Overall timeout in seconds for the monthly private-ingest Step Functions state machine."
+  type        = number
+  default     = 21600
+}
+
 variable "form990_worker_timeout_seconds" {
   description = "Timeout for Form 990 worker Lambda."
   type        = number

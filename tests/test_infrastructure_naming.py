@@ -31,9 +31,13 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "profile_table_name" in content and "local.resource_names.profile_table" in content
     assert "organization_settings_table_name" in content and "local.resource_names.organization_settings_table" in content
     assert "control_plane_table_name" in content and "local.resource_names.control_plane_table" in content
+    assert "ecs_cluster_name" in content and "local.resource_names.ecs_cluster" in content
     assert "athena_workgroup_resource_name" in content and "local.resource_names.athena_workgroup" in content
     assert "api_gateway_name" in content and "local.resource_names.api_gateway" in content
     assert "lambda_role_name" in content and "local.resource_names.lambda_role" in content
+    assert "monthly_ingest_state_machine_name" in content and "local.resource_names.monthly_ingest_state_machine" in content
+    assert "monthly_ingest_state_machine_role_name" in content and "local.resource_names.monthly_ingest_state_machine_role" in content
+    assert "monthly_ingest_schedule_rule_name" in content and "local.resource_names.monthly_ingest_schedule_rule" in content
     assert "glue_database_name" in content and "local.data_catalog_prefix" in content
     assert "ingest_lambda_name" in content and "local.lambda_function_names.regulatory_data_ingestion" in content
     assert "query_lambda_name" in content and "local.lambda_function_names.organization_verification_api" in content
