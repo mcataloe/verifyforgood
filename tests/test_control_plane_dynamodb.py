@@ -171,7 +171,7 @@ def test_dynamo_organization_settings_billing_round_trip():
     updated = service.update_settings(
         workspace_id="ws_1",
         account_id="acct_1",
-        payload={"billing": {"allowOverage": False}},
+        payload={"billing": {"allowOverage": False, "monthlyRequestCap": 750}},
     )
     reloaded = OrganizationIntegrationSettingsService(
         fallback_resolver=load_organization_integration_settings("[]"),
@@ -180,8 +180,11 @@ def test_dynamo_organization_settings_billing_round_trip():
     current = reloaded.get_settings(workspace_id="ws_1", account_id="acct_1")
 
     assert updated.billing_settings.allow_overage is False
+    assert updated.billing_settings.monthly_request_cap == 750
     assert current.billing_settings.allow_overage is False
+    assert current.billing_settings.monthly_request_cap == 750
     assert current.to_dict()["billing"]["allowOverage"] is False
+    assert current.to_dict()["billing"]["monthlyRequestCap"] == 750
 
 
 def test_dynamo_control_plane_persists_pending_stripe_checkout_linkage():

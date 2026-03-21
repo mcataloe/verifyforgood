@@ -32,6 +32,7 @@ describe("PortalOrganizationProvider", () => {
     const organizationLoader = vi.fn(async () => ({
       account_id: "acct_stored",
       billing_allow_overage: false,
+      billing_monthly_request_cap: 800,
       organization_name: "Stored Organization Context",
       scope_source: "backend_settings" as const,
       settings_source: "stored" as const,

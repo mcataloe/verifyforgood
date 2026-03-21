@@ -319,6 +319,57 @@ code {
   gap: var(--vf-space-3);
 }
 
+.portal-budget-form {
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-budget-form__section {
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.portal-budget-form__hint {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--vf-color-sage-700);
+}
+
+.portal-budget-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vf-space-3);
+  font-weight: 700;
+}
+
+.portal-budget-visualization {
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-budget-visualization__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--vf-space-4);
+  align-items: end;
+}
+
+.portal-budget-visualization__header h3 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.portal-budget-visualization__header p:last-child {
+  margin: 0.35rem 0 0;
+  color: var(--vf-color-sage-700);
+}
+
+.portal-budget-visualization__empty {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--vf-color-sage-700);
+}
+
 .portal-feedback {
   margin: var(--vf-space-4) 0 0;
   line-height: 1.6;
@@ -658,5 +709,10 @@ code {
 
   .portal-subscription-summary__header {
     flex-direction: column;
+  }
+
+  .portal-budget-visualization__header {
+    flex-direction: column;
+    align-items: start;
   }
 }

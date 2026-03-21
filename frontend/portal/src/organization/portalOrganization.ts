@@ -5,6 +5,7 @@ export interface PortalOrganizationSettingsDocument {
   account_id?: string | null;
   billing?: {
     allowOverage?: boolean;
+    monthlyRequestCap?: number | null;
   };
   source?: "default" | "stored";
   updated_at?: string | null;
@@ -14,6 +15,7 @@ export interface PortalOrganizationSettingsDocument {
 export interface PortalOrganization {
   account_id: string;
   billing_allow_overage: boolean | null;
+  billing_monthly_request_cap: number | null;
   organization_name: string;
   scope_source: "backend_settings" | "session_fallback" | "session_mock";
   settings_source: "default" | "mock" | "stored";
@@ -40,6 +42,7 @@ export function createSessionPortalOrganization(
   return {
     account_id: session.account_id,
     billing_allow_overage: null,
+    billing_monthly_request_cap: null,
     organization_name: session.organization_name,
     scope_source: scopeSource,
     settings_source: "mock",
@@ -66,6 +69,12 @@ export async function loadActivePortalOrganization({
       billing_allow_overage:
         typeof settings.billing?.allowOverage === "boolean"
           ? settings.billing.allowOverage
+          : null,
+      billing_monthly_request_cap:
+        typeof settings.billing?.monthlyRequestCap === "number" &&
+        Number.isInteger(settings.billing.monthlyRequestCap) &&
+        settings.billing.monthlyRequestCap > 0
+          ? settings.billing.monthlyRequestCap
           : null,
       organization_name: session.organization_name,
       scope_source: "backend_settings",

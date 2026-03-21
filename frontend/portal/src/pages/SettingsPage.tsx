@@ -1,37 +1,81 @@
 import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import {
+  usePortalUsageBilling,
+  type PortalUsageBillingController,
+} from "../billing/usePortalUsageBilling";
+import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
+import { BudgetLimitVisualization } from "../settings/BudgetLimitVisualization";
+import {
+  usePortalBudgetSettings,
+  type PortalBudgetSettingsController,
+} from "../settings/usePortalBudgetSettings";
 
 interface SettingsPageProps {
+  budgetController?: PortalBudgetSettingsController;
   endpoints: PortalEndpoints;
   session: PortalAuthenticatedSession;
+  usageController?: PortalUsageBillingController;
 }
 
-export function SettingsPage({ endpoints, session }: SettingsPageProps) {
+export function SettingsPage({
+  budgetController,
+  endpoints,
+  session,
+  usageController,
+}: SettingsPageProps) {
+  const defaultBudgetController = usePortalBudgetSettings();
+  const budget = budgetController ?? defaultBudgetController;
+  const defaultUsageController = usePortalUsageBilling(session);
+  const usage = usageController ?? defaultUsageController;
+
   return (
     <Grid className="portal-page-grid">
       <Panel
-        title="Organization settings anchor"
-        subtitle="Designed around the existing `GET/PUT /v1/organization/settings` contract."
+        title="Usage budget controls"
+        subtitle="Persisted through the existing organization settings contract."
+      >
+        <BudgetConfigurationPanel controller={budget} />
+      </Panel>
+
+      <Panel
+        title="Limit visualization"
+        subtitle="Current usage relative to the configured monthly limit."
+      >
+        {usage.isLoading ? (
+          <p>Loading current usage against the active plan.</p>
+        ) : usage.error ? (
+          <p className="portal-feedback portal-feedback--error">
+            {usage.error}
+          </p>
+        ) : (
+          <BudgetLimitVisualization
+            allowOverage={budget.settings.allowOverage}
+            configuredLimit={budget.settings.monthlyRequestCap}
+            snapshot={usage.snapshot}
+          />
+        )}
+      </Panel>
+
+      <Panel
+        title="Current backend anchor"
+        subtitle="Budget controls remain explicit about persistence and consequences."
       >
         <p>
-          Future settings slices should load and persist against{" "}
-          <code>{endpoints.organizationSettings}</code> while keeping billing
-          and integrations as explicit subdomains inside the portal.
+          Budget configuration loads from and persists to{" "}
+          <code>{endpoints.organizationSettings}</code>.
         </p>
         <ul className="portal-list">
-          <li>`billing.allowOverage` stays available across plans.</li>
-          <li>Integration toggles remain entitlement-gated by the backend.</li>
+          <li>Monthly usage caps are stored per account.</li>
+          <li>
+            Hard-stop enforcement is backed by the existing billing overage
+            setting.
+          </li>
           <li>
             Workspace and account identifiers remain explicit in the shell.
           </li>
         </ul>
-      </Panel>
-
-      <Panel
-        title="Current shell state"
-        subtitle="Enough structure to extend without reworking the app boundary."
-      >
         <dl className="portal-shell__details">
           <div>
             <dt>Workspace</dt>

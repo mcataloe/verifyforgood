@@ -485,6 +485,7 @@ def test_get_organization_integrations_returns_current_settings():
     assert body["integrations"]["candid"]["enabled"] is True
     assert body["integrations"]["charityNavigator"]["enabled"] is False
     assert body["billing"]["allowOverage"] is True
+    assert body["billing"]["monthlyRequestCap"] is None
 
 
 def test_put_organization_integrations_updates_settings():
@@ -531,6 +532,7 @@ def test_put_organization_integrations_updates_settings():
     assert body["source"] == "stored"
     assert body["integrations"]["candid"]["requiredForEvaluation"] is True
     assert body["billing"]["allowOverage"] is True
+    assert body["billing"]["monthlyRequestCap"] is None
 
     fetched = module.organization_integration_settings_store.get_settings(workspace_id="ws_1", account_id="acct_1")
     assert fetched["integrations"]["candid"]["enabled"] is True
@@ -571,15 +573,19 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
         "headers": {},
-        "body": json.dumps({"billing": {"allowOverage": False}}),
+        "body": json.dumps(
+            {"billing": {"allowOverage": False, "monthlyRequestCap": 750}}
+        ),
     }
     result = module.handler(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["billing"]["allowOverage"] is False
+    assert body["billing"]["monthlyRequestCap"] == 750
     fetched = module.organization_integration_settings_store.get_billing_settings(account_id="acct_1")
     assert fetched["billing"]["allowOverage"] is False
+    assert fetched["billing"]["monthlyRequestCap"] == 750
 
 
 def test_put_organization_integrations_rejects_integration_update_for_growth_plan():

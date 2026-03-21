@@ -217,6 +217,7 @@ describe("portal usage billing service", () => {
       organization: {
         account_id: session.account_id,
         billing_allow_overage: false,
+        billing_monthly_request_cap: 7500,
         organization_name: session.organization_name,
         scope_source: "backend_settings",
         settings_source: "stored",
