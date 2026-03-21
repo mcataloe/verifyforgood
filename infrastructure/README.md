@@ -36,3 +36,4 @@ Migration note:
 
 - this boundary is documented now so later refactors can move code out incrementally without breaking current deployment assumptions
 - naming is decoupled from product branding so infrastructure identity does not have to change when customer-facing names do
+- the current normalization rules, compatibility aliases, and legacy exceptions are documented in `docs/infrastructure-naming-normalization.md`

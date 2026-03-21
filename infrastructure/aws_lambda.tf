@@ -47,7 +47,7 @@ data "archive_file" "ingest_zip_from_file" {
 }
 
 resource "aws_lambda_function" "ingest" {
-  function_name = local.ingest_lambda_name
+  function_name = local.lambda_function_names.regulatory_data_ingestion
   handler       = "lambda_ingest.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -97,7 +97,7 @@ data "archive_file" "query_zip" {
 }
 
 resource "aws_lambda_function" "query" {
-  function_name = local.query_lambda_name
+  function_name = local.lambda_function_names.organization_verification_api
   handler       = "lambda_query.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -222,7 +222,7 @@ data "archive_file" "refresh_zip" {
 
 resource "aws_lambda_function" "refresh" {
   count         = var.refresh_lambda_enabled ? 1 : 0
-  function_name = local.refresh_lambda_name
+  function_name = local.lambda_function_names.platform_refresh
   handler       = "lambda_refresh.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -330,7 +330,7 @@ data "archive_file" "form990_zip" {
 }
 
 resource "aws_lambda_function" "form990_ingest" {
-  function_name = local.form990_ingest_lambda_name
+  function_name = local.lambda_function_names.regulatory_filing_ingestion
   handler       = "lambda_form990.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -379,12 +379,12 @@ resource "aws_lambda_function" "form990_ingest" {
 }
 
 resource "aws_sqs_queue" "form990_work_dlq" {
-  name                      = local.form990_work_dlq_name
+  name                      = local.queue_names.regulatory_filing_work_dead_letter
   message_retention_seconds = 1209600
 }
 
 resource "aws_sqs_queue" "form990_work_queue" {
-  name                       = local.form990_work_queue_name
+  name                       = local.queue_names.regulatory_filing_work
   visibility_timeout_seconds = var.form990_queue_visibility_timeout_seconds
   message_retention_seconds  = 345600
   redrive_policy = jsonencode({
@@ -394,7 +394,7 @@ resource "aws_sqs_queue" "form990_work_queue" {
 }
 
 resource "aws_lambda_function" "form990_orchestrator" {
-  function_name = local.form990_orchestrator_lambda_name
+  function_name = local.lambda_function_names.regulatory_filing_orchestrator
   handler       = "lambda_form990_orchestrator.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
@@ -444,7 +444,7 @@ resource "aws_lambda_function" "form990_orchestrator" {
 }
 
 resource "aws_lambda_function" "form990_worker" {
-  function_name                  = local.form990_worker_lambda_name
+  function_name                  = local.lambda_function_names.regulatory_filing_worker
   handler                        = "lambda_form990_worker.handler"
   runtime                        = "python3.11"
   role                           = aws_iam_role.lambda_role.arn
@@ -485,7 +485,7 @@ resource "aws_lambda_event_source_mapping" "form990_worker_sqs" {
 #############################################
 
 resource "aws_cloudwatch_event_rule" "daily_ingest" {
-  name                = local.daily_ingest_rule_name
+  name                = local.scheduled_workflow_names.regulatory_data_ingestion
   schedule_expression = "cron(0 3 * * ? *)"
 }
 
@@ -505,7 +505,7 @@ resource "aws_lambda_permission" "allow_eventbridge" {
 
 resource "aws_cloudwatch_event_rule" "refresh_schedule" {
   count               = var.refresh_lambda_enabled && trim(var.refresh_schedule_expression, " ") != "" ? 1 : 0
-  name                = local.refresh_schedule_rule_name
+  name                = local.scheduled_workflow_names.platform_refresh
   schedule_expression = var.refresh_schedule_expression
 }
 
@@ -527,7 +527,7 @@ resource "aws_lambda_permission" "allow_eventbridge_refresh" {
 
 resource "aws_cloudwatch_event_rule" "form990_schedule" {
   count               = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
-  name                = local.form990_schedule_rule_name
+  name                = local.scheduled_workflow_names.monthly_filing_ingestion
   schedule_expression = var.form990_schedule_expression
 }
 

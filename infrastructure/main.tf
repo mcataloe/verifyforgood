@@ -7,8 +7,12 @@ locals {
   environment_slug = lower(var.environment)
 
   domain_name                             = var.root_domain_name != "" ? var.root_domain_name : "${var.base_name}.com"
-  legacy_name_prefix                      = local.environment_slug == "prod" ? var.base_name : "${var.base_name}-${local.environment_slug}"
-  db_prefix                               = replace(local.legacy_name_prefix, "-", "_")
+  # Compatibility alias: physical resource names can stay pinned to legacy prefixes even while
+  # internal identifiers adopt capability-oriented labels.
+  stable_resource_prefix                  = local.environment_slug == "prod" ? var.base_name : "${var.base_name}-${local.environment_slug}"
+  legacy_name_prefix                      = local.stable_resource_prefix
+  data_catalog_prefix                     = replace(local.stable_resource_prefix, "-", "_")
+  db_prefix                               = local.data_catalog_prefix
   source_data_prefix_normalized           = "${trim(var.source_data_prefix, "/")}/"
   form990_raw_source_prefix_normalized    = "${trim(var.form990_raw_source_prefix, "/")}/"
   form990_raw_prefix_normalized           = "${trim(var.form990_raw_prefix, "/")}/"
@@ -74,27 +78,47 @@ locals {
     )
   }
 
+  lambda_function_names = {
+    regulatory_data_ingestion     = local.resource_names.ingest_lambda
+    organization_verification_api = local.resource_names.query_lambda
+    platform_refresh              = local.resource_names.refresh_lambda
+    regulatory_filing_ingestion   = local.resource_names.form990_ingest_lambda
+    regulatory_filing_orchestrator = local.resource_names.form990_orchestrator_lambda
+    regulatory_filing_worker      = local.resource_names.form990_worker_lambda
+  }
+
+  queue_names = {
+    regulatory_filing_work_dead_letter = local.resource_names.form990_work_dlq
+    regulatory_filing_work             = local.resource_names.form990_work_queue
+  }
+
+  scheduled_workflow_names = {
+    regulatory_data_ingestion = local.resource_names.daily_ingest_rule
+    platform_refresh          = local.resource_names.refresh_schedule_rule
+    monthly_filing_ingestion  = local.resource_names.form990_schedule_rule
+  }
+
   source_data_bucket_name          = local.resource_names.source_data_bucket
   athena_results_bucket_name       = local.resource_names.athena_results_bucket
   profile_table_name               = local.resource_names.profile_table
   organization_settings_table_name = local.resource_names.organization_settings_table
   control_plane_table_name         = local.resource_names.control_plane_table
-  glue_database_name               = "${local.db_prefix}_irs_db"
+  glue_database_name               = "${local.data_catalog_prefix}_irs_db"
   athena_workgroup_resource_name   = local.resource_names.athena_workgroup
   api_gateway_name                 = local.resource_names.api_gateway
   lambda_role_name                 = local.resource_names.lambda_role
   lambda_data_policy_name          = local.resource_names.lambda_data_policy
-  ingest_lambda_name               = local.resource_names.ingest_lambda
-  query_lambda_name                = local.resource_names.query_lambda
-  refresh_lambda_name              = local.resource_names.refresh_lambda
-  form990_ingest_lambda_name       = local.resource_names.form990_ingest_lambda
-  form990_orchestrator_lambda_name = local.resource_names.form990_orchestrator_lambda
-  form990_worker_lambda_name       = local.resource_names.form990_worker_lambda
-  form990_work_dlq_name            = local.resource_names.form990_work_dlq
-  form990_work_queue_name          = local.resource_names.form990_work_queue
-  daily_ingest_rule_name           = local.resource_names.daily_ingest_rule
-  refresh_schedule_rule_name       = local.resource_names.refresh_schedule_rule
-  form990_schedule_rule_name       = local.resource_names.form990_schedule_rule
+  ingest_lambda_name               = local.lambda_function_names.regulatory_data_ingestion
+  query_lambda_name                = local.lambda_function_names.organization_verification_api
+  refresh_lambda_name              = local.lambda_function_names.platform_refresh
+  form990_ingest_lambda_name       = local.lambda_function_names.regulatory_filing_ingestion
+  form990_orchestrator_lambda_name = local.lambda_function_names.regulatory_filing_orchestrator
+  form990_worker_lambda_name       = local.lambda_function_names.regulatory_filing_worker
+  form990_work_dlq_name            = local.queue_names.regulatory_filing_work_dead_letter
+  form990_work_queue_name          = local.queue_names.regulatory_filing_work
+  daily_ingest_rule_name           = local.scheduled_workflow_names.regulatory_data_ingestion
+  refresh_schedule_rule_name       = local.scheduled_workflow_names.platform_refresh
+  form990_schedule_rule_name       = local.scheduled_workflow_names.monthly_filing_ingestion
 
   # GROUP is a SQL reserved word in Athena, so use group_name in the table schema.
   # This still maps to the 8th CSV column because OpenCSVSerde reads by position.
@@ -186,16 +210,22 @@ locals {
     { name = "scoreConfidence", type = "string" }
   ]
 
-  common_tags = {
+  platform_common_tags = merge({
+    PlatformNamespace = "verification_platform"
+    PlatformDomain    = "organization_verification"
+    PlatformLayer     = "infrastructure"
+    NamingStrategy    = var.resource_name_strategy
+  }, {
     Project     = var.base_name
     Environment = var.environment
     ManagedBy   = "terraform"
-  }
+  })
+  common_tags = local.platform_common_tags
 }
 
 resource "aws_s3_bucket" "athena_results" {
   bucket = local.athena_results_bucket_name
-  tags   = local.common_tags
+  tags   = local.platform_common_tags
 }
 
 resource "aws_s3_bucket_public_access_block" "athena_results" {
@@ -220,7 +250,7 @@ resource "aws_athena_workgroup" "eo_bmf" {
   }
 
   force_destroy = var.environment != "prod"
-  tags          = local.common_tags
+  tags          = local.platform_common_tags
 }
 
 resource "aws_glue_catalog_database" "eo_bmf" {
@@ -389,7 +419,7 @@ resource "aws_dynamodb_table" "profiles" {
     type = "S"
   }
 
-  tags = local.common_tags
+  tags = local.platform_common_tags
 }
 
 resource "aws_dynamodb_table" "organization_settings" {
@@ -419,7 +449,7 @@ resource "aws_dynamodb_table" "organization_settings" {
     projection_type = "ALL"
   }
 
-  tags = local.common_tags
+  tags = local.platform_common_tags
 }
 
 resource "aws_dynamodb_table" "control_plane" {
@@ -472,5 +502,5 @@ resource "aws_dynamodb_table" "control_plane" {
     projection_type = "ALL"
   }
 
-  tags = local.common_tags
+  tags = local.platform_common_tags
 }

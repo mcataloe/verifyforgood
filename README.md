@@ -9,6 +9,7 @@ Customer-facing overview:
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
 - `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
 - `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
+- `docs/infrastructure-naming-normalization.md` documents the neutral infrastructure naming layer, compatibility aliases, and intentionally preserved legacy resource names.
 - `docs/monthly-ingest-architecture.md` documents the planned Step Functions + ECS monthly ingest architecture and its cost model.
 
 ## Current Architecture
@@ -40,6 +41,7 @@ Naming philosophy:
 - names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
 - Terraform keeps `resource_name_strategy = "legacy"` by default so existing deployed resources are not renamed accidentally; set it to `standardized` only as part of an explicit migration plan
 - `resource_name_overrides` can pin individual physical names when migrating one resource at a time
+- grouped internal Terraform locals now use neutral capability maps for Lambda, queue, schedule, and tag naming; see `docs/infrastructure-naming-normalization.md` for the migration table and preserved exceptions
 
 Namespace token guidance:
 
