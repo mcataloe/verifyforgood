@@ -58,7 +58,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Usage & Billing",
     hash: "#/usage-billing",
     description:
-      "Subscription, checkout, Stripe portal, and usage-aware billing workflows.",
+      "Subscription, backend-managed billing actions, and usage-aware billing workflows.",
   },
   {
     access: "protected",

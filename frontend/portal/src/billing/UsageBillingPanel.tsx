@@ -16,8 +16,13 @@ import {
 } from "./usePortalPricingPlans";
 import { SubscriptionSummaryCard } from "./SubscriptionSummaryCard";
 import { TrialOnboardingPanel } from "./TrialOnboardingPanel";
+import {
+  usePortalBillingInteractions,
+  type PortalBillingInteractionsController,
+} from "./usePortalBillingInteractions";
 
 interface UsageBillingPanelProps {
+  billingActionsController?: PortalBillingInteractionsController;
   controller?: PortalUsageBillingController;
   endpoints: PortalEndpoints;
   plansController?: PortalPricingPlansController;
@@ -25,6 +30,7 @@ interface UsageBillingPanelProps {
 }
 
 export function UsageBillingPanel({
+  billingActionsController,
   controller,
   endpoints,
   plansController,
@@ -34,6 +40,9 @@ export function UsageBillingPanel({
   const billing = controller ?? defaultController;
   const defaultPlansController = usePortalPricingPlans(billing.snapshot);
   const pricingPlans = plansController ?? defaultPlansController;
+  const defaultBillingActionsController = usePortalBillingInteractions();
+  const billingActions =
+    billingActionsController ?? defaultBillingActionsController;
 
   if (billing.isLoading || pricingPlans.isLoading) {
     return (
@@ -167,8 +176,14 @@ export function UsageBillingPanel({
 
       <Panel
         title="Renewal and billing actions"
-        subtitle="Product-focused state from the existing billing endpoints."
+        subtitle="Backend-managed billing interactions stay abstracted away from provider-specific UI details."
       >
+        {billingActions.error ? (
+          <PortalNotice tone="error">
+            <p>{billingActions.error}</p>
+          </PortalNotice>
+        ) : null}
+
         <dl className="portal-shell__details">
           <div>
             <dt>Renewal date</dt>
@@ -194,16 +209,23 @@ export function UsageBillingPanel({
 
         <ul className="portal-list">
           <li>
-            Subscription summary: <code>{endpoints.billingSubscription}</code>
+            `createSubscription(...)` calls the backend checkout endpoint and
+            returns a backend-managed redirect.
           </li>
           <li>
-            Checkout session: <code>{endpoints.billingCheckout}</code>
+            `updatePlan(...)` calls the backend plan-change endpoint for
+            upgrades and scheduled downgrades.
           </li>
           <li>
-            Plan change: <code>{endpoints.billingPlanChange}</code>
+            `cancelSubscription(...)` remains vendor-agnostic in the UI and can
+            resolve through backend plan change or backend-managed billing
+            portal routing.
           </li>
           <li>
-            Stripe customer portal: <code>{endpoints.billingPortal}</code>
+            Backend routes stay explicit:
+            <code>{endpoints.billingCheckout}</code>,{" "}
+            <code>{endpoints.billingPlanChange}</code>,{" "}
+            <code>{endpoints.billingPortal}</code>.
           </li>
         </ul>
 

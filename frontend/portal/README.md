@@ -28,7 +28,7 @@ These are intentionally placeholder-first, but they align to the customer-facing
 - nonprofit verification lookup and search
 - organization settings
 - billing subscription visibility
-- Stripe checkout and customer portal session creation
+- backend-managed checkout, plan change, and billing portal session creation
 - OAuth token exchange
 - admin-managed API key lifecycle, with a portal-local mock standing in until customer self-serve endpoints exist
 
@@ -120,6 +120,10 @@ The usage and billing area now uses a small feature-local billing slice under `s
 - `GET /v1/organization/billing/subscription` is the source of truth for current plan, effective access, billing status, renewal timing, pending downgrades, and trial state
 - `GET /v1/plans` is the source of truth for plan display metadata such as included usage, overage pricing, and feature availability
 - `billing.allowOverage` comes from organization settings when available and otherwise follows the documented backend default behavior
+- billing actions are abstracted behind a frontend adapter instead of being modeled as Stripe UI flows:
+  - `createSubscription(...)` calls `POST /v1/organization/billing/checkout-session`
+  - `updatePlan(...)` calls `POST /v1/organization/billing/plan-change`
+  - `cancelSubscription(...)` stays vendor-agnostic in the UI and can resolve through `POST /v1/organization/billing/plan-change` or `POST /v1/organization/billing/portal-session`
 - request usage is still a portal-local baseline because the backend does not yet expose a customer-facing usage visibility endpoint
 
 This keeps the page useful now without moving billing rules into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.

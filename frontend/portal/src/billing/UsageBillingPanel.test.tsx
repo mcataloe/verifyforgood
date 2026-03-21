@@ -8,6 +8,7 @@ import { createSessionPortalOrganization } from "../organization/portalOrganizat
 import { createMockPortalSession } from "../app/portalSession";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalUsageBillingController } from "./usePortalUsageBilling";
+import type { PortalBillingInteractionsController } from "./usePortalBillingInteractions";
 import type { PortalPricingPlansController } from "./usePortalPricingPlans";
 import { UsageBillingPanel } from "./UsageBillingPanel";
 
@@ -27,6 +28,47 @@ function renderWithOrganization(
   controller: PortalUsageBillingController,
   plansController: PortalPricingPlansController,
 ) {
+  const billingActionsController: PortalBillingInteractionsController = {
+    cancelSubscription: vi.fn(async () => ({
+      action: "cancel_subscription" as const,
+      billingPeriodEnd: null,
+      billingStatus: "active",
+      changeType: "updated",
+      currentPlanCode: "free",
+      effectiveFrom: null,
+      effectiveTo: null,
+      kind: "subscription_updated" as const,
+      pendingPlanCode: null,
+      pendingPlanEffectiveAt: null,
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    })),
+    clearError: vi.fn(),
+    createSubscription: vi.fn(async () => ({
+      action: "create_subscription" as const,
+      destinationUrl: "https://example.com/checkout",
+      kind: "redirect" as const,
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    })),
+    error: null,
+    isPending: false,
+    updatePlan: vi.fn(async () => ({
+      action: "update_plan" as const,
+      billingPeriodEnd: null,
+      billingStatus: "active",
+      changeType: "updated",
+      currentPlanCode: "pro",
+      effectiveFrom: null,
+      effectiveTo: null,
+      kind: "subscription_updated" as const,
+      pendingPlanCode: null,
+      pendingPlanEffectiveAt: null,
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    })),
+  };
+
   const value: PortalOrganizationContextValue = {
     activeOrganization: createSessionPortalOrganization({
       account_id: "acct_portal_test",
@@ -42,6 +84,7 @@ function renderWithOrganization(
   render(
     <PortalOrganizationContext.Provider value={value}>
       <UsageBillingPanel
+        billingActionsController={billingActionsController}
         controller={controller}
         endpoints={endpoints}
         plansController={plansController}
@@ -222,13 +265,15 @@ describe("UsageBillingPanel", () => {
       screen.getByText("Hard stop enabled at the monthly request limit"),
     ).toBeTruthy();
     expect(
-      screen.getByText("/v1/organization/billing/subscription"),
+      screen.getByText("/v1/organization/billing/checkout-session"),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Plan catalog" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
     expect(screen.getAllByText("Effective access").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Pending downgrade").length).toBeGreaterThan(0);
+    expect(screen.getByText(/createSubscription/i)).toBeTruthy();
+    expect(screen.getByText(/cancelSubscription/i)).toBeTruthy();
   });
 
   it("renders an error state and supports retry", () => {

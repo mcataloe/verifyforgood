@@ -55,6 +55,12 @@ Pricing-plan display follows the same rule:
 - `@charity-status/shared-ui` renders plan cards and grids
 - marketing and portal keep only surface-specific loading and state composition
 
+Billing interactions follow the same boundary discipline inside the portal:
+
+- frontend billing UI should call abstraction-layer actions such as `createSubscription`, `updatePlan`, and `cancelSubscription`
+- those actions must talk to backend billing endpoints, not to Stripe SDK helpers in the browser
+- vendor-specific details such as checkout session creation or billing-portal redirects stay behind backend-owned endpoints and feature-local adapters
+
 See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands
