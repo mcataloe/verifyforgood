@@ -1,0 +1,5 @@
+packages:
+  - "docs"
+  - "marketing"
+  - "portal"
+  - "shared/*"
