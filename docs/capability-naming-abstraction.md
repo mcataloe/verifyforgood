@@ -108,8 +108,25 @@ Backward compatibility is preserved by keeping legacy imports intact:
 - existing code may continue importing from `charity_status.*`
 - new code may import from `verification_platform.*`
 - both paths resolve to the same underlying objects during this phase
+- historical compatibility roots `charitystatusapi.*` and `CharityStatusAPI.*` now proxy to the supported runtime modules and emit deprecation warnings
 
 That keeps rename risk low while giving later phases a neutral target namespace.
+
+## Legacy Import Compatibility
+
+Supported compatibility roots:
+
+| Historical import root | Runtime target | Preferred destination for new code |
+| --- | --- | --- |
+| `charitystatusapi.*` | `charity_status.*` | `verification_platform.*` |
+| `CharityStatusAPI.*` | `charity_status.*` | `verification_platform.*` |
+
+Contributor guidance:
+
+- do not add new implementation code under `charitystatusapi` or `CharityStatusAPI`
+- keep those packages as thin shims only
+- add any new capability naming under `verification_platform`
+- keep `charity_status` working until a later deprecation/removal phase is explicitly planned
 
 ## Future-Proofing Benefits
 
