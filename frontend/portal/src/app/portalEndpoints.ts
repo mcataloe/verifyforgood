@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@charity-status/shared-api";
+import { apiEndpoints, buildApiUrl } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 
 export interface PortalEndpoints {
@@ -15,22 +15,25 @@ export function portalEndpoints(
 ): PortalEndpoints {
   return {
     billingCheckout: buildApiUrl(
-      "/organization/billing/checkout-session",
+      apiEndpoints.billing.checkoutSession,
       runtimeConfig,
     ),
     billingPortal: buildApiUrl(
-      "/organization/billing/portal-session",
+      apiEndpoints.billing.portalSession,
       runtimeConfig,
     ),
     billingPlanChange: buildApiUrl(
-      "/organization/billing/plan-change",
+      apiEndpoints.billing.planChange,
       runtimeConfig,
     ),
     billingSubscription: buildApiUrl(
-      "/organization/billing/subscription",
+      apiEndpoints.billing.subscription,
       runtimeConfig,
     ),
-    organizationSettings: buildApiUrl("/organization/settings", runtimeConfig),
-    oauthToken: buildApiUrl("/oauth/token", runtimeConfig),
+    organizationSettings: buildApiUrl(
+      apiEndpoints.organization.settings,
+      runtimeConfig,
+    ),
+    oauthToken: buildApiUrl(apiEndpoints.auth.oauthToken, runtimeConfig),
   };
 }

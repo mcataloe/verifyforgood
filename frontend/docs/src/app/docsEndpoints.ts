@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@charity-status/shared-api";
+import { apiEndpoints, buildApiUrl } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 
 export interface DocsEndpoints {
@@ -15,13 +15,19 @@ export function docsEndpoints(
 ): DocsEndpoints {
   return {
     billingSubscription: buildApiUrl(
-      "/organization/billing/subscription",
+      apiEndpoints.billing.subscription,
       runtimeConfig,
     ),
-    nonprofitLookup: buildApiUrl("/nonprofit/{ein}", runtimeConfig),
-    nonprofitSearch: buildApiUrl("/nonprofits/search", runtimeConfig),
-    oauthToken: buildApiUrl("/oauth/token", runtimeConfig),
-    organizationSettings: buildApiUrl("/organization/settings", runtimeConfig),
-    verifyBatch: buildApiUrl("/verify/batch", runtimeConfig),
+    nonprofitLookup: buildApiUrl(apiEndpoints.nonprofits.lookup, runtimeConfig),
+    nonprofitSearch: buildApiUrl(apiEndpoints.nonprofits.search, runtimeConfig),
+    oauthToken: buildApiUrl(apiEndpoints.auth.oauthToken, runtimeConfig),
+    organizationSettings: buildApiUrl(
+      apiEndpoints.organization.settings,
+      runtimeConfig,
+    ),
+    verifyBatch: buildApiUrl(
+      apiEndpoints.verification.verifyBatch,
+      runtimeConfig,
+    ),
   };
 }

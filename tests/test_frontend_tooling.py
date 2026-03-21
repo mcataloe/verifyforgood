@@ -96,8 +96,10 @@ def test_frontend_docs_cover_tooling_and_extension_guidance():
 def test_frontend_smoke_tests_exist_for_apps_and_shared_runtime_packages():
     assert (FRONTEND_ROOT / "marketing" / "src" / "app" / "MarketingSite.test.tsx").exists()
     assert (FRONTEND_ROOT / "portal" / "src" / "app" / "PortalApp.test.tsx").exists()
+    assert (FRONTEND_ROOT / "portal" / "src" / "app" / "portalApiClient.test.ts").exists()
     assert (FRONTEND_ROOT / "docs" / "src" / "app" / "DocsSite.test.tsx").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "routes.test.ts").exists()
+    assert (FRONTEND_ROOT / "shared" / "api" / "src" / "request.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "config" / "src" / "index.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "ui" / "src" / "index.test.tsx").exists()
     assert (FRONTEND_ROOT / "shared" / "utils" / "src" / "index.test.ts").exists()

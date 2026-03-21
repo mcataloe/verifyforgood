@@ -45,6 +45,8 @@ App-specific code belongs in `marketing/` or `portal/` when it is tied to that s
 
 Reusable code belongs in `shared/` only when both apps can consume the same implementation without app-specific conditionals.
 
+All backend HTTP interaction should flow through `@charity-status/shared-api` so request handling, error normalization, route building, and future auth-header injection stay centralized.
+
 See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands
