@@ -167,6 +167,7 @@ Key design decisions:
 - `private-platform` owns all platform billing. Nothing billing-related should live in public-core.
 - All billing stays private-platform.
 - `private-platform` uses a distinct package root, `charity_status_platform`, to avoid namespace confusion with `charity_status`.
+- a neutral capability-oriented namespace, `verification_platform`, may be used as a compatibility abstraction layer while legacy `charity_status` imports remain in place
 - `infrastructure/` should end in a deployment-only role. It should package and wire entrypoints, not own business logic.
 
 Private-platform service areas now defined in the repo:

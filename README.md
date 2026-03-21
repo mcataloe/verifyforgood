@@ -8,6 +8,7 @@ Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
 - `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
+- `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
 - `docs/monthly-ingest-architecture.md` documents the planned Step Functions + ECS monthly ingest architecture and its cost model.
 
 ## Current Architecture
@@ -58,6 +59,13 @@ Internal runtime naming is capability-based even when customer-facing materials 
 - customer-facing docs may still use a configured public brand; internal module and runtime identifiers should stay brand-neutral
 - deployment-specific bootstrap/state files may still carry existing live names until a separate migration updates those resources deliberately
 - branding defaults now target `VerifyForGood`, but those values remain runtime configuration rather than core platform identifiers
+
+Capability-namespace guidance:
+
+- the legacy `charity_status` package remains supported for backward compatibility
+- new internal wrappers may be introduced under `verification_platform` when they describe capabilities more clearly than legacy names
+- wrapper namespaces should re-export existing implementations before any deeper code movement or rename
+- new modules should prefer capability-oriented names such as `organization_verification` or `entity_resolution`, not product or repo branding
 
 ## Public-Core Boundary (Phase 11A)
 
