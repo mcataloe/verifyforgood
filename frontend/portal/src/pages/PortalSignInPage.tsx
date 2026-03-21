@@ -39,6 +39,25 @@ export function PortalSignInPage({
         </div>
       </dl>
 
+      <div className="portal-auth-page__onboarding">
+        <p className="portal-shell__eyebrow">Start without pressure</p>
+        <h3>Free tier first, trial only when it helps</h3>
+        <ul className="portal-list">
+          <li>
+            Free tier limits stay visible after sign-in so onboarding is
+            predictable.
+          </li>
+          <li>
+            A trial can activate later around real product use instead of being
+            forced during sign-in.
+          </li>
+          <li>
+            Moving to a paid plan remains a separate choice, not an automatic
+            trial outcome.
+          </li>
+        </ul>
+      </div>
+
       <Inline className="portal-auth-page__actions">
         <button
           className="portal-shell__action portal-shell__action--primary"

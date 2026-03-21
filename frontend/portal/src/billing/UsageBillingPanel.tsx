@@ -14,6 +14,7 @@ import {
   usePortalPricingPlans,
   type PortalPricingPlansController,
 } from "./usePortalPricingPlans";
+import { TrialOnboardingPanel } from "./TrialOnboardingPanel";
 
 interface UsageBillingPanelProps {
   controller?: PortalUsageBillingController;
@@ -78,6 +79,8 @@ export function UsageBillingPanel({
         title="Usage and billing state"
         subtitle="Simple customer-facing visibility into plan, request usage, and budget enforcement."
       >
+        <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
+
         {snapshot.notice ? (
           <PortalNotice tone="warning">
             <p>{snapshot.notice}</p>

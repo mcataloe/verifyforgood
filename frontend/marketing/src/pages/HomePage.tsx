@@ -47,6 +47,25 @@ export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
       </Panel>
 
       <Panel
+        title="Start on free"
+        subtitle="Value-forward onboarding without urgency or surprise billing."
+      >
+        <ul className="marketing-list">
+          <li>
+            Begin on the free tier and review limits before any paid decision.
+          </li>
+          <li>
+            A time-limited trial can unlock broader workflows later without
+            forcing activation at first visit.
+          </li>
+          <li>
+            Paid enrollment stays separate so teams move up only when the
+            additional capacity is useful.
+          </li>
+        </ul>
+      </Panel>
+
+      <Panel
         title="Public API glimpse"
         subtitle="Grounded in the current backend contract."
       >
