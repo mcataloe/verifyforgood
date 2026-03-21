@@ -8,6 +8,7 @@ Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
 - `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
+- `docs/monthly-ingest-architecture.md` documents the planned Step Functions + ECS monthly ingest architecture and its cost model.
 
 ## Current Architecture
 
@@ -171,6 +172,7 @@ Operational note:
 - generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
 - If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
+- the next monthly ZIP-processing phase is documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md); this repo now includes shared contracts/config for that orchestration layer, but not the runtime Step Functions or ECS wiring yet.
 
 Current discovery-stage architecture:
 
