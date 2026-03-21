@@ -1,0 +1,254 @@
+import { Grid, Panel, PricingPlanGrid } from "@charity-status/shared-ui";
+import type { PortalEndpoints } from "../app/portalEndpoints";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
+import {
+  PortalErrorState,
+  PortalLoadingState,
+  PortalNotice,
+} from "../components/feedback";
+import {
+  usePortalUsageBilling,
+  type PortalUsageBillingController,
+} from "./usePortalUsageBilling";
+import {
+  usePortalPricingPlans,
+  type PortalPricingPlansController,
+} from "./usePortalPricingPlans";
+import { SubscriptionSummaryCard } from "./SubscriptionSummaryCard";
+import { TrialOnboardingPanel } from "./TrialOnboardingPanel";
+import {
+  usePortalBillingInteractions,
+  type PortalBillingInteractionsController,
+} from "./usePortalBillingInteractions";
+import { UsageContextPanel } from "./UsageContextPanel";
+
+interface UsageBillingPanelProps {
+  billingActionsController?: PortalBillingInteractionsController;
+  controller?: PortalUsageBillingController;
+  endpoints: PortalEndpoints;
+  plansController?: PortalPricingPlansController;
+  session: PortalAuthenticatedSession;
+}
+
+export function UsageBillingPanel({
+  billingActionsController,
+  controller,
+  endpoints,
+  plansController,
+  session,
+}: UsageBillingPanelProps) {
+  const defaultController = usePortalUsageBilling(session);
+  const billing = controller ?? defaultController;
+  const defaultPlansController = usePortalPricingPlans(billing.snapshot);
+  const pricingPlans = plansController ?? defaultPlansController;
+  const defaultBillingActionsController = usePortalBillingInteractions();
+  const billingActions =
+    billingActionsController ?? defaultBillingActionsController;
+
+  if (billing.isLoading || pricingPlans.isLoading) {
+    return (
+      <PortalLoadingState
+        subtitle="Fetching the current customer billing summary."
+        title="Loading usage and billing"
+      >
+        <p>Loading plan, request usage, and overage policy state.</p>
+      </PortalLoadingState>
+    );
+  }
+
+  if (billing.error || pricingPlans.error || !billing.snapshot) {
+    return (
+      <PortalErrorState
+        actionLabel="Retry billing summary"
+        message={
+          billing.error ??
+          pricingPlans.error ??
+          "No billing summary is available right now."
+        }
+        onAction={() => {
+          void billing.reload();
+          void pricingPlans.reload();
+        }}
+        subtitle="The portal could not load the current usage and billing state."
+        title="Billing summary unavailable"
+      />
+    );
+  }
+
+  const { snapshot } = billing;
+  const effectivePlan =
+    pricingPlans.plans.find(
+      (item) => item.plan.plan_code === snapshot.effectiveAccessPlan,
+    )?.plan ??
+    pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
+      ?.plan ??
+    null;
+  const currentPlan =
+    pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
+      ?.plan ?? null;
+
+  return (
+    <Grid className="portal-page-grid">
+      <Panel
+        title="Usage and billing state"
+        subtitle="Simple customer-facing visibility into plan, request usage, and budget enforcement."
+      >
+        <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
+        <SubscriptionSummaryCard
+          currentPlan={currentPlan}
+          snapshot={snapshot}
+        />
+
+        {snapshot.notice ? (
+          <PortalNotice tone="warning">
+            <p>{snapshot.notice}</p>
+          </PortalNotice>
+        ) : null}
+
+        <div className="portal-usage-meter" aria-label="Request usage meter">
+          <div className="portal-usage-meter__header">
+            <div>
+              <p className="portal-shell__eyebrow">Request usage</p>
+              <h3>
+                {snapshot.usage.used.toLocaleString()} /{" "}
+                {snapshot.usage.limit.toLocaleString()}
+              </h3>
+              <p>
+                {snapshot.usage.remaining.toLocaleString()} requests remaining
+                in {snapshot.usage.periodLabel.toLowerCase()}.
+              </p>
+            </div>
+            <span className="portal-key-chip">
+              {snapshot.usage.usagePercent}%
+            </span>
+          </div>
+          <div className="portal-usage-meter__track" aria-hidden="true">
+            <div
+              className="portal-usage-meter__fill"
+              style={{ width: `${snapshot.usage.usagePercent}%` }}
+            />
+          </div>
+        </div>
+
+        <UsageContextPanel
+          budgetStatus={snapshot.budgetStatus}
+          plan={effectivePlan}
+          usage={snapshot.usage}
+        />
+
+        <dl className="portal-shell__details">
+          <div>
+            <dt>Effective access</dt>
+            <dd>{snapshot.effectiveAccessPlan}</dd>
+          </div>
+          <div>
+            <dt>Budget mode</dt>
+            <dd>{snapshot.budgetStatus.label}</dd>
+          </div>
+          <div>
+            <dt>Budget policy source</dt>
+            <dd>{snapshot.budgetStatus.policySource}</dd>
+          </div>
+          <div>
+            <dt>Included monthly requests</dt>
+            <dd>
+              {effectivePlan
+                ? effectivePlan.included_usage.monthly_requests.toLocaleString()
+                : snapshot.usage.limit.toLocaleString()}
+            </dd>
+          </div>
+          <div>
+            <dt>Overage price</dt>
+            <dd>
+              {effectivePlan
+                ? formatUsdMicros(
+                    effectivePlan.per_request_pricing.amount_usd_micros,
+                  )
+                : "Unavailable"}
+            </dd>
+          </div>
+          <div>
+            <dt>Data source</dt>
+            <dd>{snapshot.source}</dd>
+          </div>
+        </dl>
+      </Panel>
+
+      <Panel
+        title="Plan catalog"
+        subtitle="Backend-authored pricing metadata with current, effective, and pending plan markers."
+      >
+        <PricingPlanGrid items={pricingPlans.plans} />
+      </Panel>
+
+      <Panel
+        title="Renewal and billing actions"
+        subtitle="Backend-managed billing interactions stay abstracted away from provider-specific UI details."
+      >
+        {billingActions.error ? (
+          <PortalNotice tone="error">
+            <p>{billingActions.error}</p>
+          </PortalNotice>
+        ) : null}
+
+        <dl className="portal-shell__details">
+          <div>
+            <dt>Renewal date</dt>
+            <dd>{snapshot.renewalDate ?? "Not scheduled"}</dd>
+          </div>
+          <div>
+            <dt>Pending downgrade</dt>
+            <dd>{snapshot.pendingDowngradePlan ?? "None"}</dd>
+          </div>
+          <div>
+            <dt>Pending downgrade effective at</dt>
+            <dd>{snapshot.pendingDowngradeEffectiveAt ?? "Not scheduled"}</dd>
+          </div>
+          <div>
+            <dt>Trial status</dt>
+            <dd>{snapshot.trialStatus ?? "None"}</dd>
+          </div>
+          <div>
+            <dt>Trial ends at</dt>
+            <dd>{snapshot.trialEndsAt ?? "Not applicable"}</dd>
+          </div>
+        </dl>
+
+        <ul className="portal-list">
+          <li>
+            `createSubscription(...)` calls the backend checkout endpoint and
+            returns a backend-managed redirect.
+          </li>
+          <li>
+            `updatePlan(...)` calls the backend plan-change endpoint for
+            upgrades and scheduled downgrades.
+          </li>
+          <li>
+            `cancelSubscription(...)` remains vendor-agnostic in the UI and can
+            resolve through backend plan change or backend-managed billing
+            portal routing.
+          </li>
+          <li>
+            Backend routes stay explicit:
+            <code>{endpoints.billingCheckout}</code>,{" "}
+            <code>{endpoints.billingPlanChange}</code>,{" "}
+            <code>{endpoints.billingPortal}</code>.
+          </li>
+        </ul>
+
+        <p>
+          Signed in plan baseline: <strong>{session.plan}</strong>
+        </p>
+      </Panel>
+    </Grid>
+  );
+}
+
+function formatUsdMicros(amountUsdMicros: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 3,
+    style: "currency",
+  }).format(amountUsdMicros / 1_000_000);
+}

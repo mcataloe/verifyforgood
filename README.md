@@ -14,6 +14,31 @@ Customer-facing overview:
 - `docs/monthly-ingest-architecture.md` documents the implemented monthly private-ingest architecture, runtime contracts, and cost model.
 - `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly private-ingest.
 
+## Frontend Workspace
+
+A dedicated frontend workspace now lives under `frontend/` at the repository root.
+
+- `frontend/marketing/` is the public marketing application shell
+- `frontend/portal/` is the authenticated customer portal shell
+- `frontend/shared/` is the home for intentionally reusable frontend code, including minimal `ui`, `types`, `api`, `utils`, and `config` foundations
+- `frontend/docs/` is the frontend documentation application shell and is separate from the repository-level `docs/` directory, which continues to hold backend and architecture documentation
+
+See `frontend/README.md` for the dependency rules and current workspace layout.
+
+Frontend workspace commands now live under that nested workspace root:
+
+- `npm run format:check`
+- `npm run lint`
+- `npm run test`
+- `npm run typecheck`
+- `npm run build`
+
+Important:
+
+- backend workflows remain unchanged
+- no repo-root Node workspace files are introduced
+- marketing and portal remain isolated from each other except through shared frontend packages
+
 ## Current Architecture
 
 - Runtime: Python 3.11

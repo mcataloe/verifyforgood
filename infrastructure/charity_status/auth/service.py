@@ -82,6 +82,9 @@ class BillingSettingsResolver(Protocol):
     def allow_overage(self, account_id: str) -> bool:
         ...
 
+    def monthly_request_limit(self, account_id: str, default_limit: int) -> int:
+        ...
+
 
 class InMemoryUsageStore:
     def __init__(self):
@@ -192,8 +195,13 @@ def enforce_quota_and_scope(
         )
     month_key = monthly_period_for()
     used = usage_store.get_usage(principal.account_id, month_key)
+    limit = _resolve_monthly_request_limit(
+        billing_settings_resolver,
+        principal.account_id,
+        resolved.entitlements.monthly_request_limit,
+    )
     if consumed_units <= 0:
-        return month_key, used, resolved.entitlements.monthly_request_limit
+        return month_key, used, limit
     decision = check_quota_and_calculate(
         plan=resolved.entitlements,
         used_units=used,
@@ -201,12 +209,12 @@ def enforce_quota_and_scope(
         period_key=month_key,
     )
     allow_overage = billing_settings_resolver.allow_overage(principal.account_id) if billing_settings_resolver is not None else True
-    if decision.projected_usage > decision.limit_units and not allow_overage:
+    if decision.projected_usage > limit and not allow_overage:
         raise QuotaExceededError(
             "Monthly request limit reached. Upgrade your subscription or enable pay per request to continue.",
             code="quota_exceeded_hard_stop",
         )
-    return month_key, used, resolved.entitlements.monthly_request_limit
+    return month_key, used, limit
 
 
 def _enforce_billing_state(subscription: Subscription, *, route_key: str, consumed_units: int) -> None:
@@ -255,3 +263,19 @@ def _hash_secret(secret: str) -> str:
 
 def _generate_secret() -> str:
     return secrets.token_urlsafe(24)
+
+
+def _resolve_monthly_request_limit(
+    billing_settings_resolver: BillingSettingsResolver | None,
+    account_id: str,
+    default_limit: int,
+) -> int:
+    if billing_settings_resolver is None:
+        return default_limit
+    resolver = getattr(billing_settings_resolver, "monthly_request_limit", None)
+    if not callable(resolver):
+        return default_limit
+    return max(
+        1,
+        int(resolver(account_id, default_limit)),
+    )

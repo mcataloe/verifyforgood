@@ -22,6 +22,7 @@ Typical customer workflows include:
 
 Primary customer-facing endpoints:
 
+- `GET /v1/plans`
 - `GET /v1/nonprofit/{ein}`
 - `GET /v1/nonprofit/{ein}/filings`
 - `GET /v1/nonprofits/search`
@@ -96,6 +97,20 @@ Internal aliases currently resolve as:
 - `developer` -> `free`
 - `team` -> `growth`
 - `business` -> `pro`
+
+## Public Plan Catalog
+
+`GET /v1/plans` returns the backend-authored display catalog for pricing-plan UI surfaces.
+
+The catalog currently includes:
+
+- `plan_code`
+- `display_name`
+- included usage limits
+- per-request overage pricing
+- feature availability flags
+
+The catalog is safe for public marketing-site consumption because it does not include tenant-specific billing state.
 
 ## Plan Benefits
 

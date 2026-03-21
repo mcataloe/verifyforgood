@@ -24,10 +24,12 @@ class OrganizationIntegrationSettingsValidationError(ValueError):
 @dataclass(frozen=True)
 class AccountBillingSettings:
     allow_overage: bool = True
+    monthly_request_cap: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "allowOverage": self.allow_overage,
+            "monthlyRequestCap": self.monthly_request_cap,
         }
 
     @classmethod
@@ -35,7 +37,15 @@ class AccountBillingSettings:
         if not isinstance(item, dict):
             return cls()
         billing = item.get("billing") if isinstance(item.get("billing"), dict) else item
-        return cls(allow_overage=_coerce_bool(billing.get("allowOverage", billing.get("allow_overage")), default=True))
+        return cls(
+            allow_overage=_coerce_bool(
+                billing.get("allowOverage", billing.get("allow_overage")),
+                default=True,
+            ),
+            monthly_request_cap=_coerce_positive_int_or_none(
+                billing.get("monthlyRequestCap", billing.get("monthly_request_cap")),
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -148,6 +158,16 @@ class OrganizationIntegrationSettingsService:
         settings, _updated_at = self._get_billing_settings(account_id=account_id)
         return settings.allow_overage
 
+    def monthly_request_limit(
+        self,
+        account_id: str | None,
+        default_limit: int,
+    ) -> int:
+        settings, _updated_at = self._get_billing_settings(account_id=account_id)
+        if settings.monthly_request_cap is None:
+            return max(1, int(default_limit))
+        return max(1, int(settings.monthly_request_cap))
+
     def update_settings(
         self,
         *,
@@ -193,7 +213,10 @@ class OrganizationIntegrationSettingsService:
         if "billing" in payload:
             if account is None and current.account_id is None:
                 raise OrganizationIntegrationSettingsValidationError("account_id is required for billing settings")
-            billing_settings = self._parse_billing_payload(payload)
+            billing_settings = self._parse_billing_payload(
+                payload,
+                current=current.billing_settings,
+            )
             self._store.store_billing_settings(
                 account_id=account or current.account_id,
                 settings=billing_settings,
@@ -241,7 +264,12 @@ class OrganizationIntegrationSettingsService:
             }
         )
 
-    def _parse_billing_payload(self, payload: dict[str, Any]) -> AccountBillingSettings:
+    def _parse_billing_payload(
+        self,
+        payload: dict[str, Any],
+        *,
+        current: AccountBillingSettings,
+    ) -> AccountBillingSettings:
         billing = payload.get("billing")
         if not isinstance(billing, dict):
             raise OrganizationIntegrationSettingsValidationError("Request body billing must be an object")
@@ -250,7 +278,27 @@ class OrganizationIntegrationSettingsService:
         allow_overage = billing.get("allowOverage", billing.get("allow_overage"))
         if not isinstance(allow_overage, bool):
             raise OrganizationIntegrationSettingsValidationError("billing.allowOverage must be a boolean")
-        return AccountBillingSettings(allow_overage=allow_overage)
+        monthly_request_cap = current.monthly_request_cap
+        if "monthlyRequestCap" in billing or "monthly_request_cap" in billing:
+            monthly_request_cap = billing.get(
+                "monthlyRequestCap",
+                billing.get("monthly_request_cap"),
+            )
+            if monthly_request_cap is not None and not isinstance(
+                monthly_request_cap,
+                int,
+            ):
+                raise OrganizationIntegrationSettingsValidationError(
+                    "billing.monthlyRequestCap must be an integer or null",
+                )
+            if isinstance(monthly_request_cap, int) and monthly_request_cap < 1:
+                raise OrganizationIntegrationSettingsValidationError(
+                    "billing.monthlyRequestCap must be greater than 0",
+                )
+        return AccountBillingSettings(
+            allow_overage=allow_overage,
+            monthly_request_cap=monthly_request_cap,
+        )
 
 
 def validate_organization_integration_settings(
@@ -295,6 +343,17 @@ def _coerce_bool(value: Any, *, default: bool) -> bool:
         if candidate in {"false", "0", "no"}:
             return False
     return default
+
+
+def _coerce_positive_int_or_none(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        candidate = int(value.strip())
+        return candidate if candidate > 0 else None
+    return None
 
 
 def _latest_updated_at(*values: str | None) -> str | None:

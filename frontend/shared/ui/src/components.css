@@ -1,0 +1,200 @@
+.vf-theme-root {
+  color: var(--vf-theme-text);
+}
+
+.app-frame {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--vf-space-7);
+}
+
+.app-frame__panel {
+  width: min(760px, 100%);
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-xl);
+  background: var(--vf-theme-panel-bg);
+  box-shadow: var(--vf-shadow-md);
+  padding: var(--vf-space-7);
+  backdrop-filter: blur(12px);
+  color: var(--vf-theme-text);
+}
+
+.app-frame__eyebrow {
+  margin: 0 0 var(--vf-space-3);
+  text-transform: uppercase;
+  letter-spacing: var(--vf-letter-eyebrow);
+  font-size: var(--vf-font-size-xs);
+  font-weight: 700;
+}
+
+.app-frame__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vf-space-3) var(--vf-space-4);
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+}
+
+.app-frame__description {
+  font-size: var(--vf-font-size-lg);
+  line-height: 1.6;
+}
+
+.app-frame__content {
+  margin-top: var(--vf-space-6);
+  padding-top: var(--vf-space-6);
+  border-top: 1px solid var(--vf-theme-panel-border);
+  font-size: var(--vf-font-size-md);
+  line-height: var(--vf-line-body);
+}
+
+.shared-panel {
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-lg);
+  background: var(--vf-theme-panel-bg);
+  box-shadow: var(--vf-theme-panel-shadow);
+  padding: var(--vf-space-5);
+  color: var(--vf-theme-text);
+}
+
+.shared-panel__header h3 {
+  margin: 0;
+  font-size: var(--vf-font-size-lg);
+}
+
+.shared-panel__header p {
+  margin: 0.45rem 0 0;
+  color: var(--vf-theme-muted);
+  line-height: 1.5;
+}
+
+.shared-panel__content {
+  margin-top: var(--vf-space-4);
+}
+
+.pricing-plan-grid {
+  display: grid;
+  gap: var(--vf-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.pricing-plan-card {
+  display: grid;
+  gap: var(--vf-space-4);
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%),
+    var(--vf-theme-panel-bg);
+  box-shadow: var(--vf-theme-panel-shadow);
+  padding: var(--vf-space-5);
+}
+
+.pricing-plan-card--highlighted {
+  border-color: color-mix(
+    in srgb,
+    var(--vf-theme-accent) 40%,
+    var(--vf-theme-panel-border)
+  );
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.18),
+    0 0 0 1px color-mix(in srgb, var(--vf-theme-accent) 20%, transparent);
+}
+
+.pricing-plan-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vf-space-3);
+}
+
+.pricing-plan-card__header h3 {
+  margin: 0;
+}
+
+.pricing-plan-card__eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-xs);
+  font-weight: 700;
+  letter-spacing: var(--vf-letter-eyebrow);
+  text-transform: uppercase;
+}
+
+.pricing-plan-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.pricing-plan-card__badge {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vf-theme-accent) 14%, transparent);
+  color: var(--vf-theme-text);
+  font-size: var(--vf-font-size-xs);
+  font-weight: 700;
+  padding: 0.3rem 0.55rem;
+}
+
+.pricing-plan-card__usage {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--vf-space-3);
+  margin: 0;
+}
+
+.pricing-plan-card__usage dt {
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-xs);
+}
+
+.pricing-plan-card__usage dd {
+  margin: 0.35rem 0 0;
+  font-size: var(--vf-font-size-md);
+  font-weight: 700;
+}
+
+.pricing-plan-card__pricing,
+.pricing-plan-card__footnote {
+  margin: 0;
+}
+
+.pricing-plan-card__content,
+.pricing-plan-card__cta {
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.pricing-plan-feature-list {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pricing-plan-feature-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.pricing-plan-feature-list__item span:first-child {
+  min-width: 5.5rem;
+  border-radius: 999px;
+  font-size: var(--vf-font-size-xs);
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  text-align: center;
+}
+
+.pricing-plan-feature-list__item--available span:first-child {
+  background: color-mix(in srgb, var(--vf-theme-accent) 18%, transparent);
+}
+
+.pricing-plan-feature-list__item--unavailable span:first-child {
+  background: color-mix(in srgb, var(--vf-theme-muted) 18%, transparent);
+  color: var(--vf-theme-muted);
+}

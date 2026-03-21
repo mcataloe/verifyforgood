@@ -18,11 +18,19 @@ from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 
 
 class _BillingSettingsResolver:
-    def __init__(self, allow_overage: bool) -> None:
+    def __init__(
+        self,
+        allow_overage: bool,
+        monthly_request_limit: int | None = None,
+    ) -> None:
         self._allow_overage = allow_overage
+        self._monthly_request_limit = monthly_request_limit
 
     def allow_overage(self, account_id: str) -> bool:
         return self._allow_overage
+
+    def monthly_request_limit(self, account_id: str, default_limit: int) -> int:
+        return self._monthly_request_limit or default_limit
 
 
 def test_valid_key_authenticates():
@@ -162,6 +170,36 @@ def test_quota_hard_stop_when_overage_disabled():
     except QuotaExceededError as exc:
         assert exc.code == "quota_exceeded_hard_stop"
         assert "enable pay per request" in str(exc)
+    else:
+        assert False, "Expected QuotaExceededError"
+
+
+def test_quota_uses_configured_monthly_request_cap_when_present():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        scopes=["verify:read"],
+        plan_id="growth",
+    )
+    principal = authenticate_api_key({"x-api-key": display_key}, StaticApiKeyStore([record]))
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+    store._usage[("acct_1", month_key)] = 500
+
+    try:
+        enforce_quota_and_scope(
+            principal,
+            "GET /v1/nonprofit/{ein}",
+            store,
+            billing_settings_resolver=_BillingSettingsResolver(
+                False,
+                monthly_request_limit=500,
+            ),
+        )
+    except QuotaExceededError as exc:
+        assert exc.code == "quota_exceeded_hard_stop"
     else:
         assert False, "Expected QuotaExceededError"
 

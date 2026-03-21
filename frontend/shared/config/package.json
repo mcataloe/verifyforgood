@@ -1,0 +1,17 @@
+{
+  "name": "@charity-status/shared-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run --root ../.. --config vitest.config.ts shared/config/src",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@charity-status/shared-types": "0.0.0"
+  }
+}

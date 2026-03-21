@@ -485,6 +485,7 @@ def test_get_organization_integrations_returns_current_settings():
     assert body["integrations"]["candid"]["enabled"] is True
     assert body["integrations"]["charityNavigator"]["enabled"] is False
     assert body["billing"]["allowOverage"] is True
+    assert body["billing"]["monthlyRequestCap"] is None
 
 
 def test_put_organization_integrations_updates_settings():
@@ -531,6 +532,7 @@ def test_put_organization_integrations_updates_settings():
     assert body["source"] == "stored"
     assert body["integrations"]["candid"]["requiredForEvaluation"] is True
     assert body["billing"]["allowOverage"] is True
+    assert body["billing"]["monthlyRequestCap"] is None
 
     fetched = module.organization_integration_settings_store.get_settings(workspace_id="ws_1", account_id="acct_1")
     assert fetched["integrations"]["candid"]["enabled"] is True
@@ -571,15 +573,19 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
         "headers": {},
-        "body": json.dumps({"billing": {"allowOverage": False}}),
+        "body": json.dumps(
+            {"billing": {"allowOverage": False, "monthlyRequestCap": 750}}
+        ),
     }
     result = module.handler(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
     assert body["billing"]["allowOverage"] is False
+    assert body["billing"]["monthlyRequestCap"] == 750
     fetched = module.organization_integration_settings_store.get_billing_settings(account_id="acct_1")
     assert fetched["billing"]["allowOverage"] is False
+    assert fetched["billing"]["monthlyRequestCap"] == 750
 
 
 def test_put_organization_integrations_rejects_integration_update_for_growth_plan():
@@ -1076,6 +1082,41 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
             "ends_at": "2026-04-02T00:00:00+00:00",
         },
     }
+
+
+def test_get_public_plan_catalog_returns_backend_driven_plan_metadata():
+    module = _load_module()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/plans",
+            "path": "/v1/plans",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    envelope = _response_envelope(result)
+    plans = {plan["plan_code"]: plan for plan in envelope["data"]["plans"]}
+
+    assert envelope["plan"] == "public"
+    assert list(plans.keys()) == ["free", "starter", "growth", "pro", "enterprise"]
+
+    assert plans["free"]["included_usage"]["monthly_requests"] == 250
+    assert plans["free"]["feature_availability"]["verification"] is True
+    assert plans["free"]["feature_availability"]["financial_trends"] is False
+
+    assert plans["growth"]["included_usage"]["monthly_requests"] == 10000
+    assert plans["growth"]["per_request_pricing"]["amount_usd_micros"] == 3000
+    assert plans["growth"]["feature_availability"]["benchmarking"] is True
+
+    assert plans["pro"]["included_usage"]["requests_per_minute"] == 600
+    assert plans["pro"]["feature_availability"]["organization_settings"] is True
+
+    assert plans["enterprise"]["included_usage"]["monthly_requests"] == 1000000
+    assert plans["enterprise"]["feature_availability"]["monitoring"] is True
 
 
 def test_first_authenticated_customer_request_starts_trial_before_feature_gating(monkeypatch):

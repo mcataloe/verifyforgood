@@ -10,6 +10,7 @@ from .models import (
     UsageMeter,
     Workspace,
 )
+from .catalog import PLAN_CATALOG_FEATURE_KEYS, PLAN_DISPLAY_NAMES, build_plan_catalog_entry, build_plan_catalog_payload
 from .service import (
     DEFAULT_PLANS,
     DEFAULT_ENTITLEMENTS,
@@ -38,6 +39,8 @@ __all__ = [
     "FEATURE_FLAGS",
     "UsageMeter",
     "MonthlyQuotaPeriod",
+    "PLAN_CATALOG_FEATURE_KEYS",
+    "PLAN_DISPLAY_NAMES",
     "DEFAULT_PLANS",
     "DEFAULT_ENTITLEMENTS",
     "EntitlementService",
@@ -56,6 +59,8 @@ __all__ = [
     "TrialLifecycleService",
     "load_trial_config",
     "ResponseShapingService",
+    "build_plan_catalog_entry",
+    "build_plan_catalog_payload",
     "check_feature_entitlement",
     "check_quota_and_calculate",
 ]

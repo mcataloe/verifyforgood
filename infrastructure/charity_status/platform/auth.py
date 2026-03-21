@@ -133,7 +133,12 @@ class ApiKeyQuotaMeteringHook:
         auth_context.metadata["subscription_status"] = resolved.subscription.status
         auth_context.metadata["billing_status"] = str(resolved.subscription.billing_status or resolved.subscription.status or "")
         auth_context.metadata["requests_per_minute"] = str(resolved.entitlements.requests_per_minute)
-        auth_context.metadata["monthly_request_limit"] = str(resolved.entitlements.monthly_request_limit)
+        auth_context.metadata["monthly_request_limit"] = str(
+            self._monthly_request_limit(
+                str(auth_context.account_id),
+                resolved.entitlements.monthly_request_limit,
+            )
+        )
         if resolved.subscription.trial_status:
             auth_context.metadata["trial_status"] = resolved.subscription.trial_status
         if resolved.subscription.trial_ends_at:
@@ -165,7 +170,11 @@ class ApiKeyQuotaMeteringHook:
         entitlement = auth_context.entitlements or DEFAULT_PLANS.get(str(auth_context.plan), DEFAULT_PLANS["free"]).entitlements
         current = self._usage_store.get_usage(str(auth_context.account_id), month_key)
         decision = check_quota_and_calculate(plan=entitlement, used_units=current, consumed_units=billable_units, period_key=month_key)
-        if decision.projected_usage > decision.limit_units and not self._allow_overage(str(auth_context.account_id), metadata=auth_context.metadata):
+        monthly_request_limit = self._monthly_request_limit(
+            str(auth_context.account_id),
+            entitlement.monthly_request_limit,
+        )
+        if decision.projected_usage > monthly_request_limit and not self._allow_overage(str(auth_context.account_id), metadata=auth_context.metadata):
             return
         increment_usage = getattr(self._usage_store, "increment_usage", None)
         if callable(increment_usage):
@@ -183,6 +192,22 @@ class ApiKeyQuotaMeteringHook:
         if self._billing_settings_resolver is None:
             return True
         return bool(self._billing_settings_resolver.allow_overage(account_id))
+
+    def _monthly_request_limit(self, account_id: str, default_limit: int) -> int:
+        if self._billing_settings_resolver is None:
+            return default_limit
+        resolver = getattr(self._billing_settings_resolver, "monthly_request_limit", None)
+        if not callable(resolver):
+            return default_limit
+        return max(
+            1,
+            int(
+                resolver(
+                    account_id,
+                    default_limit,
+                )
+            ),
+        )
 
 
 def load_api_key_store(raw_json: str) -> StaticApiKeyStore:
