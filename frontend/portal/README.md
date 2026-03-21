@@ -29,6 +29,7 @@ These are intentionally placeholder-first, but they align to the customer-facing
 - billing subscription visibility
 - Stripe checkout and customer portal session creation
 - OAuth token exchange
+- admin-managed API key lifecycle, with a portal-local mock standing in until customer self-serve endpoints exist
 
 ## Auth boundary
 
@@ -81,6 +82,20 @@ The current scoped API client adds portal-local workspace/account headers as pla
 - `@charity-status/shared-types`
   - app metadata and organization-context types
 
+## API key management
+
+The portal API access area now includes a minimal API-key management UI.
+
+- customers can list keys, create keys, and revoke keys inside the portal
+- plaintext secrets are shown once at creation time and are not persisted in portal storage
+- the current implementation is a local mock service scoped to the active organization
+- this is intentional because the backend currently exposes API-key lifecycle only through admin control-plane routes:
+  - `POST /v1/admin/accounts/{accountId}/api-keys`
+  - `GET /v1/admin/accounts/{accountId}/api-keys`
+  - `DELETE /v1/admin/accounts/{accountId}/api-keys/{keyId}`
+
+When customer-facing API credential endpoints are added, the portal API-key service should swap from the mock implementation to the shared API client without changing the page-level UI contract.
+
 ## Running the portal
 
 From the workspace root:
@@ -103,6 +118,7 @@ npm run build
 
 - keep app-wide navigation, session composition, and route registration under `src/app/`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
+- keep API key logic isolated under `src/api-access/` until there is real reuse pressure
 - add new vertical slices as page-local or feature-local modules before promoting anything to `frontend/shared`
 - keep auth wiring abstracted until the real provider and session model are chosen
 - align new data access with the existing shared API/config packages and the documented backend contracts
@@ -114,3 +130,4 @@ npm run build
 - full data fetching and mutation workflows
 - role/permission matrix
 - rich billing, usage, or credential management UX
+- customer-facing backend API-key endpoints
