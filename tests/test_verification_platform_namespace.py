@@ -32,6 +32,12 @@ def test_legacy_module_mapping_is_explicit_and_stable():
         "charity_status.core",
         "charity_status.platform",
     )
+    assert resolve_legacy_module_path("verification_platform.entity_resolution.ein_validation") == (
+        "charity_status.normalization.ein",
+    )
+    assert resolve_legacy_module_path("verification_platform.organization_verification.organization_lookup") == (
+        "charity_status.query.nonprofit_lookup",
+    )
 
 
 def test_new_namespace_re_exports_legacy_verification_objects():

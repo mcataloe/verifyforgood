@@ -33,7 +33,7 @@ from .settings import (
     load_organization_integration_settings,
     load_tenant_integration_settings,
 )
-from .service import EnrichmentService
+from .service import EnrichmentService, EntityEnrichmentService
 
 __all__ = [
     "EnrichmentAggregateResult",
@@ -66,4 +66,5 @@ __all__ = [
     "integration_id_display_name",
     "integration_id_label",
     "EnrichmentService",
+    "EntityEnrichmentService",
 ]

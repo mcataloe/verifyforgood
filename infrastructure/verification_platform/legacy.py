@@ -10,6 +10,15 @@ LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
         "charity_status.policy",
         "charity_status.scoring",
     ),
+    "verification_platform.organization_verification.organization_lookup": (
+        "charity_status.query.nonprofit_lookup",
+    ),
+    "verification_platform.organization_verification.regulatory_filings": (
+        "charity_status.query.verification",
+    ),
+    "verification_platform.organization_verification.verification_service": (
+        "charity_status.query.verification",
+    ),
     "verification_platform.nonprofit_registry": (
         "charity_status.state_registry",
     ),
@@ -22,12 +31,27 @@ LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
         "charity_status.enrichments.compliance",
         "charity_status.enrichments.external_signals",
     ),
+    "verification_platform.compliance_data.interpretation": (
+        "charity_status.enrichments.compliance",
+    ),
+    "verification_platform.compliance_data.entity_enrichment": (
+        "charity_status.enrichments.service",
+    ),
     "verification_platform.entity_resolution": (
         "charity_status.normalization",
+    ),
+    "verification_platform.entity_resolution.ein_validation": (
+        "charity_status.normalization.ein",
     ),
     "verification_platform.source_connectors": (
         "charity_status.sources",
         "charity_status.ingest",
+    ),
+    "verification_platform.source_connectors.normalization": (
+        "charity_status.sources.models",
+    ),
+    "verification_platform.source_connectors.catalog": (
+        "charity_status.sources.catalog",
     ),
     "verification_platform.platform_contracts": (
         "charity_status.core",

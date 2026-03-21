@@ -67,6 +67,40 @@ The initial wrapper layer maps to the existing modules like this:
 
 This mapping is also captured in `verification_platform.legacy`.
 
+## Legacy To Neutral Domain Map
+
+The first core-domain rename layer maps these legacy concepts to capability-oriented names:
+
+| Legacy term | Neutral term |
+| --- | --- |
+| charity lookup | organization verification |
+| charity record | organization record |
+| charity filings | regulatory filings |
+| state compliance extraction | jurisdiction compliance interpretation |
+| enrichment service | entity enrichment service |
+| normalized source record | normalized organization source record |
+| source catalog | source connector catalog |
+| EIN normalization | employer identification number validation |
+
+Concrete migrated module seams in this phase:
+
+- `charity_status.query.nonprofit_lookup.map_nonprofit_record`
+  - `verification_platform.organization_verification.organization_lookup.map_organization_record`
+- `charity_status.query.verification.verify_nonprofit`
+  - `verification_platform.organization_verification.verification_service.verify_organization`
+- `charity_status.query.verification.get_nonprofit_filings`
+  - `verification_platform.organization_verification.regulatory_filings.get_regulatory_filings`
+- `charity_status.normalization.ein.normalize_ein`
+  - `verification_platform.entity_resolution.ein_validation.normalize_employer_identification_number`
+- `charity_status.enrichments.compliance.extract_state_compliance`
+  - `verification_platform.compliance_data.interpretation.interpret_jurisdiction_compliance`
+- `charity_status.enrichments.service.EnrichmentService`
+  - `verification_platform.compliance_data.entity_enrichment.EntityEnrichmentService`
+- `charity_status.sources.NormalizedSourceRecord`
+  - `verification_platform.source_connectors.NormalizedOrganizationSourceRecord`
+- `charity_status.sources.SourceCatalog`
+  - `verification_platform.source_connectors.SourceConnectorCatalog`
+
 ## Compatibility Model
 
 Backward compatibility is preserved by keeping legacy imports intact:
