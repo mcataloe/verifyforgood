@@ -9,8 +9,10 @@ FRONTEND_ROOT = ROOT / "frontend"
 
 def test_shared_api_client_files_and_tests_exist():
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "endpoints.ts").exists()
+    assert (FRONTEND_ROOT / "shared" / "api" / "src" / "pricingPlans.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "request.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "routes.ts").exists()
+    assert (FRONTEND_ROOT / "shared" / "api" / "src" / "pricingPlans.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "request.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "routes.test.ts").exists()
     assert (FRONTEND_ROOT / "portal" / "src" / "app" / "portalApiClient.test.ts").exists()
@@ -25,11 +27,13 @@ def test_shared_api_docs_describe_client_usage_and_boundaries():
     assert "requestenvelope" in shared_api_readme
     assert "requestdata" in shared_api_readme
     assert "createapiclient" in shared_api_readme
+    assert "loadpricingplancatalog" in shared_api_readme
     assert "headersprovider" in shared_api_readme
     assert "what belongs here" in shared_api_readme
     assert "what stays app-local" in shared_api_readme
     assert "@charity-status/shared-api" in frontend_readme
     assert "all backend http interaction should flow through" in frontend_readme
+    assert "get /v1/plans" in frontend_readme
 
 
 def test_app_endpoint_maps_use_shared_endpoint_catalog_without_raw_paths():

@@ -57,6 +57,7 @@ npm run build
 - keep page registration and navigation in `src/app/`
 - keep page-specific messaging and content modules app-local unless they become genuinely cross-site
 - use shared foundations for neutral primitives and API/runtime helpers, not for marketing copy or conversion logic
+- the pricing page should consume the backend-authored `GET /v1/plans` catalog through shared types/API helpers rather than hardcoded local plan data
 - keep docs, SEO, analytics, and CMS decisions deferred until requirements are concrete
 
 ## Intentionally deferred

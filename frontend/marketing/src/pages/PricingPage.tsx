@@ -1,51 +1,62 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
+import { Grid, Panel, PricingPlanGrid } from "@charity-status/shared-ui";
+import {
+  useMarketingPricingPlans,
+  type MarketingPricingPlansController,
+} from "../pricing/useMarketingPricingPlans";
 
-const plans = [
-  {
-    name: "Free",
-    summary:
-      "Entry point for nonprofit verification and light evaluation workflows.",
-    details: "250 monthly requests and verification-focused capabilities.",
-  },
-  {
-    name: "Starter",
-    summary: "Adds more capacity and risk-oriented visibility.",
-    details: "1,000 monthly requests with risk flags.",
-  },
-  {
-    name: "Growth",
-    summary: "The main expansion tier for teams doing deeper diligence.",
-    details:
-      "10,000 monthly requests with benchmarking and batch verification.",
-  },
-  {
-    name: "Pro / Enterprise",
-    summary:
-      "For higher-scale monitoring, settings, and state-registry heavy workflows.",
-    details:
-      "Higher throughput, broader capabilities, and room for account-level controls.",
-  },
-];
+interface PricingPageProps {
+  controller?: MarketingPricingPlansController;
+  runtimeConfig: Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">;
+}
 
-export function PricingPage() {
+export function PricingPage({ controller, runtimeConfig }: PricingPageProps) {
+  const defaultController = useMarketingPricingPlans(runtimeConfig);
+  const pricing = controller ?? defaultController;
+
   return (
     <Grid className="marketing-page-grid">
       <Panel
-        title="Pricing posture"
-        subtitle="This repo models plans and capabilities without publishing final public prices here."
+        title="Plan catalog"
+        subtitle="Marketing and portal plan displays now render from backend-authored plan metadata."
       >
         <p>
-          The public site should educate prospects on plan progression, free
-          trial behavior, and hosted billing flows without hardcoding pricing
-          details that may change outside the repo.
+          Included usage, overage pricing, and feature availability come from
+          the public <code>/v1/plans</code> contract. Customer-facing monthly
+          subscription pricing remains in Stripe-hosted checkout until the
+          backend exposes it directly.
         </p>
       </Panel>
 
-      {plans.map((plan) => (
-        <Panel key={plan.name} title={plan.name} subtitle={plan.summary}>
-          <p>{plan.details}</p>
+      {pricing.isLoading ? (
+        <Panel
+          title="Loading plan catalog"
+          subtitle="Fetching backend-authored pricing metadata."
+        >
+          <p>Loading included usage, overage pricing, and feature flags.</p>
         </Panel>
-      ))}
+      ) : null}
+
+      {!pricing.isLoading && pricing.error ? (
+        <Panel
+          title="Plan catalog unavailable"
+          subtitle="The public pricing surface could not load the backend plan catalog."
+        >
+          <p>{pricing.error}</p>
+          <button type="button" onClick={() => void pricing.reload()}>
+            Retry loading pricing
+          </button>
+        </Panel>
+      ) : null}
+
+      {!pricing.isLoading && !pricing.error ? (
+        <PricingPlanGrid
+          items={pricing.plans.map((plan) => ({
+            highlighted: plan.plan_code === "growth",
+            plan,
+          }))}
+        />
+      ) : null}
     </Grid>
   );
 }

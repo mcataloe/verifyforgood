@@ -16,6 +16,7 @@ It centralizes:
 - generic request helpers that understand the backend response envelope
 - transport-level error normalization
 - shared request conventions for `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`
+- shared data loaders for backend-authored catalog surfaces such as pricing plans
 
 ## What Stays App-Local
 
@@ -38,6 +39,8 @@ This package should not become an endpoint-by-endpoint business SDK or a junk dr
   - convenience helpers built on the same request pipeline
 - `apiEndpoints`
   - shared endpoint catalog grouped by domain
+- `loadPricingPlanCatalog(...)`
+  - loads the public backend-authored pricing plan catalog from `GET /v1/plans`
 - `buildApiUrl(...)`
   - builds absolute or relative endpoint URLs for display, docs, or navigation cases
 

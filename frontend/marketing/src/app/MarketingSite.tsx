@@ -35,7 +35,9 @@ export function MarketingSite() {
         <HomePage endpoints={endpoints} runtimeConfig={runtimeConfig} />
       ) : null}
       {currentRoute.key === "product" ? <ProductPage /> : null}
-      {currentRoute.key === "pricing" ? <PricingPage /> : null}
+      {currentRoute.key === "pricing" ? (
+        <PricingPage runtimeConfig={runtimeConfig} />
+      ) : null}
       {currentRoute.key === "trust" ? <TrustPage /> : null}
       {currentRoute.key === "developers" ? (
         <DevelopersPage endpoints={endpoints} runtimeConfig={runtimeConfig} />

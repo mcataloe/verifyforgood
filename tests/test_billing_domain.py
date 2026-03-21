@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from charity_status.billing import (
+    DEFAULT_ENTITLEMENTS,
+    EntitlementService,
+    Subscription,
+    build_plan_catalog_payload,
+)
 from charity_status.billing.trials import TrialConfig
 from charity_status.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
 
@@ -131,3 +136,35 @@ def test_entitlement_service_returns_free_entitlements_after_trial_expiry():
     assert resolved.subscription.plan_code == "free"
     assert resolved.entitlements.plan_code == "free"
     assert resolved.entitlements.monthly_request_limit == 250
+
+
+def test_plan_catalog_payload_matches_backend_entitlements():
+    payload = build_plan_catalog_payload()
+
+    assert [plan["plan_code"] for plan in payload["plans"]] == [
+        "free",
+        "starter",
+        "growth",
+        "pro",
+        "enterprise",
+    ]
+
+    plans = {plan["plan_code"]: plan for plan in payload["plans"]}
+
+    assert plans["free"]["included_usage"]["monthly_requests"] == 250
+    assert plans["free"]["per_request_pricing"]["amount_usd_micros"] == 5000
+    assert plans["free"]["feature_availability"]["verification"] is True
+    assert plans["free"]["feature_availability"]["financial_trends"] is False
+
+    assert plans["growth"]["included_usage"]["monthly_requests"] == 10000
+    assert plans["growth"]["included_usage"]["batch_items"] == 100
+    assert plans["growth"]["feature_availability"]["benchmarking"] is True
+    assert plans["growth"]["feature_availability"]["state_registry"] is False
+
+    assert plans["pro"]["included_usage"]["monthly_requests"] == 100000
+    assert plans["pro"]["feature_availability"]["monitoring"] is True
+    assert plans["pro"]["feature_availability"]["organization_settings"] is True
+
+    assert plans["enterprise"]["included_usage"]["monthly_requests"] == 1000000
+    assert plans["enterprise"]["per_request_pricing"]["amount_usd_micros"] == 1000
+    assert plans["enterprise"]["feature_availability"]["batch_verification"] is True

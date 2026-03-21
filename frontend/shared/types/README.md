@@ -7,6 +7,7 @@ Current scope:
 - app metadata and surface identifiers
 - normalized frontend runtime config types
 - backend-aligned API envelope and error contracts
+- shared pricing-plan catalog contract types
 
 Anti-pattern:
 

@@ -1078,6 +1078,41 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
     }
 
 
+def test_get_public_plan_catalog_returns_backend_driven_plan_metadata():
+    module = _load_module()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/plans",
+            "path": "/v1/plans",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    envelope = _response_envelope(result)
+    plans = {plan["plan_code"]: plan for plan in envelope["data"]["plans"]}
+
+    assert envelope["plan"] == "public"
+    assert list(plans.keys()) == ["free", "starter", "growth", "pro", "enterprise"]
+
+    assert plans["free"]["included_usage"]["monthly_requests"] == 250
+    assert plans["free"]["feature_availability"]["verification"] is True
+    assert plans["free"]["feature_availability"]["financial_trends"] is False
+
+    assert plans["growth"]["included_usage"]["monthly_requests"] == 10000
+    assert plans["growth"]["per_request_pricing"]["amount_usd_micros"] == 3000
+    assert plans["growth"]["feature_availability"]["benchmarking"] is True
+
+    assert plans["pro"]["included_usage"]["requests_per_minute"] == 600
+    assert plans["pro"]["feature_availability"]["organization_settings"] is True
+
+    assert plans["enterprise"]["included_usage"]["monthly_requests"] == 1000000
+    assert plans["enterprise"]["feature_availability"]["monitoring"] is True
+
+
 def test_first_authenticated_customer_request_starts_trial_before_feature_gating(monkeypatch):
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     monkeypatch.setenv("FREE_TRIAL_ENABLED", "true")

@@ -1,6 +1,11 @@
-import { apiEndpoints, type ApiClient } from "@charity-status/shared-api";
+import {
+  apiEndpoints,
+  loadPricingPlanCatalog,
+  type ApiClient,
+} from "@charity-status/shared-api";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { PortalOrganization } from "../organization/portalOrganization";
+import type { PricingPlanMetadata } from "@charity-status/shared-types";
 
 interface BackendBillingSubscriptionResponse {
   billing_status?: string | null;
@@ -55,14 +60,6 @@ export interface PortalUsageBillingService {
   }): Promise<PortalUsageBillingSnapshot>;
 }
 
-const PLAN_LIMITS: Record<string, number> = {
-  enterprise: 1_000_000,
-  free: 250,
-  growth: 10_000,
-  pro: 100_000,
-  starter: 1_000,
-};
-
 const PLAN_USAGE_RATIOS: Record<string, number> = {
   enterprise: 0.12,
   free: 0.72,
@@ -73,11 +70,15 @@ const PLAN_USAGE_RATIOS: Record<string, number> = {
 
 export function createPortalUsageBillingService(
   apiClient: ApiClient,
+  loadPlanCatalog: typeof loadPricingPlanCatalog = loadPricingPlanCatalog,
 ): PortalUsageBillingService {
   return {
     async loadSnapshot({ organization, session }) {
+      const catalog = await loadPlanCatalog(apiClient);
+
       if (session.auth_method === "mock_browser_session") {
         return createMockSnapshot({
+          plans: catalog.plans,
           organization,
           session,
           source: "session_mock",
@@ -91,6 +92,7 @@ export function createPortalUsageBillingService(
           );
 
         return createSnapshotFromSubscription({
+          plans: catalog.plans,
           organization,
           session,
           source: "backend_subscription",
@@ -98,6 +100,7 @@ export function createPortalUsageBillingService(
         });
       } catch {
         return createMockSnapshot({
+          plans: catalog.plans,
           organization,
           session,
           source: "session_fallback",
@@ -108,6 +111,7 @@ export function createPortalUsageBillingService(
 }
 
 function createSnapshotFromSubscription(input: {
+  plans: PricingPlanMetadata[];
   organization: PortalOrganization;
   session: PortalAuthenticatedSession;
   source: PortalUsageBillingSnapshot["source"];
@@ -138,11 +142,12 @@ function createSnapshotFromSubscription(input: {
     source: input.source,
     trialEndsAt: input.subscription.trial?.ends_at ?? null,
     trialStatus: input.subscription.trial?.status ?? null,
-    usage: createMockUsageSnapshot(effectiveAccessPlan),
+    usage: createMockUsageSnapshot(effectiveAccessPlan, input.plans),
   };
 }
 
 function createMockSnapshot(input: {
+  plans: PricingPlanMetadata[];
   organization: PortalOrganization;
   session: PortalAuthenticatedSession;
   source: Extract<
@@ -167,13 +172,16 @@ function createMockSnapshot(input: {
     source: input.source,
     trialEndsAt: null,
     trialStatus: null,
-    usage: createMockUsageSnapshot(plan),
+    usage: createMockUsageSnapshot(plan, input.plans),
   };
 }
 
-function createMockUsageSnapshot(planCode: string): PortalUsageSnapshot {
+function createMockUsageSnapshot(
+  planCode: string,
+  plans: PricingPlanMetadata[],
+): PortalUsageSnapshot {
   const normalizedPlan = normalizePlanCode(planCode, "free");
-  const limit = PLAN_LIMITS[normalizedPlan] ?? PLAN_LIMITS.free;
+  const limit = resolvePlanLimit(normalizedPlan, plans);
   const ratio = PLAN_USAGE_RATIOS[normalizedPlan] ?? 0.25;
   const used = Math.max(1, Math.round(limit * ratio));
 
@@ -203,6 +211,19 @@ function resolveBudgetStatus(
       : "Hard stop enabled at the monthly request limit",
     policySource,
   };
+}
+
+function resolvePlanLimit(
+  planCode: string,
+  plans: PricingPlanMetadata[],
+): number {
+  const match =
+    plans.find((plan) => plan.plan_code === planCode) ??
+    plans.find((plan) => plan.plan_code === "free");
+  if (!match) {
+    throw new Error("Plan catalog is missing the free tier.");
+  }
+  return match.included_usage.monthly_requests;
 }
 
 function normalizePlanCode(value: unknown, fallback: string): string {

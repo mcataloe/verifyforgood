@@ -1,4 +1,4 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { Grid, Panel, PricingPlanGrid } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -10,22 +10,30 @@ import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
 } from "./usePortalUsageBilling";
+import {
+  usePortalPricingPlans,
+  type PortalPricingPlansController,
+} from "./usePortalPricingPlans";
 
 interface UsageBillingPanelProps {
   controller?: PortalUsageBillingController;
   endpoints: PortalEndpoints;
+  plansController?: PortalPricingPlansController;
   session: PortalAuthenticatedSession;
 }
 
 export function UsageBillingPanel({
   controller,
   endpoints,
+  plansController,
   session,
 }: UsageBillingPanelProps) {
   const defaultController = usePortalUsageBilling(session);
   const billing = controller ?? defaultController;
+  const defaultPlansController = usePortalPricingPlans(billing.snapshot);
+  const pricingPlans = plansController ?? defaultPlansController;
 
-  if (billing.isLoading) {
+  if (billing.isLoading || pricingPlans.isLoading) {
     return (
       <PortalLoadingState
         subtitle="Fetching the current customer billing summary."
@@ -36,13 +44,18 @@ export function UsageBillingPanel({
     );
   }
 
-  if (billing.error || !billing.snapshot) {
+  if (billing.error || pricingPlans.error || !billing.snapshot) {
     return (
       <PortalErrorState
         actionLabel="Retry billing summary"
-        message={billing.error ?? "No billing summary is available right now."}
+        message={
+          billing.error ??
+          pricingPlans.error ??
+          "No billing summary is available right now."
+        }
         onAction={() => {
           void billing.reload();
+          void pricingPlans.reload();
         }}
         subtitle="The portal could not load the current usage and billing state."
         title="Billing summary unavailable"
@@ -51,6 +64,13 @@ export function UsageBillingPanel({
   }
 
   const { snapshot } = billing;
+  const effectivePlan =
+    pricingPlans.plans.find(
+      (item) => item.plan.plan_code === snapshot.effectiveAccessPlan,
+    )?.plan ??
+    pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
+      ?.plan ??
+    null;
 
   return (
     <Grid className="portal-page-grid">
@@ -111,10 +131,35 @@ export function UsageBillingPanel({
             <dd>{snapshot.budgetStatus.policySource}</dd>
           </div>
           <div>
+            <dt>Included monthly requests</dt>
+            <dd>
+              {effectivePlan
+                ? effectivePlan.included_usage.monthly_requests.toLocaleString()
+                : snapshot.usage.limit.toLocaleString()}
+            </dd>
+          </div>
+          <div>
+            <dt>Overage price</dt>
+            <dd>
+              {effectivePlan
+                ? formatUsdMicros(
+                    effectivePlan.per_request_pricing.amount_usd_micros,
+                  )
+                : "Unavailable"}
+            </dd>
+          </div>
+          <div>
             <dt>Data source</dt>
             <dd>{snapshot.source}</dd>
           </div>
         </dl>
+      </Panel>
+
+      <Panel
+        title="Plan catalog"
+        subtitle="Backend-authored pricing metadata with current, effective, and pending plan markers."
+      >
+        <PricingPlanGrid items={pricingPlans.plans} />
       </Panel>
 
       <Panel
@@ -165,4 +210,13 @@ export function UsageBillingPanel({
       </Panel>
     </Grid>
   );
+}
+
+function formatUsdMicros(amountUsdMicros: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 3,
+    style: "currency",
+  }).format(amountUsdMicros / 1_000_000);
 }

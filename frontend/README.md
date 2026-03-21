@@ -47,6 +47,14 @@ Reusable code belongs in `shared/` only when both apps can consume the same impl
 
 All backend HTTP interaction should flow through `@charity-status/shared-api` so request handling, error normalization, route building, and future auth-header injection stay centralized.
 
+Pricing-plan display follows the same rule:
+
+- backend billing entitlements shape the public `GET /v1/plans` catalog
+- `@charity-status/shared-types` holds the shared plan metadata contract
+- `@charity-status/shared-api` loads the catalog
+- `@charity-status/shared-ui` renders plan cards and grids
+- marketing and portal keep only surface-specific loading and state composition
+
 See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
 function createStorageMock(): Storage {
@@ -37,6 +37,88 @@ describe("PortalApp", () => {
       configurable: true,
       value: createStorageMock(),
     });
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/plans")) {
+        return new Response(
+          JSON.stringify({
+            api_release: "2026-03-21",
+            api_version: "v1",
+            data: {
+              plans: [
+                {
+                  display_name: "Free",
+                  feature_availability: {
+                    batch_verification: false,
+                    benchmarking: false,
+                    financial_trends: false,
+                    monitoring: false,
+                    organization_settings: false,
+                    risk_flags: false,
+                    state_registry: false,
+                    verification: true,
+                  },
+                  included_usage: {
+                    batch_items: 0,
+                    monthly_requests: 250,
+                    requests_per_minute: 10,
+                  },
+                  per_request_pricing: {
+                    amount_usd_micros: 5000,
+                    currency_code: "USD",
+                    unit: "request",
+                  },
+                  plan_code: "free",
+                },
+                {
+                  display_name: "Growth",
+                  feature_availability: {
+                    batch_verification: true,
+                    benchmarking: true,
+                    financial_trends: true,
+                    monitoring: false,
+                    organization_settings: false,
+                    risk_flags: true,
+                    state_registry: false,
+                    verification: true,
+                  },
+                  included_usage: {
+                    batch_items: 100,
+                    monthly_requests: 10000,
+                    requests_per_minute: 120,
+                  },
+                  per_request_pricing: {
+                    amount_usd_micros: 3000,
+                    currency_code: "USD",
+                    unit: "request",
+                  },
+                  plan_code: "growth",
+                },
+              ],
+            },
+            deprecation: {
+              recommended_version: null,
+              status: "active",
+              sunset_date: null,
+            },
+            errors: [],
+            meta: {},
+            plan: "public",
+            request_id: "req_portal_test",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      return new Response("Not Found", {
+        status: 404,
+      });
+    }) as typeof fetch;
     window.location.hash = "#/usage-billing";
   });
 

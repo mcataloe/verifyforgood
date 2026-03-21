@@ -6,6 +6,12 @@ export const authEndpoints = {
   }),
 } as const;
 
+export const publicEndpoints = {
+  plans: defineEndpoint("GET", "/plans", {
+    name: "publicPlans",
+  }),
+} as const;
+
 export const organizationEndpoints = {
   settings: defineEndpoint("GET", "/organization/settings", {
     name: "organizationSettings",
@@ -67,5 +73,6 @@ export const apiEndpoints = {
   billing: billingEndpoints,
   nonprofits: nonprofitEndpoints,
   organization: organizationEndpoints,
+  public: publicEndpoints,
   verification: verificationEndpoints,
 } as const;

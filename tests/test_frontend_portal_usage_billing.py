@@ -10,6 +10,7 @@ PORTAL_ROOT = ROOT / "frontend" / "portal"
 def test_portal_usage_billing_files_exist():
     assert (PORTAL_ROOT / "src" / "billing" / "portalUsageBilling.ts").exists()
     assert (PORTAL_ROOT / "src" / "billing" / "usePortalUsageBilling.ts").exists()
+    assert (PORTAL_ROOT / "src" / "billing" / "usePortalPricingPlans.ts").exists()
     assert (PORTAL_ROOT / "src" / "billing" / "UsageBillingPanel.tsx").exists()
     assert (
         PORTAL_ROOT / "src" / "billing" / "portalUsageBilling.test.ts"
@@ -27,5 +28,6 @@ def test_portal_usage_billing_readme_mentions_backend_and_mock_boundaries():
 
     assert "usage and billing visibility" in readme
     assert "get /v1/organization/billing/subscription" in readme
+    assert "get /v1/plans" in readme
     assert "customer-facing usage visibility endpoint" in readme
     assert "usagebillingpanel" in billing_page

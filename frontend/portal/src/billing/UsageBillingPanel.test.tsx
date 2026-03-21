@@ -8,6 +8,7 @@ import { createSessionPortalOrganization } from "../organization/portalOrganizat
 import { createMockPortalSession } from "../app/portalSession";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalUsageBillingController } from "./usePortalUsageBilling";
+import type { PortalPricingPlansController } from "./usePortalPricingPlans";
 import { UsageBillingPanel } from "./UsageBillingPanel";
 
 const endpoints: PortalEndpoints = {
@@ -22,7 +23,10 @@ const endpoints: PortalEndpoints = {
   organizationSettings: "/v1/organization/settings",
 };
 
-function renderWithOrganization(controller: PortalUsageBillingController) {
+function renderWithOrganization(
+  controller: PortalUsageBillingController,
+  plansController: PortalPricingPlansController,
+) {
   const value: PortalOrganizationContextValue = {
     activeOrganization: createSessionPortalOrganization({
       account_id: "acct_portal_test",
@@ -40,6 +44,7 @@ function renderWithOrganization(controller: PortalUsageBillingController) {
       <UsageBillingPanel
         controller={controller}
         endpoints={endpoints}
+        plansController={plansController}
         session={createMockPortalSession()}
       />
     </PortalOrganizationContext.Provider>,
@@ -79,8 +84,135 @@ describe("UsageBillingPanel", () => {
         },
       },
     };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [
+        {
+          highlighted: false,
+          isCurrent: false,
+          isEffective: false,
+          isPending: false,
+          plan: {
+            display_name: "Free",
+            feature_availability: {
+              batch_verification: false,
+              benchmarking: false,
+              financial_trends: false,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: false,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 0,
+              monthly_requests: 250,
+              requests_per_minute: 10,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 5000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "free",
+          },
+        },
+        {
+          highlighted: true,
+          isCurrent: false,
+          isEffective: true,
+          isPending: false,
+          plan: {
+            display_name: "Growth",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 100,
+              monthly_requests: 10000,
+              requests_per_minute: 120,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 3000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "growth",
+          },
+        },
+        {
+          highlighted: true,
+          isCurrent: true,
+          isEffective: false,
+          isPending: false,
+          plan: {
+            display_name: "Pro",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: true,
+              organization_settings: true,
+              risk_flags: true,
+              state_registry: true,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 1000,
+              monthly_requests: 100000,
+              requests_per_minute: 600,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 2000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "pro",
+          },
+        },
+        {
+          highlighted: true,
+          isCurrent: false,
+          isEffective: false,
+          isPending: true,
+          plan: {
+            display_name: "Starter",
+            feature_availability: {
+              batch_verification: false,
+              benchmarking: false,
+              financial_trends: false,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 0,
+              monthly_requests: 1000,
+              requests_per_minute: 30,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 4000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "starter",
+          },
+        },
+      ],
+      reload,
+    };
 
-    renderWithOrganization(controller);
+    renderWithOrganization(controller, plansController);
 
     expect(
       screen.getByRole("heading", { name: "Usage and billing state" }),
@@ -92,7 +224,11 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getByText("/v1/organization/billing/subscription"),
     ).toBeTruthy();
-    expect(screen.getByText("starter")).toBeTruthy();
+    expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Plan catalog" })).toBeTruthy();
+    expect(screen.getByText("Current billing plan")).toBeTruthy();
+    expect(screen.getAllByText("Effective access").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pending downgrade").length).toBeGreaterThan(0);
   });
 
   it("renders an error state and supports retry", () => {
@@ -103,8 +239,14 @@ describe("UsageBillingPanel", () => {
       reload,
       snapshot: null,
     };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [],
+      reload,
+    };
 
-    renderWithOrganization(controller);
+    renderWithOrganization(controller, plansController);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Retry billing summary" }),

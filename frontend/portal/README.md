@@ -118,10 +118,11 @@ This keeps the initial portal search surface close to the existing backend contr
 The usage and billing area now uses a small feature-local billing slice under `src/billing/`.
 
 - `GET /v1/organization/billing/subscription` is the source of truth for current plan, effective access, billing status, renewal timing, pending downgrades, and trial state
+- `GET /v1/plans` is the source of truth for plan display metadata such as included usage, overage pricing, and feature availability
 - `billing.allowOverage` comes from organization settings when available and otherwise follows the documented backend default behavior
 - request usage is still a portal-local baseline because the backend does not yet expose a customer-facing usage visibility endpoint
 
-This keeps the page useful now without building a larger billing system into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.
+This keeps the page useful now without moving billing rules into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.
 
 ## Feedback patterns
 

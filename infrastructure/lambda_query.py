@@ -22,7 +22,13 @@ from charity_status.auth import (
     authenticate_admin_key,
     load_admin_key_store,
 )
-from charity_status.billing import EntitlementService, ResponseShapingService, TrialLifecycleService, load_trial_config
+from charity_status.billing import (
+    EntitlementService,
+    ResponseShapingService,
+    TrialLifecycleService,
+    build_plan_catalog_payload,
+    load_trial_config,
+)
 from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
 from charity_status.billing.plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from charity_status.billing.portal import BillingPortalError, BillingPortalService
@@ -653,6 +659,9 @@ def handler(event, context):
     if _is_oauth_token_request(event, method):
         return _handle_oauth_token_request(event, api_context)
 
+    if _is_public_plan_catalog_request(event, method):
+        return _handle_public_plan_catalog_request(response_context=api_context)
+
     try:
         auth_context = _get_auth_context_provider().extract_context(event or {})
         _prepare_quota_request_metadata(event or {}, auth_context)
@@ -1012,6 +1021,13 @@ def _is_stripe_webhook_request(event: dict, method: str) -> bool:
     return resource.endswith("/webhooks/stripe") or path.endswith("/webhooks/stripe")
 
 
+def _is_public_plan_catalog_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/plans") or path.endswith("/plans")
+
+
 def _is_ops_request(event: dict, method: str) -> bool:
     if method not in {"GET", "POST"}:
         return False
@@ -1099,6 +1115,13 @@ def _handle_stripe_webhook_request(event: dict[str, Any], response_context: Resp
         signature_header=signature,
     )
     return json_response(200, result, response_context=response_context)
+
+
+def _handle_public_plan_catalog_request(
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    return json_response(200, build_plan_catalog_payload(), response_context=response_context)
 
 
 def _handle_organization_checkout_request(

@@ -7,7 +7,64 @@ import { createPortalUsageBillingService } from "./portalUsageBilling";
 describe("portal usage billing service", () => {
   it("returns a mock snapshot for local demo sessions", async () => {
     const session = createMockPortalSession();
-    const service = createPortalUsageBillingService({} as ApiClient);
+    const get = vi.fn(async (target: Parameters<ApiClient["get"]>[0]) => {
+      expect(target).toBe(apiEndpoints.public.plans);
+      return {
+        plans: [
+          {
+            display_name: "Growth",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 100,
+              monthly_requests: 10000,
+              requests_per_minute: 120,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 3000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "growth",
+          },
+          {
+            display_name: "Free",
+            feature_availability: {
+              batch_verification: false,
+              benchmarking: false,
+              financial_trends: false,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: false,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 0,
+              monthly_requests: 250,
+              requests_per_minute: 10,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 5000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "free",
+          },
+        ],
+      };
+    });
+    const service = createPortalUsageBillingService({
+      get,
+    } as unknown as ApiClient);
 
     const snapshot = await service.loadSnapshot({
       organization: createSessionPortalOrganization({
@@ -33,6 +90,108 @@ describe("portal usage billing service", () => {
       plan: "free",
     };
     const get = vi.fn(async (target: Parameters<ApiClient["get"]>[0]) => {
+      if (target === apiEndpoints.public.plans) {
+        return {
+          plans: [
+            {
+              display_name: "Growth",
+              feature_availability: {
+                batch_verification: true,
+                benchmarking: true,
+                financial_trends: true,
+                monitoring: false,
+                organization_settings: false,
+                risk_flags: true,
+                state_registry: false,
+                verification: true,
+              },
+              included_usage: {
+                batch_items: 100,
+                monthly_requests: 10000,
+                requests_per_minute: 120,
+              },
+              per_request_pricing: {
+                amount_usd_micros: 3000,
+                currency_code: "USD",
+                unit: "request",
+              },
+              plan_code: "growth",
+            },
+            {
+              display_name: "Pro",
+              feature_availability: {
+                batch_verification: true,
+                benchmarking: true,
+                financial_trends: true,
+                monitoring: true,
+                organization_settings: true,
+                risk_flags: true,
+                state_registry: true,
+                verification: true,
+              },
+              included_usage: {
+                batch_items: 1000,
+                monthly_requests: 100000,
+                requests_per_minute: 600,
+              },
+              per_request_pricing: {
+                amount_usd_micros: 2000,
+                currency_code: "USD",
+                unit: "request",
+              },
+              plan_code: "pro",
+            },
+            {
+              display_name: "Starter",
+              feature_availability: {
+                batch_verification: false,
+                benchmarking: false,
+                financial_trends: false,
+                monitoring: false,
+                organization_settings: false,
+                risk_flags: true,
+                state_registry: false,
+                verification: true,
+              },
+              included_usage: {
+                batch_items: 0,
+                monthly_requests: 1000,
+                requests_per_minute: 30,
+              },
+              per_request_pricing: {
+                amount_usd_micros: 4000,
+                currency_code: "USD",
+                unit: "request",
+              },
+              plan_code: "starter",
+            },
+            {
+              display_name: "Free",
+              feature_availability: {
+                batch_verification: false,
+                benchmarking: false,
+                financial_trends: false,
+                monitoring: false,
+                organization_settings: false,
+                risk_flags: false,
+                state_registry: false,
+                verification: true,
+              },
+              included_usage: {
+                batch_items: 0,
+                monthly_requests: 250,
+                requests_per_minute: 10,
+              },
+              per_request_pricing: {
+                amount_usd_micros: 5000,
+                currency_code: "USD",
+                unit: "request",
+              },
+              plan_code: "free",
+            },
+          ],
+        };
+      }
       expect(target).toBe(apiEndpoints.billing.subscription);
       return {
         billing_status: "active",
@@ -71,6 +230,7 @@ describe("portal usage billing service", () => {
     expect(snapshot.plan).toBe("pro");
     expect(snapshot.effectiveAccessPlan).toBe("growth");
     expect(snapshot.pendingDowngradePlan).toBe("starter");
+    expect(snapshot.usage.limit).toBe(10000);
     expect(snapshot.budgetStatus.allowOverage).toBe(false);
   });
 });
