@@ -73,4 +73,26 @@ describe("PortalApp", () => {
     expect(screen.getByText(/Org: VerifyForGood Demo Workspace/i)).toBeTruthy();
     expect(screen.getByText(/Usage and billing IA/i)).toBeTruthy();
   });
+
+  it("renders the nonprofit search dashboard on the default protected route", async () => {
+    window.location.hash = "#/dashboard";
+
+    render(<App />);
+
+    await screen.findByRole("heading", {
+      name: "Sign in to the customer portal",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with demo session" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nonprofit verification search",
+      }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Search nonprofit" }),
+    ).toBeTruthy();
+  });
 });

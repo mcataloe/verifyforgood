@@ -14,6 +14,8 @@ def test_portal_shell_has_expected_source_structure():
     assert (PORTAL_ROOT / "src" / "app" / "portalRoutes.ts").exists()
     assert (PORTAL_ROOT / "src" / "app" / "portalSession.ts").exists()
     assert (PORTAL_ROOT / "src" / "app" / "portalEndpoints.ts").exists()
+    assert (PORTAL_ROOT / "src" / "nonprofits" / "NonprofitSearchPanel.tsx").exists()
+    assert (PORTAL_ROOT / "src" / "nonprofits" / "nonprofitSearch.ts").exists()
     assert (
         PORTAL_ROOT / "src" / "organization" / "PortalOrganizationProvider.tsx"
     ).exists()
@@ -45,5 +47,6 @@ def test_portal_readme_documents_shell_and_extension_guidance():
     assert "usage and billing" in readme
     assert "settings" in readme
     assert "auth" in readme
+    assert "nonprofit search" in readme
     assert "organization scope" in readme
     assert "extending the portal" in readme

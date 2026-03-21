@@ -25,6 +25,7 @@ This package is the starting point for the authenticated customer portal.
 
 These are intentionally placeholder-first, but they align to the customer-facing backend capabilities that already exist today:
 
+- nonprofit verification lookup and search
 - organization settings
 - billing subscription visibility
 - Stripe checkout and customer portal session creation
@@ -96,6 +97,22 @@ The portal API access area now includes a minimal API-key management UI.
 
 When customer-facing API credential endpoints are added, the portal API-key service should swap from the mock implementation to the shared API client without changing the page-level UI contract.
 
+## Nonprofit search
+
+The dashboard now includes the first core product interaction for portal users:
+
+- exact EIN lookup through `GET /v1/nonprofit/{ein}`
+- name-based listing through `GET /v1/nonprofits/search`
+- filing enrichment display through `GET /v1/nonprofit/{ein}/filings`
+
+The current implementation is intentionally data-focused:
+
+- exact EIN searches load a detailed verification result
+- name searches return summary results and let the user expand a selected nonprofit into the detailed view
+- loading, empty, and error states are handled in the dashboard UI
+
+This keeps the initial portal search surface close to the existing backend contract without introducing a heavier search state framework.
+
 ## Running the portal
 
 From the workspace root:
@@ -119,6 +136,7 @@ npm run build
 - keep app-wide navigation, session composition, and route registration under `src/app/`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure
+- keep nonprofit lookup/search logic isolated under `src/nonprofits/` until broader cross-app reuse is justified
 - add new vertical slices as page-local or feature-local modules before promoting anything to `frontend/shared`
 - keep auth wiring abstracted until the real provider and session model are chosen
 - align new data access with the existing shared API/config packages and the documented backend contracts

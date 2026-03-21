@@ -359,6 +359,41 @@ code {
   color: var(--vf-color-sage-700);
 }
 
+.portal-result-list {
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-result-card {
+  padding: 1rem;
+  border-radius: var(--vf-radius-lg);
+  border: 1px solid rgba(15, 42, 33, 0.12);
+  background: rgba(255, 255, 255, 0.58);
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-result-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--vf-space-4);
+  align-items: start;
+}
+
+.portal-result-card__header h3 {
+  margin: 0;
+}
+
+.portal-result-card__header p {
+  margin: 0.2rem 0 0;
+  color: var(--vf-color-sage-700);
+}
+
+.portal-result-detail {
+  display: grid;
+  gap: var(--vf-space-5);
+}
+
 .portal-key-chip {
   display: inline-flex;
   align-items: center;
@@ -392,5 +427,9 @@ code {
   .portal-shell__header {
     flex-direction: column;
     align-items: start;
+  }
+
+  .portal-result-card__header {
+    flex-direction: column;
   }
 }

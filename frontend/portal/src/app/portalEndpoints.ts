@@ -6,6 +6,9 @@ export interface PortalEndpoints {
   billingPortal: string;
   billingPlanChange: string;
   billingSubscription: string;
+  nonprofitFilings: string;
+  nonprofitLookup: string;
+  nonprofitSearch: string;
   organizationSettings: string;
   oauthToken: string;
 }
@@ -30,6 +33,12 @@ export function portalEndpoints(
       apiEndpoints.billing.subscription,
       runtimeConfig,
     ),
+    nonprofitFilings: buildApiUrl(
+      apiEndpoints.nonprofits.filings,
+      runtimeConfig,
+    ),
+    nonprofitLookup: buildApiUrl(apiEndpoints.nonprofits.lookup, runtimeConfig),
+    nonprofitSearch: buildApiUrl(apiEndpoints.nonprofits.search, runtimeConfig),
     organizationSettings: buildApiUrl(
       apiEndpoints.organization.settings,
       runtimeConfig,

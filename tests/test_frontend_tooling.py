@@ -101,6 +101,16 @@ def test_frontend_smoke_tests_exist_for_apps_and_shared_runtime_packages():
     assert (
         FRONTEND_ROOT / "portal" / "src" / "api-access" / "ApiKeyManager.test.tsx"
     ).exists()
+    assert (
+        FRONTEND_ROOT / "portal" / "src" / "nonprofits" / "nonprofitSearch.test.ts"
+    ).exists()
+    assert (
+        FRONTEND_ROOT
+        / "portal"
+        / "src"
+        / "nonprofits"
+        / "NonprofitSearchPanel.test.tsx"
+    ).exists()
     assert (FRONTEND_ROOT / "docs" / "src" / "app" / "DocsSite.test.tsx").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "routes.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "request.test.ts").exists()
