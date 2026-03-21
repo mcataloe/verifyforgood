@@ -26,6 +26,9 @@ def test_portal_shell_has_expected_source_structure():
     assert (PORTAL_ROOT / "src" / "pages" / "ApiAccessPage.tsx").exists()
     assert (PORTAL_ROOT / "src" / "pages" / "BillingPage.tsx").exists()
     assert (PORTAL_ROOT / "src" / "pages" / "SettingsPage.tsx").exists()
+    assert (PORTAL_ROOT / "src" / "billing" / "portalUsageBilling.ts").exists()
+    assert (PORTAL_ROOT / "src" / "billing" / "usePortalUsageBilling.ts").exists()
+    assert (PORTAL_ROOT / "src" / "billing" / "UsageBillingPanel.tsx").exists()
 
 
 def test_portal_package_depends_on_intended_shared_foundations():
@@ -48,5 +51,6 @@ def test_portal_readme_documents_shell_and_extension_guidance():
     assert "settings" in readme
     assert "auth" in readme
     assert "nonprofit search" in readme
+    assert "usage and billing visibility" in readme
     assert "organization scope" in readme
     assert "extending the portal" in readme

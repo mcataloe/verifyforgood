@@ -71,7 +71,8 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Usage & Billing" }),
     ).toBeTruthy();
     expect(screen.getByText(/Org: VerifyForGood Demo Workspace/i)).toBeTruthy();
-    expect(screen.getByText(/Usage and billing IA/i)).toBeTruthy();
+    expect(screen.getByText(/Usage and billing state/i)).toBeTruthy();
+    expect(screen.getByLabelText("Request usage meter")).toBeTruthy();
   });
 
   it("renders the nonprofit search dashboard on the default protected route", async () => {

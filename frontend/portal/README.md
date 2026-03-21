@@ -113,6 +113,16 @@ The current implementation is intentionally data-focused:
 
 This keeps the initial portal search surface close to the existing backend contract without introducing a heavier search state framework.
 
+## Usage and billing visibility
+
+The usage and billing area now uses a small feature-local billing slice under `src/billing/`.
+
+- `GET /v1/organization/billing/subscription` is the source of truth for current plan, effective access, billing status, renewal timing, pending downgrades, and trial state
+- `billing.allowOverage` comes from organization settings when available and otherwise follows the documented backend default behavior
+- request usage is still a portal-local baseline because the backend does not yet expose a customer-facing usage visibility endpoint
+
+This keeps the page useful now without building a larger billing system into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.
+
 ## Running the portal
 
 From the workspace root:
@@ -136,6 +146,7 @@ npm run build
 - keep app-wide navigation, session composition, and route registration under `src/app/`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure
+- keep usage and billing logic isolated under `src/billing/` until broader frontend reuse is justified
 - keep nonprofit lookup/search logic isolated under `src/nonprofits/` until broader cross-app reuse is justified
 - add new vertical slices as page-local or feature-local modules before promoting anything to `frontend/shared`
 - keep auth wiring abstracted until the real provider and session model are chosen
@@ -147,5 +158,5 @@ npm run build
 - browser-to-backend token exchange or session refresh flow
 - full data fetching and mutation workflows
 - role/permission matrix
-- rich billing, usage, or credential management UX
+- rich billing or credential management UX
 - customer-facing backend API-key endpoints

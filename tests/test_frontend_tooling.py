@@ -111,6 +111,12 @@ def test_frontend_smoke_tests_exist_for_apps_and_shared_runtime_packages():
         / "nonprofits"
         / "NonprofitSearchPanel.test.tsx"
     ).exists()
+    assert (
+        FRONTEND_ROOT / "portal" / "src" / "billing" / "portalUsageBilling.test.ts"
+    ).exists()
+    assert (
+        FRONTEND_ROOT / "portal" / "src" / "billing" / "UsageBillingPanel.test.tsx"
+    ).exists()
     assert (FRONTEND_ROOT / "docs" / "src" / "app" / "DocsSite.test.tsx").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "routes.test.ts").exists()
     assert (FRONTEND_ROOT / "shared" / "api" / "src" / "request.test.ts").exists()
