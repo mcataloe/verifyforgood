@@ -83,6 +83,21 @@ output "monthly_ingest_state_machine_arn" {
   value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].arn : null
 }
 
+output "monthly_ingest_worker_ecr_repository_url" {
+  description = "ECR repository URL for the managed monthly private-ingest ECS worker image."
+  value       = local.monthly_ingest_managed_task_definition_enabled ? aws_ecr_repository.monthly_ingest_worker[0].repository_url : null
+}
+
+output "monthly_ingest_task_definition_arn" {
+  description = "ECS task definition ARN used by the monthly private-ingest workflow."
+  value       = trim(local.monthly_ingest_task_definition_arn_resolved, " ") != "" ? local.monthly_ingest_task_definition_arn_resolved : null
+}
+
+output "monthly_ingest_ecs_task_log_group_name" {
+  description = "CloudWatch log group used by the monthly private-ingest ECS worker."
+  value       = local.monthly_ingest_managed_task_definition_enabled ? aws_cloudwatch_log_group.monthly_ingest_task[0].name : null
+}
+
 output "monthly_ingest_staging_lambda_arn" {
   description = "Lambda ARN used to stage the monthly vendor ZIP before ECS processing."
   value       = local.monthly_ingest_staging_lambda_configured ? local.monthly_ingest_staging_lambda_arn_resolved : null

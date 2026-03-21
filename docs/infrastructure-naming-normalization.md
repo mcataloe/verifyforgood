@@ -44,6 +44,7 @@ Use capability-oriented names going forward:
 | `query_lambda_name` | `lambda_function_names.organization_verification_api` | 2. Abstracted behind compatibility layer | Preserves current Lambda resource identity. |
 | `refresh_lambda_name` | `lambda_function_names.platform_refresh` | 2. Abstracted behind compatibility layer | Preserves current Lambda resource identity. |
 | monthly ingest staging Lambda | `lambda_function_names.monthly_private_ingest_staging` | 2. Abstracted behind compatibility layer | Neutral internal label for the ZIP staging worker; physical name still follows the centralized resource-name strategy. |
+| monthly ingest worker repository | `monthly_ingest_worker_repository_name` | 2. Abstracted behind compatibility layer | Neutral internal identifier for the managed ECS worker image repository. |
 | `form990_ingest_lambda_name` | `lambda_function_names.regulatory_filing_ingestion` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |
 | `form990_orchestrator_lambda_name` | `lambda_function_names.regulatory_filing_orchestrator` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |
 | `form990_worker_lambda_name` | `lambda_function_names.regulatory_filing_worker` | 2. Abstracted behind compatibility layer | Keeps existing physical name strategy. |

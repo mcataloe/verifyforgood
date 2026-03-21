@@ -183,7 +183,7 @@ Operational note:
 - generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
 - If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
 - Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
-- the monthly ZIP-processing path documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md) now includes the Step Functions conductor, EventBridge schedule integration, and staging Lambda S3 handoff; the ECS worker task definition/image still needs environment-specific wiring.
+- the monthly ZIP-processing path documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md) now includes the Step Functions conductor, EventBridge schedule integration, staging Lambda S3 handoff, and a managed ECS task-definition pattern for the worker; environments still need an ECS cluster ARN plus image build/push automation.
 
 Current discovery-stage architecture:
 
@@ -1882,6 +1882,9 @@ Form 990 mode configuration additions:
 - `monthly_ingest_schedule_expression`: optional EventBridge schedule for the monthly private-ingest workflow
 - `monthly_ingest_schedule_context_json`: upstream ZIP metadata for the staging Lambda, typically including `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`
 - `monthly_ingest_staging_lambda_arn`: optional external override; leave empty to use the in-repo staging Lambda resource
+- `monthly_ingest_worker_image_uri`: optional external worker image URI; leave empty to use the managed ECR repository plus `monthly_ingest_worker_image_tag`
+- `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
+- `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
 
 Lambda event examples:
 

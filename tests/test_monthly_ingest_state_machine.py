@@ -97,6 +97,22 @@ def test_monthly_ingest_lambda_terraform_wires_staging_lambda_resource():
     assert 'MONTHLY_INGEST_WORKFLOW_NAME            = local.monthly_ingest_workflow_name' in content
 
 
+def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
+    content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
+
+    assert 'resource "aws_ecr_repository" "monthly_ingest_worker"' in content
+    assert 'resource "aws_cloudwatch_log_group" "monthly_ingest_task"' in content
+    assert 'resource "aws_iam_role" "monthly_ingest_task_execution"' in content
+    assert 'resource "aws_iam_role" "monthly_ingest_task"' in content
+    assert 'resource "aws_ecs_task_definition" "monthly_ingest_worker"' in content
+    assert 'requires_compatibilities = ["FARGATE"]' in content
+    assert 'ephemeral_storage {' in content
+    assert 'monthly_ingest_worker_image_uri_resolved' in content
+    assert 'monthly_ingest_task_definition_arn_resolved' in content
+    assert 'command   = ["python", "monthly_ingest_worker.py"]' in content
+    assert 'FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES' in content
+
+
 def test_monthly_ingest_variables_capture_existing_infra_references_and_timeouts():
     content = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
 
@@ -108,5 +124,8 @@ def test_monthly_ingest_variables_capture_existing_infra_references_and_timeouts
     assert 'variable "monthly_ingest_ecs_cluster_arn"' in content
     assert 'variable "monthly_ingest_task_definition_arn"' in content
     assert 'variable "monthly_ingest_staging_lambda_arn"' in content
+    assert 'variable "monthly_ingest_worker_image_uri"' in content
+    assert 'variable "monthly_ingest_task_ephemeral_storage_gib"' in content
+    assert 'variable "monthly_ingest_task_allowed_bucket_arns"' in content
     assert 'variable "monthly_ingest_endpoint_poll_interval_seconds"' in content
     assert 'variable "monthly_ingest_state_machine_timeout_seconds"' in content

@@ -44,6 +44,14 @@ form990_queue_visibility_timeout_seconds = 600
 form990_queue_max_receive_count          = 3
 form990_queue_batch_size                 = 1
 
+monthly_ingest_state_machine_enabled     = false
+monthly_ingest_worker_image_tag          = "latest"
+monthly_ingest_task_cpu                  = 2048
+monthly_ingest_task_memory               = 8192
+monthly_ingest_task_ephemeral_storage_gib = 100
+monthly_ingest_task_log_retention_days   = 30
+monthly_ingest_task_allowed_bucket_arns  = []
+
 enrichment_mock_enabled          = false
 enrichment_mock_offered          = null
 third_party_integrations_enabled = false

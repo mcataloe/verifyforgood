@@ -43,6 +43,17 @@ def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
     assert '"sqs:*"' in content
 
 
+def test_monthly_ingest_worker_packaging_and_task_access_exist():
+    dockerfile = Path("infrastructure/Dockerfile.monthly-ingest").read_text(encoding="utf-8")
+    ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
+
+    assert "monthly_ingest_worker.py" in dockerfile
+    assert "charity_status" in dockerfile
+    assert '"s3:GetObject"' in ecs_content
+    assert '"s3:PutObject"' in ecs_content
+    assert '"s3:ListBucket"' in ecs_content
+
+
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():
     content = Path("infrastructure/terraform-dev.tfvars").read_text(encoding="utf-8")
     assert 'form990_execution_mode' in content

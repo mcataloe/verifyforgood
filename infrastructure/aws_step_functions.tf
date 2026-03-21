@@ -10,7 +10,7 @@ locals {
     var.monthly_ingest_state_machine_enabled ? aws_lambda_function.monthly_ingest_staging[0].arn : ""
   )
   monthly_ingest_staging_lambda_configured = trim(local.monthly_ingest_staging_lambda_arn_resolved, " ") != ""
-  monthly_ingest_pass_role_arns             = compact([trim(var.monthly_ingest_task_execution_role_arn, " "), trim(var.monthly_ingest_task_role_arn, " ")])
+  monthly_ingest_pass_role_arns             = compact([trim(local.monthly_ingest_task_execution_role_arn_resolved, " "), trim(local.monthly_ingest_task_role_arn_resolved, " ")])
   monthly_ingest_schedule_source_key_effective = trim(var.monthly_ingest_schedule_source_key, " ") != "" ? trim(var.monthly_ingest_schedule_source_key, " ") : "monthly-workflows/pending/${local.monthly_ingest_schedule_job_id}/source.zip"
   monthly_ingest_schedule_enabled = (
     var.monthly_ingest_state_machine_enabled
@@ -54,7 +54,7 @@ locals {
     endpoint_poll_interval_seconds   = var.monthly_ingest_endpoint_poll_interval_seconds
     endpoint_ready_max_attempts      = var.monthly_ingest_endpoint_ready_max_attempts
     ecs_cluster_arn                  = trim(var.monthly_ingest_ecs_cluster_arn, " ")
-    ecs_task_definition_arn          = trim(var.monthly_ingest_task_definition_arn, " ")
+    ecs_task_definition_arn          = trim(local.monthly_ingest_task_definition_arn_resolved, " ")
     ecs_container_name               = trim(var.monthly_ingest_container_name, " ")
     ecs_task_timeout_seconds         = var.monthly_ingest_ecs_task_timeout_seconds
     state_machine_timeout_seconds    = var.monthly_ingest_state_machine_timeout_seconds
@@ -211,8 +211,8 @@ resource "aws_sfn_state_machine" "monthly_ingest" {
       error_message = "monthly_ingest_ecs_cluster_arn must be set when monthly_ingest_state_machine_enabled=true."
     }
     precondition {
-      condition     = trim(var.monthly_ingest_task_definition_arn, " ") != ""
-      error_message = "monthly_ingest_task_definition_arn must be set when monthly_ingest_state_machine_enabled=true."
+      condition     = trim(local.monthly_ingest_task_definition_arn_resolved, " ") != ""
+      error_message = "monthly_ingest_task_definition_arn must be set or a managed monthly ingest ECS task definition must be enabled when monthly_ingest_state_machine_enabled=true."
     }
   }
 }

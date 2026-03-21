@@ -33,6 +33,56 @@ The staging Lambda does not:
 - run the heavy monthly processing job
 - manage endpoint lifecycle
 
+## ECS Worker Runtime Contract
+
+The ECS worker reads the shared monthly-ingest contract from environment variables:
+
+- `MONTHLY_INGEST_WORKFLOW_NAME`
+- `MONTHLY_INGEST_WORKFLOW_VERSION`
+- `MONTHLY_INGEST_JOB_ID`
+- `MONTHLY_INGEST_CORRELATION_ID`
+- `MONTHLY_INGEST_SOURCE_BUCKET`
+- `MONTHLY_INGEST_SOURCE_KEY`
+- `MONTHLY_INGEST_DESTINATION_BUCKET`
+- `MONTHLY_INGEST_DESTINATION_PREFIX`
+- `MONTHLY_INGEST_INPUT_JSON`
+
+It also uses:
+
+- `FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES`
+
+Expected source object:
+
+- the current worker expects a staged raw-source ZIP using the existing Form 990 key contract:
+  - `form990/raw-sources/{source_year}/zip_archive/{source_archive_key}/{source_signature}/{source_filename}`
+
+Expected outputs:
+
+- `{destination_prefix}/monthly-workflows/jobs/{job_id}/manifest.json`
+- `{destination_prefix}/monthly-workflows/jobs/{job_id}/artifacts.json`
+- `{destination_prefix}/monthly-workflows/jobs/{job_id}/summary.json`
+- dataset and raw XML outputs under the same job-scoped prefix
+
+## Managed ECS Resources
+
+When `monthly_ingest_task_definition_arn` is not supplied, Terraform manages:
+
+- the worker ECR repository
+- the worker CloudWatch log group
+- the ECS task execution role
+- the ECS task role
+- the Fargate task definition
+
+Key task-definition controls:
+
+- `monthly_ingest_worker_image_uri`
+- `monthly_ingest_worker_image_tag`
+- `monthly_ingest_task_cpu`
+- `monthly_ingest_task_memory`
+- `monthly_ingest_task_ephemeral_storage_gib`
+- `monthly_ingest_task_log_retention_days`
+- `monthly_ingest_task_allowed_bucket_arns`
+
 ## Cleanup Behavior
 
 - Cleanup is shared by both success and failure paths.
@@ -56,9 +106,8 @@ This repository now defines the orchestration, but the following deployment-spec
 - endpoint security group ids
 - task security group ids
 - ECS cluster ARN
-- ECS task definition ARN
-- ECS task execution role ARN
-- ECS task role ARN
+
+Terraform can now manage the task definition and ECS roles automatically. The remaining deployment-specific reference that still must be supplied separately is the ECS cluster ARN.
 
 The staging Lambda no longer has to be supplied externally. Terraform creates it automatically when `monthly_ingest_state_machine_enabled=true` and `monthly_ingest_staging_lambda_arn` is empty. Set `monthly_ingest_staging_lambda_arn` only when you want to point the workflow at a separately managed Lambda.
 
@@ -79,9 +128,44 @@ The staging Lambda no longer has to be supplied externally. Terraform creates it
   - or `skip_staging=true` with a pre-staged S3 object already present
 - Inspect Step Functions execution history first for endpoint lifecycle and cleanup state.
 - Inspect ECS task stop reason and container exit code second for worker failures.
+- Inspect the ECS task `summary.json` artifact third for job-scoped counts and source/archive metadata.
+
+## IAM Notes
+
+Managed task execution role:
+
+- uses the standard `AmazonECSTaskExecutionRolePolicy`
+- supports ECR image pull and CloudWatch Logs delivery
+
+Managed task role:
+
+- `s3:ListBucket` on the platform data bucket plus any configured additional allowed buckets
+- `s3:GetObject`
+- `s3:PutObject`
+- `s3:DeleteObject`
+
+If a workflow needs to read from or write to buckets outside the default platform data bucket, add those bucket ARNs to `monthly_ingest_task_allowed_bucket_arns` or provide an external task role ARN.
+
+## Failure Modes And Troubleshooting
+
+Common failure classes:
+
+- invalid input contract
+- missing staged source object
+- malformed ZIP archive
+- ZIP archive with no processable XML members
+- downstream parsing or S3 write failures
+
+Troubleshooting sequence:
+
+1. Check Step Functions execution history for the failing stage and cleanup result.
+2. Check ECS task logs in the monthly-ingest ECS log group.
+3. Check the job-scoped `summary.json` or `manifest.json` artifact if they were written.
+4. Confirm the worker image tag exists in ECR and the source ZIP object exists in S3.
+5. Confirm ephemeral storage sizing is large enough for the ZIP and extracted XML volume.
 
 ## Remaining Follow-Up
 
-- implement the ECS worker task definition and image
 - connect expected job artifacts (`manifest.json`, `artifacts.json`, `summary.json`) to downstream dataset-specific processing
+- add image build/push automation for the managed ECR repository
 - decide whether later phases should emit a customer-safe summary record outside Step Functions execution history

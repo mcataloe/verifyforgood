@@ -8,6 +8,7 @@ from charity_status.form990 import (
     compute_filing_quality,
     ingest_form990_records,
     load_form990_monthly_workflow_binding,
+    run_form990_monthly_processing_task,
     stage_form990_monthly_source,
 )
 from charity_status.ingest import (
@@ -72,6 +73,7 @@ __all__ = [
     "ingest_form990_records",
     "load_form990_monthly_workflow_binding",
     "load_monthly_ingest_workflow_config",
+    "run_form990_monthly_processing_task",
     "shape_step_function_input",
     "shape_staging_result",
     "stage_form990_monthly_source",

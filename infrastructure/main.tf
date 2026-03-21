@@ -39,6 +39,7 @@ locals {
     monthly_ingest_schedule_rule      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-${local.environment_slug}-${local.region_short}"
     monthly_ingest_schedule_role      = "${local.namespace}-${local.platform}-monthly-ingest-schedule-role-${local.environment_slug}-${local.region_short}"
     monthly_ingest_staging_lambda     = "${local.namespace}-${local.platform}-monthly-ingest-staging-${local.environment_slug}-${local.region_short}"
+    monthly_ingest_worker_repository  = "${local.namespace}-${local.platform}-monthly-ingest-worker-${local.environment_slug}-${local.region_short}"
     ingest_lambda                     = "${local.namespace}-${local.platform}-dataset-ingest-${local.environment_slug}-${local.region_short}"
     query_lambda                      = "${local.namespace}-${local.platform}-query-api-${local.environment_slug}-${local.region_short}"
     refresh_lambda                    = "${local.namespace}-${local.platform}-profile-refresh-${local.environment_slug}-${local.region_short}"
@@ -68,6 +69,7 @@ locals {
     monthly_ingest_schedule_rule      = "${local.legacy_name_prefix}-monthly-ingest-schedule"
     monthly_ingest_schedule_role      = "${local.legacy_name_prefix}-monthly-ingest-schedule-role"
     monthly_ingest_staging_lambda     = "${local.legacy_name_prefix}-monthly-ingest-staging"
+    monthly_ingest_worker_repository  = "${local.legacy_name_prefix}-monthly-ingest-worker"
     ingest_lambda                     = "${local.legacy_name_prefix}-dataset-ingest"
     query_lambda                      = "${local.legacy_name_prefix}-query-api"
     refresh_lambda                    = "${local.legacy_name_prefix}-profile-refresh"
@@ -127,6 +129,7 @@ locals {
   monthly_ingest_schedule_rule_name      = local.resource_names.monthly_ingest_schedule_rule
   monthly_ingest_schedule_role_name      = local.resource_names.monthly_ingest_schedule_role
   monthly_ingest_staging_lambda_name     = local.lambda_function_names.monthly_private_ingest_staging
+  monthly_ingest_worker_repository_name  = local.resource_names.monthly_ingest_worker_repository
   ingest_lambda_name                     = local.lambda_function_names.regulatory_data_ingestion
   query_lambda_name                      = local.lambda_function_names.organization_verification_api
   refresh_lambda_name                    = local.lambda_function_names.platform_refresh

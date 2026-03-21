@@ -9,9 +9,10 @@ Current phase boundaries:
 - define and wire the Step Functions state machine for endpoint lifecycle, staging, ECS execution, and cleanup
 - wire the monthly EventBridge schedule to start the workflow
 - implement the staging Lambda that downloads the vendor ZIP and stores it under the existing raw-source S3 contract
+- implement the ECS Fargate worker that downloads the staged ZIP from S3, digests it with ephemeral local storage, and writes job-scoped artifacts back to S3
 - centralize workflow naming, retry, timeout, and log-group conventions
 - reuse existing S3 key patterns for downloaded source artifacts
-- leave ECS worker implementation details for later phases
+- leave only environment-specific image publishing and cluster attachment details for later phases
 
 ## Target Flow
 
@@ -69,6 +70,16 @@ The ZIP digestion step is a poor fit for Lambda because it can require larger ep
 - configurable CPU, memory, and ephemeral disk for large ZIP extraction
 - direct execution in private subnets without public ingress
 - a clean future path for additional ingest workloads that need the same runtime envelope
+
+The ECS worker now:
+
+- validates the shared monthly-ingest runtime contract from environment variables
+- downloads the staged source ZIP from S3
+- extracts XML members into a local temporary working directory
+- builds filing records from those extracted members
+- reuses the existing Form 990 ingest service to write normalized artifacts back to S3
+- emits job-scoped `manifest.json`, `artifacts.json`, and `summary.json` control artifacts
+- exits non-zero when the overall processing result is fully failed or the archive/input is invalid
 
 ## Why The S3 Gateway Endpoint Is Permanent
 
@@ -138,6 +149,7 @@ The shared contract layer now defines:
   - required environment variables derived from the Step Functions payload
   - a stable JSON payload handoff contract
   - expected task output artifacts (`manifest.json`, `artifacts.json`, `summary.json`)
+  - managed task defaults for image, CPU, memory, and ephemeral storage
 - interface endpoint contract:
   - service identifiers
   - lifecycle expectation (`ephemeral`)
@@ -203,6 +215,59 @@ It also writes object metadata for:
 
 That keeps the staged ZIP immutable, traceable, and reusable by later ECS processing or manual backfills.
 
+## ECS Runtime Output Contract
+
+For a job-scoped destination such as:
+
+- `{destination_prefix}/monthly-workflows/jobs/{job_id}/`
+
+the ECS worker writes:
+
+- `manifest.json`
+  - high-level job manifest with source object identity, extraction summary, and ingest result
+- `artifacts.json`
+  - concrete downstream artifact locations such as:
+    - `raw_xml_prefix`
+    - `filing_records_s3_key`
+    - `metrics_s3_key`
+    - `governance_s3_key`
+    - `quality_s3_key`
+    - `relationships_s3_key`
+    - `processing_manifest_s3_key`
+- `summary.json`
+  - compact operator-oriented status summary with counts and key identifiers
+
+The worker also writes dataset artifacts under the same job-scoped prefix:
+
+- `raw-xml/`
+- `datasets/metadata/`
+- `datasets/metrics/`
+- `datasets/governance/`
+- `datasets/quality/`
+- `datasets/relationships/`
+- `processing/`
+
+This keeps the ECS task focused on processing while preserving a stable output contract for orchestration and future downstream wiring.
+
+## Managed ECS Task Definition
+
+When `monthly_ingest_task_definition_arn` is empty, Terraform now manages:
+
+- an ECR repository for the worker image
+- a CloudWatch log group for ECS task logs
+- an ECS task execution role
+- an ECS task role with S3 read/write access to the platform data bucket plus any configured additional allowed buckets
+- a Fargate task definition with:
+  - container image URI resolution
+  - `awsvpc` network mode
+  - `FARGATE` compatibility
+  - configurable CPU and memory
+  - configurable ephemeral storage
+  - `awslogs` configuration
+  - the shared monthly-ingest environment-variable contract
+
+If an environment already has a managed image, task definition, or roles, the existing ARN overrides still work.
+
 ## Cleanup And Failure Model
 
 The state machine uses a shared cleanup chain instead of trying to embed teardown in the ECS worker:
@@ -232,3 +297,4 @@ That separation supports future additions such as:
 - TODO: provision or connect the target ECS task definition, cluster, subnet, and security-group references per environment
 - TODO: connect task output artifacts to downstream dataset-specific manifests
 - TODO: add workflow-specific schedule builders if future monthly sources need stronger typed schedule_context helpers
+- TODO: add CI or release automation to build and push `Dockerfile.monthly-ingest` images into the managed ECR repository

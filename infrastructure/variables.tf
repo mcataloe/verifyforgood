@@ -308,19 +308,19 @@ variable "monthly_ingest_ecs_cluster_name" {
 }
 
 variable "monthly_ingest_task_definition_arn" {
-  description = "Existing ECS task definition ARN for the monthly private-ingest worker task."
+  description = "Existing ECS task definition ARN for the monthly private-ingest worker task. Empty lets Terraform manage the task definition."
   type        = string
   default     = ""
 }
 
 variable "monthly_ingest_task_execution_role_arn" {
-  description = "Task execution role ARN passed through the Step Functions execution role for ECS RunTask."
+  description = "Task execution role ARN passed through the Step Functions execution role for ECS RunTask. Empty lets Terraform manage the execution role."
   type        = string
   default     = ""
 }
 
 variable "monthly_ingest_task_role_arn" {
-  description = "Application task role ARN passed through the Step Functions execution role for ECS RunTask."
+  description = "Application task role ARN passed through the Step Functions execution role for ECS RunTask. Empty lets Terraform manage the task role."
   type        = string
   default     = ""
 }
@@ -329,6 +329,48 @@ variable "monthly_ingest_container_name" {
   description = "Container name inside the ECS task definition that receives the monthly-ingest environment overrides."
   type        = string
   default     = "monthly-ingest"
+}
+
+variable "monthly_ingest_worker_image_uri" {
+  description = "Optional full container image URI for the monthly private-ingest worker. Empty uses the managed ECR repository plus monthly_ingest_worker_image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "monthly_ingest_worker_image_tag" {
+  description = "Image tag used with the managed monthly private-ingest worker ECR repository when monthly_ingest_worker_image_uri is empty."
+  type        = string
+  default     = "latest"
+}
+
+variable "monthly_ingest_task_cpu" {
+  description = "CPU units for the managed monthly private-ingest ECS task definition."
+  type        = number
+  default     = 2048
+}
+
+variable "monthly_ingest_task_memory" {
+  description = "Memory in MiB for the managed monthly private-ingest ECS task definition."
+  type        = number
+  default     = 8192
+}
+
+variable "monthly_ingest_task_ephemeral_storage_gib" {
+  description = "Ephemeral storage in GiB for the managed monthly private-ingest ECS task definition."
+  type        = number
+  default     = 100
+}
+
+variable "monthly_ingest_task_log_retention_days" {
+  description = "Retention in days for the managed CloudWatch log group used by the monthly private-ingest ECS task."
+  type        = number
+  default     = 30
+}
+
+variable "monthly_ingest_task_allowed_bucket_arns" {
+  description = "Additional S3 bucket ARNs the managed monthly private-ingest ECS task role may access for source or destination objects."
+  type        = list(string)
+  default     = []
 }
 
 variable "monthly_ingest_staging_lambda_arn" {
