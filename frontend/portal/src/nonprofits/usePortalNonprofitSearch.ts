@@ -7,6 +7,7 @@ import {
   type PortalNonprofitSearchService,
   type PortalNonprofitSearchSummary,
 } from "./nonprofitSearch";
+import { normalizePortalError } from "../lib/portalError";
 
 export interface PortalNonprofitSearchController {
   detail: PortalNonprofitDetail | null;
@@ -111,9 +112,5 @@ export function usePortalNonprofitSearch(
 }
 
 function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "The nonprofit lookup failed. Try again.";
+  return normalizePortalError(error, "The nonprofit lookup failed. Try again.");
 }

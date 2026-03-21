@@ -3,6 +3,7 @@ import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
 import { usePortalAuth } from "../auth/usePortalAuth";
 import { PortalAuthLayout } from "../components/PortalAuthLayout";
+import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
 import { ApiAccessPage } from "../pages/ApiAccessPage";
@@ -66,9 +67,9 @@ export function PortalApp() {
         subtitle="Checking whether a portal session already exists before any protected route can render."
         title="Checking portal access"
       >
-        <p className="portal-auth-shell__message">
-          Loading session state through the portal auth abstraction.
-        </p>
+        <PortalNotice title="Loading" tone="loading">
+          <p>Checking whether a portal session already exists.</p>
+        </PortalNotice>
       </PortalAuthLayout>
     );
   }

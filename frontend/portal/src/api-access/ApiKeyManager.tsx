@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Grid, Inline, Panel } from "@charity-status/shared-ui";
+import { PortalNotice } from "../components/feedback";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
 
@@ -110,9 +111,9 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         </form>
 
         {apiKeys.error ? (
-          <p className="portal-feedback portal-feedback--error">
-            {apiKeys.error}
-          </p>
+          <PortalNotice tone="error">
+            <p>{apiKeys.error}</p>
+          </PortalNotice>
         ) : null}
       </Panel>
 
@@ -121,9 +122,11 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           title="Copy this secret now"
           subtitle="The plaintext API key is shown once and is not persisted in portal storage."
         >
-          <p className="portal-feedback portal-feedback--warning">
-            Store this key in your secrets manager before leaving the page.
-          </p>
+          <PortalNotice tone="warning">
+            <p>
+              Store this key in your secrets manager before leaving the page.
+            </p>
+          </PortalNotice>
           <code className="portal-secret">{apiKeys.visibleSecret.secret}</code>
           <Inline className="portal-form__actions">
             <span className="portal-key-chip">
@@ -144,9 +147,15 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         title="Active API keys"
         subtitle="Secrets are never shown again after creation."
       >
-        {apiKeys.isLoading ? <p>Loading API keys...</p> : null}
+        {apiKeys.isLoading ? (
+          <PortalNotice title="Loading" tone="loading">
+            <p>Loading API keys for the current organization.</p>
+          </PortalNotice>
+        ) : null}
         {!apiKeys.isLoading && activeKeys.length === 0 ? (
-          <p>No active API keys yet for this organization.</p>
+          <PortalNotice title="Nothing to show yet" tone="empty">
+            <p>Create a key to start authenticating API traffic.</p>
+          </PortalNotice>
         ) : null}
 
         <div className="portal-key-list">
@@ -200,7 +209,11 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         title="Revoked keys"
         subtitle="Revoked keys remain visible as audit-friendly metadata only."
       >
-        {revokedKeys.length === 0 ? <p>No revoked keys yet.</p> : null}
+        {revokedKeys.length === 0 ? (
+          <PortalNotice tone="empty">
+            <p>No revoked keys yet.</p>
+          </PortalNotice>
+        ) : null}
         <div className="portal-key-list">
           {revokedKeys.map((key) => (
             <article className="portal-key-card" key={key.key_id}>

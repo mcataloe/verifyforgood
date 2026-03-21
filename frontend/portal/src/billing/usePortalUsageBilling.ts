@@ -6,6 +6,7 @@ import {
   type PortalUsageBillingService,
   type PortalUsageBillingSnapshot,
 } from "./portalUsageBilling";
+import { normalizePortalError } from "../lib/portalError";
 
 export interface PortalUsageBillingController {
   error: string | null;
@@ -93,9 +94,8 @@ export function usePortalUsageBilling(
 }
 
 function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "The billing summary could not be loaded.";
+  return normalizePortalError(
+    error,
+    "The billing summary could not be loaded.",
+  );
 }

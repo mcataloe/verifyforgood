@@ -7,6 +7,7 @@ import {
   type PortalApiKeyService,
   type PortalApiKeySummary,
 } from "./apiKeys";
+import { normalizePortalError } from "../lib/portalError";
 
 export interface PortalApiKeysState {
   createKey: (input: CreatePortalApiKeyInput) => Promise<void>;
@@ -124,9 +125,8 @@ export function usePortalApiKeys(
 }
 
 function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "The API credential action failed. Try again.";
+  return normalizePortalError(
+    error,
+    "The API credential action failed. Try again.",
+  );
 }

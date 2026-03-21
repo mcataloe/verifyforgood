@@ -1,6 +1,11 @@
-import { Grid, Inline, Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import {
+  PortalErrorState,
+  PortalLoadingState,
+  PortalNotice,
+} from "../components/feedback";
 import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
@@ -22,36 +27,26 @@ export function UsageBillingPanel({
 
   if (billing.isLoading) {
     return (
-      <Panel
-        title="Loading usage and billing"
+      <PortalLoadingState
         subtitle="Fetching the current customer billing summary."
+        title="Loading usage and billing"
       >
         <p>Loading plan, request usage, and overage policy state.</p>
-      </Panel>
+      </PortalLoadingState>
     );
   }
 
   if (billing.error || !billing.snapshot) {
     return (
-      <Panel
-        title="Billing summary unavailable"
+      <PortalErrorState
+        actionLabel="Retry billing summary"
+        message={billing.error ?? "No billing summary is available right now."}
+        onAction={() => {
+          void billing.reload();
+        }}
         subtitle="The portal could not load the current usage and billing state."
-      >
-        <p className="portal-feedback portal-feedback--error">
-          {billing.error ?? "No billing summary is available right now."}
-        </p>
-        <Inline className="portal-form__actions">
-          <button
-            className="portal-shell__action"
-            onClick={() => {
-              void billing.reload();
-            }}
-            type="button"
-          >
-            Retry billing summary
-          </button>
-        </Inline>
-      </Panel>
+        title="Billing summary unavailable"
+      />
     );
   }
 
@@ -64,9 +59,9 @@ export function UsageBillingPanel({
         subtitle="Simple customer-facing visibility into plan, request usage, and budget enforcement."
       >
         {snapshot.notice ? (
-          <p className="portal-feedback portal-feedback--warning">
-            {snapshot.notice}
-          </p>
+          <PortalNotice tone="warning">
+            <p>{snapshot.notice}</p>
+          </PortalNotice>
         ) : null}
 
         <div className="portal-usage-meter" aria-label="Request usage meter">

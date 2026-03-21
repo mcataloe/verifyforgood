@@ -21,6 +21,18 @@ def test_portal_shell_has_expected_source_structure():
     ).exists()
     assert (PORTAL_ROOT / "src" / "organization" / "portalOrganization.ts").exists()
     assert (PORTAL_ROOT / "src" / "components" / "PortalLayout.tsx").exists()
+    assert (
+        PORTAL_ROOT / "src" / "components" / "feedback" / "PortalNotice.tsx"
+    ).exists()
+    assert (
+        PORTAL_ROOT / "src" / "components" / "feedback" / "PortalLoadingState.tsx"
+    ).exists()
+    assert (
+        PORTAL_ROOT / "src" / "components" / "feedback" / "PortalErrorState.tsx"
+    ).exists()
+    assert (
+        PORTAL_ROOT / "src" / "components" / "feedback" / "PortalEmptyState.tsx"
+    ).exists()
     assert (PORTAL_ROOT / "src" / "pages" / "DashboardPage.tsx").exists()
     assert (PORTAL_ROOT / "src" / "pages" / "WorkspacePage.tsx").exists()
     assert (PORTAL_ROOT / "src" / "pages" / "ApiAccessPage.tsx").exists()
@@ -52,5 +64,6 @@ def test_portal_readme_documents_shell_and_extension_guidance():
     assert "auth" in readme
     assert "nonprofit search" in readme
     assert "usage and billing visibility" in readme
+    assert "feedback" in readme
     assert "organization scope" in readme
     assert "extending the portal" in readme

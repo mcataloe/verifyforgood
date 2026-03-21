@@ -1,5 +1,10 @@
 import { useState } from "react";
 import { Grid, Inline, Panel } from "@charity-status/shared-ui";
+import {
+  PortalEmptyState,
+  PortalLoadingState,
+  PortalNotice,
+} from "../components/feedback";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   usePortalNonprofitSearch,
@@ -78,19 +83,19 @@ export function NonprofitSearchPanel({
         </dl>
 
         {search.error ? (
-          <p className="portal-feedback portal-feedback--error">
-            {search.error}
-          </p>
+          <PortalNotice tone="error">
+            <p>{search.error}</p>
+          </PortalNotice>
         ) : null}
       </Panel>
 
       {search.isLoading ? (
-        <Panel
-          title="Loading nonprofit results"
+        <PortalLoadingState
           subtitle="Waiting on the backend nonprofit endpoints."
+          title="Loading nonprofit results"
         >
           <p>Running the current lookup through the portal API client.</p>
-        </Panel>
+        </PortalLoadingState>
       ) : null}
 
       {search.hasSearched &&
@@ -98,15 +103,15 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "ein" &&
       !search.detail ? (
-        <Panel
-          title="No nonprofit found"
+        <PortalEmptyState
           subtitle="The exact EIN lookup returned no matching organization."
+          title="No nonprofit found"
         >
           <p>
             Try another EIN or switch to a name-based search if you are still
             narrowing the candidate organization.
           </p>
-        </Panel>
+        </PortalEmptyState>
       ) : null}
 
       {search.hasSearched &&
@@ -114,15 +119,15 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "name" &&
       search.results.length === 0 ? (
-        <Panel
-          title="No nonprofit matches"
+        <PortalEmptyState
           subtitle="The current name query returned an empty result set."
+          title="No nonprofit matches"
         >
           <p>
             Try broadening the organization name or run an exact EIN lookup for
             a more deterministic result.
           </p>
-        </Panel>
+        </PortalEmptyState>
       ) : null}
 
       {search.results.length > 0 ? (

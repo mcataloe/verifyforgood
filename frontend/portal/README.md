@@ -123,6 +123,16 @@ The usage and billing area now uses a small feature-local billing slice under `s
 
 This keeps the page useful now without building a larger billing system into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.
 
+## Feedback patterns
+
+Portal features now share a small feedback layer for loading, error, empty, and warning states.
+
+- reusable feedback components live under `src/components/feedback/`
+- portal hooks normalize shared API client failures through `src/lib/portalError.ts`
+- feature slices should use these shared portal patterns before introducing new local loading or error treatments
+
+This keeps nonprofit search, API access, billing visibility, and the auth shell aligned without promoting portal-specific UI concerns into `frontend/shared`.
+
 ## Running the portal
 
 From the workspace root:
