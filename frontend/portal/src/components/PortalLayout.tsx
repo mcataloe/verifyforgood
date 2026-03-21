@@ -6,7 +6,7 @@ import type {
 import type { PropsWithChildren } from "react";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { usePortalOrganization } from "../organization/PortalOrganizationProvider";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;

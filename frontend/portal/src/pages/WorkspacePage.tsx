@@ -1,7 +1,7 @@
 import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { usePortalOrganization } from "../organization/PortalOrganizationProvider";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface WorkspacePageProps {
   endpoints: PortalEndpoints;

@@ -1,10 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createMockPortalSession } from "../app/portalSession";
-import {
-  PortalOrganizationProvider,
-  usePortalOrganization,
-} from "./PortalOrganizationProvider";
+import { PortalOrganizationProvider } from "./PortalOrganizationProvider";
+import { usePortalOrganization } from "./usePortalOrganization";
 
 const runtimeConfig = {
   apiBaseUrl: "https://api.verifyforgood.test",

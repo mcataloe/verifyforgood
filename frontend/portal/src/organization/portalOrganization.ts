@@ -21,13 +21,20 @@ export interface PortalOrganization {
   workspace_id: string;
 }
 
+export interface PortalOrganizationSessionScope {
+  account_id: string;
+  auth_method: PortalAuthenticatedSession["auth_method"];
+  organization_name: string;
+  workspace_id: string;
+}
+
 export interface LoadActivePortalOrganizationOptions {
   apiClient: ApiClient;
-  session: PortalAuthenticatedSession;
+  session: PortalOrganizationSessionScope;
 }
 
 export function createSessionPortalOrganization(
-  session: PortalAuthenticatedSession,
+  session: PortalOrganizationSessionScope,
   scopeSource: PortalOrganization["scope_source"] = "session_mock",
 ): PortalOrganization {
   return {

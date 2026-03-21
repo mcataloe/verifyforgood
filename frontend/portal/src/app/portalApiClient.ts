@@ -1,7 +1,9 @@
 import { createApiClient, type ApiClient } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
-import type { PortalOrganization } from "../organization/portalOrganization";
-import type { PortalAuthenticatedSession } from "./portalSession";
+import type {
+  PortalOrganization,
+  PortalOrganizationSessionScope,
+} from "../organization/portalOrganization";
 
 type PortalApiRuntimeConfig = Pick<
   FrontendRuntimeConfig,
@@ -12,7 +14,7 @@ interface CreatePortalApiClientOptions {
   fetchImpl?: typeof fetch;
   organization?: Pick<PortalOrganization, "account_id" | "workspace_id"> | null;
   runtimeConfig: PortalApiRuntimeConfig;
-  session: PortalAuthenticatedSession;
+  session: Pick<PortalOrganizationSessionScope, "account_id" | "workspace_id">;
 }
 
 export function createPortalApiClient({

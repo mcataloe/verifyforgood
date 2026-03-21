@@ -1,13 +1,5 @@
-import type { ApiClient } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
-import {
-  createContext,
-  type PropsWithChildren,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { createPortalApiClient } from "../app/portalApiClient";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -15,16 +7,12 @@ import {
   loadActivePortalOrganization,
   type LoadActivePortalOrganizationOptions,
   type PortalOrganization,
+  type PortalOrganizationSessionScope,
 } from "./portalOrganization";
-
-export type PortalOrganizationStatus = "loading" | "ready";
-
-interface PortalOrganizationContextValue {
-  activeOrganization: PortalOrganization;
-  apiClient: ApiClient;
-  refresh: () => Promise<void>;
-  status: PortalOrganizationStatus;
-}
+import {
+  PortalOrganizationContext,
+  type PortalOrganizationStatus,
+} from "./usePortalOrganization";
 
 interface PortalOrganizationProviderProps extends PropsWithChildren {
   fetchImpl?: typeof fetch;
@@ -35,9 +23,6 @@ interface PortalOrganizationProviderProps extends PropsWithChildren {
   session: PortalAuthenticatedSession;
 }
 
-const PortalOrganizationContext =
-  createContext<PortalOrganizationContextValue | null>(null);
-
 export function PortalOrganizationProvider({
   children,
   fetchImpl,
@@ -45,67 +30,65 @@ export function PortalOrganizationProvider({
   runtimeConfig,
   session,
 }: PortalOrganizationProviderProps) {
+  const sessionScope = useMemo<PortalOrganizationSessionScope>(
+    () => ({
+      account_id: session.account_id,
+      auth_method: session.auth_method,
+      organization_name: session.organization_name,
+      workspace_id: session.workspace_id,
+    }),
+    [
+      session.account_id,
+      session.auth_method,
+      session.organization_name,
+      session.workspace_id,
+    ],
+  );
+  const runtimeScope = useMemo(
+    () => ({
+      apiBaseUrl: runtimeConfig.apiBaseUrl,
+      apiVersion: runtimeConfig.apiVersion,
+    }),
+    [runtimeConfig.apiBaseUrl, runtimeConfig.apiVersion],
+  );
   const sessionOrganization = useMemo(
-    () => createSessionPortalOrganization(session),
-    [session.account_id, session.organization_name, session.workspace_id],
+    () => createSessionPortalOrganization(sessionScope),
+    [sessionScope],
   );
   const [activeOrganization, setActiveOrganization] =
     useState<PortalOrganization>(sessionOrganization);
   const [status, setStatus] = useState<PortalOrganizationStatus>(
-    session.auth_method === "portal_browser_session" ? "loading" : "ready",
+    sessionScope.auth_method === "portal_browser_session" ? "loading" : "ready",
   );
 
   const loaderClient = useMemo(
     () =>
       createPortalApiClient({
         fetchImpl,
-        runtimeConfig,
-        session,
+        runtimeConfig: runtimeScope,
+        session: sessionScope,
       }),
-    [
-      fetchImpl,
-      runtimeConfig.apiBaseUrl,
-      runtimeConfig.apiVersion,
-      session.account_id,
-      session.auth_method,
-      session.organization_name,
-      session.workspace_id,
-    ],
+    [fetchImpl, runtimeScope, sessionScope],
   );
   const apiClient = useMemo(
     () =>
       createPortalApiClient({
         fetchImpl,
         organization: activeOrganization,
-        runtimeConfig,
-        session,
+        runtimeConfig: runtimeScope,
+        session: sessionScope,
       }),
-    [
-      activeOrganization.account_id,
-      activeOrganization.organization_name,
-      activeOrganization.workspace_id,
-      fetchImpl,
-      runtimeConfig.apiBaseUrl,
-      runtimeConfig.apiVersion,
-      session.account_id,
-      session.auth_method,
-      session.organization_name,
-      session.workspace_id,
-    ],
+    [activeOrganization, fetchImpl, runtimeScope, sessionScope],
   );
 
   useEffect(() => {
     setActiveOrganization(sessionOrganization);
     setStatus(
-      session.auth_method === "portal_browser_session" ? "loading" : "ready",
+      sessionScope.auth_method === "portal_browser_session"
+        ? "loading"
+        : "ready",
     );
-  }, [
-    session.auth_method,
-    session.account_id,
-    session.organization_name,
-    session.workspace_id,
-    sessionOrganization,
-  ]);
+  }, [sessionOrganization, sessionScope]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -113,7 +96,7 @@ export function PortalOrganizationProvider({
     const loadOrganization = async () => {
       const organization = await organizationLoader({
         apiClient: loaderClient,
-        session,
+        session: sessionScope,
       });
       if (isCancelled) {
         return;
@@ -128,20 +111,13 @@ export function PortalOrganizationProvider({
     return () => {
       isCancelled = true;
     };
-  }, [
-    loaderClient,
-    organizationLoader,
-    session.account_id,
-    session.auth_method,
-    session.organization_name,
-    session.workspace_id,
-  ]);
+  }, [loaderClient, organizationLoader, sessionScope]);
 
   const refresh = async () => {
     setStatus("loading");
     const organization = await organizationLoader({
       apiClient: loaderClient,
-      session,
+      session: sessionScope,
     });
     setActiveOrganization(organization);
     setStatus("ready");
@@ -159,15 +135,4 @@ export function PortalOrganizationProvider({
       {children}
     </PortalOrganizationContext.Provider>
   );
-}
-
-export function usePortalOrganization() {
-  const context = useContext(PortalOrganizationContext);
-  if (!context) {
-    throw new Error(
-      "usePortalOrganization must be used inside PortalOrganizationProvider.",
-    );
-  }
-
-  return context;
 }

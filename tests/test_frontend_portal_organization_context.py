@@ -29,9 +29,13 @@ def test_portal_readme_and_shell_reference_organization_scope():
     portal_layout = (
         PORTAL_ROOT / "src" / "components" / "PortalLayout.tsx"
     ).read_text(encoding="utf-8")
+    portal_hook = (
+        PORTAL_ROOT / "src" / "organization" / "usePortalOrganization.ts"
+    ).read_text(encoding="utf-8")
 
     assert "organization scope" in readme
     assert "src/organization/" in readme
     assert "get /v1/organization/settings" in readme
     assert "PortalOrganizationProvider" in portal_app
     assert "usePortalOrganization" in portal_layout
+    assert "usePortalOrganization" in portal_hook
