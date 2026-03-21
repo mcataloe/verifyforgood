@@ -265,6 +265,20 @@ describe("UsageBillingPanel", () => {
       screen.getByText("Hard stop enabled at the monthly request limit"),
     ).toBeTruthy();
     expect(
+      screen.getByRole("heading", {
+        name: "Usage compared with this plan's included quota",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("10,000 requests")).toBeTruthy();
+    expect(screen.getByText("905 requests / day")).toBeTruthy();
+    expect(screen.getByText("About 28,048 requests")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /At this pace, usage would likely exceed the included quota by about 18,048 requests/i,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/\$0\.003 per extra request/i)).toBeTruthy();
+    expect(
       screen.getByText("/v1/organization/billing/checkout-session"),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);

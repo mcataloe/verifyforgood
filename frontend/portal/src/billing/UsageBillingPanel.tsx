@@ -20,6 +20,7 @@ import {
   usePortalBillingInteractions,
   type PortalBillingInteractionsController,
 } from "./usePortalBillingInteractions";
+import { UsageContextPanel } from "./UsageContextPanel";
 
 interface UsageBillingPanelProps {
   billingActionsController?: PortalBillingInteractionsController;
@@ -128,6 +129,12 @@ export function UsageBillingPanel({
             />
           </div>
         </div>
+
+        <UsageContextPanel
+          budgetStatus={snapshot.budgetStatus}
+          plan={effectivePlan}
+          usage={snapshot.usage}
+        />
 
         <dl className="portal-shell__details">
           <div>
