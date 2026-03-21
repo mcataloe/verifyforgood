@@ -14,6 +14,7 @@ import {
   usePortalPricingPlans,
   type PortalPricingPlansController,
 } from "./usePortalPricingPlans";
+import { SubscriptionSummaryCard } from "./SubscriptionSummaryCard";
 import { TrialOnboardingPanel } from "./TrialOnboardingPanel";
 
 interface UsageBillingPanelProps {
@@ -72,6 +73,9 @@ export function UsageBillingPanel({
     pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
       ?.plan ??
     null;
+  const currentPlan =
+    pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
+      ?.plan ?? null;
 
   return (
     <Grid className="portal-page-grid">
@@ -80,6 +84,10 @@ export function UsageBillingPanel({
         subtitle="Simple customer-facing visibility into plan, request usage, and budget enforcement."
       >
         <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
+        <SubscriptionSummaryCard
+          currentPlan={currentPlan}
+          snapshot={snapshot}
+        />
 
         {snapshot.notice ? (
           <PortalNotice tone="warning">
@@ -114,16 +122,8 @@ export function UsageBillingPanel({
 
         <dl className="portal-shell__details">
           <div>
-            <dt>Current plan</dt>
-            <dd>{snapshot.plan}</dd>
-          </div>
-          <div>
             <dt>Effective access</dt>
             <dd>{snapshot.effectiveAccessPlan}</dd>
-          </div>
-          <div>
-            <dt>Billing status</dt>
-            <dd>{snapshot.billingStatus}</dd>
           </div>
           <div>
             <dt>Budget mode</dt>
