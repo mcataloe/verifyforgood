@@ -70,6 +70,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Usage & Billing" }),
     ).toBeTruthy();
+    expect(screen.getByText(/Org: VerifyForGood Demo Workspace/i)).toBeTruthy();
     expect(screen.getByText(/Usage and billing IA/i)).toBeTruthy();
   });
 });

@@ -6,6 +6,7 @@ import type {
 import type { PropsWithChildren } from "react";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { usePortalOrganization } from "../organization/PortalOrganizationProvider";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
@@ -25,6 +26,8 @@ export function PortalLayout({
   runtimeConfig,
   session,
 }: PortalLayoutProps) {
+  const organization = usePortalOrganization();
+
   return (
     <Page className="portal-shell">
       <aside className="portal-shell__sidebar">
@@ -53,31 +56,35 @@ export function PortalLayout({
 
         <ThemeRoot tone="inverse">
           <Panel
-            title="Session boundary"
-            subtitle="Mock browser-session state stands in for a future real identity provider."
+            title="Active organization context"
+            subtitle="The portal now treats workspace and account scope as the primary boundary for future product actions."
           >
             <dl className="portal-shell__details">
               <div>
-                <dt>User</dt>
-                <dd>{session.user.display_name}</dd>
-              </div>
-              <div>
                 <dt>Organization</dt>
-                <dd>{session.organization_name}</dd>
+                <dd>{organization.activeOrganization.organization_name}</dd>
               </div>
               <div>
                 <dt>Workspace</dt>
-                <dd>{session.workspace_id}</dd>
+                <dd>{organization.activeOrganization.workspace_id}</dd>
               </div>
               <div>
                 <dt>Account</dt>
-                <dd>{session.account_id}</dd>
+                <dd>{organization.activeOrganization.account_id}</dd>
+              </div>
+              <div>
+                <dt>Context source</dt>
+                <dd>{organization.activeOrganization.scope_source}</dd>
               </div>
               <div>
                 <dt>Roles</dt>
                 <dd>{session.roles.join(", ")}</dd>
               </div>
             </dl>
+            <p className="portal-shell__context-note">
+              Signed in as {session.user.display_name}. Future portal requests
+              should flow through the organization-scoped portal API client.
+            </p>
           </Panel>
         </ThemeRoot>
       </aside>
@@ -92,6 +99,9 @@ export function PortalLayout({
 
           <Inline className="portal-shell__status-row">
             <span className="portal-shell__status-pill">
+              Org: {organization.activeOrganization.organization_name}
+            </span>
+            <span className="portal-shell__status-pill">
               Env: {runtimeConfig.environment}
             </span>
             <span className="portal-shell__status-pill">
@@ -99,6 +109,9 @@ export function PortalLayout({
             </span>
             <span className="portal-shell__status-pill">
               Auth: {session.auth_method.replaceAll("_", " ")}
+            </span>
+            <span className="portal-shell__status-pill">
+              Scope: {organization.status}
             </span>
             <button
               className="portal-shell__action"

@@ -8,6 +8,8 @@ This package is the starting point for the authenticated customer portal.
   - application composition, route definitions, session model, and backend-aligned endpoint hints
 - `src/auth/`
   - replaceable auth client abstraction and portal auth state hook
+- `src/organization/`
+  - active organization/workspace model, loading logic, and portal-wide scope provider
 - `src/components/`
   - protected-shell and auth-boundary layout composition
 - `src/pages/`
@@ -56,6 +58,17 @@ Current backend integration anchors:
 - the backend already normalizes API key and OAuth client-credentials into a shared `AuthContext`
 - `POST /v1/oauth/token` exists today and remains an auth integration touchpoint
 - future production portal auth can exchange browser identity into backend account/workspace context without changing the portal route-protection boundary
+
+## Organization scope
+
+The portal now treats organization context as the primary scope for user actions.
+
+- the active organization model lives under `src/organization/`
+- the provider starts from the authenticated session's `workspace_id`, `account_id`, and `organization_name`
+- when a non-mock portal session is available, the provider can hydrate organization settings from `GET /v1/organization/settings`
+- future portal features should read organization state and the scoped API client from the provider rather than rebuilding workspace/account context inside each page
+
+The current scoped API client adds portal-local workspace/account headers as placeholder scope hints for future backend integration. This does not replace the backend auth context; it gives the frontend a single place to keep organization scope attached to requests until real browser session integration is wired in.
 
 ## Shared foundations used here
 

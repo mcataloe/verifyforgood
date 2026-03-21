@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { apiEndpoints, createApiClient } from "@charity-status/shared-api";
+import { apiEndpoints } from "@charity-status/shared-api";
+import { createSessionPortalOrganization } from "../organization/portalOrganization";
+import { createPortalApiClient } from "./portalApiClient";
+import { createMockPortalSession } from "./portalSession";
 
 const runtimeConfig = {
   apiBaseUrl: "https://api.verifyforgood.test",
@@ -24,7 +27,7 @@ function buildEnvelope<TData>(data: TData) {
 }
 
 describe("portal shared api integration", () => {
-  it("consumes the shared api client with portal runtime config", async () => {
+  it("consumes the shared api client with organization-scoped headers", async () => {
     const fetchImpl = vi.fn(
       async () =>
         new Response(JSON.stringify(buildEnvelope({ mode: "self-serve" })), {
@@ -34,12 +37,12 @@ describe("portal shared api integration", () => {
           status: 200,
         }),
     ) as unknown as typeof fetch;
-    const client = createApiClient({
+    const session = createMockPortalSession();
+    const client = createPortalApiClient({
       fetchImpl,
-      headersProvider: async () => ({
-        Authorization: "Bearer local-portal-token",
-      }),
+      organization: createSessionPortalOrganization(session),
       runtimeConfig,
+      session,
     });
 
     const data = await client.get<{ mode: string }>(
@@ -60,6 +63,7 @@ describe("portal shared api integration", () => {
     const fetchMock = vi.mocked(fetchImpl);
     const [, requestInit] = fetchMock.mock.calls[0] ?? [];
     const headers = requestInit?.headers as Headers;
-    expect(headers.get("Authorization")).toBe("Bearer local-portal-token");
+    expect(headers.get("X-Portal-Account-Id")).toBe(session.account_id);
+    expect(headers.get("X-Portal-Workspace-Id")).toBe(session.workspace_id);
   });
 });
