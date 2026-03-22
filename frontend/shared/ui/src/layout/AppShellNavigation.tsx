@@ -1,5 +1,14 @@
-import { Box, NavLink, Stack, Text } from "@mantine/core";
-import { useEffect, useState } from "react";
+import {
+  ActionIcon,
+  Box,
+  Group,
+  NavLink,
+  Stack,
+  Text,
+  Tooltip,
+  VisuallyHidden,
+} from "@mantine/core";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -57,24 +66,45 @@ function AppShellNavigationSectionView({
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
   section: AppShellNavigationSectionInput;
 }) {
+  const sectionHelpDescriptionId = section.helpText
+    ? `navigation-section-help-${section.key}`
+    : undefined;
+
   return (
     <Stack gap="xs">
-      <Box>
-        <Text
-          c="dimmed"
-          fw={500}
-          fz="xs"
-          title={section.helpText}
-          tt="uppercase"
-        >
+      <Group align="center" gap={4} wrap="nowrap">
+        <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
           {section.label}
         </Text>
         {section.helpText ? (
-          <Text c="dimmed" fz="xs" mt={2}>
-            {section.helpText}
-          </Text>
+          <Tooltip
+            events={{ focus: true, hover: true, touch: false }}
+            label={section.helpText}
+            maw={280}
+            multiline
+            position="right"
+            withinPortal={false}
+          >
+            <ActionIcon
+              aria-label={`About ${section.label}`}
+              aria-describedby={sectionHelpDescriptionId}
+              color="gray"
+              radius="xl"
+              size="xs"
+              variant="subtle"
+            >
+              <Text component="span" fw={700} fz={10}>
+                i
+              </Text>
+            </ActionIcon>
+          </Tooltip>
         ) : null}
-      </Box>
+      </Group>
+      {section.helpText && sectionHelpDescriptionId ? (
+        <VisuallyHidden id={sectionHelpDescriptionId}>
+          {section.helpText}
+        </VisuallyHidden>
+      ) : null}
 
       <Stack gap="xs">
         {section.items.map((item) => (
@@ -104,6 +134,9 @@ function AppShellNavigationItemView({
 }) {
   const children = item.children ?? [];
   const hasChildren = children.length > 0;
+  const helpDescriptionId = item.helpText
+    ? `navigation-item-help-${item.key}`
+    : undefined;
   const isLocked =
     "visibilityState" in item && item.visibilityState === "locked";
   const isSelfActive = item.key === activeNavigationKey;
@@ -123,32 +156,36 @@ function AppShellNavigationItemView({
   const isActive = isSelfActive || hasActiveDescendant;
 
   if (hasChildren) {
+    const branchLink = (
+      <NavLink
+        active={isActive}
+        aria-expanded={opened}
+        aria-describedby={helpDescriptionId}
+        component="button"
+        label={item.label}
+        leftSection={item.icon}
+        onClick={() => setOpened((current) => !current)}
+        rightSection={
+          <Box
+            aria-hidden="true"
+            component="span"
+            style={{
+              display: "inline-block",
+              transform: opened ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 150ms ease",
+            }}
+          >
+            {">"}
+          </Box>
+        }
+        styles={navigationItemStyles}
+        type="button"
+      />
+    );
+
     return (
       <Box key={item.key}>
-        <NavLink
-          active={isActive}
-          aria-expanded={opened}
-          component="button"
-          description={item.helpText}
-          label={item.label}
-          leftSection={item.icon}
-          onClick={() => setOpened((current) => !current)}
-          rightSection={
-            <Box
-              component="span"
-              style={{
-                display: "inline-block",
-                transform: opened ? "rotate(90deg)" : "rotate(0deg)",
-                transition: "transform 150ms ease",
-              }}
-            >
-              {">"}
-            </Box>
-          }
-          styles={navigationItemStyles}
-          title={item.helpText}
-          type="button"
-        />
+        {withNavigationHelpTooltip(branchLink, item.helpText, helpDescriptionId)}
 
         {opened ? (
           <Stack gap="xs" mt="xs" pl="md">
@@ -168,12 +205,12 @@ function AppShellNavigationItemView({
   }
 
   if (isLocked || !item.href) {
-    return (
+    const lockedOrUnavailableLink = (
       <NavLink
         active={isActive}
         aria-current={isSelfActive ? "page" : undefined}
+        aria-describedby={helpDescriptionId}
         component="button"
-        description={item.helpText}
         disabled={isLocked}
         key={item.key}
         label={item.label}
@@ -187,18 +224,23 @@ function AppShellNavigationItemView({
           onNavigate();
         }}
         styles={navigationItemStyles}
-        title={item.helpText}
         type="button"
       />
     );
+
+    return withNavigationHelpTooltip(
+      lockedOrUnavailableLink,
+      item.helpText,
+      helpDescriptionId,
+    );
   }
 
-  return (
+  const link = (
     <NavLink
       active={isActive}
       aria-current={isSelfActive ? "page" : undefined}
+      aria-describedby={helpDescriptionId}
       component="a"
-      description={item.helpText}
       href={item.href}
       key={item.key}
       label={item.label}
@@ -208,9 +250,10 @@ function AppShellNavigationItemView({
         onNavigate();
       }}
       styles={navigationItemStyles}
-      title={item.helpText}
     />
   );
+
+  return withNavigationHelpTooltip(link, item.helpText, helpDescriptionId);
 }
 
 function hasActiveNavigationItem(
@@ -254,3 +297,31 @@ const navigationItemStyles = {
     borderRadius: verifyForGoodTokens.radius.input,
   },
 };
+
+function withNavigationHelpTooltip(
+  node: ReactElement,
+  helpText?: string,
+  helpDescriptionId?: string,
+): ReactNode {
+  if (!helpText) {
+    return node;
+  }
+
+  return (
+    <>
+      <Tooltip
+        events={{ focus: true, hover: true, touch: false }}
+        label={helpText}
+        maw={320}
+        multiline
+        position="right"
+        withinPortal={false}
+      >
+        {node}
+      </Tooltip>
+      {helpDescriptionId ? (
+        <VisuallyHidden id={helpDescriptionId}>{helpText}</VisuallyHidden>
+      ) : null}
+    </>
+  );
+}

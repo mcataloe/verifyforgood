@@ -38,7 +38,7 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Workspace\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^API Access\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
   });
@@ -53,7 +53,7 @@ describe("PortalLayout", () => {
 
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Workspace\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^API Access\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
   });

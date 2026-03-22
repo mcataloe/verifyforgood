@@ -18,7 +18,9 @@ export interface VerifyForGoodNavigationVisibility {
 
 export interface VerifyForGoodNavigationItem {
   key: string;
+  /** Short visible title used in the rendered navigation UI. */
   label: string;
+  /** Optional longer tooltip/help copy that supplements the visible label. */
   helpText?: string;
   href?: string;
   icon?: ReactNode;
@@ -30,7 +32,9 @@ export interface VerifyForGoodNavigationItem {
 
 export interface VerifyForGoodNavigationSection {
   key: string;
+  /** Short visible section title used in the rendered navigation UI. */
   label: string;
+  /** Optional longer tooltip/help copy that supplements the section title. */
   helpText?: string;
   items: VerifyForGoodNavigationItem[];
 }

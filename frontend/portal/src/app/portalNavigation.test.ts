@@ -25,6 +25,13 @@ describe("portal navigation config", () => {
       key: "usage-billing",
       label: "Billing",
     });
+    expect(sections[1]?.items[1]).toMatchObject({
+      href: "#/api-access",
+      key: "api-access",
+      label: "API",
+      helpText:
+        "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
+    });
   });
 
   it("filters admin-only items out for customer users", () => {

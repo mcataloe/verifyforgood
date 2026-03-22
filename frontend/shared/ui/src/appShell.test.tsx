@@ -18,10 +18,12 @@ const sectionedNavigation: VerifyForGoodAppShellNavSection[] = [
         key: "dashboard",
         label: "Dashboard",
         href: "#/dashboard",
+        helpText: "High-level product activity and recent verification signals.",
       },
       {
         key: "organizations",
         label: "Organizations",
+        helpText: "Browse organization review and credential management views.",
         children: [
           {
             key: "org-directory",
@@ -58,10 +60,11 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(screen.getByText("Core")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: /^Organizations/ }),
-    ).toBeTruthy();
+      screen.queryByText("Primary product views.", { selector: "p" }),
+    ).toBeNull();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Organizations" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
   });
 
@@ -70,11 +73,11 @@ describe("VerifyForGoodAppShell", () => {
       navigationSections: sectionedNavigation,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^Organizations/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
     expect(screen.getByRole("link", { name: "Directory" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Credentials" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Organizations/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
     expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Credentials" })).toBeNull();
   });
@@ -87,7 +90,7 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(
       screen
-        .getByRole("button", { name: /^Organizations/ })
+        .getByRole("button", { name: "Organizations" })
         .getAttribute("data-active"),
     ).toBe("true");
     expect(
@@ -102,7 +105,7 @@ describe("VerifyForGoodAppShell", () => {
       navigationSections: sectionedNavigation,
       onNavigationChange,
     });
-    fireEvent.click(screen.getByRole("button", { name: /^Organizations/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
     fireEvent.click(screen.getByRole("link", { name: "Credentials" }));
 
     expect(onNavigationChange).toHaveBeenCalledWith(
@@ -136,10 +139,46 @@ describe("VerifyForGoodAppShell", () => {
       ],
     });
 
-    expect(
-      screen.getByRole("button", { name: /^Organizations/ }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Organizations" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Profile" })).toBeTruthy();
+  });
+
+  it("shows tooltip help text for navigation items that provide it", () => {
+    renderAppShell({
+      navigationSections: sectionedNavigation,
+    });
+
+    const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
+    dashboardLink.focus();
+
+    expect(document.activeElement).toBe(dashboardLink);
+    expect(
+      screen.getByText(
+        "High-level product activity and recent verification signals.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("does not render a tooltip for navigation items without help text", () => {
+    renderAppShell({
+      navigationSections: sectionedNavigation,
+    });
+
+    fireEvent.focus(screen.getByRole("link", { name: "Billing" }));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("shows section help text through a focusable tooltip trigger", () => {
+    renderAppShell({
+      navigationSections: sectionedNavigation,
+    });
+
+    const helpTrigger = screen.getByRole("button", { name: "About Core" });
+    helpTrigger.focus();
+
+    expect(document.activeElement).toBe(helpTrigger);
+    expect(screen.getByText("Primary product views.")).toBeTruthy();
   });
 
   it("skips empty sections so the sidebar stays stable after filtering", () => {

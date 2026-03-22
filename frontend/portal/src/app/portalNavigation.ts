@@ -44,7 +44,7 @@ export function buildPortalNavigationSections(
           allowedRoles: CUSTOMER_ADMIN_ROLES,
         },
         {
-          ...navigationItem(routeByKey, "api-access", "API Access"),
+          ...navigationItem(routeByKey, "api-access", "API"),
           allowedRoles: CUSTOMER_ADMIN_ROLES,
         },
         {

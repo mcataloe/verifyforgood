@@ -53,10 +53,16 @@ const navigationSections: VerifyForGoodAppShellNavSection[] = [
     label: "Core",
     helpText: "Primary product destinations.",
     items: [
-      { key: "dashboard", label: "Dashboard", href: "#/dashboard" },
+      {
+        key: "dashboard",
+        label: "Dashboard",
+        helpText: "High-level product activity and recent verification signals.",
+        href: "#/dashboard",
+      },
       {
         key: "organizations",
         label: "Organizations",
+        helpText: "Browse organization review and credential management views.",
         children: [
           { key: "directory", label: "Directory", href: "#/organizations" },
           { key: "sources", label: "Sources", href: "#/organizations/sources" },
@@ -79,7 +85,10 @@ The older flat `navigation` prop still works as a compatibility path and is norm
 
 Nested navigation behavior assumptions:
 
-- section labels and `helpText` are rendered directly from the navigation config
+- keep `label` concise and scannable; use `helpText` for longer tooltip copy instead of inline sidebar descriptions
+- labels should remain understandable on their own without requiring the tooltip to make sense
+- section `helpText` renders behind a small focusable help trigger next to the section title
+- item `helpText` renders as a tooltip on the focusable navigation row when present
 - items with `children` render as expandable groups in the sidebar
 - active descendants automatically open and highlight their parent group
 - if a parent has only one visible child after upstream filtering, the group opens automatically
