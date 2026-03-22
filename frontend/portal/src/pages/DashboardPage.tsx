@@ -151,20 +151,7 @@ const spacing = verifyForGoodTokens.spacing.scale;
 const pageStyle: CSSProperties = {
   display: "grid",
   gap: spacing.lg,
-};
-const metricsGridStyle: CSSProperties = {
-  display: "grid",
-  gap: spacing.md,
-  gridTemplateColumns: `repeat(auto-fit, minmax(${verifyForGoodTokens.spacing.baseUnit * 28}px, 1fr))`,
-};
-const contentGridStyle: CSSProperties = {
-  display: "grid",
-  gap: spacing.md,
-  gridTemplateColumns: `repeat(auto-fit, minmax(${verifyForGoodTokens.spacing.baseUnit * 42}px, 1fr))`,
-};
-const sidebarStackStyle: CSSProperties = {
-  display: "grid",
-  gap: spacing.md,
+  minWidth: 0,
 };
 const metricValueStyle: CSSProperties = {
   color: semantic.text_primary,
@@ -202,31 +189,33 @@ export function DashboardPage({
 }: DashboardPageProps) {
   return (
     <VerifyForGoodMantineProvider>
-      <div style={pageStyle}>
+      <div className="portal-dashboard" style={pageStyle}>
         <PageHeader
           eyebrow="Operations overview"
           title="Verification dashboard"
           description={`Placeholder operational snapshot for ${session.organization_name} in the ${runtimeConfig.environment} environment. This layout is intentionally static and focused on structure.`}
         />
 
-        <div style={metricsGridStyle}>
+        <div className="portal-dashboard__metrics" data-testid="dashboard-metrics-grid">
           {dashboardMetrics.map((metric) => (
             <MetricCard key={metric.title} metric={metric} />
           ))}
         </div>
 
-        <div style={contentGridStyle}>
-          <SectionContainer
-            title="Recent verifications"
-            description="Placeholder review activity with shared status badges and table styling."
-          >
-            <DataTable
-              columns={recentVerificationColumns}
-              rows={recentVerifications}
-            />
-          </SectionContainer>
+        <div className="portal-dashboard__content" data-testid="dashboard-content-layout">
+          <div className="portal-dashboard__main" data-testid="dashboard-main-column">
+            <SectionContainer
+              title="Recent verifications"
+              description="Placeholder review activity with shared status badges and table styling."
+            >
+              <DataTable
+                columns={recentVerificationColumns}
+                rows={recentVerifications}
+              />
+            </SectionContainer>
+          </div>
 
-          <div style={sidebarStackStyle}>
+          <div className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column">
             <SectionContainer
               title="Verification trend"
               description="Chart placeholder for monthly verification throughput."
@@ -252,9 +241,11 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
 
   return (
     <Card
+      className="portal-dashboard__metric-card"
       description={metric.detail}
       style={{
         borderTop: `${verifyForGoodTokens.spacing.baseUnit / 2}px solid ${toneStyles.border}`,
+        minWidth: 0,
       }}
       title={metric.title}
     >
@@ -286,51 +277,40 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
 function TrendChartPlaceholder() {
   return (
     <Card
+      className="portal-dashboard__chart-card"
       description="Replace with a real chart once dashboard analytics endpoints are connected."
       title="Monthly throughput"
+      withBorder
     >
       <div
         aria-label="Verification trend chart placeholder"
+        className="portal-dashboard__chart-placeholder"
         role="img"
         style={{
-          alignItems: "end",
-          display: "grid",
-          gap: spacing.sm,
           gridTemplateColumns: `repeat(${verificationTrend.length}, minmax(0, 1fr))`,
-          minHeight: `${verifyForGoodTokens.spacing.baseUnit * 24}px`,
         }}
       >
         {verificationTrend.map((point) => (
           <div
+            className="portal-dashboard__chart-column"
             key={point.label}
-            style={{
-              alignItems: "stretch",
-              display: "grid",
-              gap: spacing.xs,
-              justifyItems: "center",
-            }}
           >
             <div
               aria-hidden="true"
+              className="portal-dashboard__chart-track"
               style={{
-                alignItems: "end",
                 background:
                   "linear-gradient(180deg, rgba(219, 234, 254, 0.45) 0%, rgba(219, 234, 254, 0.12) 100%)",
-                borderRadius: verifyForGoodTokens.radius.card,
-                display: "flex",
                 minHeight: `${verifyForGoodTokens.spacing.baseUnit * 18}px`,
-                padding: `${verifyForGoodTokens.spacing.baseUnit / 2}px`,
-                width: "100%",
               }}
             >
               <div
+                className="portal-dashboard__chart-fill"
                 style={{
                   background:
                     "linear-gradient(180deg, #3277d6 0%, #197a83 100%)",
-                  borderRadius: verifyForGoodTokens.radius.button,
                   height: `${point.value}%`,
                   minHeight: `${verifyForGoodTokens.spacing.baseUnit * 2}px`,
-                  width: "100%",
                 }}
               />
             </div>
@@ -352,9 +332,13 @@ function TrendChartPlaceholder() {
 
 function AlertsPanel() {
   return (
-    <div style={alertListStyle}>
+    <div className="portal-dashboard__alerts" style={alertListStyle}>
       {dashboardAlerts.map((alert) => (
-        <div key={alert.title} style={alertItemStyle}>
+        <div
+          className="portal-dashboard__alert"
+          key={alert.title}
+          style={alertItemStyle}
+        >
           <div
             style={{
               alignItems: "center",
