@@ -41,10 +41,11 @@ export function AppShellNavigation({
   const visibleSections = sections.filter((section) => section.items.length > 0);
 
   return (
-    <Stack gap="lg">
-      {visibleSections.map((section) => (
+    <Stack gap={verifyForGoodTokens.spacing.baseUnit}>
+      {visibleSections.map((section, index) => (
         <AppShellNavigationSectionView
           activeNavigationKey={activeNavigationKey}
+          isFirstSection={index === 0}
           key={section.key}
           onNavigate={onNavigate}
           onNavigationChange={onNavigationChange}
@@ -57,11 +58,13 @@ export function AppShellNavigation({
 
 function AppShellNavigationSectionView({
   activeNavigationKey,
+  isFirstSection,
   onNavigate,
   onNavigationChange,
   section,
 }: {
   activeNavigationKey?: string;
+  isFirstSection: boolean;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
   section: AppShellNavigationSectionInput;
@@ -71,9 +74,23 @@ function AppShellNavigationSectionView({
     : undefined;
 
   return (
-    <Stack gap="xs">
-      <Group align="center" gap={4} wrap="nowrap">
-        <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
+    <Stack
+      className={
+        isFirstSection
+          ? "vf-app-shell-nav__section"
+          : "vf-app-shell-nav__section vf-app-shell-nav__section--separated"
+      }
+      gap={6}
+      pt={isFirstSection ? 0 : verifyForGoodTokens.spacing.baseUnit * 2}
+    >
+      <Group
+        align="center"
+        className="vf-app-shell-nav__section-header"
+        gap={6}
+        justify="space-between"
+        wrap="nowrap"
+      >
+        <Text className="vf-app-shell-nav__section-label" fw={500} fz="xs" tt="uppercase">
           {section.label}
         </Text>
         {section.helpText ? (
@@ -88,7 +105,7 @@ function AppShellNavigationSectionView({
             <ActionIcon
               aria-label={`About ${section.label}`}
               aria-describedby={sectionHelpDescriptionId}
-              color="gray"
+              className="vf-app-shell-nav__section-help"
               radius="xl"
               size="xs"
               variant="subtle"
@@ -106,7 +123,7 @@ function AppShellNavigationSectionView({
         </VisuallyHidden>
       ) : null}
 
-      <Stack gap="xs">
+      <Stack gap={4}>
         {section.items.map((item) => (
           <AppShellNavigationItemView
             activeNavigationKey={activeNavigationKey}
@@ -123,11 +140,13 @@ function AppShellNavigationSectionView({
 
 function AppShellNavigationItemView({
   activeNavigationKey,
+  depth = 0,
   item,
   onNavigate,
   onNavigationChange,
 }: {
   activeNavigationKey?: string;
+  depth?: number;
   item: AppShellNavigationItemInput;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
@@ -168,17 +187,22 @@ function AppShellNavigationItemView({
         rightSection={
           <Box
             aria-hidden="true"
+            className={
+              opened
+                ? "vf-app-shell-nav__item-chevron vf-app-shell-nav__item-chevron--opened"
+                : "vf-app-shell-nav__item-chevron"
+            }
             component="span"
-            style={{
-              display: "inline-block",
-              transform: opened ? "rotate(90deg)" : "rotate(0deg)",
-              transition: "transform 150ms ease",
-            }}
           >
             {">"}
           </Box>
         }
-        styles={navigationItemStyles}
+        className={getNavigationItemClassName({
+          depth,
+          hasChildren: true,
+          isExpanded: opened,
+        })}
+        classNames={navigationItemClassNames}
         type="button"
       />
     );
@@ -188,10 +212,17 @@ function AppShellNavigationItemView({
         {withNavigationHelpTooltip(branchLink, item.helpText, helpDescriptionId)}
 
         {opened ? (
-          <Stack gap="xs" mt="xs" pl="md">
+          <Stack
+            className="vf-app-shell-nav__children"
+            gap={4}
+            mt={4}
+            ml={10}
+            pl={verifyForGoodTokens.spacing.baseUnit + 2}
+          >
             {children.map((child) => (
               <AppShellNavigationItemView
                 activeNavigationKey={activeNavigationKey}
+                depth={depth + 1}
                 item={child}
                 key={child.key}
                 onNavigate={onNavigate}
@@ -225,12 +256,22 @@ function AppShellNavigationItemView({
         }}
         rightSection={
           isLocked ? (
-            <Text component="span" c="dimmed" fw={600} fz="xs">
+            <Text
+              className="vf-app-shell-nav__lock-pill"
+              component="span"
+              fw={600}
+              fz={10}
+            >
               Locked
             </Text>
           ) : undefined
         }
-        styles={navigationItemStyles}
+        className={getNavigationItemClassName({
+          depth,
+          hasChildren: false,
+          isLocked,
+        })}
+        classNames={navigationItemClassNames}
         type="button"
       />
     );
@@ -256,7 +297,11 @@ function AppShellNavigationItemView({
         onNavigationChange?.(item);
         onNavigate();
       }}
-      styles={navigationItemStyles}
+      className={getNavigationItemClassName({
+        depth,
+        hasChildren: false,
+      })}
+      classNames={navigationItemClassNames}
     />
   );
 
@@ -299,11 +344,33 @@ function shouldItemStartOpened(
   );
 }
 
-const navigationItemStyles = {
-  root: {
-    borderRadius: verifyForGoodTokens.radius.input,
-  },
+const navigationItemClassNames = {
+  body: "vf-app-shell-nav__item-body",
+  label: "vf-app-shell-nav__item-label",
+  section: "vf-app-shell-nav__item-section",
 };
+
+function getNavigationItemClassName({
+  depth,
+  hasChildren,
+  isExpanded = false,
+  isLocked = false,
+}: {
+  depth: number;
+  hasChildren: boolean;
+  isExpanded?: boolean;
+  isLocked?: boolean;
+}) {
+  return [
+    "vf-app-shell-nav__item",
+    depth > 0 ? "vf-app-shell-nav__item--child" : undefined,
+    hasChildren ? "vf-app-shell-nav__item--branch" : undefined,
+    isExpanded ? "vf-app-shell-nav__item--expanded" : undefined,
+    isLocked ? "vf-app-shell-nav__item--locked" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 function withNavigationHelpTooltip(
   node: ReactElement,

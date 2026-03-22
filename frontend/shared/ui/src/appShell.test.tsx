@@ -96,11 +96,25 @@ describe("VerifyForGoodAppShell", () => {
       navigationSections: sectionedNavigation,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
-    expect(screen.getByRole("link", { name: "Directory" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Credentials" })).toBeTruthy();
+    const organizationsButton = screen.getByRole("button", {
+      name: "Organizations",
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
+    fireEvent.click(organizationsButton);
+    expect(organizationsButton.className).toContain(
+      "vf-app-shell-nav__item--expanded",
+    );
+    expect(screen.getByRole("link", { name: "Directory" }).className).toContain(
+      "vf-app-shell-nav__item--child",
+    );
+    expect(
+      screen.getByRole("link", { name: "Credentials" }).className,
+    ).toContain("vf-app-shell-nav__item--child");
+
+    fireEvent.click(organizationsButton);
+    expect(organizationsButton.className).not.toContain(
+      "vf-app-shell-nav__item--expanded",
+    );
     expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Credentials" })).toBeNull();
   });
