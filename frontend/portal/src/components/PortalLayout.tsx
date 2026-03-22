@@ -1,7 +1,4 @@
-import {
-  Card,
-  VerifyForGoodAppShell,
-} from "@charity-status/shared-ui";
+import { VerifyForGoodAppShell } from "@charity-status/shared-ui";
 import type {
   FrontendAppInfo,
   FrontendRuntimeConfig,
@@ -61,15 +58,21 @@ export function PortalLayout({
       }
       navigationSections={navigationSections}
       sidebarFooter={
-        <Card
-          description="Workspace and account context remain explicit while deeper organization review screens are still placeholder-backed."
-          title="Active organization context"
-        >
-          <dl className="portal-shell__details">
+        <div className="portal-shell__sidebar-profile">
+          <div className="portal-shell__sidebar-profile-header">
             <div>
-              <dt>Organization</dt>
-              <dd>{organization.activeOrganization.organization_name}</dd>
+              <p className="portal-shell__eyebrow">Active organization</p>
+              <p className="portal-shell__sidebar-profile-name">
+                {organization.activeOrganization.organization_name}
+              </p>
+              <p className="portal-shell__sidebar-profile-meta">
+                {session.user.display_name}
+              </p>
             </div>
+            <span className="portal-shell__status-pill">Plan: {session.plan}</span>
+          </div>
+
+          <dl className="portal-shell__sidebar-profile-details">
             <div>
               <dt>Workspace</dt>
               <dd>{organization.activeOrganization.workspace_id}</dd>
@@ -87,7 +90,7 @@ export function PortalLayout({
               <dd>{session.roles.join(", ")}</dd>
             </div>
           </dl>
-        </Card>
+        </div>
       }
       subtitle={app.description}
     >

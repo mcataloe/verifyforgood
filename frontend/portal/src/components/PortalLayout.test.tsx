@@ -40,6 +40,8 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
+    expect(screen.getByText("Active organization")).toBeTruthy();
+    expect(screen.getByText("Alex Operator")).toBeTruthy();
   });
 
   it("keeps customer-user navigation limited to review work", () => {

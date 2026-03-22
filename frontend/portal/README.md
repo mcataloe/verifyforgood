@@ -182,6 +182,8 @@ pnpm run build
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
+- let the shared shell own sidebar layout structure: brand/header, scrollable nav body, and footer/context region
+- keep portal-specific organization/account context in the shell footer slot rather than turning the shared sidebar into a portal-specific card layout
 - organize portal navigation by user mental model:
   - `Review` for day-to-day verification work
   - `Organization` for tenant context and settings

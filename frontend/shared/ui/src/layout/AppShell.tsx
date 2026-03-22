@@ -159,34 +159,59 @@ export function VerifyForGoodAppShell({
         </Group>
       </MantineAppShell.Header>
 
-      <MantineAppShell.Navbar p="md">
-        <MantineAppShell.Section>
-          <Stack gap="xs">
-            <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
-              Navigation
-            </Text>
-            <Title order={3}>{appName}</Title>
-            <Text c="dimmed" fz="sm">
-              {subtitle}
-            </Text>
-          </Stack>
+      <MantineAppShell.Navbar p={0}>
+        <MantineAppShell.Section
+          className="vf-app-shell-sidebar__header"
+          data-testid="vf-app-shell-sidebar-header"
+        >
+          <Group align="flex-start" className="vf-app-shell-sidebar__brand" gap="sm" wrap="nowrap">
+            <Box
+              aria-hidden="true"
+              className="vf-app-shell-sidebar__brand-mark"
+            >
+              {getAppShellBrandMark(appName)}
+            </Box>
+            <Stack gap={4}>
+              <Text className="vf-app-shell-sidebar__eyebrow" fw={500} fz="xs" tt="uppercase">
+                Navigation
+              </Text>
+              <Title className="vf-app-shell-sidebar__title" order={3}>
+                {appName}
+              </Title>
+              <Text className="vf-app-shell-sidebar__subtitle" fz="sm">
+                {subtitle}
+              </Text>
+            </Stack>
+          </Group>
         </MantineAppShell.Section>
 
-        <MantineAppShell.Section component={ScrollArea} grow mt="lg">
-          <AppShellNavigation
-            activeNavigationKey={activeNavigationKey}
-            onNavigate={() => setMobileOpened(false)}
-            onNavigationChange={onNavigationChange}
-            sections={resolvedNavigationSections}
-          />
+        <MantineAppShell.Section
+          className="vf-app-shell-sidebar__content"
+          component={ScrollArea}
+          data-testid="vf-app-shell-sidebar-content"
+          grow
+        >
+          <Box className="vf-app-shell-sidebar__content-inner">
+            <AppShellNavigation
+              activeNavigationKey={activeNavigationKey}
+              onNavigate={() => setMobileOpened(false)}
+              onNavigationChange={onNavigationChange}
+              sections={resolvedNavigationSections}
+            />
+          </Box>
         </MantineAppShell.Section>
 
-        <MantineAppShell.Section mt="md">
-          {sidebarFooter ?? (
-            <Button fullWidth variant="light">
-              Quick Actions
-            </Button>
-          )}
+        <MantineAppShell.Section
+          className="vf-app-shell-sidebar__footer"
+          data-testid="vf-app-shell-sidebar-footer"
+        >
+          <Box className="vf-app-shell-sidebar__footer-inner">
+            {sidebarFooter ?? (
+              <Button fullWidth variant="light">
+                Quick Actions
+              </Button>
+            )}
+          </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
 
@@ -204,6 +229,17 @@ export function VerifyForGoodAppShell({
       </MantineAppShell.Main>
     </MantineAppShell>
   );
+}
+
+function getAppShellBrandMark(appName: string) {
+  const initials = appName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return initials || "VF";
 }
 
 export function normalizeVerifyForGoodAppShellNavigationSections({

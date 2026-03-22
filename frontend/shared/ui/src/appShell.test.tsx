@@ -76,6 +76,18 @@ const lockedResolvedNavigation: VerifyForGoodResolvedNavigationSection[] = [
 ];
 
 describe("VerifyForGoodAppShell", () => {
+  it("renders distinct sidebar header, navigation content, and footer regions", () => {
+    renderAppShell({
+      sidebarFooter: <div>Footer slot</div>,
+    });
+
+    expect(screen.getByTestId("vf-app-shell-sidebar-header")).toBeTruthy();
+    expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
+    expect(screen.getByTestId("vf-app-shell-sidebar-footer")).toBeTruthy();
+    expect(screen.getByText("Footer slot")).toBeTruthy();
+    expect(screen.getAllByText("Shared Shell").length).toBeGreaterThan(0);
+  });
+
   it("renders grouped navigation sections without forcing nested items open", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,

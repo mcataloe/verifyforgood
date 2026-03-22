@@ -88,6 +88,15 @@ const navigationSections: VerifyForGoodAppShellNavSection[] = [
 
 The older flat `navigation` prop still works as a compatibility path and is normalized into one default `Navigation` section.
 
+Sidebar structure responsibilities:
+
+- the shared shell owns the overall sidebar frame:
+  - brand/header area
+  - scrollable navigation content
+  - footer/context slot
+- downstream apps should pass already-filtered navigation into the shell and keep permission logic out of rendering components
+- downstream apps can customize the footer slot for context/profile content without changing the shared sidebar layout contract
+
 Nested navigation behavior assumptions:
 
 - keep `label` concise and scannable; use `helpText` for longer tooltip copy instead of inline sidebar descriptions

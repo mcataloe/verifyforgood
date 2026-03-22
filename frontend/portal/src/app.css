@@ -281,6 +281,57 @@ code {
   font-size: var(--vf-font-size-md);
 }
 
+.portal-shell__sidebar-profile {
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-shell__sidebar-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vf-space-3);
+}
+
+.portal-shell__sidebar-profile-name,
+.portal-shell__sidebar-profile-meta {
+  margin: 0;
+}
+
+.portal-shell__sidebar-profile-name {
+  font-size: var(--vf-font-size-md);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.portal-shell__sidebar-profile-meta {
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+}
+
+.portal-shell__sidebar-profile-details {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.portal-shell__sidebar-profile-details div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.portal-shell__sidebar-profile-details dt {
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.portal-shell__sidebar-profile-details dd {
+  margin: 0;
+  font-size: var(--vf-font-size-sm);
+}
+
 .portal-shell__context-note {
   margin: var(--vf-space-4) 0 0;
   line-height: 1.6;
