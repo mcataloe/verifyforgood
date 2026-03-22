@@ -178,6 +178,7 @@ pnpm run build
 ## Extending the portal
 
 - keep app-wide navigation, session composition, and route registration under `src/app/`
+- prefer VerifyForGood or purpose-based naming for new portal-local identifiers and contributor docs; keep the existing `@charity-status/*` package scope only where compatibility already depends on it
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces

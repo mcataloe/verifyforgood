@@ -13,6 +13,15 @@ The frontend workspace is pnpm-first.
 - `frontend/pnpm-lock.yaml` is the canonical frontend lockfile
 - backend Python and Terraform tooling at the repository root stays unchanged
 
+## Naming Baseline
+
+Frontend-facing naming should prefer VerifyForGood and purpose-based terminology.
+
+- use VerifyForGood branding in workspace metadata, docs, UI copy, and new frontend-local identifiers when a product name is needed
+- avoid introducing new `charity-status` or `CharityStatusAPI` identifiers in frontend-only code unless they are required for compatibility with existing repo/package boundaries
+- the current `@charity-status/*` package scope is intentionally retained for compatibility and staged migration safety
+- backend package names, repository paths, and shared package scopes should only be renamed in a dedicated follow-up phase, not opportunistically
+
 ## Directory Purpose
 
 - `marketing/`
@@ -47,6 +56,8 @@ Current workspace packages:
 - `@charity-status/shared-ui`
 - `@charity-status/shared-types`
 - `@charity-status/shared-utils`
+
+These package scopes are internal workspace identifiers, not the preferred public product brand.
 
 ## App-Specific vs Shared
 
