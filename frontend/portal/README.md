@@ -53,6 +53,12 @@ Route protection is enforced before protected content renders. An unauthenticate
 - auth state is portal-local and replaceable through `src/auth/portalAuthClient.ts`
 - the current implementation is a mock browser session stored in local storage for local development only
 - session state already carries `account_id`, `workspace_id`, `roles`, and `scopes` so the shell does not block future tenant or RBAC work
+- roles now use the canonical frontend vocabulary shared across the workspace:
+  - `developer`
+  - `portal_admin`
+  - `customer_admin`
+  - `customer_user`
+- this phase formalizes typing and helper checks only; it does not introduce route gating or backend authorization policy
 - portal UI auth is intentionally not modeled as raw API-key entry in the browser
 
 Current backend integration anchors:

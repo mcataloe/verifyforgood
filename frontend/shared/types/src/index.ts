@@ -1,3 +1,10 @@
+export {
+  FRONTEND_ACCESS_ROLE,
+  FRONTEND_ACCESS_ROLES,
+  isFrontendAccessRole,
+} from "./access";
+export type { FrontendAccessRole } from "./access";
+
 export type FrontendSurface = "docs" | "marketing" | "portal";
 
 export interface FrontendAppInfo {

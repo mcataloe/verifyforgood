@@ -1,4 +1,8 @@
-import type { OrganizationContext } from "@charity-status/shared-types";
+import {
+  FRONTEND_ACCESS_ROLE,
+  type FrontendAccessRole,
+  type OrganizationContext,
+} from "@charity-status/shared-types";
 
 export interface PortalSessionUser {
   display_name: string;
@@ -13,7 +17,7 @@ export interface PortalAuthenticatedSession extends OrganizationContext {
   issued_at: string;
   organization_name: string;
   plan: string;
-  roles: string[];
+  roles: FrontendAccessRole[];
   scopes: string[];
   user: PortalSessionUser;
   workspace_id: string;
@@ -27,7 +31,7 @@ export function createMockPortalSession(): PortalAuthenticatedSession {
     issued_at: "2026-03-20T00:00:00Z",
     organization_name: "VerifyForGood Demo Workspace",
     plan: "growth",
-    roles: ["workspace_owner"],
+    roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
     scopes: [
       "portal:access",
       "settings:read",

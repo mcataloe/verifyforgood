@@ -8,6 +8,14 @@ Current scope:
 - normalized frontend runtime config types
 - backend-aligned API envelope and error contracts
 - shared pricing-plan catalog contract types
+- canonical frontend access-role vocabulary
+
+Current canonical frontend roles:
+
+- `developer`
+- `portal_admin`
+- `customer_admin`
+- `customer_user`
 
 Anti-pattern:
 

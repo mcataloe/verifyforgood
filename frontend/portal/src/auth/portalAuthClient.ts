@@ -2,6 +2,7 @@ import {
   createMockPortalSession,
   type PortalAuthenticatedSession,
 } from "../app/portalSession";
+import { isFrontendAccessRole } from "@charity-status/shared-types";
 
 const PORTAL_SESSION_STORAGE_KEY = "verifyforgood.portal.auth.session";
 
@@ -88,8 +89,13 @@ function isPortalAuthenticatedSession(
     typeof candidate.plan === "string" &&
     typeof candidate.auth_method === "string" &&
     Array.isArray(candidate.roles) &&
+    candidate.roles.every((role) => isFrontendAccessRole(role)) &&
     Array.isArray(candidate.scopes) &&
+    candidate.scopes.every((scope) => typeof scope === "string") &&
     Boolean(user) &&
-    typeof user === "object"
+    typeof user === "object" &&
+    typeof (user as Record<string, unknown>).display_name === "string" &&
+    typeof (user as Record<string, unknown>).email === "string" &&
+    typeof (user as Record<string, unknown>).subject_id === "string"
   );
 }
