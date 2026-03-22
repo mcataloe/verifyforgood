@@ -29,6 +29,15 @@ const baseSections: VerifyForGoodNavigationSection[] = [
         },
       },
       {
+        key: "benchmarking",
+        label: "Benchmarking",
+        href: "#/benchmarking",
+        allowedPlans: ["pro", "enterprise"],
+        visibility: {
+          planRestrictedBehavior: "hidden",
+        },
+      },
+      {
         key: "organizations",
         label: "Organizations",
         children: [
@@ -80,7 +89,16 @@ describe("navigation filtering helpers", () => {
     const reports = findItem(sections, "reports");
 
     expect(reports?.visibilityState).toBe("locked");
-    expect(reports?.href).toBe("#/reports");
+    expect(reports?.href).toBeUndefined();
+  });
+
+  it("supports hidden plan-restricted items when the schema opts out of discovery", () => {
+    const sections = filterNavigationSections(baseSections, {
+      plan: "growth",
+      roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+    });
+
+    expect(flattenKeys(sections)).not.toContain("benchmarking");
   });
 
   it("keeps nested children that remain visible after filtering", () => {
@@ -127,6 +145,56 @@ describe("navigation filtering helpers", () => {
     expect(parent?.visibilityState).toBe("visible");
     expect(parent?.href).toBeUndefined();
     expect(parent?.children?.map((child) => child.key)).toEqual(["child"]);
+  });
+
+  it("keeps mixed locked and visible children under the same parent", () => {
+    const sections = filterNavigationSections(
+      [
+        {
+          key: "secondary",
+          label: "Secondary",
+          items: [
+            {
+              key: "analytics",
+              label: "Analytics",
+              children: [
+                {
+                  key: "analytics-overview",
+                  label: "Overview",
+                  href: "#/analytics",
+                },
+                {
+                  key: "analytics-export",
+                  label: "Exports",
+                  href: "#/analytics/exports",
+                  allowedPlans: ["pro", "enterprise"],
+                  visibility: {
+                    planRestrictedBehavior: "locked",
+                  },
+                },
+                {
+                  key: "analytics-admin",
+                  label: "Admin",
+                  href: "#/analytics/admin",
+                  allowedRoles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      {
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.customerUser],
+      },
+    );
+    const analytics = findItem(sections, "analytics");
+
+    expect(analytics?.visibilityState).toBe("visible");
+    expect(analytics?.children?.map((child) => [child.key, child.visibilityState])).toEqual([
+      ["analytics-overview", "visible"],
+      ["analytics-export", "locked"],
+    ]);
   });
 });
 

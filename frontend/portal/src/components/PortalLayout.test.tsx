@@ -58,6 +58,28 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
   });
 
+  it("renders discoverable plan-gated items as locked for lower-tier admins", () => {
+    renderPortalLayout({
+      session: {
+        ...createMockPortalSession(),
+        plan: "free",
+      },
+    });
+
+    const lockedApiItem = screen.getByRole("button", { name: /^API\b/i });
+    const isUnavailable =
+      lockedApiItem.getAttribute("aria-disabled") === "true" ||
+      lockedApiItem.getAttribute("data-disabled") !== null;
+
+    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(isUnavailable).toBe(true);
+    expect(
+      screen.getByText(
+        "Self-serve API credentials and token access. Available on Growth and higher plans.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("marks the active portal navigation item based on the current route", () => {
     renderPortalLayout({
       currentRoute: resolvePortalRoute("#/usage-billing"),

@@ -30,7 +30,7 @@ describe("portal navigation config", () => {
       key: "api-access",
       label: "API",
       helpText:
-        "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
+        "Self-serve API credentials and token access. Available on Growth and higher plans.",
     });
   });
 
@@ -43,5 +43,23 @@ describe("portal navigation config", () => {
     const keys = sections.flatMap((section) => section.items).map((item) => item.key);
 
     expect(keys).toEqual(["dashboard"]);
+  });
+
+  it("keeps discoverable plan-gated items locked for lower plans", () => {
+    const sections = resolvePortalNavigation({
+      plan: "free",
+      roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+      routes: portalProtectedRoutes,
+    });
+    const apiItem = sections
+      .flatMap((section) => section.items)
+      .find((item) => item.key === "api-access");
+
+    expect(apiItem).toMatchObject({
+      key: "api-access",
+      label: "API",
+      visibilityState: "locked",
+    });
+    expect(apiItem?.href).toBeUndefined();
   });
 });

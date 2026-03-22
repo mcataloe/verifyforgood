@@ -12,7 +12,9 @@ export type VerifyForGoodRestrictedVisibility = Extract<
 >;
 
 export interface VerifyForGoodNavigationVisibility {
+  /** How plan-restricted items resolve when the active plan does not qualify. */
   planRestrictedBehavior?: VerifyForGoodRestrictedVisibility;
+  /** How role-restricted items resolve when the active role set does not qualify. */
   roleRestrictedBehavior?: VerifyForGoodRestrictedVisibility;
 }
 
@@ -42,6 +44,7 @@ export interface VerifyForGoodNavigationSection {
 export interface VerifyForGoodResolvedNavigationItem
   extends Omit<VerifyForGoodNavigationItem, "children"> {
   children?: VerifyForGoodResolvedNavigationItem[];
+  /** Final render state after role/plan filtering has been applied upstream. */
   visibilityState: Exclude<VerifyForGoodNavigationVisibilityState, "hidden">;
 }
 

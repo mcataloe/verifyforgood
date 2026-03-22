@@ -1,6 +1,7 @@
 import {
   FRONTEND_ACCESS_ROLE,
   type FrontendAccessRole,
+  type PlanCode,
 } from "@charity-status/shared-types";
 import {
   filterNavigationSections,
@@ -44,7 +45,14 @@ export function buildPortalNavigationSections(
           allowedRoles: CUSTOMER_ADMIN_ROLES,
         },
         {
-          ...navigationItem(routeByKey, "api-access", "API"),
+          ...navigationItem(routeByKey, "api-access", "API", {
+            allowedPlans: ["growth", "pro", "enterprise"],
+            helpText:
+              "Self-serve API credentials and token access. Available on Growth and higher plans.",
+            visibility: {
+              planRestrictedBehavior: "locked",
+            },
+          }),
           allowedRoles: CUSTOMER_ADMIN_ROLES,
         },
         {
@@ -82,6 +90,14 @@ function navigationItem(
   routeByKey: Map<PortalRouteDefinition["key"], PortalRouteDefinition>,
   key: PortalProtectedRouteKey,
   label: string,
+  options?: {
+    allowedPlans?: readonly PlanCode[];
+    helpText?: string;
+    visibility?: {
+      planRestrictedBehavior?: "hidden" | "locked";
+      roleRestrictedBehavior?: "hidden" | "locked";
+    };
+  },
 ) {
   const route = routeByKey.get(key);
 
@@ -92,11 +108,13 @@ function navigationItem(
   return {
     key: route.key,
     label,
-    helpText: route.description,
+    helpText: options?.helpText ?? route.description,
     href: route.hash,
+    allowedPlans: options?.allowedPlans,
     visibility: {
       planRestrictedBehavior: "locked" as const,
       roleRestrictedBehavior: "hidden" as const,
+      ...options?.visibility,
     },
   };
 }

@@ -87,8 +87,12 @@ Nested navigation behavior assumptions:
 
 - keep `label` concise and scannable; use `helpText` for longer tooltip copy instead of inline sidebar descriptions
 - labels should remain understandable on their own without requiring the tooltip to make sense
+- keep role-restricted items hidden; use locked plan behavior only when discovery is useful and the destination should remain visibly unavailable
+- choose `planRestrictedBehavior: "hidden"` when a feature should stay out of the information architecture for lower tiers
+- choose `planRestrictedBehavior: "locked"` when a feature should remain discoverable for upgrade awareness and should include clear availability copy in `helpText`
 - section `helpText` renders behind a small focusable help trigger next to the section title
 - item `helpText` renders as a tooltip on the focusable navigation row when present
+- locked items render as disabled rows, do not navigate, and remain keyboard-readable through `aria-describedby`
 - items with `children` render as expandable groups in the sidebar
 - active descendants automatically open and highlight their parent group
 - if a parent has only one visible child after upstream filtering, the group opens automatically

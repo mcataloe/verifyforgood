@@ -223,6 +223,13 @@ function AppShellNavigationItemView({
           onNavigationChange?.(item);
           onNavigate();
         }}
+        rightSection={
+          isLocked ? (
+            <Text component="span" c="dimmed" fw={600} fz="xs">
+              Locked
+            </Text>
+          ) : undefined
+        }
         styles={navigationItemStyles}
         type="button"
       />

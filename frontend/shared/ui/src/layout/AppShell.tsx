@@ -11,13 +11,22 @@ import {
 } from "@mantine/core";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
-import type { VerifyForGoodNavigationItem, VerifyForGoodNavigationSection } from "../navigation/schema";
+import type {
+  VerifyForGoodNavigationItem,
+  VerifyForGoodNavigationSection,
+  VerifyForGoodResolvedNavigationItem,
+  VerifyForGoodResolvedNavigationSection,
+} from "../navigation/schema";
 import { verifyForGoodTokens } from "../theme/tokens";
 import { useVerifyForGoodColorScheme } from "../components/VerifyForGoodMantineProvider";
 import { AppShellNavigation } from "./AppShellNavigation";
 
-export type VerifyForGoodAppShellNavItem = VerifyForGoodNavigationItem;
-export type VerifyForGoodAppShellNavSection = VerifyForGoodNavigationSection;
+export type VerifyForGoodAppShellNavItem =
+  | VerifyForGoodNavigationItem
+  | VerifyForGoodResolvedNavigationItem;
+export type VerifyForGoodAppShellNavSection =
+  | VerifyForGoodNavigationSection
+  | VerifyForGoodResolvedNavigationSection;
 
 /**
  * Default enterprise navigation scaffold for VerifyForGood application

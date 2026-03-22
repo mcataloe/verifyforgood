@@ -6,6 +6,7 @@ import {
   VerifyForGoodMantineProvider,
   normalizeVerifyForGoodAppShellNavigationSections,
   type VerifyForGoodAppShellNavSection,
+  type VerifyForGoodResolvedNavigationSection,
 } from "./index";
 
 const sectionedNavigation: VerifyForGoodAppShellNavSection[] = [
@@ -47,6 +48,28 @@ const sectionedNavigation: VerifyForGoodAppShellNavSection[] = [
         key: "billing",
         label: "Billing",
         href: "#/billing",
+      },
+    ],
+  },
+];
+
+const lockedResolvedNavigation: VerifyForGoodResolvedNavigationSection[] = [
+  {
+    key: "operations",
+    label: "Operations",
+    items: [
+      {
+        key: "workspace",
+        label: "Workspace",
+        href: "#/workspace",
+        visibilityState: "visible",
+      },
+      {
+        key: "api",
+        label: "API",
+        helpText:
+          "Self-serve API credentials and token access. Available on Growth and higher plans.",
+        visibilityState: "locked",
       },
     ],
   },
@@ -179,6 +202,49 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(document.activeElement).toBe(helpTrigger);
     expect(screen.getByText("Primary product views.")).toBeTruthy();
+  });
+
+  it("renders locked items as disabled buttons with a visible unavailable state", () => {
+    renderAppShell({
+      navigationSections: lockedResolvedNavigation,
+    });
+
+    const lockedItem = screen.getByRole("button", { name: /^API\b/i });
+    const isUnavailable =
+      lockedItem.getAttribute("aria-disabled") === "true" ||
+      lockedItem.getAttribute("data-disabled") !== null;
+
+    expect(isUnavailable).toBe(true);
+    expect(screen.getByText("Locked")).toBeTruthy();
+  });
+
+  it("does not emit navigation events for locked items", () => {
+    const onNavigationChange = vi.fn();
+
+    renderAppShell({
+      navigationSections: lockedResolvedNavigation,
+      onNavigationChange,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^API\b/i }));
+
+    expect(onNavigationChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps help text available for locked items", () => {
+    renderAppShell({
+      navigationSections: lockedResolvedNavigation,
+    });
+
+    const lockedItem = screen.getByRole("button", { name: /^API\b/i });
+    lockedItem.focus();
+
+    expect(document.activeElement).toBe(lockedItem);
+    expect(
+      screen.getByText(
+        "Self-serve API credentials and token access. Available on Growth and higher plans.",
+      ),
+    ).toBeTruthy();
   });
 
   it("skips empty sections so the sidebar stays stable after filtering", () => {

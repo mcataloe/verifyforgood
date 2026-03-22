@@ -44,7 +44,7 @@ export function resolveNavigationItem(
     return null;
   }
 
-  if (resolvedChildren.length > 0 && directVisibility === "hidden") {
+  if (resolvedChildren.length > 0) {
     return {
       ...item,
       children: resolvedChildren,
@@ -60,6 +60,7 @@ export function resolveNavigationItem(
   return {
     ...item,
     children: resolvedChildren.length > 0 ? resolvedChildren : undefined,
+    href: directVisibility === "locked" ? undefined : item.href,
     visibilityState: directVisibility,
   };
 }
