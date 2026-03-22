@@ -88,6 +88,16 @@ describe("VerifyForGoodAppShell", () => {
     expect(screen.getAllByText("Shared Shell").length).toBeGreaterThan(0);
   });
 
+  it("renders the default footer theme controls when no custom footer is provided", () => {
+    renderAppShell({
+      sidebarFooter: undefined,
+    });
+
+    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+  });
+
   it("renders grouped navigation sections without forcing nested items open", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,

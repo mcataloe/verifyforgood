@@ -40,8 +40,14 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
-    expect(screen.getByText("Active organization")).toBeTruthy();
+    expect(screen.getByText("Customer context")).toBeTruthy();
+    expect(screen.getByText("VerifyForGood Demo Workspace")).toBeTruthy();
+    expect(screen.getByText("Account acct_verifyforgood_demo")).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
   });
 
   it("keeps customer-user navigation limited to the home/search surface", () => {
@@ -93,6 +99,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Subscriptions\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(screen.getByText("Platform admin")).toBeTruthy();
   });
 
   it("renders discoverable plan-gated items as locked for lower-tier admins", () => {

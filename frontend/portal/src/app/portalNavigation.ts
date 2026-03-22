@@ -64,6 +64,23 @@ export function resolvePortalNavigationAudience(
   return "customer_user";
 }
 
+export function getPortalAccessLabel(
+  roles: readonly FrontendAccessRole[],
+): string {
+  const audience = resolvePortalNavigationAudience(roles);
+
+  switch (audience) {
+    case "developer":
+      return "Developer";
+    case "portal_admin":
+      return "Platform admin";
+    case "customer_admin":
+      return "Admin";
+    case "customer_user":
+      return "User";
+  }
+}
+
 function navigationItem(
   routeByKey: Map<PortalRouteDefinition["key"], PortalRouteDefinition>,
   key: PortalProtectedRouteKey,

@@ -15,6 +15,7 @@ This package contains the shared VerifyForGood design foundation for the fronten
   - `PageHeader`
   - `Card`
   - `SectionContainer`
+  - `SidebarProfileSection`
   - `StatusBadge`
   - `LoadingSkeleton`
   - `EmptyState`
@@ -96,6 +97,15 @@ Sidebar structure responsibilities:
   - footer/context slot
 - downstream apps should pass already-filtered navigation into the shell and keep permission logic out of rendering components
 - downstream apps can customize the footer slot for context/profile content without changing the shared sidebar layout contract
+- `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context plus the shared theme-mode selector
+
+Footer/profile metadata expectations:
+
+- `primaryLabel`: required top-line identity such as organization or workspace name
+- `secondaryLabel`: optional compact account/workspace identifier
+- `tertiaryLabel`: optional user display name or secondary identity line
+- `accessLabel`: optional short badge-like access descriptor supplied by the consuming app
+- theme controls live in shared UI through `ColorSchemeToggle` and support `auto`, `light`, and `dark`
 
 Nested navigation behavior assumptions:
 

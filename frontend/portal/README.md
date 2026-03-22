@@ -184,7 +184,9 @@ pnpm run build
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
 - let the shared shell own sidebar layout structure: brand/header, scrollable nav body, and footer/context region
-- keep portal-specific organization/account context in the shell footer slot rather than turning the shared sidebar into a portal-specific card layout
+- keep portal-specific organization/account context in the shell footer slot through `SidebarProfileSection` rather than turning the shared sidebar into a portal-specific card layout
+- derive the footer access badge from `getPortalAccessLabel(...)`, which intentionally maps the resolved audience into user-facing labels such as `Admin`, `User`, `Developer`, or `Platform admin`
+- keep theme-mode controls in shared UI; the portal only supplies footer metadata and does not own the auto/light/dark selector behavior
 - organize portal navigation by user mental model:
   - developers: `Platform` and `System`
   - portal admins: `Operations`, `Commercial`, and `Admin`

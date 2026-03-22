@@ -2,7 +2,6 @@ import {
   AppShell as MantineAppShell,
   Box,
   Burger,
-  Button,
   Group,
   ScrollArea,
   Stack,
@@ -10,7 +9,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
-import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
+import { SidebarProfileSection } from "../components/SidebarProfileSection";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -154,7 +153,6 @@ export function VerifyForGoodAppShell({
 
           <Group gap="sm" wrap="nowrap">
             {headerActions}
-            <ColorSchemeToggle />
           </Group>
         </Group>
       </MantineAppShell.Header>
@@ -207,9 +205,11 @@ export function VerifyForGoodAppShell({
         >
           <Box className="vf-app-shell-sidebar__footer-inner">
             {sidebarFooter ?? (
-              <Button fullWidth variant="light">
-                Quick Actions
-              </Button>
+              <SidebarProfileSection
+                eyebrow="Workspace"
+                primaryLabel={appName}
+                secondaryLabel="Shared application shell"
+              />
             )}
           </Box>
         </MantineAppShell.Section>
