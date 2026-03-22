@@ -1,8 +1,14 @@
 export { AppFrame } from "./components/AppFrame";
+export { Card } from "./components/Card";
+export { CorePrimitivesExamples } from "./components/CorePrimitives.examples";
+export { DataTable, type DataTableColumn } from "./components/DataTable";
+export { PageHeader } from "./components/PageHeader";
 export { Panel } from "./components/Panel";
 export { PlanFeatureList } from "./components/PlanFeatureList";
 export { PricingPlanCard } from "./components/PricingPlanCard";
 export { PricingPlanGrid } from "./components/PricingPlanGrid";
+export { SectionContainer } from "./components/SectionContainer";
+export { StatusBadge, type StatusBadgeStatus } from "./components/StatusBadge";
 export { ThemeRoot } from "./components/ThemeRoot";
 export { Container } from "./components/layout/Container";
 export { Grid } from "./components/layout/Grid";
