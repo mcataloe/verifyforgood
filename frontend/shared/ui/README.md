@@ -77,6 +77,14 @@ const navigationSections: VerifyForGoodAppShellNavSection[] = [
 
 The older flat `navigation` prop still works as a compatibility path and is normalized into one default `Navigation` section.
 
+Nested navigation behavior assumptions:
+
+- section labels and `helpText` are rendered directly from the navigation config
+- items with `children` render as expandable groups in the sidebar
+- active descendants automatically open and highlight their parent group
+- if a parent has only one visible child after upstream filtering, the group opens automatically
+- if you need a navigable overview route for a parent group, prefer an explicit first child item instead of relying on the parent row itself
+
 ## Accessibility baseline
 
 - shared themes keep visible focus rings enabled

@@ -4,7 +4,6 @@ import {
   Burger,
   Button,
   Group,
-  NavLink,
   ScrollArea,
   Stack,
   Text,
@@ -12,13 +11,10 @@ import {
 } from "@mantine/core";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
-import type {
-  VerifyForGoodNavigationItem,
-  VerifyForGoodNavigationSection,
-  VerifyForGoodResolvedNavigationItem,
-} from "../navigation/schema";
+import type { VerifyForGoodNavigationItem, VerifyForGoodNavigationSection } from "../navigation/schema";
 import { verifyForGoodTokens } from "../theme/tokens";
 import { useVerifyForGoodColorScheme } from "../components/VerifyForGoodMantineProvider";
+import { AppShellNavigation } from "./AppShellNavigation";
 
 export type VerifyForGoodAppShellNavItem = VerifyForGoodNavigationItem;
 export type VerifyForGoodAppShellNavSection = VerifyForGoodNavigationSection;
@@ -168,39 +164,12 @@ export function VerifyForGoodAppShell({
         </MantineAppShell.Section>
 
         <MantineAppShell.Section component={ScrollArea} grow mt="lg">
-          <Stack gap="lg">
-            {resolvedNavigationSections.map((section) => (
-              <Stack gap="xs" key={section.key}>
-                <Box>
-                  <Text
-                    c="dimmed"
-                    fw={500}
-                    fz="xs"
-                    title={section.helpText}
-                    tt="uppercase"
-                  >
-                    {section.label}
-                  </Text>
-                  {section.helpText ? (
-                    <Text c="dimmed" fz="xs" mt={2}>
-                      {section.helpText}
-                    </Text>
-                  ) : null}
-                </Box>
-
-                <Stack gap="xs">
-                  {section.items.map((item) =>
-                    renderNavigationItem({
-                      activeNavigationKey,
-                      item,
-                      onNavigationChange,
-                      onNavigate: () => setMobileOpened(false),
-                    }),
-                  )}
-                </Stack>
-              </Stack>
-            ))}
-          </Stack>
+          <AppShellNavigation
+            activeNavigationKey={activeNavigationKey}
+            onNavigate={() => setMobileOpened(false)}
+            onNavigationChange={onNavigationChange}
+            sections={resolvedNavigationSections}
+          />
         </MantineAppShell.Section>
 
         <MantineAppShell.Section mt="md">
@@ -236,7 +205,7 @@ export function normalizeVerifyForGoodAppShellNavigationSections({
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
 }): VerifyForGoodAppShellNavSection[] {
   if (navigationSections) {
-    return [...navigationSections];
+    return [...navigationSections].filter((section) => section.items.length > 0);
   }
 
   return [
@@ -246,55 +215,5 @@ export function normalizeVerifyForGoodAppShellNavigationSections({
       helpText: "Primary application destinations.",
       items: [...navigation],
     },
-  ];
-}
-
-function renderNavigationItem({
-  activeNavigationKey,
-  item,
-  onNavigate,
-  onNavigationChange,
-}: {
-  activeNavigationKey?: string;
-  item: VerifyForGoodAppShellNavItem | VerifyForGoodResolvedNavigationItem;
-  onNavigate: () => void;
-  onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
-}) {
-  const isLocked =
-    "visibilityState" in item && item.visibilityState === "locked";
-  const hasChildren = Boolean(item.children?.length);
-
-  return (
-    <NavLink
-      active={item.key === activeNavigationKey}
-      aria-current={item.key === activeNavigationKey ? "page" : undefined}
-      childrenOffset="md"
-      defaultOpened={hasChildren}
-      description={item.helpText}
-      disabled={isLocked && !hasChildren}
-      href={isLocked ? undefined : item.href}
-      key={item.key}
-      label={item.label}
-      leftSection={item.icon}
-      onClick={() => {
-        onNavigationChange?.(item);
-        onNavigate();
-      }}
-      styles={{
-        root: {
-          borderRadius: verifyForGoodTokens.radius.input,
-        },
-      }}
-      title={item.helpText}
-    >
-      {item.children?.map((child) =>
-        renderNavigationItem({
-          activeNavigationKey,
-          item: child,
-          onNavigate,
-          onNavigationChange,
-        }),
-      )}
-    </NavLink>
-  );
+  ].filter((section) => section.items.length > 0);
 }
