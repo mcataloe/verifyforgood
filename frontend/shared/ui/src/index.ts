@@ -9,9 +9,12 @@ export { Grid } from "./components/layout/Grid";
 export { Inline } from "./components/layout/Inline";
 export { Page } from "./components/layout/Page";
 export { Section } from "./components/layout/Section";
+export { VerifyForGoodMantineProvider } from "./components/VerifyForGoodMantineProvider";
+export { useVerifyForGoodColorScheme } from "./components/VerifyForGoodMantineProvider";
 export {
   verifyForGoodThemeModes,
   verifyForGoodTokens,
   type VerifyForGoodThemeMode,
   type VerifyForGoodTokens,
 } from "./theme/tokens";
+export { verifyForGoodMantineTheme } from "./theme/mantineTheme";

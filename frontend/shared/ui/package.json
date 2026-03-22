@@ -13,6 +13,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@mantine/core": "^8.3.18",
     "@charity-status/shared-types": "0.0.0",
     "@charity-status/shared-utils": "0.0.0",
     "react": "^19.0.0"
