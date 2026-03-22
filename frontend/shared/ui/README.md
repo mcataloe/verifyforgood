@@ -37,6 +37,46 @@ This package contains the shared VerifyForGood design foundation for the fronten
 - keep product data fetching and workflow logic outside this package
 - keep navigation configuration declarative and filter it before rendering rather than scattering role/plan checks through layout components
 
+## App shell usage
+
+Prefer `navigationSections` as the primary `VerifyForGoodAppShell` contract.
+
+```tsx
+import {
+  VerifyForGoodAppShell,
+  type VerifyForGoodAppShellNavSection,
+} from "@charity-status/shared-ui";
+
+const navigationSections: VerifyForGoodAppShellNavSection[] = [
+  {
+    key: "core",
+    label: "Core",
+    helpText: "Primary product destinations.",
+    items: [
+      { key: "dashboard", label: "Dashboard", href: "#/dashboard" },
+      {
+        key: "organizations",
+        label: "Organizations",
+        children: [
+          { key: "directory", label: "Directory", href: "#/organizations" },
+          { key: "sources", label: "Sources", href: "#/organizations/sources" },
+        ],
+      },
+    ],
+  },
+];
+
+<VerifyForGoodAppShell
+  activeNavigationKey="dashboard"
+  appName="VerifyForGood Portal"
+  navigationSections={navigationSections}
+>
+  <main>Content</main>
+</VerifyForGoodAppShell>;
+```
+
+The older flat `navigation` prop still works as a compatibility path and is normalized into one default `Navigation` section.
+
 ## Accessibility baseline
 
 - shared themes keep visible focus rings enabled

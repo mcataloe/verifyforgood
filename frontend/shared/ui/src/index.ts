@@ -48,10 +48,13 @@ export { Section } from "./components/layout/Section";
 export { VerifyForGoodMantineProvider } from "./components/VerifyForGoodMantineProvider";
 export { useVerifyForGoodColorScheme } from "./components/VerifyForGoodMantineProvider";
 export {
+  normalizeVerifyForGoodAppShellNavigationSections,
   VerifyForGoodAppShell,
   verifyForGoodAppShellNavigation,
   verifyForGoodAppShellNavigationSections,
   type VerifyForGoodAppShellNavItem,
+  type VerifyForGoodAppShellNavSection,
+  type VerifyForGoodAppShellProps,
 } from "./layout/AppShell";
 export {
   EntityDetailLayout,

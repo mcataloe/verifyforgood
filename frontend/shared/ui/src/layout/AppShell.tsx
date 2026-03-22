@@ -21,6 +21,7 @@ import { verifyForGoodTokens } from "../theme/tokens";
 import { useVerifyForGoodColorScheme } from "../components/VerifyForGoodMantineProvider";
 
 export type VerifyForGoodAppShellNavItem = VerifyForGoodNavigationItem;
+export type VerifyForGoodAppShellNavSection = VerifyForGoodNavigationSection;
 
 /**
  * Default enterprise navigation scaffold for VerifyForGood application
@@ -31,7 +32,7 @@ export type VerifyForGoodAppShellNavItem = VerifyForGoodNavigationItem;
  * <VerifyForGoodAppShell
  *   activeNavigationKey="dashboard"
  *   appName="VerifyForGood Portal"
- *   navigation={verifyForGoodAppShellNavigation}
+ *   navigationSections={verifyForGoodAppShellNavigationSections}
  *   onNavigationChange={(item) => console.log(item.key)}
  * >
  *   <DashboardPage />
@@ -51,20 +52,20 @@ export const verifyForGoodAppShellNavigation: VerifyForGoodAppShellNavItem[] = [
 export const verifyForGoodAppShellNavigationSections: VerifyForGoodNavigationSection[] =
   [
     {
-      key: "workspace",
-      label: "Workspace",
+      key: "navigation",
+      label: "Navigation",
       helpText: "Default application shell navigation.",
       items: verifyForGoodAppShellNavigation,
     },
   ];
 
-type VerifyForGoodAppShellProps = PropsWithChildren<{
+export type VerifyForGoodAppShellProps = PropsWithChildren<{
   activeNavigationKey?: string;
   appName?: string;
   contentMaxWidth?: string;
   headerActions?: ReactNode;
-  navigation?: VerifyForGoodAppShellNavItem[];
-  navigationSections?: VerifyForGoodNavigationSection[];
+  navigation?: readonly VerifyForGoodAppShellNavItem[];
+  navigationSections?: readonly VerifyForGoodAppShellNavSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
   subtitle?: string;
@@ -94,14 +95,10 @@ export function VerifyForGoodAppShell({
       resolvedColorScheme === "dark" ? "dark" : "light"
     ];
   const resolvedNavigationSections =
-    navigationSections ??
-    [
-      {
-        key: "workspace",
-        label: "Workspace",
-        items: navigation,
-      },
-    ];
+    normalizeVerifyForGoodAppShellNavigationSections({
+      navigation,
+      navigationSections,
+    });
 
   return (
     <MantineAppShell
@@ -161,7 +158,7 @@ export function VerifyForGoodAppShell({
         <MantineAppShell.Section>
           <Stack gap="xs">
             <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
-              Workspace
+              Navigation
             </Text>
             <Title order={3}>{appName}</Title>
             <Text c="dimmed" fz="sm">
@@ -209,7 +206,7 @@ export function VerifyForGoodAppShell({
         <MantineAppShell.Section mt="md">
           {sidebarFooter ?? (
             <Button fullWidth variant="light">
-              Workspace Actions
+              Quick Actions
             </Button>
           )}
         </MantineAppShell.Section>
@@ -229,6 +226,27 @@ export function VerifyForGoodAppShell({
       </MantineAppShell.Main>
     </MantineAppShell>
   );
+}
+
+export function normalizeVerifyForGoodAppShellNavigationSections({
+  navigation = verifyForGoodAppShellNavigation,
+  navigationSections,
+}: {
+  navigation?: readonly VerifyForGoodAppShellNavItem[];
+  navigationSections?: readonly VerifyForGoodAppShellNavSection[];
+}): VerifyForGoodAppShellNavSection[] {
+  if (navigationSections) {
+    return [...navigationSections];
+  }
+
+  return [
+    {
+      key: "navigation",
+      label: "Navigation",
+      helpText: "Primary application destinations.",
+      items: [...navigation],
+    },
+  ];
 }
 
 function renderNavigationItem({
@@ -251,6 +269,7 @@ function renderNavigationItem({
       active={item.key === activeNavigationKey}
       aria-current={item.key === activeNavigationKey ? "page" : undefined}
       childrenOffset="md"
+      defaultOpened={hasChildren}
       description={item.helpText}
       disabled={isLocked && !hasChildren}
       href={isLocked ? undefined : item.href}
