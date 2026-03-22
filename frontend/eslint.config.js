@@ -7,7 +7,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "package-lock.json"],
+    ignores: ["**/dist/**", "**/node_modules/**", "pnpm-lock.yaml"],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

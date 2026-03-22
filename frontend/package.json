@@ -1,25 +1,20 @@
 {
   "name": "charity-status-frontend-workspace",
   "private": true,
+  "packageManager": "pnpm@10.24.0",
   "type": "module",
-  "workspaces": [
-    "docs",
-    "marketing",
-    "portal",
-    "shared/*"
-  ],
   "scripts": {
-    "build": "npm run build --workspace @charity-status/marketing && npm run build --workspace @charity-status/portal && npm run build --workspace @charity-status/docs",
-    "dev:docs": "npm run dev --workspace @charity-status/docs",
-    "dev:marketing": "npm run dev --workspace @charity-status/marketing",
-    "dev:portal": "npm run dev --workspace @charity-status/portal",
+    "build": "pnpm --filter @charity-status/marketing build && pnpm --filter @charity-status/portal build && pnpm --filter @charity-status/docs build",
+    "dev:docs": "pnpm --filter @charity-status/docs dev",
+    "dev:marketing": "pnpm --filter @charity-status/marketing dev",
+    "dev:portal": "pnpm --filter @charity-status/portal dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "npm run typecheck:tooling && npm run typecheck:packages",
-    "typecheck:packages": "npm run typecheck --workspaces --if-present",
+    "typecheck": "pnpm run typecheck:tooling && pnpm run typecheck:packages",
+    "typecheck:packages": "pnpm -r --if-present typecheck",
     "typecheck:tooling": "tsc --project tsconfig.tooling.json --noEmit"
   },
   "devDependencies": {

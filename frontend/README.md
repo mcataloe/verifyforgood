@@ -4,6 +4,15 @@ This directory is the dedicated frontend workspace for future VerifyForGood UI w
 
 It lives under the repository root so marketing, portal, shared UI foundations, and future frontend docs can evolve together without pushing Node tooling into the Python/Terraform root.
 
+## Package Manager
+
+The frontend workspace is pnpm-first.
+
+- use `pnpm` for install, workspace scripts, dependency updates, and lockfile changes
+- `frontend/pnpm-workspace.yaml` is the canonical workspace definition
+- `frontend/pnpm-lock.yaml` is the canonical frontend lockfile
+- backend Python and Terraform tooling at the repository root stays unchanged
+
 ## Directory Purpose
 
 - `marketing/`
@@ -75,16 +84,16 @@ See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 Run these from this directory:
 
 ```bash
-npm install
-npm run format
-npm run format:check
-npm run lint
-npm run test
-npm run typecheck
-npm run build
-npm run dev:docs
-npm run dev:marketing
-npm run dev:portal
+pnpm install
+pnpm run format
+pnpm run format:check
+pnpm run lint
+pnpm run test
+pnpm run typecheck
+pnpm run build
+pnpm run dev:docs
+pnpm run dev:marketing
+pnpm run dev:portal
 ```
 
 Per-package scripts mirror the same baseline where runtime behavior exists:
@@ -116,7 +125,7 @@ The current frontend foundation assumes:
 
 When adding a new frontend app or shared package:
 
-- add it as an npm workspace in `package.json` if it is a new top-level workspace root
+- add it to `pnpm-workspace.yaml` if it is a new top-level workspace root
 - extend `tsconfig.base.json` from the package-local `tsconfig.json`
 - reuse the centralized ESLint, Prettier, and Vitest configs instead of copying config files into the package
 - add package scripts that match the current baseline:

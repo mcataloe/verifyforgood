@@ -162,17 +162,17 @@ This keeps nonprofit search, API access, billing visibility, and the auth shell 
 From the workspace root:
 
 ```bash
-npm run dev:portal
+pnpm run dev:portal
 ```
 
 From this package directly:
 
 ```bash
-npm run dev
-npm run lint
-npm run test
-npm run typecheck
-npm run build
+pnpm run dev
+pnpm run lint
+pnpm run test
+pnpm run typecheck
+pnpm run build
 ```
 
 ## Extending the portal

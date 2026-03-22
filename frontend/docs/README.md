@@ -35,17 +35,17 @@ This package is the dedicated documentation surface for customers, developers, a
 From the workspace root:
 
 ```bash
-npm run dev:docs
+pnpm run dev:docs
 ```
 
 From this package directly:
 
 ```bash
-npm run dev
-npm run lint
-npm run test
-npm run typecheck
-npm run build
+pnpm run dev
+pnpm run lint
+pnpm run test
+pnpm run typecheck
+pnpm run build
 ```
 
 ## Extending the docs app

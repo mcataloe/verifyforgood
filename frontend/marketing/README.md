@@ -39,17 +39,17 @@ These remain placeholder-first, but the IA is deliberate and keeps public conten
 From the workspace root:
 
 ```bash
-npm run dev:marketing
+pnpm run dev:marketing
 ```
 
 From this package directly:
 
 ```bash
-npm run dev
-npm run lint
-npm run test
-npm run typecheck
-npm run build
+pnpm run dev
+pnpm run lint
+pnpm run test
+pnpm run typecheck
+pnpm run build
 ```
 
 ## Extending the marketing app
