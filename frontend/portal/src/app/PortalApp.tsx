@@ -125,11 +125,7 @@ export function PortalApp() {
         session={session}
       >
         {currentRoute.key === "dashboard" ? (
-          <DashboardPage
-            endpoints={endpoints}
-            runtimeConfig={runtimeConfig}
-            session={session}
-          />
+          <DashboardPage runtimeConfig={runtimeConfig} session={session} />
         ) : null}
         {currentRoute.key === "workspace" ? (
           <WorkspacePage endpoints={endpoints} session={session} />

@@ -171,11 +171,12 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Nonprofit verification search",
+        name: "Verification dashboard",
       }),
     ).toBeTruthy();
     expect(
-      await screen.findByRole("button", { name: "Search nonprofit" }),
+      await screen.findByRole("heading", { name: "Recent verifications" }),
     ).toBeTruthy();
+    expect(screen.getByText("Verifications this month")).toBeTruthy();
   });
 });

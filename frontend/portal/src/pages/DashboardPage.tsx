@@ -1,73 +1,412 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import {
+  Card,
+  DataTable,
+  PageHeader,
+  SectionContainer,
+  StatusBadge,
+  VerifyForGoodMantineProvider,
+  verifyForGoodTokens,
+  type DataTableColumn,
+  type StatusBadgeStatus,
+} from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
-import type { PortalEndpoints } from "../app/portalEndpoints";
+import type { CSSProperties } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { NonprofitSearchPanel } from "../nonprofits/NonprofitSearchPanel";
 
 interface DashboardPageProps {
-  endpoints: PortalEndpoints;
   runtimeConfig: FrontendRuntimeConfig;
   session: PortalAuthenticatedSession;
 }
 
+type MetricTone = "primary" | "secondary" | "success" | "warning";
+
+type DashboardMetric = {
+  detail: string;
+  tone: MetricTone;
+  title: string;
+  value: string;
+};
+
+type VerificationRow = {
+  organization: string;
+  requestedAt: string;
+  status: StatusBadgeStatus;
+  type: string;
+};
+
+type DashboardAlert = {
+  detail: string;
+  status: StatusBadgeStatus;
+  title: string;
+};
+
+type TrendPoint = {
+  label: string;
+  value: number;
+};
+
+const semantic = verifyForGoodTokens.color.semantic.light;
+const palette = verifyForGoodTokens.color.palette;
+const dashboardMetrics: DashboardMetric[] = [
+  {
+    title: "Verifications this month",
+    value: "1,284",
+    detail: "12% ahead of the previous monthly run rate.",
+    tone: "primary",
+  },
+  {
+    title: "Verified organizations",
+    value: "942",
+    detail: "73% of reviewed organizations cleared verification.",
+    tone: "success",
+  },
+  {
+    title: "Flagged organizations",
+    value: "38",
+    detail: "Requires analyst follow-up across high-risk records.",
+    tone: "warning",
+  },
+  {
+    title: "API calls",
+    value: "84.6K",
+    detail: "Placeholder volume across portal and API traffic.",
+    tone: "secondary",
+  },
+];
+const verificationTrend: TrendPoint[] = [
+  { label: "Oct", value: 44 },
+  { label: "Nov", value: 58 },
+  { label: "Dec", value: 52 },
+  { label: "Jan", value: 71 },
+  { label: "Feb", value: 76 },
+  { label: "Mar", value: 88 },
+];
+const recentVerifications: VerificationRow[] = [
+  {
+    organization: "American National Red Cross",
+    type: "Profile refresh",
+    requestedAt: "Mar 22, 2026",
+    status: "verified",
+  },
+  {
+    organization: "Feeding America",
+    type: "New verification",
+    requestedAt: "Mar 22, 2026",
+    status: "pending",
+  },
+  {
+    organization: "Community Housing Partners",
+    type: "Risk review",
+    requestedAt: "Mar 21, 2026",
+    status: "flagged",
+  },
+  {
+    organization: "Regional Literacy Fund",
+    type: "Monitoring sync",
+    requestedAt: "Mar 21, 2026",
+    status: "inactive",
+  },
+];
+const dashboardAlerts: DashboardAlert[] = [
+  {
+    title: "Flag queue above target",
+    detail: "Seven records have exceeded the 24-hour review SLA.",
+    status: "flagged",
+  },
+  {
+    title: "Nightly sync pending approval",
+    detail: "Connector credentials rotated in the development environment.",
+    status: "pending",
+  },
+  {
+    title: "Monitoring baseline confirmed",
+    detail: "Automated checks resumed for the top 50 tracked organizations.",
+    status: "verified",
+  },
+];
+const recentVerificationColumns: DataTableColumn<VerificationRow>[] = [
+  {
+    key: "organization",
+    header: "Organization",
+    render: (row) => row.organization,
+  },
+  {
+    key: "type",
+    header: "Verification type",
+    render: (row) => row.type,
+  },
+  {
+    key: "requestedAt",
+    header: "Requested",
+    render: (row) => row.requestedAt,
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (row) => <StatusBadge status={row.status} />,
+  },
+];
+
+const spacing = verifyForGoodTokens.spacing.scale;
+const pageStyle: CSSProperties = {
+  display: "grid",
+  gap: spacing.lg,
+};
+const metricsGridStyle: CSSProperties = {
+  display: "grid",
+  gap: spacing.md,
+  gridTemplateColumns: `repeat(auto-fit, minmax(${verifyForGoodTokens.spacing.baseUnit * 28}px, 1fr))`,
+};
+const contentGridStyle: CSSProperties = {
+  display: "grid",
+  gap: spacing.md,
+  gridTemplateColumns: `repeat(auto-fit, minmax(${verifyForGoodTokens.spacing.baseUnit * 42}px, 1fr))`,
+};
+const sidebarStackStyle: CSSProperties = {
+  display: "grid",
+  gap: spacing.md,
+};
+const metricValueStyle: CSSProperties = {
+  color: semantic.text_primary,
+  fontFamily: verifyForGoodTokens.typography.fontFamily.sans,
+  fontSize: verifyForGoodTokens.typography.fontSize["4xl"],
+  fontWeight: verifyForGoodTokens.typography.fontWeight.bold,
+  letterSpacing: verifyForGoodTokens.typography.letterSpacing.tight,
+  lineHeight: verifyForGoodTokens.typography.lineHeight.tight,
+  margin: 0,
+};
+const metricDetailStyle: CSSProperties = {
+  color: semantic.text_secondary,
+  fontSize: verifyForGoodTokens.typography.fontSize.sm,
+  lineHeight: verifyForGoodTokens.typography.lineHeight.normal,
+  margin: 0,
+};
+const alertListStyle: CSSProperties = {
+  display: "grid",
+  gap: spacing.sm,
+};
+const alertItemStyle: CSSProperties = {
+  backgroundColor: semantic.surface_subtle,
+  border: `1px solid ${semantic.border}`,
+  borderRadius: verifyForGoodTokens.radius.card,
+  padding: spacing.sm,
+};
+
+/**
+ * Initial dashboard layout prototype using placeholder data to demonstrate the
+ * VerifyForGood application design system.
+ */
 export function DashboardPage({
-  endpoints,
   runtimeConfig,
   session,
 }: DashboardPageProps) {
   return (
-    <>
-      <NonprofitSearchPanel />
+    <VerifyForGoodMantineProvider>
+      <div style={pageStyle}>
+        <PageHeader
+          eyebrow="Operations overview"
+          title="Verification dashboard"
+          description={`Placeholder operational snapshot for ${session.organization_name} in the ${runtimeConfig.environment} environment. This layout is intentionally static and focused on structure.`}
+        />
 
-      <Grid className="portal-page-grid">
-        <Panel
-          title="Current workspace"
-          subtitle="Portal search runs inside the active organization scope."
-        >
-          <dl className="portal-shell__details">
-            <div>
-              <dt>User</dt>
-              <dd>{session.user.email}</dd>
-            </div>
-            <div>
-              <dt>Workspace</dt>
-              <dd>{session.workspace_id}</dd>
-            </div>
-            <div>
-              <dt>Account</dt>
-              <dd>{session.account_id}</dd>
-            </div>
-            <div>
-              <dt>Billing status</dt>
-              <dd>{session.billing_status}</dd>
-            </div>
-            <div>
-              <dt>API environment</dt>
-              <dd>{runtimeConfig.environment}</dd>
-            </div>
-          </dl>
-        </Panel>
+        <div style={metricsGridStyle}>
+          {dashboardMetrics.map((metric) => (
+            <MetricCard key={metric.title} metric={metric} />
+          ))}
+        </div>
 
-        <Panel
-          title="Search anchors"
-          subtitle="The dashboard now uses the real nonprofit backend surface."
-        >
-          <ul className="portal-list">
-            <li>
-              EIN lookup: <code>{endpoints.nonprofitLookup}</code>
-            </li>
-            <li>
-              Name search: <code>{endpoints.nonprofitSearch}</code>
-            </li>
-            <li>
-              Filing history: <code>{endpoints.nonprofitFilings}</code>
-            </li>
-            <li>
-              Session roles: <code>{session.roles.join(", ")}</code>
-            </li>
-          </ul>
-        </Panel>
-      </Grid>
-    </>
+        <div style={contentGridStyle}>
+          <SectionContainer
+            title="Recent verifications"
+            description="Placeholder review activity with shared status badges and table styling."
+          >
+            <DataTable
+              columns={recentVerificationColumns}
+              rows={recentVerifications}
+            />
+          </SectionContainer>
+
+          <div style={sidebarStackStyle}>
+            <SectionContainer
+              title="Verification trend"
+              description="Chart placeholder for monthly verification throughput."
+            >
+              <TrendChartPlaceholder />
+            </SectionContainer>
+
+            <SectionContainer
+              title="Alerts"
+              description={`Static operational notices for the ${session.plan} workspace plan.`}
+            >
+              <AlertsPanel />
+            </SectionContainer>
+          </div>
+        </div>
+      </div>
+    </VerifyForGoodMantineProvider>
   );
 }
+
+function MetricCard({ metric }: { metric: DashboardMetric }) {
+  const toneStyles = metricToneStyles[metric.tone];
+
+  return (
+    <Card
+      description={metric.detail}
+      style={{
+        borderTop: `${verifyForGoodTokens.spacing.baseUnit / 2}px solid ${toneStyles.border}`,
+      }}
+      title={metric.title}
+    >
+      <div style={{ display: "grid", gap: spacing.sm }}>
+        <p style={metricValueStyle}>{metric.value}</p>
+        <div
+          aria-hidden="true"
+          style={{
+            backgroundColor: toneStyles.track,
+            borderRadius: verifyForGoodTokens.radius.button,
+            height: `${verifyForGoodTokens.spacing.baseUnit}px`,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: toneStyles.bar,
+              borderRadius: verifyForGoodTokens.radius.button,
+              height: "100%",
+              width: toneStyles.width,
+            }}
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TrendChartPlaceholder() {
+  return (
+    <Card
+      description="Replace with a real chart once dashboard analytics endpoints are connected."
+      title="Monthly throughput"
+    >
+      <div
+        aria-label="Verification trend chart placeholder"
+        role="img"
+        style={{
+          alignItems: "end",
+          display: "grid",
+          gap: spacing.sm,
+          gridTemplateColumns: `repeat(${verificationTrend.length}, minmax(0, 1fr))`,
+          minHeight: `${verifyForGoodTokens.spacing.baseUnit * 24}px`,
+        }}
+      >
+        {verificationTrend.map((point) => (
+          <div
+            key={point.label}
+            style={{
+              alignItems: "stretch",
+              display: "grid",
+              gap: spacing.xs,
+              justifyItems: "center",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                alignItems: "end",
+                background:
+                  "linear-gradient(180deg, rgba(219, 234, 254, 0.45) 0%, rgba(219, 234, 254, 0.12) 100%)",
+                borderRadius: verifyForGoodTokens.radius.card,
+                display: "flex",
+                minHeight: `${verifyForGoodTokens.spacing.baseUnit * 18}px`,
+                padding: `${verifyForGoodTokens.spacing.baseUnit / 2}px`,
+                width: "100%",
+              }}
+            >
+              <div
+                style={{
+                  background:
+                    "linear-gradient(180deg, #3277d6 0%, #197a83 100%)",
+                  borderRadius: verifyForGoodTokens.radius.button,
+                  height: `${point.value}%`,
+                  minHeight: `${verifyForGoodTokens.spacing.baseUnit * 2}px`,
+                  width: "100%",
+                }}
+              />
+            </div>
+            <span
+              style={{
+                color: semantic.text_secondary,
+                fontSize: verifyForGoodTokens.typography.fontSize.xs,
+                fontWeight: verifyForGoodTokens.typography.fontWeight.medium,
+              }}
+            >
+              {point.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AlertsPanel() {
+  return (
+    <div style={alertListStyle}>
+      {dashboardAlerts.map((alert) => (
+        <div key={alert.title} style={alertItemStyle}>
+          <div
+            style={{
+              alignItems: "center",
+              display: "flex",
+              gap: spacing.sm,
+              justifyContent: "space-between",
+              marginBottom: spacing.xs,
+            }}
+          >
+            <strong
+              style={{
+                color: semantic.text_primary,
+                fontSize: verifyForGoodTokens.typography.fontSize.sm,
+              }}
+            >
+              {alert.title}
+            </strong>
+            <StatusBadge status={alert.status} />
+          </div>
+          <p style={metricDetailStyle}>{alert.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const metricToneStyles: Record<
+  MetricTone,
+  { bar: string; border: string; track: string; width: string }
+> = {
+  primary: {
+    bar: palette.primary[500],
+    border: palette.primary[500],
+    track: palette.primary[100],
+    width: "78%",
+  },
+  secondary: {
+    bar: palette.secondary[500],
+    border: palette.secondary[500],
+    track: palette.secondary[100],
+    width: "66%",
+  },
+  success: {
+    bar: palette.success[500],
+    border: palette.success[500],
+    track: palette.success[100],
+    width: "73%",
+  },
+  warning: {
+    bar: palette.warning[500],
+    border: palette.warning[500],
+    track: palette.warning[100],
+    width: "34%",
+  },
+};
