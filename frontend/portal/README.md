@@ -181,6 +181,12 @@ pnpm run build
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
+- organize portal navigation by user mental model:
+  - `Review` for day-to-day verification work
+  - `Organization` for tenant context and settings
+  - `Build` for API and integration access
+  - `Account` for billing and commercial controls
+- target roles at the navigation config layer rather than in `PortalLayout`; with the current surface area, `portal_admin` intentionally aligns closely with `customer_admin` until platform-specific pages exist
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure

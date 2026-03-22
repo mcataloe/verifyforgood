@@ -34,16 +34,15 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByText("Review")).toBeTruthy();
-    expect(screen.getByText("Operations")).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Build")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Workspace\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
   });
 
-  it("filters admin-oriented navigation items for customer users", () => {
+  it("keeps customer-user navigation limited to review work", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -52,10 +51,26 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /^Workspace\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Overview\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
+  });
+
+  it("gives developers build-oriented navigation without billing or settings", () => {
+    renderPortalLayout({
+      session: {
+        ...createMockPortalSession(),
+        roles: [FRONTEND_ACCESS_ROLE.developer],
+      },
+    });
+
+    expect(screen.getByText("Review")).toBeTruthy();
+    expect(screen.getByText("Build")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
   });
 
   it("renders discoverable plan-gated items as locked for lower-tier admins", () => {

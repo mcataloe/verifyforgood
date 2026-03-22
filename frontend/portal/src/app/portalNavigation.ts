@@ -13,7 +13,18 @@ import type {
   PortalRouteDefinition,
 } from "./portalRoutes";
 
-const CUSTOMER_ADMIN_ROLES: FrontendAccessRole[] = [
+const ACCOUNT_ADMIN_ROLES: FrontendAccessRole[] = [
+  FRONTEND_ACCESS_ROLE.customerAdmin,
+  FRONTEND_ACCESS_ROLE.portalAdmin,
+];
+
+const BUILDER_ROLES: FrontendAccessRole[] = [
+  FRONTEND_ACCESS_ROLE.customerAdmin,
+  FRONTEND_ACCESS_ROLE.portalAdmin,
+  FRONTEND_ACCESS_ROLE.developer,
+];
+
+const ORGANIZATION_MEMBER_ROLES: FrontendAccessRole[] = [
   FRONTEND_ACCESS_ROLE.customerAdmin,
   FRONTEND_ACCESS_ROLE.portalAdmin,
   FRONTEND_ACCESS_ROLE.developer,
@@ -30,20 +41,34 @@ export function buildPortalNavigationSections(
     {
       key: "review",
       label: "Review",
-      helpText: "Core verification and entity review entry points.",
+      helpText: "Verification activity and day-to-day review entry points.",
       items: [
         navigationItem(routeByKey, "dashboard", "Dashboard"),
       ],
     },
     {
-      key: "operations",
-      label: "Operations",
-      helpText: "Customer workspace, credentials, and billing controls.",
+      key: "organization",
+      label: "Organization",
+      helpText: "Tenant context and organization-level configuration.",
       items: [
         {
-          ...navigationItem(routeByKey, "workspace", "Workspace"),
-          allowedRoles: CUSTOMER_ADMIN_ROLES,
+          ...navigationItem(routeByKey, "workspace", "Overview", {
+            helpText:
+              "Organization and workspace context for account, tenant, and membership-aware slices.",
+          }),
+          allowedRoles: ORGANIZATION_MEMBER_ROLES,
         },
+        {
+          ...navigationItem(routeByKey, "settings", "Settings"),
+          allowedRoles: ACCOUNT_ADMIN_ROLES,
+        },
+      ],
+    },
+    {
+      key: "build",
+      label: "Build",
+      helpText: "Developer-facing access for API integration and automation.",
+      items: [
         {
           ...navigationItem(routeByKey, "api-access", "API", {
             allowedPlans: ["growth", "pro", "enterprise"],
@@ -53,22 +78,18 @@ export function buildPortalNavigationSections(
               planRestrictedBehavior: "locked",
             },
           }),
-          allowedRoles: CUSTOMER_ADMIN_ROLES,
-        },
-        {
-          ...navigationItem(routeByKey, "usage-billing", "Billing"),
-          allowedRoles: CUSTOMER_ADMIN_ROLES,
+          allowedRoles: BUILDER_ROLES,
         },
       ],
     },
     {
-      key: "admin",
-      label: "Admin",
-      helpText: "Account-level configuration and future management tools.",
+      key: "account",
+      label: "Account",
+      helpText: "Commercial and subscription controls for account administrators.",
       items: [
         {
-          ...navigationItem(routeByKey, "settings", "Settings"),
-          allowedRoles: CUSTOMER_ADMIN_ROLES,
+          ...navigationItem(routeByKey, "usage-billing", "Billing"),
+          allowedRoles: ACCOUNT_ADMIN_ROLES,
         },
       ],
     },

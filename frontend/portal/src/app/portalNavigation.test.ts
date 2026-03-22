@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { FRONTEND_ACCESS_ROLE } from "@charity-status/shared-types";
+import {
+  FRONTEND_ACCESS_ROLE,
+  type FrontendAccessRole,
+} from "@charity-status/shared-types";
 import {
   buildPortalNavigationSections,
   resolvePortalNavigation,
@@ -12,37 +15,108 @@ describe("portal navigation config", () => {
 
     expect(sections.map((section) => section.key)).toEqual([
       "review",
-      "operations",
-      "admin",
+      "organization",
+      "build",
+      "account",
     ]);
     expect(sections[0]?.items[0]).toMatchObject({
       href: "#/dashboard",
       key: "dashboard",
       label: "Dashboard",
     });
-    expect(sections[1]?.items[2]).toMatchObject({
-      href: "#/usage-billing",
-      key: "usage-billing",
-      label: "Billing",
-    });
     expect(sections[1]?.items[1]).toMatchObject({
-      href: "#/api-access",
-      key: "api-access",
-      label: "API",
-      helpText:
-        "Self-serve API credentials and token access. Available on Growth and higher plans.",
+      href: "#/settings",
+      key: "settings",
+      label: "Settings",
     });
   });
 
-  it("filters admin-only items out for customer users", () => {
-    const sections = resolvePortalNavigation({
-      plan: "growth",
-      roles: [FRONTEND_ACCESS_ROLE.customerUser],
-      routes: portalProtectedRoutes,
-    });
-    const keys = sections.flatMap((section) => section.items).map((item) => item.key);
+  it("keeps customer-user navigation focused on review work", () => {
+    expect(
+      summarizeSections({
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.customerUser],
+      }),
+    ).toEqual([
+      {
+        items: ["Dashboard"],
+        label: "Review",
+      },
+    ]);
+  });
 
-    expect(keys).toEqual(["dashboard"]);
+  it("gives customer admins organization, build, and account controls", () => {
+    expect(
+      summarizeSections({
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+      }),
+    ).toEqual([
+      {
+        items: ["Dashboard"],
+        label: "Review",
+      },
+      {
+        items: ["Overview", "Settings"],
+        label: "Organization",
+      },
+      {
+        items: ["API"],
+        label: "Build",
+      },
+      {
+        items: ["Billing"],
+        label: "Account",
+      },
+    ]);
+  });
+
+  it("keeps portal admins aligned to the admin-oriented customer information architecture", () => {
+    expect(
+      summarizeSections({
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.portalAdmin],
+      }),
+    ).toEqual([
+      {
+        items: ["Dashboard"],
+        label: "Review",
+      },
+      {
+        items: ["Overview", "Settings"],
+        label: "Organization",
+      },
+      {
+        items: ["API"],
+        label: "Build",
+      },
+      {
+        items: ["Billing"],
+        label: "Account",
+      },
+    ]);
+  });
+
+  it("gives developers a narrower build-oriented navigation set", () => {
+    expect(
+      summarizeSections({
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.developer],
+      }),
+    ).toEqual([
+      {
+        items: ["Dashboard"],
+        label: "Review",
+      },
+      {
+        items: ["Overview"],
+        label: "Organization",
+      },
+      {
+        items: ["API"],
+        label: "Build",
+      },
+    ]);
   });
 
   it("keeps discoverable plan-gated items locked for lower plans", () => {
@@ -51,10 +125,10 @@ describe("portal navigation config", () => {
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
     });
-    const apiItem = sections
-      .flatMap((section) => section.items)
-      .find((item) => item.key === "api-access");
+    const buildSection = sections.find((section) => section.key === "build");
+    const apiItem = buildSection?.items.find((item) => item.key === "api-access");
 
+    expect(buildSection?.label).toBe("Build");
     expect(apiItem).toMatchObject({
       key: "api-access",
       label: "API",
@@ -63,3 +137,16 @@ describe("portal navigation config", () => {
     expect(apiItem?.href).toBeUndefined();
   });
 });
+
+function summarizeSections(params: {
+  plan: string;
+  roles: readonly FrontendAccessRole[];
+}) {
+  return resolvePortalNavigation({
+    ...params,
+    routes: portalProtectedRoutes,
+  }).map((section) => ({
+    label: section.label,
+    items: section.items.map((item) => item.label),
+  }));
+}
