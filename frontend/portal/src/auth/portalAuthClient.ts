@@ -6,9 +6,17 @@ import { isFrontendAccessRole } from "@charity-status/shared-types";
 
 const PORTAL_SESSION_STORAGE_KEY = "verifyforgood.portal.auth.session";
 
+export type PortalSignInMethod = "google" | "microsoft" | "password";
+
+export interface PortalSignInRequest {
+  email?: string;
+  method: PortalSignInMethod;
+  password?: string;
+}
+
 export interface PortalAuthClient {
   getSession(): Promise<PortalAuthenticatedSession | null>;
-  signIn(): Promise<PortalAuthenticatedSession>;
+  signIn(request?: PortalSignInRequest): Promise<PortalAuthenticatedSession>;
   signOut(): Promise<void>;
 }
 
@@ -17,8 +25,11 @@ export function createMockPortalAuthClient(): PortalAuthClient {
     async getSession() {
       return readStoredPortalSession();
     },
-    async signIn() {
-      const session = createMockPortalSession();
+    async signIn(request) {
+      const session = createMockPortalSession({
+        email: request?.email,
+        provider: request?.method ?? "password",
+      });
       writeStoredPortalSession(session);
       return session;
     },

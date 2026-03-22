@@ -35,11 +35,17 @@ describe("portal auth client", () => {
     });
     const client = createMockPortalAuthClient();
 
-    const session = await client.signIn();
+    const session = await client.signIn({
+      email: "jamie.admin@example.org",
+      method: "password",
+      password: "top-secret",
+    });
     const restored = await client.getSession();
 
     expect(session.roles).toEqual([FRONTEND_ACCESS_ROLE.customerAdmin]);
+    expect(session.user.email).toBe("jamie.admin@example.org");
     expect(restored?.roles).toEqual([FRONTEND_ACCESS_ROLE.customerAdmin]);
+    expect(restored?.user.email).toBe("jamie.admin@example.org");
   });
 
   it("rejects stored sessions with non-canonical role values", async () => {

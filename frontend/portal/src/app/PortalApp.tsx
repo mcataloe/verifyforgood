@@ -85,9 +85,7 @@ export function PortalApp() {
         <PortalSignInPage
           endpoints={endpoints}
           isBusy={auth.isBusy}
-          onSignIn={async () => {
-            await auth.signIn();
-          }}
+          onSignIn={auth.signIn}
           requestedRoute={requestedRoute}
         />
       </PortalAuthLayout>

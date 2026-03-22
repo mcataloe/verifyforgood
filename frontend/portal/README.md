@@ -52,6 +52,8 @@ Route protection is enforced before protected content renders. An unauthenticate
 
 - auth state is portal-local and replaceable through `src/auth/portalAuthClient.ts`
 - the current implementation is a mock browser session stored in local storage for local development only
+- the public entry screen lives in `src/pages/PortalSignInPage.tsx` and now renders email/password plus Google and Microsoft entry buttons
+- all three entry methods currently resolve through the same mock `PortalAuthClient.signIn(...)` path; the screen is real UX, but provider exchange is still deferred
 - session state already carries `account_id`, `workspace_id`, `roles`, and `scopes` so the shell does not block future tenant or RBAC work
 - roles now use the canonical frontend vocabulary shared across the workspace:
   - `developer`
@@ -66,6 +68,7 @@ Current backend integration anchors:
 - the backend already normalizes API key and OAuth client-credentials into a shared `AuthContext`
 - `POST /v1/oauth/token` exists today and remains an auth integration touchpoint
 - future production portal auth can exchange browser identity into backend account/workspace context without changing the portal route-protection boundary
+- future real auth integration should keep `PortalSignInPage` as the public route surface and swap the implementation behind `src/auth/portalAuthClient.ts` / `usePortalAuth.ts`
 
 ## Organization scope
 
@@ -196,6 +199,7 @@ pnpm run build
 - when a session can hold multiple roles, keep the audience-priority order in `resolvePortalNavigationAudience(...)` in sync with product intent so the sidebar stays deterministic
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
+- keep the portal entry UX in `src/pages/PortalSignInPage.tsx`; if real provider wiring lands, push network/session exchange into `src/auth/` rather than embedding it in the page
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure
 - keep usage and billing logic isolated under `src/billing/` until broader frontend reuse is justified
 - keep nonprofit lookup/search logic isolated under `src/nonprofits/` until broader cross-app reuse is justified

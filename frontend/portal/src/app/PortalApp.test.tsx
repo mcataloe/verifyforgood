@@ -142,9 +142,13 @@ describe("PortalApp", () => {
     await screen.findByRole("heading", {
       name: "Sign in to the customer portal",
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with demo session" }),
-    );
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "jamie.admin@example.org" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "top-secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(
       (await screen.findAllByRole("heading", {
@@ -165,7 +169,7 @@ describe("PortalApp", () => {
       name: "Sign in to the customer portal",
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Continue with demo session" }),
+      screen.getByRole("button", { name: "Continue with Google" }),
     );
 
     expect(

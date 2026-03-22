@@ -23,7 +23,22 @@ export interface PortalAuthenticatedSession extends OrganizationContext {
   workspace_id: string;
 }
 
-export function createMockPortalSession(): PortalAuthenticatedSession {
+type CreateMockPortalSessionOptions = {
+  email?: string;
+  provider?: "google" | "microsoft" | "password";
+};
+
+export function createMockPortalSession(
+  options: CreateMockPortalSessionOptions = {},
+): PortalAuthenticatedSession {
+  const email = options.email?.trim().toLowerCase() || "alex.operator@example.org";
+  const providerLabel =
+    options.provider === "google"
+      ? "Google"
+      : options.provider === "microsoft"
+        ? "Microsoft"
+        : "Portal";
+
   return {
     account_id: "acct_verifyforgood_demo",
     auth_method: "mock_browser_session",
@@ -40,10 +55,21 @@ export function createMockPortalSession(): PortalAuthenticatedSession {
       "api-access:read",
     ],
     user: {
-      display_name: "Alex Operator",
-      email: "alex.operator@example.org",
+      display_name: deriveMockDisplayName(email, providerLabel),
+      email,
       subject_id: "user_verifyforgood_demo",
     },
     workspace_id: "ws_verifyforgood_demo",
   };
+}
+
+function deriveMockDisplayName(email: string, providerLabel: string) {
+  const localPart = email.split("@")[0] || "operator";
+  const words = localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1));
+
+  return words.length ? words.join(" ") : `${providerLabel} User`;
 }

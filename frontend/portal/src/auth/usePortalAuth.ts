@@ -3,6 +3,7 @@ import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
   createMockPortalAuthClient,
   type PortalAuthClient,
+  type PortalSignInRequest,
 } from "./portalAuthClient";
 
 export type PortalAuthStatus = "authenticated" | "loading" | "unauthenticated";
@@ -48,9 +49,9 @@ export function usePortalAuth(
     };
   }, [resolvedAuthClient]);
 
-  const signIn = async () => {
+  const signIn = async (request?: PortalSignInRequest) => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
-    const session = await resolvedAuthClient.signIn();
+    const session = await resolvedAuthClient.signIn(request);
     setAuthState({
       isBusy: false,
       session,
