@@ -12,6 +12,11 @@ export { Section } from "./components/layout/Section";
 export { VerifyForGoodMantineProvider } from "./components/VerifyForGoodMantineProvider";
 export { useVerifyForGoodColorScheme } from "./components/VerifyForGoodMantineProvider";
 export {
+  VerifyForGoodAppShell,
+  verifyForGoodAppShellNavigation,
+  type VerifyForGoodAppShellNavItem,
+} from "./layout/AppShell";
+export {
   verifyForGoodThemeModes,
   verifyForGoodTokens,
   type VerifyForGoodThemeMode,
