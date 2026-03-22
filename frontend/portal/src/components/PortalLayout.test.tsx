@@ -28,15 +28,15 @@ const runtimeConfig = {
 } as const;
 
 describe("PortalLayout", () => {
-  it("renders grouped schema-driven navigation for admin-capable sessions", () => {
+  it("renders the customer-admin information architecture", () => {
     renderPortalLayout({
       currentRoute: resolvePortalRoute("#/usage-billing"),
     });
 
-    expect(screen.getByText("Review")).toBeTruthy();
-    expect(screen.getByText("Build")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
+    expect(screen.getAllByText("Workspace").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
@@ -44,7 +44,7 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Alex Operator")).toBeTruthy();
   });
 
-  it("keeps customer-user navigation limited to review work", () => {
+  it("keeps customer-user navigation limited to the home/search surface", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -52,14 +52,15 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /^Overview\b/i })).toBeNull();
+    expect(screen.getByText("Work")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
   });
 
-  it("gives developers build-oriented navigation without billing or settings", () => {
+  it("gives developers the platform-oriented navigation structure", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -67,12 +68,31 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByText("Review")).toBeTruthy();
-    expect(screen.getByText("Build")).toBeTruthy();
+    expect(screen.getByText("Platform")).toBeTruthy();
+    expect(screen.getAllByText("System").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Tenants\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^System\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
+  });
+
+  it("maps portal admins to customer and subscription operations", () => {
+    renderPortalLayout({
+      session: {
+        ...createMockPortalSession(),
+        roles: [FRONTEND_ACCESS_ROLE.portalAdmin],
+      },
+    });
+
+    expect(screen.getByText("Operations")).toBeTruthy();
+    expect(screen.getByText("Commercial")).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Customers\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Subscriptions\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
   });
 
   it("renders discoverable plan-gated items as locked for lower-tier admins", () => {

@@ -180,16 +180,18 @@ pnpm run build
 - keep app-wide navigation, session composition, and route registration under `src/app/`
 - prefer VerifyForGood or purpose-based naming for new portal-local identifiers and contributor docs; keep the existing `@charity-status/*` package scope only where compatibility already depends on it
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
+- keep role-family selection centralized in `resolvePortalNavigationAudience(...)` so a session resolves to one sidebar information architecture instead of a merged role union
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
 - let the shared shell own sidebar layout structure: brand/header, scrollable nav body, and footer/context region
 - keep portal-specific organization/account context in the shell footer slot rather than turning the shared sidebar into a portal-specific card layout
 - organize portal navigation by user mental model:
-  - `Review` for day-to-day verification work
-  - `Organization` for tenant context and settings
-  - `Build` for API and integration access
-  - `Account` for billing and commercial controls
-- target roles at the navigation config layer rather than in `PortalLayout`; with the current surface area, `portal_admin` intentionally aligns closely with `customer_admin` until platform-specific pages exist
+  - developers: `Platform` and `System`
+  - portal admins: `Operations`, `Commercial`, and `Admin`
+  - customer admins: `Workspace` and `Account`
+  - customer users: `Work`
+- map new items to the closest implemented route surface first; if a target category would need a fake page or duplicate active route, defer it instead of inventing placeholder sprawl
+- when a session can hold multiple roles, keep the audience-priority order in `resolvePortalNavigationAudience(...)` in sync with product intent so the sidebar stays deterministic
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure

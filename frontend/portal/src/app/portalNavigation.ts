@@ -13,87 +13,21 @@ import type {
   PortalRouteDefinition,
 } from "./portalRoutes";
 
-const ACCOUNT_ADMIN_ROLES: FrontendAccessRole[] = [
-  FRONTEND_ACCESS_ROLE.customerAdmin,
-  FRONTEND_ACCESS_ROLE.portalAdmin,
-];
-
-const BUILDER_ROLES: FrontendAccessRole[] = [
-  FRONTEND_ACCESS_ROLE.customerAdmin,
-  FRONTEND_ACCESS_ROLE.portalAdmin,
-  FRONTEND_ACCESS_ROLE.developer,
-];
-
-const ORGANIZATION_MEMBER_ROLES: FrontendAccessRole[] = [
-  FRONTEND_ACCESS_ROLE.customerAdmin,
-  FRONTEND_ACCESS_ROLE.portalAdmin,
-  FRONTEND_ACCESS_ROLE.developer,
-];
+export type PortalNavigationAudience =
+  | "developer"
+  | "portal_admin"
+  | "customer_admin"
+  | "customer_user";
 
 export function buildPortalNavigationSections(
   routes: readonly PortalRouteDefinition[],
+  audience: PortalNavigationAudience,
 ): VerifyForGoodNavigationSection[] {
   const routeByKey = new Map(
     routes.map((route) => [route.key, route] as const),
   );
 
-  return [
-    {
-      key: "review",
-      label: "Review",
-      helpText: "Verification activity and day-to-day review entry points.",
-      items: [
-        navigationItem(routeByKey, "dashboard", "Dashboard"),
-      ],
-    },
-    {
-      key: "organization",
-      label: "Organization",
-      helpText: "Tenant context and organization-level configuration.",
-      items: [
-        {
-          ...navigationItem(routeByKey, "workspace", "Overview", {
-            helpText:
-              "Organization and workspace context for account, tenant, and membership-aware slices.",
-          }),
-          allowedRoles: ORGANIZATION_MEMBER_ROLES,
-        },
-        {
-          ...navigationItem(routeByKey, "settings", "Settings"),
-          allowedRoles: ACCOUNT_ADMIN_ROLES,
-        },
-      ],
-    },
-    {
-      key: "build",
-      label: "Build",
-      helpText: "Developer-facing access for API integration and automation.",
-      items: [
-        {
-          ...navigationItem(routeByKey, "api-access", "API", {
-            allowedPlans: ["growth", "pro", "enterprise"],
-            helpText:
-              "Self-serve API credentials and token access. Available on Growth and higher plans.",
-            visibility: {
-              planRestrictedBehavior: "locked",
-            },
-          }),
-          allowedRoles: BUILDER_ROLES,
-        },
-      ],
-    },
-    {
-      key: "account",
-      label: "Account",
-      helpText: "Commercial and subscription controls for account administrators.",
-      items: [
-        {
-          ...navigationItem(routeByKey, "usage-billing", "Billing"),
-          allowedRoles: ACCOUNT_ADMIN_ROLES,
-        },
-      ],
-    },
-  ];
+  return buildAudienceNavigationSections(routeByKey, audience);
 }
 
 export function resolvePortalNavigation(params: {
@@ -101,10 +35,33 @@ export function resolvePortalNavigation(params: {
   roles: readonly FrontendAccessRole[];
   routes: readonly PortalRouteDefinition[];
 }): VerifyForGoodResolvedNavigationSection[] {
-  return filterNavigationSections(buildPortalNavigationSections(params.routes), {
-    plan: params.plan,
-    roles: params.roles,
-  });
+  const audience = resolvePortalNavigationAudience(params.roles);
+
+  return filterNavigationSections(
+    buildPortalNavigationSections(params.routes, audience),
+    {
+      plan: params.plan,
+      roles: params.roles,
+    },
+  );
+}
+
+export function resolvePortalNavigationAudience(
+  roles: readonly FrontendAccessRole[],
+): PortalNavigationAudience {
+  if (roles.includes(FRONTEND_ACCESS_ROLE.developer)) {
+    return "developer";
+  }
+
+  if (roles.includes(FRONTEND_ACCESS_ROLE.portalAdmin)) {
+    return "portal_admin";
+  }
+
+  if (roles.includes(FRONTEND_ACCESS_ROLE.customerAdmin)) {
+    return "customer_admin";
+  }
+
+  return "customer_user";
 }
 
 function navigationItem(
@@ -138,4 +95,131 @@ function navigationItem(
       ...options?.visibility,
     },
   };
+}
+
+function buildAudienceNavigationSections(
+  routeByKey: Map<PortalRouteDefinition["key"], PortalRouteDefinition>,
+  audience: PortalNavigationAudience,
+): VerifyForGoodNavigationSection[] {
+  switch (audience) {
+    case "developer":
+      return [
+        {
+          key: "platform",
+          label: "Platform",
+          helpText: "Developer-oriented visibility across workspace and tenant context.",
+          items: [
+            navigationItem(routeByKey, "dashboard", "Overview", {
+              helpText:
+                "High-level system context with the same search-driven dashboard surface used elsewhere in the portal.",
+            }),
+            navigationItem(routeByKey, "workspace", "Tenants", {
+              helpText:
+                "Workspace and organization context, standing in for deeper tenant administration until dedicated platform pages exist.",
+            }),
+          ],
+        },
+        {
+          key: "system",
+          label: "System",
+          helpText: "Technical entry points for API and integration access.",
+          items: [
+            navigationItem(routeByKey, "api-access", "System", {
+              allowedPlans: ["growth", "pro", "enterprise"],
+              helpText:
+                "API credentials and integration access. Future system, audit, and feature-flag tooling should extend from this technical area.",
+              visibility: {
+                planRestrictedBehavior: "locked",
+              },
+            }),
+          ],
+        },
+      ];
+    case "portal_admin":
+      return [
+        {
+          key: "operations",
+          label: "Operations",
+          helpText: "Platform administration views for customer and support workflows.",
+          items: [
+            navigationItem(routeByKey, "dashboard", "Dashboard"),
+            navigationItem(routeByKey, "workspace", "Customers", {
+              helpText:
+                "Customer and workspace context until dedicated customer-management pages exist.",
+            }),
+          ],
+        },
+        {
+          key: "commercial",
+          label: "Commercial",
+          helpText: "Subscription visibility and account-level commercial controls.",
+          items: [
+            navigationItem(routeByKey, "usage-billing", "Subscriptions", {
+              helpText:
+                "Subscription and usage visibility, standing in for a richer subscriptions surface.",
+            }),
+          ],
+        },
+        {
+          key: "admin",
+          label: "Admin",
+          helpText: "Configuration controls for the current portal administration surface.",
+          items: [
+            navigationItem(routeByKey, "settings", "Settings"),
+          ],
+        },
+      ];
+    case "customer_admin":
+      return [
+        {
+          key: "workspace",
+          label: "Workspace",
+          helpText: "Team and day-to-day workspace views for customer administrators.",
+          items: [
+            navigationItem(routeByKey, "dashboard", "Home", {
+              helpText:
+                "Home view for verification activity, nonprofit search, and recent results.",
+            }),
+            navigationItem(routeByKey, "workspace", "Team", {
+              helpText:
+                "Workspace context and team-adjacent administration until a dedicated member-management page exists.",
+            }),
+          ],
+        },
+        {
+          key: "account",
+          label: "Account",
+          helpText: "Commercial, integration, and settings controls for customer admins.",
+          items: [
+            navigationItem(routeByKey, "usage-billing", "Billing", {
+              helpText:
+                "Billing and usage visibility combined into the current subscription surface.",
+            }),
+            navigationItem(routeByKey, "api-access", "API", {
+              allowedPlans: ["growth", "pro", "enterprise"],
+              helpText:
+                "Self-serve API credentials and token access. Available on Growth and higher plans.",
+              visibility: {
+                planRestrictedBehavior: "locked",
+              },
+            }),
+            navigationItem(routeByKey, "settings", "Settings"),
+          ],
+        },
+      ];
+    case "customer_user":
+      return [
+        {
+          key: "work",
+          label: "Work",
+          helpText: "Daily review and nonprofit lookup entry points for customer users.",
+          items: [
+            navigationItem(routeByKey, "dashboard", "Home", {
+              helpText:
+                "Home view for nonprofit search, result review, and recent verification activity.",
+            }),
+          ],
+        },
+      ];
+  }
 }
