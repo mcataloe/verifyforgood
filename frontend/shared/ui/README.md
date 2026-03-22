@@ -28,6 +28,11 @@ This package contains the shared VerifyForGood design foundation for the fronten
   - `FeatureGrid`
   - `CallToAction`
   - `LogoCloud`
+- storybook-style example fixtures:
+  - `CorePrimitivesExamples`
+  - `FeedbackStatesExamples`
+  - `OnboardingFlowExamples`
+  - `NavigationStatesExamples`
 
 ## Usage expectations
 
@@ -97,6 +102,21 @@ Nested navigation behavior assumptions:
 - active descendants automatically open and highlight their parent group
 - if a parent has only one visible child after upstream filtering, the group opens automatically
 - if you need a navigable overview route for a parent group, prefer an explicit first child item instead of relying on the parent row itself
+
+## Navigation fixture example
+
+`NavigationStatesExamples` is the lightweight contributor fixture for shell work when Storybook is not present in the workspace.
+
+It is intended to make these states easy to inspect locally:
+
+- developer
+- portal admin
+- customer admin
+- customer user
+- locked plan-gated API access
+- light and dark mode
+
+The fixture deliberately uses nested groups so contributors can inspect parent expansion and active-descendant behavior even while the current portal information architecture remains relatively shallow.
 
 ## Accessibility baseline
 
