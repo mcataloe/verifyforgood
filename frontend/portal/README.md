@@ -179,6 +179,7 @@ npm run build
 
 - keep app-wide navigation, session composition, and route registration under `src/app/`
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
+- derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure
 - keep usage and billing logic isolated under `src/billing/` until broader frontend reuse is justified
