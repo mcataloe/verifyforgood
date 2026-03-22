@@ -38,7 +38,7 @@ export function PageHeader({
         ) : null}
         <Title order={2}>{title}</Title>
         {description ? (
-          <Text c="dimmed" maw="56rem">
+          <Text c="dimmed" component="div" maw="56rem">
             {description}
           </Text>
         ) : null}

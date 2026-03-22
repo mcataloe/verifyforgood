@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ThemeRoot } from "@charity-status/shared-ui";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { MarketingPricingPlansController } from "../pricing/useMarketingPricingPlans";
 import { PricingPage } from "./PricingPage";
 
@@ -116,9 +116,9 @@ describe("PricingPage", () => {
     };
 
     render(
-      <ThemeRoot>
+      <VerifyForGoodMantineProvider>
         <PricingPage controller={controller} runtimeConfig={runtimeConfig} />
-      </ThemeRoot>,
+      </VerifyForGoodMantineProvider>,
     );
 
     expect(screen.getByRole("heading", { name: "Free" })).toBeTruthy();
@@ -139,9 +139,9 @@ describe("PricingPage", () => {
     };
 
     render(
-      <ThemeRoot>
+      <VerifyForGoodMantineProvider>
         <PricingPage controller={controller} runtimeConfig={runtimeConfig} />
-      </ThemeRoot>,
+      </VerifyForGoodMantineProvider>,
     );
 
     fireEvent.click(

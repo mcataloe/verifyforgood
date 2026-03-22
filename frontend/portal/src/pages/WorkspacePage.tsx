@@ -1,4 +1,4 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { Grid, OnboardingLayout, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
@@ -13,6 +13,46 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
 
   return (
     <Grid className="portal-page-grid">
+      <OnboardingLayout
+        steps={[
+          {
+            key: "welcome",
+            label: "Welcome",
+            status: "complete",
+            description:
+              "Your organization context is active and ready for the first product workflow.",
+            action: (
+              <button className="portal-shell__action" type="button">
+                Review workspace scope
+              </button>
+            ),
+          },
+          {
+            key: "verification",
+            label: "Create first verification",
+            status: "current",
+            description:
+              "Run the first EIN or organization-name search to establish the review workflow for your team.",
+          },
+          {
+            key: "api-key",
+            label: "Generate API key",
+            status: "upcoming",
+            description:
+              "Create a key only when you are ready to connect internal systems or automate checks.",
+          },
+          {
+            key: "invite",
+            label: "Invite team member",
+            status: "upcoming",
+            description:
+              "Add teammates after ownership and review responsibilities are clear.",
+          },
+        ]}
+        subtitle="A calm first-run checklist for new portal customers."
+        title="Workspace onboarding"
+      />
+
       <Panel
         title="Workspace context"
         subtitle="Ready for tenant, account, and membership-aware slices."

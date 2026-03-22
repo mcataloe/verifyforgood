@@ -1,24 +1,25 @@
 :root,
+html[data-mantine-color-scheme="light"],
 [data-theme="default"] {
   color-scheme: light;
 
   /* Colors */
-  --vf-color-forest-950: #14231f;
-  --vf-color-forest-900: #17342c;
-  --vf-color-forest-700: #29453d;
-  --vf-color-forest-600: #35564d;
-  --vf-color-sage-700: #465f57;
-  --vf-color-sage-600: #53675f;
-  --vf-color-sage-500: #5b6c64;
-  --vf-color-sage-400: #7d928b;
-  --vf-color-cream-50: #f7f3e8;
-  --vf-color-cream-100: #f4f1ea;
-  --vf-color-cream-200: #eceee9;
+  --vf-color-forest-950: #10233c;
+  --vf-color-forest-900: #1d3869;
+  --vf-color-forest-700: #1d4c9d;
+  --vf-color-forest-600: #215dc2;
+  --vf-color-sage-700: #17626a;
+  --vf-color-sage-600: #197a83;
+  --vf-color-sage-500: #526173;
+  --vf-color-sage-400: #94a3b8;
+  --vf-color-cream-50: #f8fafc;
+  --vf-color-cream-100: #f1f5f9;
+  --vf-color-cream-200: #e2e8f0;
   --vf-color-surface-0: #ffffff;
-  --vf-color-surface-100: #eef0e7;
-  --vf-color-surface-200: #e6ebe5;
-  --vf-color-gold-400: #e0b449;
-  --vf-color-mint-400: #6fa791;
+  --vf-color-surface-100: #f8fafc;
+  --vf-color-surface-200: #f1f5f9;
+  --vf-color-gold-400: #d99214;
+  --vf-color-mint-400: #24969d;
 
   /* Spacing */
   --vf-space-1: 0.25rem;
@@ -32,10 +33,11 @@
   --vf-space-9: 3rem;
 
   /* Typography */
-  --vf-font-sans: "Trebuchet MS", "Gill Sans", sans-serif;
-  --vf-font-serif: "Palatino Linotype", Georgia, serif;
-  --vf-font-display: Georgia, "Times New Roman", serif;
-  --vf-font-mono: "Courier New", monospace;
+  --vf-font-sans: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", sans-serif;
+  --vf-font-serif: Inter, "Segoe UI", system-ui, sans-serif;
+  --vf-font-display: Inter, "Segoe UI", system-ui, sans-serif;
+  --vf-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --vf-font-size-xs: 0.78rem;
   --vf-font-size-sm: 0.92rem;
   --vf-font-size-md: 1rem;
@@ -55,8 +57,8 @@
   --vf-radius-pill: 999px;
 
   /* Elevation */
-  --vf-shadow-sm: 0 18px 48px rgba(16, 37, 29, 0.08);
-  --vf-shadow-md: 0 24px 80px rgba(16, 37, 29, 0.12);
+  --vf-shadow-sm: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --vf-shadow-md: 0 24px 64px rgba(2, 6, 23, 0.18);
   --vf-shadow-none: none;
 
   /* Layout */
@@ -66,22 +68,29 @@
   --vf-grid-min-card: 16.25rem;
 
   /* Semantic theme */
+  --vf-theme-background: var(--vf-color-surface-100);
   --vf-theme-text: var(--vf-color-forest-950);
-  --vf-theme-muted: var(--vf-color-sage-700);
-  --vf-theme-panel-bg: rgba(255, 255, 255, 0.86);
-  --vf-theme-panel-border: rgba(23, 52, 44, 0.12);
+  --vf-theme-muted: var(--vf-color-sage-500);
+  --vf-theme-panel-bg: rgba(255, 255, 255, 0.92);
+  --vf-theme-panel-border: rgba(148, 163, 184, 0.32);
   --vf-theme-panel-shadow: var(--vf-shadow-sm);
-  --vf-theme-accent: var(--vf-color-forest-900);
+  --vf-theme-surface-subtle: var(--vf-color-surface-200);
+  --vf-theme-accent: var(--vf-color-forest-600);
   --vf-theme-accent-contrast: var(--vf-color-cream-50);
+  --vf-theme-focus: rgba(50, 119, 214, 0.3);
 }
 
+html[data-mantine-color-scheme="dark"],
 [data-theme="inverse"] {
   color-scheme: dark;
-  --vf-theme-text: var(--vf-color-cream-50);
-  --vf-theme-muted: rgba(247, 243, 232, 0.74);
-  --vf-theme-panel-bg: rgba(255, 255, 255, 0.07);
-  --vf-theme-panel-border: rgba(247, 243, 232, 0.14);
-  --vf-theme-panel-shadow: var(--vf-shadow-none);
-  --vf-theme-accent: var(--vf-color-cream-50);
-  --vf-theme-accent-contrast: var(--vf-color-forest-900);
+  --vf-theme-background: #0f172a;
+  --vf-theme-text: #e5eefb;
+  --vf-theme-muted: #a7b4c8;
+  --vf-theme-panel-bg: #162033;
+  --vf-theme-panel-border: rgba(71, 85, 105, 0.9);
+  --vf-theme-panel-shadow: 0 24px 64px rgba(2, 6, 23, 0.28);
+  --vf-theme-surface-subtle: #1e293b;
+  --vf-theme-accent: #5f9bec;
+  --vf-theme-accent-contrast: #020617;
+  --vf-theme-focus: rgba(95, 155, 236, 0.3);
 }

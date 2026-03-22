@@ -3,21 +3,36 @@ body {
   background:
     radial-gradient(
       circle at top left,
-      rgba(224, 180, 73, 0.34),
+      rgba(50, 119, 214, 0.22),
       transparent 32%
     ),
     radial-gradient(
       circle at top right,
-      rgba(32, 120, 103, 0.16),
+      rgba(36, 150, 157, 0.16),
       transparent 28%
     ),
     linear-gradient(
       180deg,
-      var(--vf-color-cream-50) 0%,
+      var(--vf-theme-background) 0%,
       var(--vf-color-surface-100) 100%
     );
-  color: var(--vf-color-forest-950);
+  color: var(--vf-theme-text);
   font-family: var(--vf-font-display);
+}
+
+html[data-mantine-color-scheme="dark"] body {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(95, 155, 236, 0.14),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(67, 180, 182, 0.12),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #0f172a 0%, #162033 100%);
 }
 
 #root {
@@ -47,7 +62,7 @@ code {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  margin-bottom: var(--vf-space-7);
+  margin-bottom: var(--vf-space-4);
 }
 
 .marketing-shell__brand {
@@ -80,13 +95,27 @@ code {
   text-decoration: none;
   padding: 0.55rem 0.9rem;
   border-radius: var(--vf-radius-pill);
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(23, 52, 44, 0.08);
+  background: color-mix(in srgb, var(--vf-theme-panel-bg) 70%, transparent);
+  border: 1px solid var(--vf-theme-panel-border);
 }
 
 .marketing-shell__nav-link--active {
-  background: var(--vf-color-forest-900);
-  color: var(--vf-color-cream-50);
+  background: var(--vf-theme-accent);
+  color: var(--vf-theme-accent-contrast);
+}
+
+.marketing-shell__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.marketing-shell__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vf-space-3);
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+  margin-bottom: var(--vf-space-6);
 }
 
 .marketing-shell__hero-grid {
@@ -149,6 +178,11 @@ code {
   padding: 0 0 var(--vf-space-7);
 }
 
+.marketing-page-stack {
+  display: grid;
+  gap: var(--vf-space-5);
+}
+
 .marketing-list {
   margin: 0;
   padding-left: 1.2rem;
@@ -186,9 +220,5 @@ code {
 
   .marketing-shell__nav {
     justify-content: start;
-  }
-
-  .marketing-shell__hero-grid {
-    grid-template-columns: 1fr;
   }
 }

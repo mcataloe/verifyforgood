@@ -1,5 +1,6 @@
 .vf-theme-root {
   color: var(--vf-theme-text);
+  background: var(--vf-theme-background);
 }
 
 .app-frame {
@@ -56,6 +57,11 @@
   box-shadow: var(--vf-theme-panel-shadow);
   padding: var(--vf-space-5);
   color: var(--vf-theme-text);
+}
+
+.vf-theme-root :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--vf-theme-focus);
+  outline-offset: 2px;
 }
 
 .shared-panel__header h3 {

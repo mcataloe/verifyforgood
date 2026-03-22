@@ -75,7 +75,7 @@ The current scoped API client adds portal-local workspace/account headers as pla
 ## Shared foundations used here
 
 - `@charity-status/shared-ui`
-  - panel primitive and shared styling
+  - design tokens, Mantine provider, app shell, entity detail, onboarding, data table, and feedback primitives
 - `@charity-status/shared-config`
   - runtime environment normalization
 - `@charity-status/shared-api`
@@ -113,6 +113,12 @@ The current implementation is intentionally data-focused:
 
 This keeps the initial portal search surface close to the existing backend contract without introducing a heavier search state framework.
 
+The current detail experience also establishes the reusable entity-review layout pattern:
+
+- shared `EntityDetailLayout` for status, EIN, summary fields, actions, and tabs
+- shared `StatusBadge`, `PageHeader`, and feedback primitives for consistent review flows
+- shared `DataTable` and `FilterBar` for search, filtering, sorting, pagination, loading, and empty states
+
 ## Usage and billing visibility
 
 The usage and billing area now uses a small feature-local billing slice under `src/billing/`.
@@ -137,6 +143,13 @@ Portal features now share a small feedback layer for loading, error, empty, and 
 - feature slices should use these shared portal patterns before introducing new local loading or error treatments
 
 This keeps nonprofit search, API access, billing visibility, and the auth shell aligned without promoting portal-specific UI concerns into `frontend/shared`.
+
+## Accessibility and theme expectations
+
+- portal routes should keep keyboard navigation and visible focus states intact
+- status, alerts, and badges should not rely on color alone
+- new screens should reuse shared dark-mode-aware surfaces before adding local color values
+- onboarding and dense data views should prefer the shared layouts and table patterns over one-off page composition
 
 ## Running the portal
 

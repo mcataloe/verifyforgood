@@ -52,6 +52,7 @@ function toMantineHeadingStyle(
  */
 export const verifyForGoodMantineTheme = createTheme({
   autoContrast: true,
+  focusRing: "always",
   primaryColor: "primary",
   primaryShade: { light: 6, dark: 4 },
   colors: {

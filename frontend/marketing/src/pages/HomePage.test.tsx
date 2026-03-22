@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ThemeRoot } from "@charity-status/shared-ui";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { HomePage } from "./HomePage";
 
 const endpoints = {
@@ -15,26 +15,28 @@ const runtimeConfig = {
 describe("HomePage", () => {
   it("keeps free-tier and trial messaging clear and non-intrusive", () => {
     render(
-      <ThemeRoot>
+      <VerifyForGoodMantineProvider>
         <HomePage
           endpoints={endpoints as Parameters<typeof HomePage>[0]["endpoints"]}
           runtimeConfig={
             runtimeConfig as Parameters<typeof HomePage>[0]["runtimeConfig"]
           }
         />
-      </ThemeRoot>,
+      </VerifyForGoodMantineProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Start on free" })).toBeTruthy();
     expect(
-      screen.getByText(
-        "Value-forward onboarding without urgency or surprise billing.",
-      ),
+      screen.getByRole("heading", {
+        name: "Compliance-grade verification without noisy workflows",
+      }),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        /Paid enrollment stays separate so teams move up only when the additional capacity is useful./i,
+        /Value-forward onboarding keeps usage and upgrade decisions explicit/i,
       ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Grantmaking teams/i),
     ).toBeTruthy();
   });
 });

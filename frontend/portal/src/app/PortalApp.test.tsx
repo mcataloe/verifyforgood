@@ -147,14 +147,13 @@ describe("PortalApp", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Customer portal shell" }),
-    ).toBeTruthy();
-    expect(
-      await screen.findByRole("heading", { name: "Usage & Billing" }),
-    ).toBeTruthy();
+      (await screen.findAllByRole("heading", {
+        name: "Customer portal shell",
+      })).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText(/Org: VerifyForGood Demo Workspace/i)).toBeTruthy();
-    expect(screen.getByText(/Usage and billing state/i)).toBeTruthy();
-    expect(screen.getByLabelText("Request usage meter")).toBeTruthy();
+    expect(await screen.findByLabelText("Request usage meter")).toBeTruthy();
+    expect(screen.getByText(/Signed in plan baseline/i)).toBeTruthy();
   });
 
   it("renders the nonprofit search dashboard on the default protected route", async () => {

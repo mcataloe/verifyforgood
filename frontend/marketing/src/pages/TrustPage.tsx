@@ -1,47 +1,44 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { FeatureGrid, LogoCloud } from "@charity-status/shared-ui";
 
 export function TrustPage() {
   return (
-    <Grid className="marketing-page-grid">
-      <Panel
-        title="Trust posture"
-        subtitle="Public trust cues should reflect the actual platform, not generic claims."
-      >
-        <ul className="marketing-list">
-          <li>
-            Deterministic scoring and audit-friendly evidence remain central
-            product claims.
-          </li>
-          <li>
-            Hosted billing and customer self-service are delegated to
-            Stripe-hosted surfaces.
-          </li>
-          <li>
-            Customer-facing branding is configuration-driven, while platform
-            internals stay capability-based.
-          </li>
-        </ul>
-      </Panel>
-
-      <Panel
-        title="Security and reliability themes"
-        subtitle="Intentional placeholders for future expansion."
-      >
-        <ul className="marketing-list">
-          <li>
-            Infrastructure and runtime identity are separated from public
-            branding.
-          </li>
-          <li>
-            Support metadata can be surfaced through standard API error
-            envelopes.
-          </li>
-          <li>
-            Future trust content can grow here without inheriting
-            authenticated-app layout assumptions.
-          </li>
-        </ul>
-      </Panel>
-    </Grid>
+    <div className="marketing-page-stack">
+      <LogoCloud
+        items={[
+          "Evidence-backed review",
+          "Audit-friendly workflows",
+          "Readable dark mode",
+          "Accessible defaults",
+        ]}
+      />
+      <FeatureGrid
+        items={[
+          {
+            eyebrow: "Evidence",
+            title: "Deterministic review signals",
+            description:
+              "Trust claims stay anchored to filings, source metadata, and explainable review states rather than generic platform language.",
+          },
+          {
+            eyebrow: "Reliability",
+            title: "Clear operational boundaries",
+            description:
+              "Marketing, portal, and docs remain separate runtimes while sharing the same design tokens and reusable UI primitives.",
+          },
+          {
+            eyebrow: "Accessibility",
+            title: "Readable by default",
+            description:
+              "Contrast, focus visibility, keyboard navigation, and semantic structure are treated as shared defaults instead of page-level exceptions.",
+          },
+          {
+            eyebrow: "Dark mode",
+            title: "Calm dark surfaces",
+            description:
+              "Dark mode avoids pure black backgrounds and keeps tables, tabs, badges, and cards readable across product surfaces.",
+          },
+        ]}
+      />
+    </div>
   );
 }

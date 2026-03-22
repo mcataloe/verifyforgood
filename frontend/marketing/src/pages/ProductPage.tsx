@@ -1,37 +1,46 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { CallToAction, FeatureGrid } from "@charity-status/shared-ui";
 
 export function ProductPage() {
   return (
-    <Grid className="marketing-page-grid">
-      <Panel
-        title="Core product story"
-        subtitle="Deliberate placeholders for future richer content blocks."
-      >
-        <ul className="marketing-list">
-          <li>
-            Verification by EIN with deterministic scoring and explainable
-            outputs.
-          </li>
-          <li>
-            Source inspection for filings, compliance, and provenance-sensitive
-            workflows.
-          </li>
-          <li>
-            Batch and premium capabilities that expand with plan entitlements.
-          </li>
-        </ul>
-      </Panel>
+    <div className="marketing-page-stack">
+      <FeatureGrid
+        items={[
+          {
+            eyebrow: "Core workflow",
+            title: "Verification by EIN or organization name",
+            description:
+              "Move from a simple lookup to a structured review experience with entity detail, filings, and source visibility.",
+          },
+          {
+            eyebrow: "Entity review",
+            title: "Readable detail screens",
+            description:
+              "Shared summary cards, status badges, tabs, and table patterns keep trust cues consistent across screens.",
+          },
+          {
+            eyebrow: "Operations",
+            title: "Data-heavy surfaces without clutter",
+            description:
+              "Reusable table filters, pagination, and loading/empty/error states are designed for organization-heavy workflows.",
+          },
+          {
+            eyebrow: "Expansion",
+            title: "Ready for onboarding and integration flows",
+            description:
+              "The design system now supports welcome flows, API setup, and team invitations without a separate visual language.",
+          },
+        ]}
+      />
 
-      <Panel
-        title="Likely future expansions"
-        subtitle="Kept local to marketing until reuse is proven."
-      >
-        <ul className="marketing-list">
-          <li>Industry-specific proof points and segment landing pages.</li>
-          <li>Interactive product tours and comparison narratives.</li>
-          <li>Conversion modules tied to demo and trial journeys.</li>
-        </ul>
-      </Panel>
-    </Grid>
+      <CallToAction
+        actions={
+          <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/login">
+            Open portal
+          </a>
+        }
+        description="Future product tours and segment-specific proof points can build on these shared surfaces instead of reintroducing one-off page patterns."
+        title="Product storytelling now shares the platform foundation"
+      />
+    </div>
   );
 }

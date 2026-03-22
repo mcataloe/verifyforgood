@@ -10,12 +10,13 @@ describe("MarketingSite", () => {
   it("renders the marketing shell for a public-facing route", () => {
     render(<App />);
 
-    expect(
-      screen.getByRole("heading", { name: "VerifyForGood public site shell" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /VerifyForGood/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Developers" })).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Developer onboarding" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Switch to dark mode" }),
     ).toBeTruthy();
   });
 });

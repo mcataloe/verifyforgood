@@ -1,5 +1,12 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
+import {
+  Card,
+  CallToAction,
+  FeatureGrid,
+  Grid,
+  HeroSection,
+  LogoCloud,
+} from "@charity-status/shared-ui";
 import type { MarketingEndpoints } from "../app/marketingEndpoints";
 
 interface HomePageProps {
@@ -9,72 +16,108 @@ interface HomePageProps {
 
 export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
   return (
-    <Grid className="marketing-page-grid">
-      <Panel
-        title="What VerifyForGood does"
-        subtitle="The public narrative should stay product-first."
-      >
-        <ul className="marketing-list">
-          <li>Verify nonprofit status using IRS and filing-backed data.</li>
-          <li>
-            Review filings, source evidence, compliance signals, and
-            federal-award context.
-          </li>
-          <li>
-            Grow from simple verification into richer monitoring and
-            benchmarking workflows.
-          </li>
-        </ul>
-      </Panel>
+    <div className="marketing-page-stack">
+      <HeroSection
+        actions={
+          <>
+            <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/product">
+              Explore product
+            </a>
+            <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/login">
+              Portal login
+            </a>
+          </>
+        }
+        description="VerifyForGood gives CSR, grantmaking, and compliance teams a calm way to review nonprofit status, filings, and source-backed evidence before decisions move downstream."
+        eyebrow="Trust-forward nonprofit review"
+        sideContent={
+          <Card title="Platform snapshot">
+            <div className="marketing-page-stack">
+              <p className="marketing-shell__lede" style={{ margin: 0 }}>
+                Shared token-driven styling keeps the portal and marketing site aligned.
+              </p>
+              <dl className="marketing-shell__details">
+                <div>
+                  <dt>Search endpoint</dt>
+                  <dd>
+                    <code>{endpoints.nonprofitSearch}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Verification endpoint</dt>
+                  <dd>
+                    <code>{endpoints.nonprofitVerify}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Environment</dt>
+                  <dd>{runtimeConfig.environment}</dd>
+                </div>
+              </dl>
+            </div>
+          </Card>
+        }
+        title="Compliance-grade verification without noisy workflows"
+      />
 
-      <Panel
-        title="Why the shell is structured this way"
-        subtitle="Ready for messaging and conversion expansion."
-      >
-        <ul className="marketing-list">
-          <li>
-            Public messaging stays separate from authenticated portal behavior.
-          </li>
-          <li>
-            Developers, pricing, trust, and contact each have their own IA
-            anchor.
-          </li>
-          <li>
-            Shared API/config packages are used without leaking portal
-            assumptions into the public site.
-          </li>
-        </ul>
-      </Panel>
+      <LogoCloud
+        items={[
+          "Grantmaking teams",
+          "CSR operations",
+          "Procurement review",
+          "Foundation programs",
+        ]}
+      />
 
-      <Panel
-        title="Start on free"
-        subtitle="Value-forward onboarding without urgency or surprise billing."
-      >
-        <ul className="marketing-list">
-          <li>
-            Begin on the free tier and review limits before any paid decision.
-          </li>
-          <li>
-            A time-limited trial can unlock broader workflows later without
-            forcing activation at first visit.
-          </li>
-          <li>
-            Paid enrollment stays separate so teams move up only when the
-            additional capacity is useful.
-          </li>
-        </ul>
-      </Panel>
+      <FeatureGrid
+        items={[
+          {
+            eyebrow: "Verification",
+            title: "Review nonprofit status with evidence",
+            description:
+              "Confirm IRS-backed status and inspect filings before teams make eligibility or compliance decisions.",
+          },
+          {
+            eyebrow: "Sources",
+            title: "Keep provenance visible",
+            description:
+              "Surface filing and source context so trust signals stay explainable instead of opaque.",
+          },
+          {
+            eyebrow: "Scalability",
+            title: "Grow from first check to team workflow",
+            description:
+              "Move from one-off reviews into repeatable monitoring, risk review, and API-driven integrations.",
+          },
+          {
+            eyebrow: "Onboarding",
+            title: "Start on free with clear boundaries",
+            description:
+              "Value-forward onboarding keeps usage and upgrade decisions explicit without pressure or hidden state.",
+          },
+        ]}
+      />
 
-      <Panel
-        title="Public API glimpse"
-        subtitle="Grounded in the current backend contract."
-      >
-        <p>
-          Search currently resolves to <code>{endpoints.nonprofitSearch}</code>{" "}
-          and verification to <code>{endpoints.nonprofitVerify}</code> in{" "}
-          <strong>{runtimeConfig.environment}</strong>.
-        </p>
-      </Panel>
-    </Grid>
+      <Grid className="marketing-page-grid">
+        <CallToAction
+          actions={
+            <>
+              <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/pricing">
+                Review plans
+              </a>
+              <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/developers">
+                API guide
+              </a>
+            </>
+          }
+          description="Public messaging and authenticated product workflows now share the same tokens, spacing rhythm, and component treatment."
+          title="Consistent from marketing to portal"
+        />
+        <Card
+          description="Begin on the free tier, keep plan limits visible, and move up only when broader capacity is actually useful."
+          title="Start on free"
+        />
+      </Grid>
+    </div>
   );
 }

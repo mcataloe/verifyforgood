@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import {
   PortalOrganizationContext,
   type PortalOrganizationContextValue,
@@ -22,9 +23,11 @@ function renderWithOrganization(controller: PortalNonprofitSearchController) {
   };
 
   render(
-    <PortalOrganizationContext.Provider value={value}>
-      <NonprofitSearchPanel controller={controller} />
-    </PortalOrganizationContext.Provider>,
+    <VerifyForGoodMantineProvider>
+      <PortalOrganizationContext.Provider value={value}>
+        <NonprofitSearchPanel controller={controller} />
+      </PortalOrganizationContext.Provider>
+    </VerifyForGoodMantineProvider>,
   );
 }
 
@@ -81,8 +84,9 @@ describe("NonprofitSearchPanel", () => {
 
     expect(screen.getAllByText("Helping Hands Foundation")).toHaveLength(2);
     expect(
-      screen.getByRole("heading", { name: "Verification result" }),
+      screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
     expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "View details" }));

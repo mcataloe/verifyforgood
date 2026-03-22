@@ -1,19 +1,86 @@
 import { useState } from "react";
-import { Grid, Inline, Panel } from "@charity-status/shared-ui";
 import {
-  PortalEmptyState,
-  PortalLoadingState,
-  PortalNotice,
-} from "../components/feedback";
+  DataTable,
+  EmptyState,
+  EntityDetailLayout,
+  ErrorState,
+  Grid,
+  LoadingSkeleton,
+  Panel,
+  StatusBadge,
+  type DataTableColumn,
+  type DataTableFilterDefinition,
+  type StatusBadgeStatus,
+} from "@charity-status/shared-ui";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   usePortalNonprofitSearch,
   type PortalNonprofitSearchController,
 } from "./usePortalNonprofitSearch";
+import type {
+  PortalNonprofitDetail,
+  PortalNonprofitSearchSummary,
+} from "./nonprofitSearch";
 
 interface NonprofitSearchPanelProps {
   controller?: PortalNonprofitSearchController;
 }
+
+const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
+  {
+    key: "name",
+    header: "Organization",
+    sortable: true,
+    render: (row) => row.name,
+    sortValue: (row) => row.name,
+  },
+  {
+    key: "ein",
+    header: "EIN",
+    sortable: true,
+    render: (row) => row.ein,
+    sortValue: (row) => row.ein,
+  },
+  {
+    key: "state",
+    header: "State",
+    sortable: true,
+    render: (row) => row.state,
+    sortValue: (row) => row.state,
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (row) => <StatusBadge status={summaryStatus(row)} />,
+    sortValue: (row) => summaryStatus(row),
+    sortable: true,
+  },
+];
+
+const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] = [
+  {
+    key: "status",
+    label: "Status",
+    options: [
+      { label: "Verified", value: "verified" },
+      { label: "Pending", value: "pending" },
+      { label: "Flagged", value: "flagged" },
+      { label: "Inactive", value: "inactive" },
+    ],
+    getValue: (row) => summaryStatus(row),
+  },
+  {
+    key: "state",
+    label: "State",
+    options: [
+      { label: "California", value: "CA" },
+      { label: "Illinois", value: "IL" },
+      { label: "New York", value: "NY" },
+      { label: "Texas", value: "TX" },
+    ],
+    getValue: (row) => row.state,
+  },
+];
 
 export function NonprofitSearchPanel({
   controller,
@@ -30,8 +97,8 @@ export function NonprofitSearchPanel({
         subtitle="Search by EIN for an exact lookup or by organization name for a lightweight listing."
       >
         <p>
-          This is the portal's core product interaction. Requests run through
-          the organization-scoped portal API client for{" "}
+          This is the portal&apos;s core product interaction. Requests run
+          through the organization-scoped portal API client for{" "}
           <strong>{organization.activeOrganization.organization_name}</strong>.
         </p>
 
@@ -45,6 +112,7 @@ export function NonprofitSearchPanel({
           <label className="portal-form__field">
             <span>Search query</span>
             <input
+              aria-label="Search query"
               className="portal-form__input"
               name="query"
               onChange={(event) => {
@@ -56,7 +124,7 @@ export function NonprofitSearchPanel({
             />
           </label>
 
-          <Inline className="portal-form__actions">
+          <div className="portal-form__actions">
             <button
               className="portal-shell__action portal-shell__action--primary"
               disabled={search.isLoading || !query.trim()}
@@ -64,7 +132,7 @@ export function NonprofitSearchPanel({
             >
               {search.isLoading ? "Searching..." : "Search nonprofit"}
             </button>
-          </Inline>
+          </div>
         </form>
 
         <dl className="portal-shell__details">
@@ -81,21 +149,21 @@ export function NonprofitSearchPanel({
             <dd>{organization.activeOrganization.workspace_id}</dd>
           </div>
         </dl>
-
-        {search.error ? (
-          <PortalNotice tone="error">
-            <p>{search.error}</p>
-          </PortalNotice>
-        ) : null}
       </Panel>
 
+      {search.error ? (
+        <ErrorState
+          description={search.error}
+          title="Nonprofit lookup unavailable"
+        />
+      ) : null}
+
       {search.isLoading ? (
-        <PortalLoadingState
-          subtitle="Waiting on the backend nonprofit endpoints."
+        <LoadingSkeleton
+          description="Waiting on the backend nonprofit endpoints."
           title="Loading nonprofit results"
-        >
-          <p>Running the current lookup through the portal API client.</p>
-        </PortalLoadingState>
+          variant="table"
+        />
       ) : null}
 
       {search.hasSearched &&
@@ -103,15 +171,10 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "ein" &&
       !search.detail ? (
-        <PortalEmptyState
-          subtitle="The exact EIN lookup returned no matching organization."
+        <EmptyState
+          description="Try another EIN or switch to a name-based search if you are still narrowing the candidate organization."
           title="No nonprofit found"
-        >
-          <p>
-            Try another EIN or switch to a name-based search if you are still
-            narrowing the candidate organization.
-          </p>
-        </PortalEmptyState>
+        />
       ) : null}
 
       {search.hasSearched &&
@@ -119,155 +182,236 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "name" &&
       search.results.length === 0 ? (
-        <PortalEmptyState
-          subtitle="The current name query returned an empty result set."
+        <EmptyState
+          description="Try broadening the organization name or run an exact EIN lookup for a more deterministic result."
           title="No nonprofit matches"
-        >
-          <p>
-            Try broadening the organization name or run an exact EIN lookup for
-            a more deterministic result.
-          </p>
-        </PortalEmptyState>
+        />
       ) : null}
 
       {search.results.length > 0 ? (
         <Panel
           title="Search results"
-          subtitle="Select a result to load the full nonprofit verification detail."
+          subtitle="Refine the result set and open an entity detail view from the shared review layout."
         >
-          <div className="portal-result-list">
-            {search.results.map((result) => (
-              <article
-                className="portal-result-card"
-                key={`${result.ein}-${result.name}`}
-              >
-                <div className="portal-result-card__header">
-                  <div>
-                    <h3>{result.name}</h3>
-                    <p>
-                      {result.ein} | {result.state}
-                    </p>
-                  </div>
-                  <span className="portal-key-chip">
-                    {result.active === null
-                      ? result.irsStatus
-                      : result.active
-                        ? "active"
-                        : "inactive"}
-                  </span>
-                </div>
-
-                <dl className="portal-shell__details">
-                  <div>
-                    <dt>IRS status</dt>
-                    <dd>{result.irsStatus}</dd>
-                  </div>
-                  <div>
-                    <dt>Subsection</dt>
-                    <dd>{result.subsection}</dd>
-                  </div>
-                  <div>
-                    <dt>Tax period</dt>
-                    <dd>{result.taxPeriod}</dd>
-                  </div>
-                </dl>
-
-                <Inline className="portal-form__actions">
+          <DataTable
+            columns={[
+              ...resultColumns,
+              {
+                key: "actions",
+                header: "Actions",
+                render: (row) => (
                   <button
                     className="portal-shell__action"
                     onClick={() => {
-                      void search.viewResultDetail(result.ein);
+                      void search.viewResultDetail(row.ein);
                     }}
                     type="button"
                   >
                     View details
                   </button>
-                </Inline>
-              </article>
-            ))}
-          </div>
+                ),
+              },
+            ]}
+            filterDefinitions={resultFilters}
+            getSearchText={(row) =>
+              `${row.name} ${row.ein} ${row.state} ${row.irsStatus}`
+            }
+            rows={search.results}
+            searchPlaceholder="Refine search results"
+          />
         </Panel>
       ) : null}
 
-      {search.detail ? (
-        <Panel
-          title="Verification result"
-          subtitle="Detailed nonprofit lookup with filing and model metadata."
-        >
-          <div className="portal-result-detail">
-            <div>
-              <p className="portal-shell__eyebrow">Organization</p>
-              <h3>{search.detail.name}</h3>
-              <p>
-                {search.detail.ein} | {search.detail.state}
-              </p>
-            </div>
+      {search.detail ? <NonprofitDetailView detail={search.detail} /> : null}
+    </Grid>
+  );
+}
 
+function NonprofitDetailView({ detail }: { detail: PortalNonprofitDetail }) {
+  return (
+    <EntityDetailLayout
+      actions={<StatusBadge status={detailStatus(detail)} />}
+      description="Shared organization detail layout for trust-forward entity review."
+      ein={detail.ein}
+      name={detail.name}
+      onPrimaryAction={() => undefined}
+      primaryActionLabel="Queue review"
+      status={detailStatus(detail)}
+      summaryItems={[
+        {
+          key: "irs",
+          label: "IRS status",
+          value: detail.irsStatus,
+        },
+        {
+          key: "filing",
+          label: "Most recent filing year",
+          value: detail.filingTaxYear,
+          detail: detail.filingDate,
+        },
+        {
+          key: "classification",
+          label: "Classification",
+          value: detail.nteeCategory,
+          detail: detail.entityType,
+        },
+        {
+          key: "risk",
+          label: "Risk indicators",
+          value: summarizeRisk(detail),
+          detail: detail.filingParseStatus,
+        },
+      ]}
+      tabs={[
+        {
+          key: "overview",
+          label: "Overview",
+          content: (
             <dl className="portal-shell__details">
               <div>
-                <dt>IRS status</dt>
-                <dd>{search.detail.irsStatus}</dd>
-              </div>
-              <div>
                 <dt>Entity type</dt>
-                <dd>{search.detail.entityType}</dd>
+                <dd>{detail.entityType}</dd>
               </div>
               <div>
-                <dt>Tax deductible</dt>
-                <dd>{search.detail.taxDeductible}</dd>
-              </div>
-              <div>
-                <dt>NTEE category</dt>
-                <dd>{search.detail.nteeCategory}</dd>
-              </div>
-              <div>
-                <dt>Recent 990 on file</dt>
-                <dd>{search.detail.recent990OnFile}</dd>
-              </div>
-              <div>
-                <dt>Filing form</dt>
-                <dd>{search.detail.filingFormType}</dd>
-              </div>
-              <div>
-                <dt>Filing year</dt>
-                <dd>{search.detail.filingTaxYear}</dd>
-              </div>
-              <div>
-                <dt>Filing date</dt>
-                <dd>{search.detail.filingDate}</dd>
-              </div>
-              <div>
-                <dt>Parse status</dt>
-                <dd>{search.detail.filingParseStatus}</dd>
-              </div>
-              <div>
-                <dt>Known filings</dt>
-                <dd>{String(search.detail.filingsCount)}</dd>
+                <dt>State</dt>
+                <dd>{detail.state}</dd>
               </div>
               <div>
                 <dt>Subsection</dt>
-                <dd>{search.detail.subsection}</dd>
+                <dd>{detail.subsection}</dd>
+              </div>
+              <div>
+                <dt>Tax deductible</dt>
+                <dd>{detail.taxDeductible}</dd>
+              </div>
+            </dl>
+          ),
+        },
+        {
+          key: "filings",
+          label: "Filings",
+          content: (
+            <dl className="portal-shell__details">
+              <div>
+                <dt>Filing form</dt>
+                <dd>{detail.filingFormType}</dd>
+              </div>
+              <div>
+                <dt>Filing year</dt>
+                <dd>{detail.filingTaxYear}</dd>
+              </div>
+              <div>
+                <dt>Filing date</dt>
+                <dd>{detail.filingDate}</dd>
+              </div>
+              <div>
+                <dt>Known filings</dt>
+                <dd>{String(detail.filingsCount)}</dd>
+              </div>
+            </dl>
+          ),
+        },
+        {
+          key: "compliance",
+          label: "Compliance",
+          content: (
+            <dl className="portal-shell__details">
+              <div>
+                <dt>IRS status</dt>
+                <dd>{detail.irsStatus}</dd>
+              </div>
+              <div>
+                <dt>Recent 990 on file</dt>
+                <dd>{detail.recent990OnFile}</dd>
+              </div>
+              <div>
+                <dt>Parse status</dt>
+                <dd>{detail.filingParseStatus}</dd>
               </div>
               <div>
                 <dt>Tax period</dt>
-                <dd>{search.detail.taxPeriod}</dd>
+                <dd>{detail.taxPeriod}</dd>
               </div>
+            </dl>
+          ),
+        },
+        {
+          key: "sources",
+          label: "Sources",
+          content: (
+            <dl className="portal-shell__details">
               <div>
                 <dt>Model source</dt>
-                <dd>{search.detail.modelSource}</dd>
+                <dd>{detail.modelSource}</dd>
               </div>
               <div>
                 <dt>Model version</dt>
-                <dd>{search.detail.modelVersion}</dd>
+                <dd>{detail.modelVersion}</dd>
               </div>
               <div>
                 <dt>Query execution</dt>
-                <dd>{search.detail.queryExecutionId}</dd>
+                <dd>{detail.queryExecutionId}</dd>
               </div>
             </dl>
-          </div>
-        </Panel>
-      ) : null}
-    </Grid>
+          ),
+        },
+        {
+          key: "activity",
+          label: "Activity Log",
+          content: (
+            <ul className="portal-list">
+              <li>Initial lookup completed for this entity.</li>
+              <li>Recent filing metadata has been attached to the review record.</li>
+              <li>Detailed activity history can replace this placeholder once the event feed exists.</li>
+            </ul>
+          ),
+        },
+      ]}
+    />
   );
+}
+
+function summaryStatus(row: PortalNonprofitSearchSummary): StatusBadgeStatus {
+  if (row.active === false || row.irsStatus.toLowerCase().includes("inactive")) {
+    return "inactive";
+  }
+
+  if (row.active === true || row.irsStatus.toLowerCase().includes("active")) {
+    return "verified";
+  }
+
+  return "pending";
+}
+
+function detailStatus(detail: PortalNonprofitDetail): StatusBadgeStatus {
+  if (detail.irsStatus.toLowerCase().includes("inactive")) {
+    return "inactive";
+  }
+
+  if (
+    detail.filingParseStatus.toLowerCase() !== "parsed" ||
+    detail.recent990OnFile.toLowerCase() !== "true"
+  ) {
+    return "flagged";
+  }
+
+  if (detail.irsStatus.toLowerCase().includes("active")) {
+    return "verified";
+  }
+
+  return "pending";
+}
+
+function summarizeRisk(detail: PortalNonprofitDetail) {
+  const risks: string[] = [];
+
+  if (detail.filingParseStatus.toLowerCase() !== "parsed") {
+    risks.push("Parsing needs review");
+  }
+
+  if (detail.recent990OnFile.toLowerCase() !== "true") {
+    risks.push("Recent 990 unavailable");
+  }
+
+  return risks.length ? risks.join(" • ") : "No immediate flags";
 }

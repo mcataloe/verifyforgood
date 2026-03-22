@@ -51,6 +51,7 @@ export function StatusBadge({ label, status }: StatusBadgeProps) {
 
   return (
     <Badge
+      aria-label={`Status: ${label ?? STATUS_BADGE_LABELS[status]}`}
       styles={{
         root: {
           ...styles,

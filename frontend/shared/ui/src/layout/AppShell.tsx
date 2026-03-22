@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   AppShell as MantineAppShell,
   Box,
   Burger,
@@ -12,6 +11,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
+import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
 import { verifyForGoodTokens } from "../theme/tokens";
 import { useVerifyForGoodColorScheme } from "../components/VerifyForGoodMantineProvider";
 
@@ -76,8 +76,7 @@ export function VerifyForGoodAppShell({
 }: VerifyForGoodAppShellProps) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [mobileOpened, setMobileOpened] = useState(false);
-  const { resolvedColorScheme, toggleColorScheme } =
-    useVerifyForGoodColorScheme();
+  const { resolvedColorScheme } = useVerifyForGoodColorScheme();
   const semantic =
     verifyForGoodTokens.color.semantic[
       resolvedColorScheme === "dark" ? "dark" : "light"
@@ -132,17 +131,7 @@ export function VerifyForGoodAppShell({
 
           <Group gap="sm" wrap="nowrap">
             {headerActions}
-            <ActionIcon
-              aria-label="Toggle light and dark theme"
-              onClick={toggleColorScheme}
-              radius="xl"
-              size="lg"
-              variant="light"
-            >
-              <Text fz="sm" fw={700}>
-                {resolvedColorScheme === "dark" ? "D" : "L"}
-              </Text>
-            </ActionIcon>
+            <ColorSchemeToggle />
           </Group>
         </Group>
       </MantineAppShell.Header>

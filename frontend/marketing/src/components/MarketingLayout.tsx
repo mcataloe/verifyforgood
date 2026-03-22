@@ -1,8 +1,7 @@
 import {
+  ColorSchemeToggle,
   Container,
-  Inline,
   Page,
-  Panel,
   Section,
 } from "@charity-status/shared-ui";
 import type {
@@ -54,45 +53,16 @@ export function MarketingLayout({
                 </a>
               ))}
             </nav>
+
+            <div className="marketing-shell__toolbar">
+              <ColorSchemeToggle />
+            </div>
           </div>
 
-          <div className="marketing-shell__hero-grid">
-            <div className="marketing-shell__hero-copy">
-              <p className="marketing-shell__eyebrow">Public Surface</p>
-              <h1>{app.title}</h1>
-              <p className="marketing-shell__lede">{app.description}</p>
-              <Inline className="marketing-shell__cta-row">
-                <a
-                  className="marketing-shell__cta marketing-shell__cta--primary"
-                  href="#/product"
-                >
-                  Explore product
-                </a>
-                <a
-                  className="marketing-shell__cta marketing-shell__cta--secondary"
-                  href="#/login"
-                >
-                  Portal login
-                </a>
-              </Inline>
-            </div>
-
-            <Panel title="Current page" subtitle={currentRoute.description}>
-              <dl className="marketing-shell__details">
-                <div>
-                  <dt>Audience</dt>
-                  <dd>{app.audience}</dd>
-                </div>
-                <div>
-                  <dt>Environment</dt>
-                  <dd>{runtimeConfig.environment}</dd>
-                </div>
-                <div>
-                  <dt>API version</dt>
-                  <dd>{runtimeConfig.apiVersion}</dd>
-                </div>
-              </dl>
-            </Panel>
+          <div className="marketing-shell__context">
+            <span>{app.audience}</span>
+            <span>{runtimeConfig.environment}</span>
+            <span>{runtimeConfig.apiVersion}</span>
           </div>
         </Container>
       </Section>

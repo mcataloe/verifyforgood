@@ -26,7 +26,7 @@ These remain placeholder-first, but the IA is deliberate and keeps public conten
 ## Shared foundations used here
 
 - `@charity-status/shared-ui`
-  - panel primitive and shared base styles
+  - design tokens, Mantine provider, theme toggle, feedback primitives, and marketing section primitives
 - `@charity-status/shared-config`
   - runtime environment normalization
 - `@charity-status/shared-api`
@@ -56,9 +56,15 @@ npm run build
 
 - keep page registration and navigation in `src/app/`
 - keep page-specific messaging and content modules app-local unless they become genuinely cross-site
-- use shared foundations for neutral primitives and API/runtime helpers, not for marketing copy or conversion logic
+- use shared foundations for neutral primitives, marketing section scaffolds, and API/runtime helpers, not for marketing copy or conversion logic
 - the pricing page should consume the backend-authored `GET /v1/plans` catalog through shared types/API helpers rather than hardcoded local plan data
 - keep docs, SEO, analytics, and CMS decisions deferred until requirements are concrete
+
+## Theme alignment expectations
+
+- marketing should inherit the same core token system as the portal
+- typography, spacing, button, card, and input treatment should stay visually continuous with shared-ui
+- marketing can be slightly more expressive through composition and copy, but should not fork the core palette or dark mode behavior
 
 ## Intentionally deferred
 

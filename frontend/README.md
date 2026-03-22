@@ -45,6 +45,13 @@ App-specific code belongs in `marketing/` or `portal/` when it is tied to that s
 
 Reusable code belongs in `shared/` only when both apps can consume the same implementation without app-specific conditionals.
 
+Current shared UI direction:
+
+- `@charity-status/shared-ui` owns design tokens, Mantine theme mapping, dark mode behavior, and reusable layout/component primitives
+- portal and marketing should align to the same typography, spacing, and semantic color system
+- reuse shared table, onboarding, entity-detail, and feedback patterns before introducing app-local variants
+- accessibility improvements that generalize across apps should land in shared-ui first
+
 All backend HTTP interaction should flow through `@charity-status/shared-api` so request handling, error normalization, route building, and future auth-header injection stay centralized.
 
 Pricing-plan display follows the same rule:
@@ -95,6 +102,15 @@ Per-package scripts mirror the same baseline where runtime behavior exists:
 - frontend tooling config files are typechecked through `tsconfig.tooling.json`
 
 This keeps the frontend workspace internally consistent without introducing repo-root Node tooling into the Python/Terraform root.
+
+## UX Baseline
+
+The current frontend foundation assumes:
+
+- light and dark themes remain first-class and token-driven
+- marketing may be slightly more expressive, but should still inherit the shared visual language
+- portal layouts should prioritize calm, data-heavy workflows with reusable entity and table patterns
+- loading, empty, and error states should reuse shared feedback primitives where possible
 
 ## Adding Apps And Packages
 
