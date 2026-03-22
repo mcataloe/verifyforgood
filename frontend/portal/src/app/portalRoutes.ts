@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 
+export type PortalProtectedRouteKey =
+  | "dashboard"
+  | "workspace"
+  | "api-access"
+  | "usage-billing"
+  | "settings";
+
+export type PortalPublicRouteKey = "sign-in";
+export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
+
 export interface PortalRouteDefinition {
   access: "protected" | "public";
-  key:
-    | "dashboard"
-    | "workspace"
-    | "api-access"
-    | "usage-billing"
-    | "settings"
-    | "sign-in";
+  key: PortalRouteKey;
   description: string;
   hash: string;
   label: string;

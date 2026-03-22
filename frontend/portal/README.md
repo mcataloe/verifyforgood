@@ -81,7 +81,7 @@ The current scoped API client adds portal-local workspace/account headers as pla
 ## Shared foundations used here
 
 - `@charity-status/shared-ui`
-  - design tokens, Mantine provider, app shell, entity detail, onboarding, data table, and feedback primitives
+  - design tokens, Mantine provider, app shell, navigation schema/filtering, entity detail, onboarding, data table, and feedback primitives
 - `@charity-status/shared-config`
   - runtime environment normalization
 - `@charity-status/shared-api`
@@ -178,6 +178,7 @@ npm run build
 ## Extending the portal
 
 - keep app-wide navigation, session composition, and route registration under `src/app/`
+- keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`
 - keep API key logic isolated under `src/api-access/` until there is real reuse pressure
 - keep usage and billing logic isolated under `src/billing/` until broader frontend reuse is justified

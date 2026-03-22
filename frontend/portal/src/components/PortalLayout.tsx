@@ -1,13 +1,13 @@
 import {
   Card,
   VerifyForGoodAppShell,
-  type VerifyForGoodAppShellNavItem,
 } from "@charity-status/shared-ui";
 import type {
   FrontendAppInfo,
   FrontendRuntimeConfig,
 } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
+import { resolvePortalNavigation } from "../app/portalNavigation";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
@@ -31,12 +31,11 @@ export function PortalLayout({
   session,
 }: PortalLayoutProps) {
   const organization = usePortalOrganization();
-  const navigation: VerifyForGoodAppShellNavItem[] = routes.map((route) => ({
-    key: route.key,
-    label: route.label,
-    href: route.hash,
-    description: route.description,
-  }));
+  const navigationSections = resolvePortalNavigation({
+    plan: session.plan,
+    roles: session.roles,
+    routes,
+  });
 
   return (
     <VerifyForGoodAppShell
@@ -60,7 +59,7 @@ export function PortalLayout({
           </button>
         </div>
       }
-      navigation={navigation}
+      navigationSections={navigationSections}
       sidebarFooter={
         <Card
           description="Workspace and account context remain explicit while deeper organization review screens are still placeholder-backed."

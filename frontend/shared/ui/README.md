@@ -22,6 +22,7 @@ This package contains the shared VerifyForGood design foundation for the fronten
 - reusable table patterns:
   - `DataTable`
   - `FilterBar`
+- navigation schema and filtering helpers for grouped, nested, role-aware, and plan-aware app navigation
 - marketing-aligned sections:
   - `HeroSection`
   - `FeatureGrid`
@@ -34,6 +35,7 @@ This package contains the shared VerifyForGood design foundation for the fronten
 - derive framework theme adapters from the tokens instead of redefining values in app code
 - prefer shared primitives when portal and marketing need the same interaction or layout contract
 - keep product data fetching and workflow logic outside this package
+- keep navigation configuration declarative and filter it before rendering rather than scattering role/plan checks through layout components
 
 ## Accessibility baseline
 

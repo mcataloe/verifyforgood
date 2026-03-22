@@ -50,6 +50,7 @@ export { useVerifyForGoodColorScheme } from "./components/VerifyForGoodMantinePr
 export {
   VerifyForGoodAppShell,
   verifyForGoodAppShellNavigation,
+  verifyForGoodAppShellNavigationSections,
   type VerifyForGoodAppShellNavItem,
 } from "./layout/AppShell";
 export {
@@ -57,6 +58,19 @@ export {
   type EntityDetailSummaryItem,
   type EntityDetailTab,
 } from "./layout/EntityDetailLayout";
+export {
+  filterNavigationSections,
+  resolveNavigationItem,
+} from "./navigation/filterNavigation";
+export type {
+  VerifyForGoodNavigationAccessContext,
+  VerifyForGoodNavigationItem,
+  VerifyForGoodNavigationSection,
+  VerifyForGoodNavigationVisibility,
+  VerifyForGoodNavigationVisibilityState,
+  VerifyForGoodResolvedNavigationItem,
+  VerifyForGoodResolvedNavigationSection,
+} from "./navigation/schema";
 export {
   verifyForGoodThemeModes,
   verifyForGoodTokens,

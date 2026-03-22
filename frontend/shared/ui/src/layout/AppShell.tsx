@@ -12,15 +12,15 @@ import {
 } from "@mantine/core";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
+import type {
+  VerifyForGoodNavigationItem,
+  VerifyForGoodNavigationSection,
+  VerifyForGoodResolvedNavigationItem,
+} from "../navigation/schema";
 import { verifyForGoodTokens } from "../theme/tokens";
 import { useVerifyForGoodColorScheme } from "../components/VerifyForGoodMantineProvider";
 
-export type VerifyForGoodAppShellNavItem = {
-  key: string;
-  label: string;
-  href?: string;
-  description?: string;
-};
+export type VerifyForGoodAppShellNavItem = VerifyForGoodNavigationItem;
 
 /**
  * Default enterprise navigation scaffold for VerifyForGood application
@@ -48,12 +48,23 @@ export const verifyForGoodAppShellNavigation: VerifyForGoodAppShellNavItem[] = [
   { key: "settings", label: "Settings", href: "#settings" },
 ];
 
+export const verifyForGoodAppShellNavigationSections: VerifyForGoodNavigationSection[] =
+  [
+    {
+      key: "workspace",
+      label: "Workspace",
+      helpText: "Default application shell navigation.",
+      items: verifyForGoodAppShellNavigation,
+    },
+  ];
+
 type VerifyForGoodAppShellProps = PropsWithChildren<{
   activeNavigationKey?: string;
   appName?: string;
   contentMaxWidth?: string;
   headerActions?: ReactNode;
   navigation?: VerifyForGoodAppShellNavItem[];
+  navigationSections?: VerifyForGoodNavigationSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
   subtitle?: string;
@@ -70,6 +81,7 @@ export function VerifyForGoodAppShell({
   contentMaxWidth = CONTENT_MAX_WIDTH,
   headerActions,
   navigation = verifyForGoodAppShellNavigation,
+  navigationSections,
   onNavigationChange,
   sidebarFooter,
   subtitle = "Compliance and CSR operations",
@@ -80,6 +92,15 @@ export function VerifyForGoodAppShell({
   const semantic =
     verifyForGoodTokens.color.semantic[
       resolvedColorScheme === "dark" ? "dark" : "light"
+    ];
+  const resolvedNavigationSections =
+    navigationSections ??
+    [
+      {
+        key: "workspace",
+        label: "Workspace",
+        items: navigation,
+      },
     ];
 
   return (
@@ -150,27 +171,37 @@ export function VerifyForGoodAppShell({
         </MantineAppShell.Section>
 
         <MantineAppShell.Section component={ScrollArea} grow mt="lg">
-          <Stack gap="xs">
-            {navigation.map((item) => (
-              <NavLink
-                active={item.key === activeNavigationKey}
-                aria-current={
-                  item.key === activeNavigationKey ? "page" : undefined
-                }
-                description={item.description}
-                href={item.href}
-                key={item.key}
-                label={item.label}
-                onClick={() => {
-                  onNavigationChange?.(item);
-                  setMobileOpened(false);
-                }}
-                styles={{
-                  root: {
-                    borderRadius: verifyForGoodTokens.radius.input,
-                  },
-                }}
-              />
+          <Stack gap="lg">
+            {resolvedNavigationSections.map((section) => (
+              <Stack gap="xs" key={section.key}>
+                <Box>
+                  <Text
+                    c="dimmed"
+                    fw={500}
+                    fz="xs"
+                    title={section.helpText}
+                    tt="uppercase"
+                  >
+                    {section.label}
+                  </Text>
+                  {section.helpText ? (
+                    <Text c="dimmed" fz="xs" mt={2}>
+                      {section.helpText}
+                    </Text>
+                  ) : null}
+                </Box>
+
+                <Stack gap="xs">
+                  {section.items.map((item) =>
+                    renderNavigationItem({
+                      activeNavigationKey,
+                      item,
+                      onNavigationChange,
+                      onNavigate: () => setMobileOpened(false),
+                    }),
+                  )}
+                </Stack>
+              </Stack>
             ))}
           </Stack>
         </MantineAppShell.Section>
@@ -197,5 +228,54 @@ export function VerifyForGoodAppShell({
         </Box>
       </MantineAppShell.Main>
     </MantineAppShell>
+  );
+}
+
+function renderNavigationItem({
+  activeNavigationKey,
+  item,
+  onNavigate,
+  onNavigationChange,
+}: {
+  activeNavigationKey?: string;
+  item: VerifyForGoodAppShellNavItem | VerifyForGoodResolvedNavigationItem;
+  onNavigate: () => void;
+  onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
+}) {
+  const isLocked =
+    "visibilityState" in item && item.visibilityState === "locked";
+  const hasChildren = Boolean(item.children?.length);
+
+  return (
+    <NavLink
+      active={item.key === activeNavigationKey}
+      aria-current={item.key === activeNavigationKey ? "page" : undefined}
+      childrenOffset="md"
+      description={item.helpText}
+      disabled={isLocked && !hasChildren}
+      href={isLocked ? undefined : item.href}
+      key={item.key}
+      label={item.label}
+      leftSection={item.icon}
+      onClick={() => {
+        onNavigationChange?.(item);
+        onNavigate();
+      }}
+      styles={{
+        root: {
+          borderRadius: verifyForGoodTokens.radius.input,
+        },
+      }}
+      title={item.helpText}
+    >
+      {item.children?.map((child) =>
+        renderNavigationItem({
+          activeNavigationKey,
+          item: child,
+          onNavigate,
+          onNavigationChange,
+        }),
+      )}
+    </NavLink>
   );
 }
