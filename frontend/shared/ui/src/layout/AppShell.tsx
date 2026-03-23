@@ -120,6 +120,8 @@ export function VerifyForGoodAppShell({
         main: {
           backgroundColor: semantic.background,
           color: semantic.text_primary,
+          minHeight: `calc(100vh - ${HEADER_HEIGHT})`,
+          overflowY: "auto",
         },
         header: {
           backgroundColor: semantic.surface,
@@ -243,10 +245,12 @@ export function VerifyForGoodAppShell({
 
       <MantineAppShell.Main>
         <Box
+          className="vf-app-shell-main__content"
           mx="auto"
           px={0}
           style={{
             maxWidth: contentMaxWidth,
+            minWidth: 0,
             width: "100%",
           }}
         >

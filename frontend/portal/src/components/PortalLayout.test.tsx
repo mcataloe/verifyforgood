@@ -46,9 +46,8 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(
-      screen.getAllByText("VerifyForGood Demo Workspace").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText("Account acct_verifyforgood_demo")).toBeTruthy();
+      screen.getByText(/Org:\s*VerifyForGood Demo Workspace/i),
+    ).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
@@ -69,6 +68,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("button", { name: /^Search\b/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Open profile/i })).toBeTruthy();
+    expect(screen.queryByText("Account acct_verifyforgood_demo")).toBeNull();
     expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();

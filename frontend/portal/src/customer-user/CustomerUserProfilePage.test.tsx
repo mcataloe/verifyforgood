@@ -24,6 +24,12 @@ describe("CustomerUserProfilePage", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Personal information" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Account context" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
     expect(screen.getByLabelText("First Name")).toBeTruthy();
     expect(screen.getByLabelText("Last Name")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
@@ -34,6 +40,7 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
     expect(screen.getByText("User")).toBeTruthy();
+    expect(screen.queryByText("Profile details")).toBeNull();
   });
 
   it("persists appearance selection through the shared color-scheme storage key", () => {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Grid, PageHeader, Panel } from "@charity-status/shared-ui";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
+import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
 import { ProfileContextSection } from "../settings/ProfileContextSection";
 
@@ -24,29 +24,84 @@ export function CustomerUserProfilePage({
   );
 
   return (
-    <Grid className="portal-page-grid">
-      <PageHeader
+    <PortalDetailView
         eyebrow="Profile"
-        title="Profile & preferences"
-        description="Manage personal details, account context, and local appearance preferences for this portal session."
-      />
-
-      <Panel
-        title="Profile details"
-        subtitle="These profile fields are UI-local placeholders in this phase. Appearance preferences persist separately through the shared theme storage key."
+        intro="Manage personal details, account context, and local appearance preferences for this portal session."
+        title="Profile"
       >
-        <div className="portal-profile-page">
-          <div className="portal-profile-page__avatar-card">
-            <div aria-hidden="true" className="portal-profile-page__avatar">
-              {initials}
-            </div>
-            <div className="portal-profile-page__avatar-copy">
-              <strong>Avatar</strong>
-              <p>
-                Upload support is placeholder-only in this phase and does not
-                persist beyond local component state.
-              </p>
-            </div>
+      <PortalDetailSection
+        intro="These fields are UI-local placeholders in this phase."
+        title="Personal information"
+      >
+        <form className="portal-form portal-form--two-column">
+          <label className="portal-form__field">
+            <span>First Name</span>
+            <input
+              aria-label="First Name"
+              className="portal-form__input"
+              onChange={(event) => {
+                setFirstName(event.target.value);
+              }}
+              type="text"
+              value={firstName}
+            />
+          </label>
+
+          <label className="portal-form__field">
+            <span>Last Name</span>
+            <input
+              aria-label="Last Name"
+              className="portal-form__input"
+              onChange={(event) => {
+                setLastName(event.target.value);
+              }}
+              type="text"
+              value={lastName}
+            />
+          </label>
+
+          <label className="portal-form__field">
+            <span>Email</span>
+            <input
+              aria-label="Email"
+              className="portal-form__input"
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
+              type="email"
+              value={email}
+            />
+          </label>
+
+          <label className="portal-form__field">
+            <span>Pronouns</span>
+            <select
+              aria-label="Pronouns"
+              className="portal-form__input"
+              onChange={(event) => {
+                setPronouns(event.target.value);
+              }}
+              value={pronouns}
+            >
+              <option>Prefer not to say</option>
+              <option>She / her</option>
+              <option>He / him</option>
+              <option>They / them</option>
+              <option>Custom / ask me</option>
+            </select>
+          </label>
+        </form>
+      </PortalDetailSection>
+
+      <PortalDetailSection
+        intro="Upload support is placeholder-only in this phase and does not persist beyond local component state."
+        title="Avatar"
+      >
+        <div className="portal-profile-page__avatar-panel">
+          <div aria-hidden="true" className="portal-profile-page__avatar">
+            {initials}
+          </div>
+          <div className="portal-profile-page__avatar-content">
             <label className="portal-form__field">
               <span>Avatar upload</span>
               <input
@@ -63,87 +118,27 @@ export function CustomerUserProfilePage({
               {avatarName ? `Selected file: ${avatarName}` : "No file selected"}
             </p>
           </div>
-
-          <form className="portal-form portal-form--two-column">
-            <label className="portal-form__field">
-              <span>First Name</span>
-              <input
-                aria-label="First Name"
-                className="portal-form__input"
-                onChange={(event) => {
-                  setFirstName(event.target.value);
-                }}
-                type="text"
-                value={firstName}
-              />
-            </label>
-
-            <label className="portal-form__field">
-              <span>Last Name</span>
-              <input
-                aria-label="Last Name"
-                className="portal-form__input"
-                onChange={(event) => {
-                  setLastName(event.target.value);
-                }}
-                type="text"
-                value={lastName}
-              />
-            </label>
-
-            <label className="portal-form__field">
-              <span>Email</span>
-              <input
-                aria-label="Email"
-                className="portal-form__input"
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                }}
-                type="email"
-                value={email}
-              />
-            </label>
-
-            <label className="portal-form__field">
-              <span>Pronouns</span>
-              <select
-                aria-label="Pronouns"
-                className="portal-form__input"
-                onChange={(event) => {
-                  setPronouns(event.target.value);
-                }}
-                value={pronouns}
-              >
-                <option>Prefer not to say</option>
-                <option>She / her</option>
-                <option>He / him</option>
-                <option>They / them</option>
-                <option>Custom / ask me</option>
-              </select>
-            </label>
-          </form>
         </div>
-      </Panel>
+      </PortalDetailSection>
 
-      <Panel
+      <PortalDetailSection
+        intro="Organization, account, access, and session identity metadata remain read-only here."
         title="Account context"
-        subtitle="Organization, account, access, and session identity metadata remain read-only here."
       >
-        <div className="portal-settings-page__profile-stack">
-          <ProfileContextSection
-            organization={organization.activeOrganization}
-            session={session}
-          />
-        </div>
-      </Panel>
+        <ProfileContextSection
+          organization={organization.activeOrganization}
+          session={session}
+          showTitle={false}
+        />
+      </PortalDetailSection>
 
-      <Panel
+      <PortalDetailSection
+        intro="Appearance controls live only on this profile surface, not in the sidebar."
         title="Appearance"
-        subtitle="Appearance controls live only on this profile surface, not in the sidebar."
       >
-        <AppearancePreferenceSection />
-      </Panel>
-    </Grid>
+        <AppearancePreferenceSection showTitle={false} />
+      </PortalDetailSection>
+    </PortalDetailView>
   );
 }
 

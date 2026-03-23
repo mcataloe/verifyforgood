@@ -7,13 +7,22 @@ import {
  * User-owned appearance preferences for the authenticated portal experience.
  * This stays page-local so shell/footer composition remains context-only.
  */
-export function AppearancePreferenceSection() {
+export function AppearancePreferenceSection({
+  showTitle = true,
+}: {
+  showTitle?: boolean;
+} = {}) {
   const { colorScheme, resolvedColorScheme } = useVerifyForGoodColorScheme();
 
   return (
-    <section className="portal-settings-preferences" aria-labelledby="appearance-preferences-title">
+    <section
+      aria-labelledby={showTitle ? "appearance-preferences-title" : undefined}
+      className="portal-settings-preferences"
+    >
       <div className="portal-settings-preferences__copy">
-        <h3 id="appearance-preferences-title">Appearance</h3>
+        {showTitle ? (
+          <h3 id="appearance-preferences-title">Appearance</h3>
+        ) : null}
         <p>
           Choose how VerifyForGood should look for this browser. Auto follows
           the system preference, while Light and Dark stay fixed until changed.

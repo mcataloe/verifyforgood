@@ -102,16 +102,6 @@ export function PortalLayout({
           eyebrow="Signed in"
           href={profileNavigationTarget?.href}
           primaryLabel={session.user.display_name}
-          secondaryLabel={
-            organization.activeOrganization.organization_name
-              ? `${organization.activeOrganization.organization_name}`
-              : undefined
-          }
-          tertiaryLabel={
-            organization.activeOrganization.account_id
-              ? `Account ${organization.activeOrganization.account_id}`
-              : undefined
-          }
         />
       }
       subtitle={app.description}

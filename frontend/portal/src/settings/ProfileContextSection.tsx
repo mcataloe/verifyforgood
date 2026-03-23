@@ -5,6 +5,7 @@ import type { PortalOrganizationContextValue } from "../organization/usePortalOr
 interface ProfileContextSectionProps {
   organization: PortalOrganizationContextValue["activeOrganization"];
   session: PortalAuthenticatedSession;
+  showTitle?: boolean;
 }
 
 /**
@@ -15,12 +16,17 @@ interface ProfileContextSectionProps {
 export function ProfileContextSection({
   organization,
   session,
+  showTitle = true,
 }: ProfileContextSectionProps) {
   return (
-    <section className="portal-settings-profile" aria-labelledby="profile-context-title">
-      <div className="portal-settings-profile__hero">
+    <section
+      aria-labelledby={showTitle ? "profile-context-title" : undefined}
+      className="portal-settings-profile"
+    >
+      {showTitle ? <h3 id="profile-context-title">Account context</h3> : null}
+      <div className="portal-settings-profile__summary">
         <p className="portal-shell__eyebrow">Current profile</p>
-        <h3 id="profile-context-title">{session.user.display_name}</h3>
+        <p className="portal-settings-profile__name">{session.user.display_name}</p>
         <p>{session.user.email}</p>
       </div>
 
