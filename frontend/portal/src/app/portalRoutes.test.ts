@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  consumePortalReturnTo,
   defaultProtectedPortalRoute,
+  rememberPortalReturnTo,
   resolvePortalRoute,
   signInPortalRoute,
 } from "./portalRoutes";
@@ -31,5 +33,15 @@ describe("portal route resolution", () => {
 
   it("continues resolving the public sign-in boundary directly", () => {
     expect(resolvePortalRoute("#/sign-in")).toBe(signInPortalRoute);
+  });
+
+  it("preserves navigation query aliases in remembered return routes", () => {
+    window.sessionStorage.clear();
+
+    rememberPortalReturnTo("#/usage-billing?nav=customer-admin-usage");
+
+    expect(consumePortalReturnTo()).toBe(
+      "#/usage-billing?nav=customer-admin-usage",
+    );
   });
 });

@@ -9,6 +9,8 @@ import type {
 import type { PropsWithChildren } from "react";
 import {
   getPortalAccessLabel,
+  resolveActivePortalNavigationKey,
+  resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
@@ -34,15 +36,26 @@ export function PortalLayout({
   session,
 }: PortalLayoutProps) {
   const organization = usePortalOrganization();
+  const audience = resolvePortalNavigationAudience(session.roles);
+  const accessLabel = getPortalAccessLabel(session.roles);
   const navigationSections = resolvePortalNavigation({
     plan: session.plan,
     roles: session.roles,
     routes,
   });
+  const currentHash =
+    typeof window === "undefined"
+      ? currentRoute.hash
+      : window.location.hash || currentRoute.hash;
+  const activeNavigationKey = resolveActivePortalNavigationKey({
+    currentHash,
+    currentRoute,
+    navigationSections,
+  });
 
   return (
     <VerifyForGoodAppShell
-      activeNavigationKey={currentRoute.key}
+      activeNavigationKey={activeNavigationKey}
       appName={app.title}
       headerActions={
         <div className="portal-shell__status-row">
@@ -52,7 +65,9 @@ export function PortalLayout({
           <span className="portal-shell__status-pill">
             Env: {runtimeConfig.environment}
           </span>
-          <span className="portal-shell__status-pill">Plan: {session.plan}</span>
+          <span className="portal-shell__status-pill">
+            Plan: {session.plan}
+          </span>
           <button
             className="portal-shell__action"
             onClick={() => void onSignOut()}
@@ -63,17 +78,47 @@ export function PortalLayout({
         </div>
       }
       navigationSections={navigationSections}
+      sidebarNavigationAriaLabel="Portal navigation"
+      sidebarSummary={
+        <div className="portal-shell__sidebar-summary">
+          <div>
+            <p className="portal-shell__summary-eyebrow">Portal navigation</p>
+            <p className="portal-shell__summary-title">
+              {organization.activeOrganization.organization_name}
+            </p>
+            <p className="portal-shell__summary-copy">
+              {getPortalSidebarSummary(audience)}
+            </p>
+          </div>
+          <div className="portal-shell__summary-meta">
+            <span className="portal-shell__summary-pill">
+              Access: {accessLabel}
+            </span>
+            <span className="portal-shell__summary-pill">
+              Env: {runtimeConfig.environment}
+            </span>
+            <span className="portal-shell__summary-pill">
+              Plan: {session.plan}
+            </span>
+          </div>
+        </div>
+      }
       sidebarFooter={
         <SidebarProfileSection
-          accessLabel={getPortalAccessLabel(session.roles)}
-          eyebrow="Customer context"
-          primaryLabel={organization.activeOrganization.organization_name}
+          accessLabel={accessLabel}
+          eyebrow="Signed in"
+          primaryLabel={session.user.display_name}
           secondaryLabel={
+            organization.activeOrganization.organization_name
+              ? `${organization.activeOrganization.organization_name}`
+              : undefined
+          }
+          tertiaryLabel={
             organization.activeOrganization.account_id
               ? `Account ${organization.activeOrganization.account_id}`
               : undefined
           }
-          tertiaryLabel={session.user.display_name}
+          showThemeControls={false}
         />
       }
       subtitle={app.description}
@@ -81,4 +126,19 @@ export function PortalLayout({
       {children}
     </VerifyForGoodAppShell>
   );
+}
+
+function getPortalSidebarSummary(
+  audience: ReturnType<typeof resolvePortalNavigationAudience>,
+) {
+  switch (audience) {
+    case "developer":
+      return "Nested platform navigation for tenant operations, rollout controls, and system access.";
+    case "portal_admin":
+      return "Customer, subscription, and support workflows organized to match the current portal surfaces.";
+    case "customer_admin":
+      return "Team, billing, API, and settings access mapped onto the existing authenticated workspace.";
+    case "customer_user":
+      return "Search, results, reports, and profile entry points aligned to the current customer experience.";
+  }
 }

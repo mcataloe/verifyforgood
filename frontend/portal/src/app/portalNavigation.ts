@@ -5,8 +5,9 @@ import {
 } from "@charity-status/shared-types";
 import {
   filterNavigationSections,
-  type VerifyForGoodResolvedNavigationSection,
   type VerifyForGoodNavigationSection,
+  type VerifyForGoodResolvedNavigationItem,
+  type VerifyForGoodResolvedNavigationSection,
 } from "@charity-status/shared-ui";
 import type {
   PortalProtectedRouteKey,
@@ -81,9 +82,33 @@ export function getPortalAccessLabel(
   }
 }
 
+export function resolveActivePortalNavigationKey(params: {
+  currentHash: string;
+  currentRoute: PortalRouteDefinition;
+  navigationSections: readonly VerifyForGoodResolvedNavigationSection[];
+}): string {
+  const normalizedHash = String(params.currentHash || "").trim();
+  const exactMatch = findNavigationItem(
+    params.navigationSections,
+    (item) => item.href === normalizedHash,
+  );
+
+  if (exactMatch) {
+    return exactMatch.key;
+  }
+
+  const routeMatch = findNavigationItem(
+    params.navigationSections,
+    (item) => item.href?.split("?")[0] === params.currentRoute.hash,
+  );
+
+  return routeMatch?.key ?? params.currentRoute.key;
+}
+
 function navigationItem(
   routeByKey: Map<PortalRouteDefinition["key"], PortalRouteDefinition>,
-  key: PortalProtectedRouteKey,
+  routeKey: PortalProtectedRouteKey,
+  itemKey: string,
   label: string,
   options?: {
     allowedPlans?: readonly PlanCode[];
@@ -94,17 +119,19 @@ function navigationItem(
     };
   },
 ) {
-  const route = routeByKey.get(key);
+  const route = routeByKey.get(routeKey);
 
   if (!route || route.access !== "protected") {
-    throw new Error(`Missing protected portal route for navigation key "${key}".`);
+    throw new Error(
+      `Missing protected portal route for navigation key "${routeKey}".`,
+    );
   }
 
   return {
-    key: route.key,
+    key: itemKey,
     label,
     helpText: options?.helpText ?? route.description,
-    href: route.hash,
+    href: `${route.hash}?nav=${itemKey}`,
     allowedPlans: options?.allowedPlans,
     visibility: {
       planRestrictedBehavior: "locked" as const,
@@ -122,33 +149,73 @@ function buildAudienceNavigationSections(
     case "developer":
       return [
         {
-          key: "platform",
-          label: "Platform",
-          helpText: "Developer-oriented visibility across workspace and tenant context.",
+          key: "build",
+          label: "Build",
+          helpText:
+            "Platform-wide views for tenant, plan, and environment oversight.",
           items: [
-            navigationItem(routeByKey, "dashboard", "Overview", {
-              helpText:
-                "High-level system context with the same search-driven dashboard surface used elsewhere in the portal.",
-            }),
-            navigationItem(routeByKey, "workspace", "Tenants", {
-              helpText:
-                "Workspace and organization context, standing in for deeper tenant administration until dedicated platform pages exist.",
-            }),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "developer-overview",
+              "Overview",
+              {
+                helpText:
+                  "Shared operational snapshot for the current environment.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "workspace",
+              "developer-tenants",
+              "Tenants",
+              {
+                helpText:
+                  "Tenant and workspace context for platform operators.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "developer-plans",
+              "Plans",
+              {
+                helpText: "Plan assignment, quotas, and billing posture.",
+              },
+            ),
           ],
         },
         {
-          key: "system",
-          label: "System",
-          helpText: "Technical entry points for API and integration access.",
+          key: "controls",
+          label: "Controls",
+          helpText:
+            "Rollout and governance controls across the platform surface.",
           items: [
-            navigationItem(routeByKey, "api-access", "System", {
-              allowedPlans: ["growth", "pro", "enterprise"],
-              helpText:
-                "API credentials and integration access. Future system, audit, and feature-flag tooling should extend from this technical area.",
-              visibility: {
-                planRestrictedBehavior: "locked",
+            navigationItem(
+              routeByKey,
+              "settings",
+              "developer-feature-flags",
+              "Feature Flags",
+              {
+                helpText: "Feature rollout and gated capability controls.",
               },
+            ),
+            navigationItem(routeByKey, "settings", "developer-audit", "Audit", {
+              helpText: "Change review and audit visibility.",
             }),
+            navigationItem(
+              routeByKey,
+              "api-access",
+              "developer-system",
+              "System",
+              {
+                allowedPlans: ["growth", "pro", "enterprise"],
+                helpText: "API credentials, integrations, and runtime access.",
+                visibility: {
+                  planRestrictedBehavior: "locked",
+                },
+              },
+            ),
           ],
         },
       ];
@@ -157,32 +224,77 @@ function buildAudienceNavigationSections(
         {
           key: "operations",
           label: "Operations",
-          helpText: "Platform administration views for customer and support workflows.",
+          helpText: "Daily customer-management and support workflows.",
           items: [
-            navigationItem(routeByKey, "dashboard", "Dashboard"),
-            navigationItem(routeByKey, "workspace", "Customers", {
-              helpText:
-                "Customer and workspace context until dedicated customer-management pages exist.",
-            }),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "portal-admin-dashboard",
+              "Dashboard",
+              {
+                helpText: "Operational overview for the portal surface.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "workspace",
+              "portal-admin-customers",
+              "Customers",
+              {
+                helpText: "Customer workspace context and account lookup.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "workspace",
+              "portal-admin-support",
+              "Support",
+              {
+                helpText: "Support-led workspace review and troubleshooting.",
+              },
+            ),
           ],
         },
         {
-          key: "commercial",
-          label: "Commercial",
-          helpText: "Subscription visibility and account-level commercial controls.",
+          key: "revenue",
+          label: "Revenue",
+          helpText: "Subscription oversight and reporting surfaces.",
           items: [
-            navigationItem(routeByKey, "usage-billing", "Subscriptions", {
-              helpText:
-                "Subscription and usage visibility, standing in for a richer subscriptions surface.",
-            }),
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "portal-admin-subscriptions",
+              "Subscriptions",
+              {
+                helpText:
+                  "Subscription status, plan changes, and billing posture.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "portal-admin-reports",
+              "Reports",
+              {
+                helpText: "Commercial and usage reporting snapshots.",
+              },
+            ),
           ],
         },
         {
-          key: "admin",
-          label: "Admin",
-          helpText: "Configuration controls for the current portal administration surface.",
+          key: "configure",
+          label: "Configure",
+          helpText: "Administrative settings and platform policies.",
           items: [
-            navigationItem(routeByKey, "settings", "Settings"),
+            navigationItem(
+              routeByKey,
+              "settings",
+              "portal-admin-settings",
+              "Settings",
+              {
+                helpText: "Administrative settings and configuration controls.",
+              },
+            ),
           ],
         },
       ];
@@ -191,36 +303,75 @@ function buildAudienceNavigationSections(
         {
           key: "workspace",
           label: "Workspace",
-          helpText: "Team and day-to-day workspace views for customer administrators.",
+          helpText: "Day-to-day verification, team, and workspace operations.",
           items: [
-            navigationItem(routeByKey, "dashboard", "Home", {
-              helpText:
-                "Home view for verification activity, nonprofit search, and recent results.",
-            }),
-            navigationItem(routeByKey, "workspace", "Team", {
-              helpText:
-                "Workspace context and team-adjacent administration until a dedicated member-management page exists.",
-            }),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "customer-admin-home",
+              "Home",
+              {
+                helpText:
+                  "Recent activity, nonprofit search, and review entry points.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "workspace",
+              "customer-admin-team",
+              "Team",
+              {
+                helpText: "Team, membership, and workspace context.",
+              },
+            ),
           ],
         },
         {
           key: "account",
           label: "Account",
-          helpText: "Commercial, integration, and settings controls for customer admins.",
+          helpText:
+            "Commercial, API, and settings controls for account owners.",
           items: [
-            navigationItem(routeByKey, "usage-billing", "Billing", {
-              helpText:
-                "Billing and usage visibility combined into the current subscription surface.",
-            }),
-            navigationItem(routeByKey, "api-access", "API", {
-              allowedPlans: ["growth", "pro", "enterprise"],
-              helpText:
-                "Self-serve API credentials and token access. Available on Growth and higher plans.",
-              visibility: {
-                planRestrictedBehavior: "locked",
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "customer-admin-billing",
+              "Billing",
+              {
+                helpText: "Plan, billing actions, and subscription controls.",
               },
-            }),
-            navigationItem(routeByKey, "settings", "Settings"),
+            ),
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "customer-admin-usage",
+              "Usage",
+              {
+                helpText: "Usage baselines, limits, and budget visibility.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "api-access",
+              "customer-admin-api",
+              "API",
+              {
+                allowedPlans: ["growth", "pro", "enterprise"],
+                helpText: "Self-serve API credentials and token access.",
+                visibility: {
+                  planRestrictedBehavior: "locked",
+                },
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "settings",
+              "customer-admin-settings",
+              "Settings",
+              {
+                helpText: "Workspace settings and budget controls.",
+              },
+            ),
           ],
         },
       ];
@@ -229,14 +380,98 @@ function buildAudienceNavigationSections(
         {
           key: "work",
           label: "Work",
-          helpText: "Daily review and nonprofit lookup entry points for customer users.",
+          helpText:
+            "Daily nonprofit search and verification workflow entry points.",
           items: [
-            navigationItem(routeByKey, "dashboard", "Home", {
-              helpText:
-                "Home view for nonprofit search, result review, and recent verification activity.",
-            }),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "customer-user-home",
+              "Home",
+              {
+                helpText:
+                  "Starting point for recent activity and quick actions.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "customer-user-search",
+              "Search",
+              {
+                helpText: "Find organizations and begin verification review.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "dashboard",
+              "customer-user-results",
+              "Results",
+              {
+                helpText: "Return to the latest search and review output.",
+              },
+            ),
+          ],
+        },
+        {
+          key: "personal",
+          label: "Personal",
+          helpText: "Reporting access and personal workspace context.",
+          items: [
+            navigationItem(
+              routeByKey,
+              "usage-billing",
+              "customer-user-reports",
+              "Reports",
+              {
+                helpText: "Reporting snapshots tied to recent portal activity.",
+              },
+            ),
+            navigationItem(
+              routeByKey,
+              "settings",
+              "customer-user-profile",
+              "Profile",
+              {
+                helpText: "Profile and account-level settings access.",
+              },
+            ),
           ],
         },
       ];
   }
+}
+
+function findNavigationItem(
+  sections: readonly VerifyForGoodResolvedNavigationSection[],
+  predicate: (item: VerifyForGoodResolvedNavigationItem) => boolean,
+) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      const match = findNavigationItemRecursive(item, predicate);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function findNavigationItemRecursive(
+  item: VerifyForGoodResolvedNavigationItem,
+  predicate: (item: VerifyForGoodResolvedNavigationItem) => boolean,
+): VerifyForGoodResolvedNavigationItem | undefined {
+  if (predicate(item)) {
+    return item;
+  }
+
+  for (const child of item.children ?? []) {
+    const match = findNavigationItemRecursive(child, predicate);
+    if (match) {
+      return match;
+    }
+  }
+
+  return undefined;
 }

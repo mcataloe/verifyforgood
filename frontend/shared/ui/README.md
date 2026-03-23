@@ -62,7 +62,8 @@ const navigationSections: VerifyForGoodAppShellNavSection[] = [
       {
         key: "dashboard",
         label: "Dashboard",
-        helpText: "High-level product activity and recent verification signals.",
+        helpText:
+          "High-level product activity and recent verification signals.",
         href: "#/dashboard",
       },
       {
@@ -92,12 +93,14 @@ The older flat `navigation` prop still works as a compatibility path and is norm
 Sidebar structure responsibilities:
 
 - the shared shell owns the overall sidebar frame:
-  - brand/header area
-  - scrollable navigation content
+  - app/header area
+  - branded summary block
+  - scrollable grouped navigation content
   - footer/context slot
 - downstream apps should pass already-filtered navigation into the shell and keep permission logic out of rendering components
+- downstream apps can provide a `sidebarSummary` slot when they need product-specific summary content above the grouped nav
 - downstream apps can customize the footer slot for context/profile content without changing the shared sidebar layout contract
-- `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context plus the shared theme-mode selector
+- `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context and does not show theme controls unless a surface opts in explicitly
 
 Footer/profile metadata expectations:
 
@@ -105,18 +108,18 @@ Footer/profile metadata expectations:
 - `secondaryLabel`: optional compact account/workspace identifier
 - `tertiaryLabel`: optional user display name or secondary identity line
 - `accessLabel`: optional short badge-like access descriptor supplied by the consuming app
-- theme controls live in shared UI through `ColorSchemeToggle` and support `auto`, `light`, and `dark`
+- theme controls remain available through `ColorSchemeToggle`, but they are opt-in and should not be treated as default sidebar content
 
 Nested navigation behavior assumptions:
 
-- keep `label` concise and scannable; use `helpText` for longer tooltip copy instead of inline sidebar descriptions
-- labels should remain understandable on their own without requiring the tooltip to make sense
+- keep `label` concise and scannable; use `helpText` for short inline descriptions rather than tooltip-dependent copy
+- labels should remain understandable on their own without requiring extra affordances to make sense
 - keep role-restricted items hidden; use locked plan behavior only when discovery is useful and the destination should remain visibly unavailable
 - choose `planRestrictedBehavior: "hidden"` when a feature should stay out of the information architecture for lower tiers
 - choose `planRestrictedBehavior: "locked"` when a feature should remain discoverable for upgrade awareness and should include clear availability copy in `helpText`
-- section `helpText` renders behind a small focusable help trigger next to the section title
-- item `helpText` renders as a tooltip on the focusable navigation row when present
-- locked items render as disabled rows, do not navigate, and remain keyboard-readable through `aria-describedby`
+- section `helpText` renders as compact inline helper copy beneath the section label
+- top-level item `helpText` renders as compact inline description copy beneath the item label
+- locked items render as disabled rows, do not navigate, and keep their availability copy visible inline
 - items with `children` render as expandable groups in the sidebar
 - active descendants automatically open and highlight their parent group
 - if a parent has only one visible child after upstream filtering, the group opens automatically

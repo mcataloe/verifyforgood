@@ -83,8 +83,7 @@ export const signInPortalRoute = portalPublicRoutes[0];
 export const defaultProtectedPortalRoute = portalProtectedRoutes[0];
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
-  const candidate =
-    normalizePortalHash(hash) || defaultProtectedPortalRoute.hash;
+  const candidate = getPortalHashPath(hash) || defaultProtectedPortalRoute.hash;
   return (
     portalRoutes.find((route) => route.hash === candidate) ??
     defaultProtectedPortalRoute
@@ -144,7 +143,10 @@ export function rememberPortalReturnTo(hash: string) {
   }
 
   const normalizedHash = normalizePortalHash(hash);
-  if (!normalizedHash || normalizedHash === signInPortalRoute.hash) {
+  if (
+    !normalizedHash ||
+    getPortalHashPath(normalizedHash) === signInPortalRoute.hash
+  ) {
     return;
   }
 
@@ -159,10 +161,21 @@ export function navigateToPortalRoute(hash: string) {
   window.location.hash = hash;
 }
 
-function normalizePortalHash(hash: string): string {
+export function getPortalHashPath(hash: string): string {
   const candidate = String(hash || "").trim();
   const [routeHash] = candidate.split("?");
   return routeHash || "";
+}
+
+function normalizePortalHash(hash: string): string {
+  const candidate = String(hash || "").trim();
+  const routeHash = getPortalHashPath(candidate);
+
+  if (!routeHash || !portalRoutes.some((route) => route.hash === routeHash)) {
+    return "";
+  }
+
+  return candidate;
 }
 
 function resolvePortalSessionStorage(): Storage | null {

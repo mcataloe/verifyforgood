@@ -19,7 +19,8 @@ const sectionedNavigation: VerifyForGoodAppShellNavSection[] = [
         key: "dashboard",
         label: "Dashboard",
         href: "#/dashboard",
-        helpText: "High-level product activity and recent verification signals.",
+        helpText:
+          "High-level product activity and recent verification signals.",
       },
       {
         key: "organizations",
@@ -82,20 +83,20 @@ describe("VerifyForGoodAppShell", () => {
     });
 
     expect(screen.getByTestId("vf-app-shell-sidebar-header")).toBeTruthy();
+    expect(screen.getByTestId("vf-app-shell-sidebar-summary")).toBeTruthy();
     expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
     expect(screen.getByTestId("vf-app-shell-sidebar-footer")).toBeTruthy();
     expect(screen.getByText("Footer slot")).toBeTruthy();
     expect(screen.getAllByText("Shared Shell").length).toBeGreaterThan(0);
   });
 
-  it("renders the default footer theme controls when no custom footer is provided", () => {
+  it("renders the default footer profile block without sidebar theme controls", () => {
     renderAppShell({
       sidebarFooter: undefined,
     });
 
-    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    expect(screen.getByText("Shared application shell")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
   it("renders grouped navigation sections without forcing nested items open", () => {
@@ -105,11 +106,11 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(screen.getByText("Core")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Primary product views.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.queryByText("Primary product views.", { selector: "p" }),
-    ).toBeNull();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Organizations" })).toBeTruthy();
+      screen.getByRole("button", { name: /^Organizations\b/i }),
+    ).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
   });
 
@@ -119,7 +120,7 @@ describe("VerifyForGoodAppShell", () => {
     });
 
     const organizationsButton = screen.getByRole("button", {
-      name: "Organizations",
+      name: /^Organizations\b/i,
     });
 
     fireEvent.click(organizationsButton);
@@ -149,11 +150,13 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(
       screen
-        .getByRole("button", { name: "Organizations" })
+        .getByRole("button", { name: /^Organizations\b/i })
         .getAttribute("data-active"),
     ).toBe("true");
     expect(
-      screen.getByRole("link", { name: "Credentials" }).getAttribute("aria-current"),
+      screen
+        .getByRole("link", { name: "Credentials" })
+        .getAttribute("aria-current"),
     ).toBe("page");
   });
 
@@ -164,7 +167,7 @@ describe("VerifyForGoodAppShell", () => {
       navigationSections: sectionedNavigation,
       onNavigationChange,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Organizations" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Organizations\b/i }));
     fireEvent.click(screen.getByRole("link", { name: "Credentials" }));
 
     expect(onNavigationChange).toHaveBeenCalledWith(
@@ -198,19 +201,17 @@ describe("VerifyForGoodAppShell", () => {
       ],
     });
 
-    expect(screen.getByRole("button", { name: "Organizations" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /^Organizations\b/i }),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Profile" })).toBeTruthy();
   });
 
-  it("shows tooltip help text for navigation items that provide it", () => {
+  it("renders item descriptions inline for top-level links", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,
     });
 
-    const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-    dashboardLink.focus();
-
-    expect(document.activeElement).toBe(dashboardLink);
     expect(
       screen.getByText(
         "High-level product activity and recent verification signals.",
@@ -218,26 +219,12 @@ describe("VerifyForGoodAppShell", () => {
     ).toBeTruthy();
   });
 
-  it("does not render a tooltip for navigation items without help text", () => {
+  it("does not render inline item descriptions for links without help text", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,
     });
 
-    fireEvent.focus(screen.getByRole("link", { name: "Billing" }));
-
-    expect(screen.queryByRole("tooltip")).toBeNull();
-  });
-
-  it("shows section help text through a focusable tooltip trigger", () => {
-    renderAppShell({
-      navigationSections: sectionedNavigation,
-    });
-
-    const helpTrigger = screen.getByRole("button", { name: "About Core" });
-    helpTrigger.focus();
-
-    expect(document.activeElement).toBe(helpTrigger);
-    expect(screen.getByText("Primary product views.")).toBeTruthy();
+    expect(screen.queryByText("Subscription and billing controls.")).toBeNull();
   });
 
   it("renders locked items as disabled buttons with a visible unavailable state", () => {
@@ -267,15 +254,11 @@ describe("VerifyForGoodAppShell", () => {
     expect(onNavigationChange).not.toHaveBeenCalled();
   });
 
-  it("keeps help text available for locked items", () => {
+  it("renders locked item copy inline", () => {
     renderAppShell({
       navigationSections: lockedResolvedNavigation,
     });
 
-    const lockedItem = screen.getByRole("button", { name: /^API\b/i });
-    lockedItem.focus();
-
-    expect(document.activeElement).toBe(lockedItem);
     expect(
       screen.getByText(
         "Self-serve API credentials and token access. Available on Growth and higher plans.",
@@ -310,15 +293,17 @@ describe("VerifyForGoodAppShell", () => {
   });
 
   it("normalizes flat navigation into a default section for compatibility", () => {
-    const normalizedSections = normalizeVerifyForGoodAppShellNavigationSections({
-      navigation: [
-        {
-          key: "settings",
-          label: "Settings",
-          href: "#/settings",
-        },
-      ],
-    });
+    const normalizedSections = normalizeVerifyForGoodAppShellNavigationSections(
+      {
+        navigation: [
+          {
+            key: "settings",
+            label: "Settings",
+            href: "#/settings",
+          },
+        ],
+      },
+    );
 
     expect(normalizedSections).toEqual([
       {
@@ -351,6 +336,14 @@ describe("VerifyForGoodAppShell", () => {
     expect(screen.getAllByText("Navigation").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
   });
+
+  it("renders a custom sidebar summary block when provided", () => {
+    renderAppShell({
+      sidebarSummary: <div>Custom summary</div>,
+    });
+
+    expect(screen.getByText("Custom summary")).toBeTruthy();
+  });
 });
 
 function renderAppShell(
@@ -366,10 +359,7 @@ function renderAppShell(
 
   render(
     <VerifyForGoodMantineProvider>
-      <VerifyForGoodAppShell
-        appName="Shared Shell"
-        {...resolvedProps}
-      >
+      <VerifyForGoodAppShell appName="Shared Shell" {...resolvedProps}>
         <div>Shell content</div>
       </VerifyForGoodAppShell>
     </VerifyForGoodMantineProvider>,

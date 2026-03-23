@@ -4,7 +4,10 @@ import {
   VerifyForGoodMantineProvider,
   type VerifyForGoodThemeMode,
 } from "@charity-status/shared-ui";
-import { FRONTEND_ACCESS_ROLE, type FrontendAppInfo } from "@charity-status/shared-types";
+import {
+  FRONTEND_ACCESS_ROLE,
+  type FrontendAppInfo,
+} from "@charity-status/shared-types";
 import { createMockPortalSession } from "../app/portalSession";
 import {
   portalProtectedRoutes,
@@ -15,7 +18,8 @@ import { PortalLayout } from "./PortalLayout";
 import { PortalOrganizationContext } from "../organization/usePortalOrganization";
 
 const app: FrontendAppInfo = {
-  audience: "Authenticated customers managing verification workflows and account settings.",
+  audience:
+    "Authenticated customers managing verification workflows and account settings.",
   description: "Application shell for future authenticated product slices.",
   surface: "portal",
   title: "Customer portal shell",
@@ -40,14 +44,15 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
-    expect(screen.getByText("Customer context")).toBeTruthy();
-    expect(screen.getByText("VerifyForGood Demo Workspace")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
+    expect(screen.getByText("Portal navigation")).toBeTruthy();
+    expect(
+      screen.getAllByText("VerifyForGood Demo Workspace").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Account acct_verifyforgood_demo")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
   it("keeps customer-user navigation limited to the home/search surface", () => {
@@ -59,7 +64,12 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByText("Work")).toBeTruthy();
+    expect(screen.getByText("Personal")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Results\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Profile\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
@@ -74,10 +84,15 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByText("Platform")).toBeTruthy();
-    expect(screen.getAllByText("System").length).toBeGreaterThan(0);
+    expect(screen.getByText("Build")).toBeTruthy();
+    expect(screen.getByText("Controls")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Tenants\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Plans\b/i })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /^Feature Flags\b/i }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Audit\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^System\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
@@ -92,11 +107,15 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByText("Operations")).toBeTruthy();
-    expect(screen.getByText("Commercial")).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Revenue")).toBeTruthy();
+    expect(screen.getByText("Configure")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Customers\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Subscriptions\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Support\b/i })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /^Subscriptions\b/i }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.getByText("Platform admin")).toBeTruthy();
@@ -118,9 +137,7 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(isUnavailable).toBe(true);
     expect(
-      screen.getByText(
-        "Self-serve API credentials and token access. Available on Growth and higher plans.",
-      ),
+      screen.getByText("Self-serve API credentials and token access."),
     ).toBeTruthy();
   });
 
@@ -135,15 +152,39 @@ describe("PortalLayout", () => {
         .getAttribute("aria-current"),
     ).toBe("page");
   });
+
+  it("resolves active navigation from the current hash alias when multiple items share one route surface", () => {
+    renderPortalLayout({
+      currentHash: "#/usage-billing?nav=customer-admin-usage",
+      currentRoute: resolvePortalRoute(
+        "#/usage-billing?nav=customer-admin-usage",
+      ),
+    });
+
+    expect(
+      screen
+        .getByRole("link", { name: /^Usage\b/i })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen
+        .getByRole("link", { name: /^Billing\b/i })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+  });
 });
 
 function renderPortalLayout({
+  currentHash,
   currentRoute = resolvePortalRoute("#/dashboard"),
   session = createMockPortalSession(),
 }: {
+  currentHash?: string;
   currentRoute?: PortalRouteDefinition;
   session?: ReturnType<typeof createMockPortalSession>;
 }) {
+  window.location.hash = currentHash ?? currentRoute.hash;
+
   render(
     <PortalOrganizationContext.Provider
       value={{

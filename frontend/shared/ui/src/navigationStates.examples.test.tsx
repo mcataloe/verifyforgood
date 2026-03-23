@@ -6,15 +6,15 @@ describe("NavigationStatesExamples", () => {
   it("switches between role and plan scenarios", () => {
     render(<NavigationStatesExamples />);
 
-    expect(screen.getByRole("link", { name: "API" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
+    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Customer Admin" }));
-    expect(screen.getByRole("link", { name: "Billing" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Customer User" }));
-    expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "API" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
   });
 
   it("shows locked API state for the free-plan admin scenario", () => {

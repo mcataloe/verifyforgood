@@ -186,16 +186,16 @@ pnpm run build
 - keep role-family selection centralized in `resolvePortalNavigationAudience(...)` so a session resolves to one sidebar information architecture instead of a merged role union
 - keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
-- let the shared shell own sidebar layout structure: brand/header, scrollable nav body, and footer/context region
-- keep portal-specific organization/account context in the shell footer slot through `SidebarProfileSection` rather than turning the shared sidebar into a portal-specific card layout
+- let the shared shell own sidebar layout structure: app header, summary block, grouped nav body, and footer/profile region
+- keep portal-specific summary metadata in the shell summary slot and user/account context in the footer slot through `SidebarProfileSection`
 - derive the footer access badge from `getPortalAccessLabel(...)`, which intentionally maps the resolved audience into user-facing labels such as `Admin`, `User`, `Developer`, or `Platform admin`
-- keep theme-mode controls in shared UI; the portal only supplies footer metadata and does not own the auto/light/dark selector behavior
+- do not keep theme controls in the portal sidebar; footer content should stay focused on user and account context
 - organize portal navigation by user mental model:
-  - developers: `Platform` and `System`
-  - portal admins: `Operations`, `Commercial`, and `Admin`
-  - customer admins: `Workspace` and `Account`
-  - customer users: `Work`
-- map new items to the closest implemented route surface first; if a target category would need a fake page or duplicate active route, defer it instead of inventing placeholder sprawl
+  - developers: `Overview`, `Tenants`, `Plans`, `Feature Flags`, `Audit`, and `System`
+  - portal admins: `Dashboard`, `Customers`, `Subscriptions`, `Support`, `Reports`, and `Settings`
+  - customer admins: `Home`, `Team`, `Billing`, `Usage`, `API`, and `Settings`
+  - customer users: `Home`, `Search`, `Results`, `Reports`, and `Profile`
+- map expanded IA labels onto the closest implemented route surface first by using hash-query navigation aliases instead of inventing duplicate pages
 - when a session can hold multiple roles, keep the audience-priority order in `resolvePortalNavigationAudience(...)` in sync with product intent so the sidebar stays deterministic
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`

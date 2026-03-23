@@ -12,7 +12,8 @@ export type SidebarProfileSectionProps = {
 
 /**
  * Compact sidebar footer/profile block for user, organization, or account
- * context plus shared theme controls.
+ * context with optional theme controls when a consuming surface explicitly opts
+ * in.
  */
 export function SidebarProfileSection({
   accessLabel,
@@ -20,16 +21,13 @@ export function SidebarProfileSection({
   primaryLabel,
   secondaryLabel,
   tertiaryLabel,
-  showThemeControls = true,
+  showThemeControls = false,
 }: SidebarProfileSectionProps) {
   return (
     <Stack className="vf-sidebar-profile" gap="sm">
       <Group align="flex-start" justify="space-between" wrap="nowrap">
         <Group className="vf-sidebar-profile__identity" gap="sm" wrap="nowrap">
-          <Box
-            aria-hidden="true"
-            className="vf-sidebar-profile__avatar"
-          >
+          <Box aria-hidden="true" className="vf-sidebar-profile__avatar">
             {getProfileInitials(primaryLabel)}
           </Box>
 

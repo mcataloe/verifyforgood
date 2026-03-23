@@ -5,10 +5,11 @@ import {
 } from "@charity-status/shared-types";
 import {
   buildPortalNavigationSections,
+  resolveActivePortalNavigationKey,
   resolvePortalNavigation,
   resolvePortalNavigationAudience,
 } from "./portalNavigation";
-import { portalProtectedRoutes } from "./portalRoutes";
+import { portalProtectedRoutes, resolvePortalRoute } from "./portalRoutes";
 
 describe("portal navigation config", () => {
   it("builds customer-admin sections from canonical protected route hashes", () => {
@@ -22,13 +23,13 @@ describe("portal navigation config", () => {
       "account",
     ]);
     expect(sections[0]?.items[0]).toMatchObject({
-      href: "#/dashboard",
-      key: "dashboard",
+      href: "#/dashboard?nav=customer-admin-home",
+      key: "customer-admin-home",
       label: "Home",
     });
-    expect(sections[1]?.items[1]).toMatchObject({
-      href: "#/api-access",
-      key: "api-access",
+    expect(sections[1]?.items[2]).toMatchObject({
+      href: "#/api-access?nav=customer-admin-api",
+      key: "customer-admin-api",
       label: "API",
     });
   });
@@ -59,8 +60,12 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home"],
+        items: ["Home", "Search", "Results"],
         label: "Work",
+      },
+      {
+        items: ["Reports", "Profile"],
+        label: "Personal",
       },
     ]);
   });
@@ -77,7 +82,7 @@ describe("portal navigation config", () => {
         label: "Workspace",
       },
       {
-        items: ["Billing", "API", "Settings"],
+        items: ["Billing", "Usage", "API", "Settings"],
         label: "Account",
       },
     ]);
@@ -91,16 +96,16 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Dashboard", "Customers"],
+        items: ["Dashboard", "Customers", "Support"],
         label: "Operations",
       },
       {
-        items: ["Subscriptions"],
-        label: "Commercial",
+        items: ["Subscriptions", "Reports"],
+        label: "Revenue",
       },
       {
         items: ["Settings"],
-        label: "Admin",
+        label: "Configure",
       },
     ]);
   });
@@ -113,12 +118,12 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Overview", "Tenants"],
-        label: "Platform",
+        items: ["Overview", "Tenants", "Plans"],
+        label: "Build",
       },
       {
-        items: ["System"],
-        label: "System",
+        items: ["Feature Flags", "Audit", "System"],
+        label: "Controls",
       },
     ]);
   });
@@ -130,7 +135,7 @@ describe("portal navigation config", () => {
       routes: portalProtectedRoutes,
     });
 
-    expect(sections).toHaveLength(1);
+    expect(sections).toHaveLength(2);
     expect(sections[0]?.label).toBe("Work");
   });
 
@@ -140,16 +145,45 @@ describe("portal navigation config", () => {
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
     });
-    const accountSection = sections.find((section) => section.key === "account");
-    const apiItem = accountSection?.items.find((item) => item.key === "api-access");
+    const accountSection = sections.find(
+      (section) => section.key === "account",
+    );
+    const apiItem = accountSection?.items.find(
+      (item) => item.key === "customer-admin-api",
+    );
 
     expect(accountSection?.label).toBe("Account");
     expect(apiItem).toMatchObject({
-      key: "api-access",
+      key: "customer-admin-api",
       label: "API",
       visibilityState: "locked",
     });
     expect(apiItem?.href).toBeUndefined();
+  });
+
+  it("resolves the active navigation item from the current hash alias before falling back to the base route", () => {
+    const sections = resolvePortalNavigation({
+      plan: "growth",
+      roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+      routes: portalProtectedRoutes,
+    });
+
+    expect(
+      resolveActivePortalNavigationKey({
+        currentHash: "#/usage-billing?nav=customer-admin-usage",
+        currentRoute: resolvePortalRoute(
+          "#/usage-billing?nav=customer-admin-usage",
+        ),
+        navigationSections: sections,
+      }),
+    ).toBe("customer-admin-usage");
+    expect(
+      resolveActivePortalNavigationKey({
+        currentHash: "#/usage-billing",
+        currentRoute: resolvePortalRoute("#/usage-billing"),
+        navigationSections: sections,
+      }),
+    ).toBe("customer-admin-billing");
   });
 });
 

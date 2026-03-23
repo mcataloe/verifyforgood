@@ -96,6 +96,9 @@ function renderWithOrganization(
 
 describe("UsageBillingPanel", () => {
   it("renders request usage and billing state clearly", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-21T12:00:00-05:00"));
+
     const reload = vi.fn(async () => {});
     const controller: PortalUsageBillingController = {
       error: null,
@@ -288,6 +291,8 @@ describe("UsageBillingPanel", () => {
     expect(screen.getAllByText("Pending downgrade").length).toBeGreaterThan(0);
     expect(screen.getByText(/createSubscription/i)).toBeTruthy();
     expect(screen.getByText(/cancelSubscription/i)).toBeTruthy();
+
+    vi.useRealTimers();
   });
 
   it("renders an error state and supports retry", () => {

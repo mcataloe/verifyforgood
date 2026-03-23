@@ -1,12 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import {
-  SidebarProfileSection,
-  VerifyForGoodMantineProvider,
-} from "./index";
+import { SidebarProfileSection, VerifyForGoodMantineProvider } from "./index";
 
 describe("SidebarProfileSection", () => {
-  it("renders organization, account, access, and auto/light/dark theme controls", () => {
+  it("renders organization, account, and access context without theme controls by default", () => {
     render(
       <VerifyForGoodMantineProvider>
         <SidebarProfileSection
@@ -23,6 +20,19 @@ describe("SidebarProfileSection", () => {
     expect(screen.getByText("Account acct_12345")).toBeTruthy();
     expect(screen.getByText("Riley Admin")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+  });
+
+  it("renders theme controls when explicitly enabled", () => {
+    render(
+      <VerifyForGoodMantineProvider>
+        <SidebarProfileSection
+          primaryLabel="Acme Relief Fund"
+          showThemeControls
+        />
+      </VerifyForGoodMantineProvider>,
+    );
+
     expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
@@ -31,7 +41,10 @@ describe("SidebarProfileSection", () => {
   it("updates the selected theme mode when controls are pressed", () => {
     render(
       <VerifyForGoodMantineProvider defaultColorScheme="light">
-        <SidebarProfileSection primaryLabel="Acme Relief Fund" />
+        <SidebarProfileSection
+          primaryLabel="Acme Relief Fund"
+          showThemeControls
+        />
       </VerifyForGoodMantineProvider>,
     );
 

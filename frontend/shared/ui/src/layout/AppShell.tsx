@@ -72,6 +72,8 @@ export type VerifyForGoodAppShellProps = PropsWithChildren<{
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
+  sidebarNavigationAriaLabel?: string;
+  sidebarSummary?: ReactNode;
   subtitle?: string;
 }>;
 
@@ -89,6 +91,8 @@ export function VerifyForGoodAppShell({
   navigationSections,
   onNavigationChange,
   sidebarFooter,
+  sidebarNavigationAriaLabel = "Application navigation",
+  sidebarSummary,
   subtitle = "Compliance and CSR operations",
 }: VerifyForGoodAppShellProps) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
@@ -162,22 +166,29 @@ export function VerifyForGoodAppShell({
           className="vf-app-shell-sidebar__header"
           data-testid="vf-app-shell-sidebar-header"
         >
-          <Group align="flex-start" className="vf-app-shell-sidebar__brand" gap="sm" wrap="nowrap">
+          <Group
+            align="flex-start"
+            className="vf-app-shell-sidebar__brand"
+            gap="sm"
+            wrap="nowrap"
+          >
             <Box
               aria-hidden="true"
               className="vf-app-shell-sidebar__brand-mark"
             >
               {getAppShellBrandMark(appName)}
             </Box>
-            <Stack gap={4}>
-              <Text className="vf-app-shell-sidebar__eyebrow" fw={500} fz="xs" tt="uppercase">
-                Navigation
+            <Stack gap={2}>
+              <Text
+                className="vf-app-shell-sidebar__header-eyebrow"
+                fw={500}
+                fz="xs"
+                tt="uppercase"
+              >
+                Application
               </Text>
-              <Title className="vf-app-shell-sidebar__title" order={3}>
+              <Text className="vf-app-shell-sidebar__header-title" fw={700}>
                 {appName}
-              </Title>
-              <Text className="vf-app-shell-sidebar__subtitle" fz="sm">
-                {subtitle}
               </Text>
             </Stack>
           </Group>
@@ -190,8 +201,32 @@ export function VerifyForGoodAppShell({
           grow
         >
           <Box className="vf-app-shell-sidebar__content-inner">
+            <Box
+              className="vf-app-shell-sidebar__summary"
+              data-testid="vf-app-shell-sidebar-summary"
+            >
+              {sidebarSummary ?? (
+                <Stack gap={4}>
+                  <Text
+                    className="vf-app-shell-sidebar__eyebrow"
+                    fw={500}
+                    fz="xs"
+                    tt="uppercase"
+                  >
+                    Navigation
+                  </Text>
+                  <Title className="vf-app-shell-sidebar__title" order={3}>
+                    {appName}
+                  </Title>
+                  <Text className="vf-app-shell-sidebar__subtitle" fz="sm">
+                    {subtitle}
+                  </Text>
+                </Stack>
+              )}
+            </Box>
             <AppShellNavigation
               activeNavigationKey={activeNavigationKey}
+              ariaLabel={sidebarNavigationAriaLabel}
               onNavigate={() => setMobileOpened(false)}
               onNavigationChange={onNavigationChange}
               sections={resolvedNavigationSections}
@@ -250,7 +285,9 @@ export function normalizeVerifyForGoodAppShellNavigationSections({
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
 }): VerifyForGoodAppShellNavSection[] {
   if (navigationSections) {
-    return [...navigationSections].filter((section) => section.items.length > 0);
+    return [...navigationSections].filter(
+      (section) => section.items.length > 0,
+    );
   }
 
   return [
