@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PortalBudgetSettingsController } from "./usePortalBudgetSettings";
+import { HardStopEnforcementField } from "./HardStopEnforcementField";
 
 interface BudgetConfigurationPanelProps {
   controller: PortalBudgetSettingsController;
@@ -24,7 +25,6 @@ export function BudgetConfigurationPanel({
 
   const parsedMonthlyRequestCap = parseMonthlyRequestCap(monthlyRequestCap);
   const validationMessage = getValidationMessage(monthlyRequestCap);
-  const hardStopEnabled = !allowOverage;
   const isDirty =
     allowOverage !== controller.settings.allowOverage ||
     (parsedMonthlyRequestCap ?? null) !== controller.settings.monthlyRequestCap;
@@ -54,25 +54,14 @@ export function BudgetConfigurationPanel({
         </p>
       </div>
 
-      <div className="portal-budget-form__section">
-        <label className="portal-budget-toggle">
-          <input
-            checked={hardStopEnabled}
-            onChange={(event) => {
-              controller.clearNotice();
-              setAllowOverage(!event.target.checked);
-            }}
-            type="checkbox"
-          />
-          <span>Enable hard-stop enforcement</span>
-        </label>
-        <p className="portal-budget-form__hint">
-          {describeBudgetConsequence({
-            allowOverage,
-            monthlyRequestCap: parsedMonthlyRequestCap ?? null,
-          })}
-        </p>
-      </div>
+      <HardStopEnforcementField
+        allowOverage={allowOverage}
+        monthlyRequestCap={parsedMonthlyRequestCap ?? null}
+        onChange={(nextHardStopEnabled) => {
+          controller.clearNotice();
+          setAllowOverage(!nextHardStopEnabled);
+        }}
+      />
 
       {validationMessage ? (
         <p className="portal-feedback portal-feedback--error">
@@ -142,21 +131,3 @@ function getValidationMessage(value: string): string | null {
   return null;
 }
 
-function describeBudgetConsequence(input: {
-  allowOverage: boolean;
-  monthlyRequestCap: number | null;
-}): string {
-  if (!input.allowOverage && input.monthlyRequestCap !== null) {
-    return `Requests stop once usage reaches ${input.monthlyRequestCap.toLocaleString()} this month.`;
-  }
-
-  if (!input.allowOverage) {
-    return "Requests stop at the included plan limit when the monthly allowance is exhausted.";
-  }
-
-  if (input.monthlyRequestCap !== null) {
-    return `Requests can continue beyond ${input.monthlyRequestCap.toLocaleString()} if needed, so this cap acts as a visible budget target while overage remains enabled.`;
-  }
-
-  return "Requests can continue beyond included usage and may incur overage under the active plan.";
-}

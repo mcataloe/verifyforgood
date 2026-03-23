@@ -26,6 +26,7 @@ export interface PortalAuthenticatedSession extends OrganizationContext {
 type CreateMockPortalSessionOptions = {
   email?: string;
   provider?: "google" | "microsoft" | "password";
+  roles?: FrontendAccessRole[];
 };
 
 export function createMockPortalSession(
@@ -46,7 +47,7 @@ export function createMockPortalSession(
     issued_at: "2026-03-20T00:00:00Z",
     organization_name: "VerifyForGood Demo Workspace",
     plan: "growth",
-    roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+    roles: options.roles ?? [FRONTEND_ACCESS_ROLE.customerAdmin],
     scopes: [
       "portal:access",
       "settings:read",

@@ -35,11 +35,12 @@ describe("SidebarProfileSection", () => {
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
-  it("renders an optional footer action without reintroducing theme controls", () => {
+  it("renders an optional footer destination without reintroducing theme controls", () => {
     render(
       <VerifyForGoodMantineProvider>
         <SidebarProfileSection
-          action={<a href="#/settings">Profile & preferences</a>}
+          ariaLabel="Profile & preferences"
+          href="#/settings"
           primaryLabel="Acme Relief Fund"
         />
       </VerifyForGoodMantineProvider>,

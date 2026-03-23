@@ -4,7 +4,6 @@ import {
   Burger,
   Group,
   ScrollArea,
-  Stack,
   Text,
   Title,
 } from "@mantine/core";
@@ -166,32 +165,47 @@ export function VerifyForGoodAppShell({
           className="vf-app-shell-sidebar__header"
           data-testid="vf-app-shell-sidebar-header"
         >
-          <Group
-            align="flex-start"
-            className="vf-app-shell-sidebar__brand"
-            gap="sm"
-            wrap="nowrap"
-          >
-            <Box
-              aria-hidden="true"
-              className="vf-app-shell-sidebar__brand-mark"
+          <Box className="vf-app-shell-sidebar__header-inner">
+            <Group
+              align="flex-start"
+              className="vf-app-shell-sidebar__brand"
+              gap="sm"
+              wrap="nowrap"
             >
-              {getAppShellBrandMark(appName)}
-            </Box>
-            <Stack gap={2}>
-              <Text
-                className="vf-app-shell-sidebar__header-eyebrow"
-                fw={500}
-                fz="xs"
-                tt="uppercase"
+              <Box
+                aria-hidden="true"
+                className="vf-app-shell-sidebar__brand-mark"
               >
-                Application
-              </Text>
-              <Text className="vf-app-shell-sidebar__header-title" fw={700}>
-                {appName}
-              </Text>
-            </Stack>
-          </Group>
+                {getAppShellBrandMark(appName)}
+              </Box>
+              <Box className="vf-app-shell-sidebar__brand-copy">
+                <Text
+                  className="vf-app-shell-sidebar__header-eyebrow"
+                  fw={500}
+                  fz="xs"
+                  tt="uppercase"
+                >
+                  Application
+                </Text>
+                <Text className="vf-app-shell-sidebar__header-title" fw={700}>
+                  {appName}
+                </Text>
+                {subtitle ? (
+                  <Text className="vf-app-shell-sidebar__header-subtitle" fz="sm">
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </Box>
+            </Group>
+            {sidebarSummary ? (
+              <Box
+                className="vf-app-shell-sidebar__header-summary"
+                data-testid="vf-app-shell-sidebar-summary"
+              >
+                {sidebarSummary}
+              </Box>
+            ) : null}
+          </Box>
         </MantineAppShell.Section>
 
         <MantineAppShell.Section
@@ -201,29 +215,6 @@ export function VerifyForGoodAppShell({
           grow
         >
           <Box className="vf-app-shell-sidebar__content-inner">
-            <Box
-              className="vf-app-shell-sidebar__summary"
-              data-testid="vf-app-shell-sidebar-summary"
-            >
-              {sidebarSummary ?? (
-                <Stack gap={4}>
-                  <Text
-                    className="vf-app-shell-sidebar__eyebrow"
-                    fw={500}
-                    fz="xs"
-                    tt="uppercase"
-                  >
-                    Navigation
-                  </Text>
-                  <Title className="vf-app-shell-sidebar__title" order={3}>
-                    {appName}
-                  </Title>
-                  <Text className="vf-app-shell-sidebar__subtitle" fz="sm">
-                    {subtitle}
-                  </Text>
-                </Stack>
-              )}
-            </Box>
             <AppShellNavigation
               activeNavigationKey={activeNavigationKey}
               ariaLabel={sidebarNavigationAriaLabel}
@@ -241,7 +232,7 @@ export function VerifyForGoodAppShell({
           <Box className="vf-app-shell-sidebar__footer-inner">
             {sidebarFooter ?? (
               <SidebarProfileSection
-                eyebrow="Workspace"
+                eyebrow="Application"
                 primaryLabel={appName}
                 secondaryLabel="Shared application shell"
               />

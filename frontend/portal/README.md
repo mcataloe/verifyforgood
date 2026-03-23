@@ -184,21 +184,32 @@ pnpm run build
 - prefer VerifyForGood or purpose-based naming for new portal-local identifiers and contributor docs; keep the existing `@charity-status/*` package scope only where compatibility already depends on it
 - keep portal navigation config in `src/app/portalNavigation.ts` and treat route hashes as the source of navigable destinations
 - keep role-family selection centralized in `resolvePortalNavigationAudience(...)` so a session resolves to one sidebar information architecture instead of a merged role union
-- keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata
+- keep visible nav labels short and scannable; move longer explanatory copy into `helpText` so the shared shell can render it as tooltip metadata instead of inline descriptions
 - keep role restrictions hidden in portal navigation; use locked plan behavior only for intentionally discoverable upgrade surfaces
 - let the shared shell own sidebar layout structure: app header, summary block, grouped nav body, and footer/profile region
 - keep portal-specific summary metadata in the shell summary slot and user/account context in the footer slot through `SidebarProfileSection`
 - derive the footer access badge from `getPortalAccessLabel(...)`, which intentionally maps the resolved audience into user-facing labels such as `Admin`, `User`, `Developer`, or `Platform admin`
 - do not keep theme controls in the portal sidebar; footer content should stay focused on user and account context
 - let the footer expose only a lightweight profile/settings link when a role has that destination in its filtered navigation; do not turn the footer into a second nav cluster
-- keep appearance preferences on the settings/profile route so theme selection sits with user-owned preferences instead of shell composition
-- the current profile-related experience lives on `src/pages/SettingsPage.tsx`, where account context and `Auto` / `Light` / `Dark` appearance controls share one surface
+- keep appearance preferences on the profile/settings route so theme selection sits with user-owned preferences instead of shell composition
+- the customer-user profile surface now lives in `src/customer-user/CustomerUserProfilePage.tsx`, where account context and `Auto` / `Light` / `Dark` appearance controls share one surface
 - organize portal navigation by user mental model:
   - developers: `Overview`, `Tenants`, `Plans`, `Feature Flags`, `Audit`, and `System`
   - portal admins: `Dashboard`, `Customers`, `Subscriptions`, `Support`, `Reports`, and `Settings`
   - customer admins: `Home`, `Team`, `Billing`, `Usage`, `API`, and `Settings`
-  - customer users: `Home`, `Search`, `Results`, `Reports`, and `Profile`
+  - customer users: `Dashboard`, `Search`, and `Automation` in the sidebar, with profile/preferences opened from the footer profile button
 - map expanded IA labels onto the closest implemented route surface first by using hash-query navigation aliases instead of inventing duplicate pages
+- the current customer-user aliases are:
+  - `#/dashboard?nav=customer-user-dashboard`
+  - `#/workspace?nav=customer-user-search-ein`
+  - `#/workspace?nav=customer-user-search-address`
+  - `#/api-access?nav=customer-user-automation-general`
+  - `#/api-access?nav=customer-user-automation-api`
+  - `#/api-access?nav=customer-user-automation-oauth`
+  - `#/settings?nav=customer-user-profile`
+- customer-user search and automation panes are local interactive mocks in this phase:
+  - `Search by EIN` and `Search by Address` reuse the `workspace` route and provide sortable placeholder organization results
+  - `Automation > API Key` and `Automation > OAuth` reuse the `api-access` route and persist masked placeholder credentials in browser-local storage only
 - when a session can hold multiple roles, keep the audience-priority order in `resolvePortalNavigationAudience(...)` in sync with product intent so the sidebar stays deterministic
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`
 - keep auth concerns isolated under `src/auth/` and UI gating/layout under `src/components/`

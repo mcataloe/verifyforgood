@@ -1,10 +1,12 @@
-import { Box, Group, Stack, Text } from "@mantine/core";
-import type { ReactNode } from "react";
+import { Box, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 
 export type SidebarProfileSectionProps = {
   accessLabel?: string;
-  action?: ReactNode;
+  active?: boolean;
+  ariaLabel?: string;
   eyebrow?: string;
+  href?: string;
+  onClick?: () => void;
   primaryLabel: string;
   secondaryLabel?: string;
   tertiaryLabel?: string;
@@ -16,48 +18,69 @@ export type SidebarProfileSectionProps = {
  */
 export function SidebarProfileSection({
   accessLabel,
-  action,
+  active = false,
+  ariaLabel,
   eyebrow = "Profile",
+  href,
+  onClick,
   primaryLabel,
   secondaryLabel,
   tertiaryLabel,
 }: SidebarProfileSectionProps) {
-  return (
-    <Stack className="vf-sidebar-profile" gap="sm">
-      <Group align="flex-start" justify="space-between" wrap="nowrap">
-        <Group className="vf-sidebar-profile__identity" gap="sm" wrap="nowrap">
-          <Box aria-hidden="true" className="vf-sidebar-profile__avatar">
-            {getProfileInitials(primaryLabel)}
-          </Box>
+  const content = (
+    <Group align="flex-start" justify="space-between" wrap="nowrap">
+      <Group className="vf-sidebar-profile__identity" gap="sm" wrap="nowrap">
+        <Box aria-hidden="true" className="vf-sidebar-profile__avatar">
+          {getProfileInitials(primaryLabel)}
+        </Box>
 
-          <Stack gap={2}>
-            <Text className="vf-sidebar-profile__eyebrow" fz="xs" fw={600}>
-              {eyebrow}
-            </Text>
-            <Text className="vf-sidebar-profile__primary" fw={700}>
-              {primaryLabel}
-            </Text>
-            {secondaryLabel ? (
-              <Text className="vf-sidebar-profile__secondary" fz="sm">
-                {secondaryLabel}
-              </Text>
-            ) : null}
-            {tertiaryLabel ? (
-              <Text className="vf-sidebar-profile__tertiary" fz="sm">
-                {tertiaryLabel}
-              </Text>
-            ) : null}
-          </Stack>
-        </Group>
-
-        {accessLabel ? (
-          <Text className="vf-sidebar-profile__access" fz="xs" fw={700}>
-            {accessLabel}
+        <Stack gap={2}>
+          <Text className="vf-sidebar-profile__eyebrow" fz="xs" fw={600}>
+            {eyebrow}
           </Text>
-        ) : null}
+          <Text className="vf-sidebar-profile__primary" fw={700}>
+            {primaryLabel}
+          </Text>
+          {secondaryLabel ? (
+            <Text className="vf-sidebar-profile__secondary" fz="sm">
+              {secondaryLabel}
+            </Text>
+          ) : null}
+          {tertiaryLabel ? (
+            <Text className="vf-sidebar-profile__tertiary" fz="sm">
+              {tertiaryLabel}
+            </Text>
+          ) : null}
+        </Stack>
       </Group>
 
-      {action ? <Box className="vf-sidebar-profile__action">{action}</Box> : null}
+      {accessLabel ? (
+        <Text className="vf-sidebar-profile__access" fz="xs" fw={700}>
+          {accessLabel}
+        </Text>
+      ) : null}
+    </Group>
+  );
+
+  if (href || onClick) {
+    return (
+      <UnstyledButton
+        aria-current={active ? "page" : undefined}
+        aria-label={ariaLabel}
+        className="vf-sidebar-profile vf-sidebar-profile--interactive"
+        component={href ? "a" : "button"}
+        href={href}
+        onClick={onClick}
+        type={href ? undefined : "button"}
+      >
+        {content}
+      </UnstyledButton>
+    );
+  }
+
+  return (
+    <Stack className="vf-sidebar-profile" gap="sm">
+      {content}
     </Stack>
   );
 }

@@ -2,7 +2,10 @@ import {
   createMockPortalSession,
   type PortalAuthenticatedSession,
 } from "../app/portalSession";
-import { isFrontendAccessRole } from "@charity-status/shared-types";
+import {
+  FRONTEND_ACCESS_ROLE,
+  isFrontendAccessRole,
+} from "@charity-status/shared-types";
 
 const PORTAL_SESSION_STORAGE_KEY = "verifyforgood.portal.auth.session";
 
@@ -29,6 +32,7 @@ export function createMockPortalAuthClient(): PortalAuthClient {
       const session = createMockPortalSession({
         email: request?.email,
         provider: request?.method ?? "password",
+        roles: [FRONTEND_ACCESS_ROLE.customerUser],
       });
       writeStoredPortalSession(session);
       return session;

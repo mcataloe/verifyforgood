@@ -45,7 +45,6 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
-    expect(screen.getByText("Portal navigation")).toBeTruthy();
     expect(
       screen.getAllByText("VerifyForGood Demo Workspace").length,
     ).toBeGreaterThan(0);
@@ -54,11 +53,11 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Profile & preferences" }),
+      screen.getByRole("link", { name: /Profile & preferences/i }),
     ).toBeTruthy();
   });
 
-  it("keeps customer-user navigation limited to the home/search surface", () => {
+  it("maps customer-user navigation to dashboard, search, automation, and footer profile access", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -66,18 +65,15 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByText("Work")).toBeTruthy();
-    expect(screen.getByText("Personal")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Results\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Profile\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open profile" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Search\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Open profile/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
   it("gives developers the platform-oriented navigation structure", () => {

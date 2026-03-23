@@ -9,7 +9,9 @@ import type {
 import type { PropsWithChildren } from "react";
 import {
   getPortalAccessLabel,
+  resolveCustomerUserPortalPane,
   resolveActivePortalNavigationKey,
+  resolvePortalProfileNavigationTarget,
   resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
@@ -52,8 +54,15 @@ export function PortalLayout({
     currentRoute,
     navigationSections,
   });
-  const profileNavigationTarget =
-    resolveProfileNavigationTarget(navigationSections);
+  const profileNavigationTarget = resolvePortalProfileNavigationTarget({
+    audience,
+    routes,
+  });
+  const isProfileActive =
+    audience === "customer_user"
+      ? resolveCustomerUserPortalPane({ currentHash, currentRoute }) ===
+        "profile"
+      : currentRoute.key === "settings";
 
   return (
     <VerifyForGoodAppShell
@@ -81,41 +90,17 @@ export function PortalLayout({
       }
       navigationSections={navigationSections}
       sidebarNavigationAriaLabel="Portal navigation"
-      sidebarSummary={
-        <div className="portal-shell__sidebar-summary">
-          <div>
-            <p className="portal-shell__summary-eyebrow">Portal navigation</p>
-            <p className="portal-shell__summary-title">
-              {organization.activeOrganization.organization_name}
-            </p>
-            <p className="portal-shell__summary-copy">
-              {getPortalSidebarSummary(audience)}
-            </p>
-          </div>
-          <div className="portal-shell__summary-meta">
-            <span className="portal-shell__summary-pill">
-              Access: {accessLabel}
-            </span>
-            <span className="portal-shell__summary-pill">
-              Env: {runtimeConfig.environment}
-            </span>
-            <span className="portal-shell__summary-pill">
-              Plan: {session.plan}
-            </span>
-          </div>
-        </div>
-      }
       sidebarFooter={
         <SidebarProfileSection
-          action={
-            profileNavigationTarget ? (
-              <a href={profileNavigationTarget.href}>
-                {profileNavigationTarget.label}
-              </a>
-            ) : undefined
-          }
+          active={isProfileActive}
           accessLabel={accessLabel}
+          ariaLabel={
+            profileNavigationTarget
+              ? `${profileNavigationTarget.label} for ${session.user.display_name}`
+              : undefined
+          }
           eyebrow="Signed in"
+          href={profileNavigationTarget?.href}
           primaryLabel={session.user.display_name}
           secondaryLabel={
             organization.activeOrganization.organization_name
@@ -134,59 +119,4 @@ export function PortalLayout({
       {children}
     </VerifyForGoodAppShell>
   );
-}
-
-function getPortalSidebarSummary(
-  audience: ReturnType<typeof resolvePortalNavigationAudience>,
-) {
-  switch (audience) {
-    case "developer":
-      return "Nested platform navigation for tenant operations, rollout controls, and system access.";
-    case "portal_admin":
-      return "Customer, subscription, and support workflows organized to match the current portal surfaces.";
-    case "customer_admin":
-      return "Team, billing, API, and settings access mapped onto the existing authenticated workspace.";
-    case "customer_user":
-      return "Search, results, reports, and profile entry points aligned to the current customer experience.";
-  }
-}
-
-function resolveProfileNavigationTarget(
-  navigationSections: ReturnType<typeof resolvePortalNavigation>,
-) {
-  for (const section of navigationSections) {
-    for (const item of section.items) {
-      const match = findProfileNavigationTarget(item);
-      if (match) {
-        return match;
-      }
-    }
-  }
-
-  return undefined;
-}
-
-function findProfileNavigationTarget(
-  item: ReturnType<typeof resolvePortalNavigation>[number]["items"][number],
-): { href: string; label: string } | undefined {
-  const normalizedLabel = item.label.trim().toLowerCase();
-  const isProfileLike =
-    normalizedLabel === "profile" || normalizedLabel === "settings";
-
-  if (isProfileLike && item.href) {
-    return {
-      href: item.href,
-      label:
-        normalizedLabel === "profile" ? "Open profile" : "Profile & preferences",
-    };
-  }
-
-  for (const child of item.children ?? []) {
-    const match = findProfileNavigationTarget(child);
-    if (match) {
-      return match;
-    }
-  }
-
-  return undefined;
 }

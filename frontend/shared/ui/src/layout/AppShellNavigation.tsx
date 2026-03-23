@@ -1,5 +1,5 @@
-import { Box, NavLink, Stack, Text } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { Box, NavLink, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -70,7 +70,8 @@ function AppShellNavigationSectionView({
 
   return (
     <Box
-      aria-labelledby={sectionLabelId}
+      aria-label={section.label || "Navigation group"}
+      aria-labelledby={section.label ? sectionLabelId : undefined}
       component="section"
       className={
         isFirstSection
@@ -82,20 +83,24 @@ function AppShellNavigationSectionView({
         gap={6}
         pt={isFirstSection ? 0 : verifyForGoodTokens.spacing.baseUnit * 2}
       >
-        <Text
-          className="vf-app-shell-nav__section-label"
-          component="h2"
-          fw={600}
-          fz="xs"
-          id={sectionLabelId}
-          tt="uppercase"
-        >
-          {section.label}
-        </Text>
-        {section.helpText ? (
-          <Text className="vf-app-shell-nav__section-description" fz="xs">
-            {section.helpText}
-          </Text>
+        {section.label || section.helpText ? (
+          <Box className="vf-app-shell-nav__section-heading">
+            <SectionTooltipWrapper
+              helpText={section.helpText}
+              label={section.label || "Section"}
+            >
+              <Text
+                className="vf-app-shell-nav__section-label"
+                component="h2"
+                fw={600}
+                fz="xs"
+                id={sectionLabelId}
+                tt="uppercase"
+              >
+                {section.label}
+              </Text>
+            </SectionTooltipWrapper>
+          </Box>
         ) : null}
 
         <Stack gap={4}>
@@ -138,6 +143,7 @@ function AppShellNavigationItemView({
   const [opened, setOpened] = useState(() =>
     shouldItemStartOpened(item, activeNavigationKey),
   );
+  const helpTextId = `${item.key}-navigation-help`;
 
   useEffect(() => {
     if (hasActiveDescendant || children.length <= 1) {
@@ -152,8 +158,8 @@ function AppShellNavigationItemView({
       <NavLink
         active={isActive}
         aria-expanded={opened}
+        aria-describedby={item.helpText ? helpTextId : undefined}
         component="button"
-        description={depth === 0 ? item.helpText : undefined}
         label={item.label}
         leftSection={item.icon}
         onClick={() => setOpened((current) => !current)}
@@ -182,7 +188,12 @@ function AppShellNavigationItemView({
 
     return (
       <Box key={item.key}>
-        {branchLink}
+        <NavigationTooltipWrapper helpText={item.helpText}>
+          {branchLink}
+        </NavigationTooltipWrapper>
+        {item.helpText ? (
+          <VisuallyHidden id={helpTextId}>{item.helpText}</VisuallyHidden>
+        ) : null}
 
         {opened ? (
           <Stack
@@ -210,66 +221,70 @@ function AppShellNavigationItemView({
 
   if (isLocked || !item.href) {
     return (
-      <NavLink
-        active={isActive}
-        aria-current={isSelfActive ? "page" : undefined}
-        component="button"
-        description={depth === 0 ? item.helpText : undefined}
-        disabled={isLocked}
-        key={item.key}
-        label={item.label}
-        leftSection={item.icon}
-        onClick={() => {
-          if (isLocked) {
-            return;
-          }
+      <ItemWithTooltip helpText={item.helpText} helpTextId={helpTextId}>
+        <NavLink
+          active={isActive}
+          aria-current={isSelfActive ? "page" : undefined}
+          aria-describedby={item.helpText ? helpTextId : undefined}
+          component="button"
+          disabled={isLocked}
+          key={item.key}
+          label={item.label}
+          leftSection={item.icon}
+          onClick={() => {
+            if (isLocked) {
+              return;
+            }
 
-          onNavigationChange?.(item);
-          onNavigate();
-        }}
-        rightSection={
-          isLocked ? (
-            <Text
-              className="vf-app-shell-nav__lock-pill"
-              component="span"
-              fw={600}
-              fz={10}
-            >
-              Locked
-            </Text>
-          ) : undefined
-        }
-        className={getNavigationItemClassName({
-          depth,
-          hasChildren: false,
-          isLocked,
-        })}
-        classNames={navigationItemClassNames}
-        type="button"
-      />
+            onNavigationChange?.(item);
+            onNavigate();
+          }}
+          rightSection={
+            isLocked ? (
+              <Text
+                className="vf-app-shell-nav__lock-pill"
+                component="span"
+                fw={600}
+                fz={10}
+              >
+                Locked
+              </Text>
+            ) : undefined
+          }
+          className={getNavigationItemClassName({
+            depth,
+            hasChildren: false,
+            isLocked,
+          })}
+          classNames={navigationItemClassNames}
+          type="button"
+        />
+      </ItemWithTooltip>
     );
   }
 
   return (
-    <NavLink
-      active={isActive}
-      aria-current={isSelfActive ? "page" : undefined}
-      component="a"
-      description={depth === 0 ? item.helpText : undefined}
-      href={item.href}
-      key={item.key}
-      label={item.label}
-      leftSection={item.icon}
-      onClick={() => {
-        onNavigationChange?.(item);
-        onNavigate();
-      }}
-      className={getNavigationItemClassName({
-        depth,
-        hasChildren: false,
-      })}
-      classNames={navigationItemClassNames}
-    />
+    <ItemWithTooltip helpText={item.helpText} helpTextId={helpTextId}>
+      <NavLink
+        active={isActive}
+        aria-current={isSelfActive ? "page" : undefined}
+        aria-describedby={item.helpText ? helpTextId : undefined}
+        component="a"
+        href={item.href}
+        key={item.key}
+        label={item.label}
+        leftSection={item.icon}
+        onClick={() => {
+          onNavigationChange?.(item);
+          onNavigate();
+        }}
+        className={getNavigationItemClassName({
+          depth,
+          hasChildren: false,
+        })}
+        classNames={navigationItemClassNames}
+      />
+    </ItemWithTooltip>
   );
 }
 
@@ -311,7 +326,6 @@ function shouldItemStartOpened(
 
 const navigationItemClassNames = {
   body: "vf-app-shell-nav__item-body",
-  description: "vf-app-shell-nav__item-description",
   label: "vf-app-shell-nav__item-label",
   section: "vf-app-shell-nav__item-section",
 };
@@ -336,4 +350,72 @@ function getNavigationItemClassName({
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function ItemWithTooltip({
+  children,
+  helpText,
+  helpTextId,
+}: {
+  children: ReactNode;
+  helpText?: string;
+  helpTextId: string;
+}) {
+  return (
+    <>
+      <NavigationTooltipWrapper helpText={helpText}>{children}</NavigationTooltipWrapper>
+      {helpText ? <VisuallyHidden id={helpTextId}>{helpText}</VisuallyHidden> : null}
+    </>
+  );
+}
+
+function NavigationTooltipWrapper({
+  children,
+  helpText,
+}: {
+  children: ReactNode;
+  helpText?: string;
+}) {
+  if (!helpText) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Tooltip label={helpText} multiline openDelay={120} withArrow withinPortal={false}>
+      <Box>{children}</Box>
+    </Tooltip>
+  );
+}
+
+function SectionTooltipWrapper({
+  children,
+  helpText,
+  label,
+}: {
+  children: ReactNode;
+  helpText?: string;
+  label: string;
+}) {
+  if (!helpText) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Tooltip
+      label={helpText}
+      multiline
+      openDelay={120}
+      withArrow
+      withinPortal={false}
+    >
+      <Box
+        aria-label={`${label} section details`}
+        className="vf-app-shell-nav__section-tooltip-target"
+        component="span"
+        tabIndex={0}
+      >
+        {children}
+      </Box>
+    </Tooltip>
+  );
 }

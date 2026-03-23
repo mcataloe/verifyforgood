@@ -4,11 +4,19 @@ import {
   type PlanCode,
 } from "@charity-status/shared-types";
 import {
+  IconBolt,
+  IconDashboard,
+  IconSearch,
+  IconSettingsAutomation,
+  IconKey,
+} from "@tabler/icons-react";
+import {
   filterNavigationSections,
   type VerifyForGoodNavigationSection,
   type VerifyForGoodResolvedNavigationItem,
   type VerifyForGoodResolvedNavigationSection,
 } from "@charity-status/shared-ui";
+import { createElement, type ReactNode } from "react";
 import type {
   PortalProtectedRouteKey,
   PortalRouteDefinition,
@@ -19,6 +27,25 @@ export type PortalNavigationAudience =
   | "portal_admin"
   | "customer_admin"
   | "customer_user";
+
+export type CustomerUserPortalPane =
+  | "dashboard"
+  | "search-ein"
+  | "search-address"
+  | "automation-general"
+  | "automation-api"
+  | "automation-oauth"
+  | "profile";
+
+const customerUserPaneByAlias: Record<string, CustomerUserPortalPane> = {
+  "customer-user-automation-api": "automation-api",
+  "customer-user-automation-general": "automation-general",
+  "customer-user-automation-oauth": "automation-oauth",
+  "customer-user-dashboard": "dashboard",
+  "customer-user-profile": "profile",
+  "customer-user-search-address": "search-address",
+  "customer-user-search-ein": "search-ein",
+};
 
 export function buildPortalNavigationSections(
   routes: readonly PortalRouteDefinition[],
@@ -82,6 +109,56 @@ export function getPortalAccessLabel(
   }
 }
 
+export function resolveCustomerUserPortalPane(params: {
+  currentHash: string;
+  currentRoute: PortalRouteDefinition;
+}): CustomerUserPortalPane {
+  const navAlias = resolvePortalNavigationAlias(params.currentHash);
+
+  if (navAlias && customerUserPaneByAlias[navAlias]) {
+    return customerUserPaneByAlias[navAlias];
+  }
+
+  switch (params.currentRoute.key) {
+    case "dashboard":
+      return "dashboard";
+    case "workspace":
+      return "search-ein";
+    case "api-access":
+      return "automation-general";
+    case "settings":
+      return "profile";
+    default:
+      return "dashboard";
+  }
+}
+
+export function resolvePortalProfileNavigationTarget(params: {
+  audience: PortalNavigationAudience;
+  routes: readonly PortalRouteDefinition[];
+}): { href: string; label: string } | undefined {
+  const routeByKey = new Map(params.routes.map((route) => [route.key, route] as const));
+  const settingsRoute = routeByKey.get("settings");
+
+  if (!settingsRoute) {
+    return undefined;
+  }
+
+  if (params.audience === "customer_user") {
+    return {
+      href: `${settingsRoute.hash}?nav=customer-user-profile`,
+      label: "Open profile",
+    };
+  }
+
+  const suffix = params.audience.replaceAll("_", "-");
+
+  return {
+    href: `${settingsRoute.hash}?nav=${suffix}-settings`,
+    label: "Profile & preferences",
+  };
+}
+
 export function resolveActivePortalNavigationKey(params: {
   currentHash: string;
   currentRoute: PortalRouteDefinition;
@@ -113,6 +190,7 @@ function navigationItem(
   options?: {
     allowedPlans?: readonly PlanCode[];
     helpText?: string;
+    icon?: ReactNode;
     visibility?: {
       planRestrictedBehavior?: "hidden" | "locked";
       roleRestrictedBehavior?: "hidden" | "locked";
@@ -132,6 +210,7 @@ function navigationItem(
     label,
     helpText: options?.helpText ?? route.description,
     href: `${route.hash}?nav=${itemKey}`,
+    icon: options?.icon,
     allowedPlans: options?.allowedPlans,
     visibility: {
       planRestrictedBehavior: "locked" as const,
@@ -378,68 +457,102 @@ function buildAudienceNavigationSections(
     case "customer_user":
       return [
         {
-          key: "work",
-          label: "Work",
-          helpText:
-            "Daily nonprofit search and verification workflow entry points.",
+          key: "customer-user",
+          label: "",
           items: [
             navigationItem(
               routeByKey,
               "dashboard",
-              "customer-user-home",
-              "Home",
+              "customer-user-dashboard",
+              "Dashboard",
               {
                 helpText:
-                  "Starting point for recent activity and quick actions.",
+                  "Review operational activity, recent verifications, and alerts.",
+                icon: createElement(IconDashboard, { size: 18, stroke: 1.7 }),
               },
             ),
-            navigationItem(
-              routeByKey,
-              "dashboard",
-              "customer-user-search",
-              "Search",
-              {
-                helpText: "Find organizations and begin verification review.",
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "dashboard",
-              "customer-user-results",
-              "Results",
-              {
-                helpText: "Return to the latest search and review output.",
-              },
-            ),
-          ],
-        },
-        {
-          key: "personal",
-          label: "Personal",
-          helpText: "Reporting access and personal workspace context.",
-          items: [
-            navigationItem(
-              routeByKey,
-              "usage-billing",
-              "customer-user-reports",
-              "Reports",
-              {
-                helpText: "Reporting snapshots tied to recent portal activity.",
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "settings",
-              "customer-user-profile",
-              "Profile",
-              {
-                helpText: "Profile and account-level settings access.",
-              },
-            ),
+            {
+              key: "customer-user-search",
+              label: "Search",
+              helpText:
+                "Discover organizations by EIN or address without leaving the workspace.",
+              icon: createElement(IconSearch, { size: 18, stroke: 1.7 }),
+              children: [
+                navigationItem(
+                  routeByKey,
+                  "workspace",
+                  "customer-user-search-ein",
+                  "Search by EIN",
+                  {
+                    helpText: "Run an exact lookup using a 9-digit EIN.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "workspace",
+                  "customer-user-search-address",
+                  "Search by Address",
+                  {
+                    helpText:
+                      "Find organizations with any combination of address, city, state, or zip.",
+                  },
+                ),
+              ],
+            },
+            {
+              key: "customer-user-automation",
+              label: "Automation",
+              helpText:
+                "Control enforcement, API keys, and OAuth credentials for automation.",
+              icon: createElement(IconSettingsAutomation, {
+                size: 18,
+                stroke: 1.7,
+              }),
+              children: [
+                navigationItem(
+                  routeByKey,
+                  "api-access",
+                  "customer-user-automation-general",
+                  "General",
+                  {
+                    helpText:
+                      "Manage hard-stop enforcement for automated verification traffic.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "api-access",
+                  "customer-user-automation-api",
+                  "API Key",
+                  {
+                    helpText:
+                      "Create and manage portal-issued API keys for direct integrations.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "api-access",
+                  "customer-user-automation-oauth",
+                  "OAuth",
+                  {
+                    helpText:
+                      "Manage generated OAuth client credentials for server-to-server access.",
+                  },
+                ),
+              ],
+            },
           ],
         },
       ];
   }
+}
+
+function resolvePortalNavigationAlias(currentHash: string): string | null {
+  const query = String(currentHash || "").split("?")[1];
+  const params = new URLSearchParams(query);
+  const nav = params.get("nav");
+
+  return nav?.trim() || null;
 }
 
 function findNavigationItem(

@@ -5,6 +5,9 @@ import { usePortalAuth } from "../auth/usePortalAuth";
 import { PortalAuthLayout } from "../components/PortalAuthLayout";
 import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
+import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomationPage";
+import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
+import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
 import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
@@ -12,6 +15,10 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WorkspacePage } from "../pages/WorkspacePage";
+import {
+  resolveCustomerUserPortalPane,
+  resolvePortalNavigationAudience,
+} from "./portalNavigation";
 import { portalEndpoints } from "./portalEndpoints";
 import {
   consumePortalReturnTo,
@@ -111,6 +118,18 @@ export function PortalApp() {
   if (!session) {
     return null;
   }
+  const audience = resolvePortalNavigationAudience(session.roles);
+  const currentHash =
+    typeof window === "undefined"
+      ? currentRoute.hash
+      : window.location.hash || currentRoute.hash;
+  const customerUserPane =
+    audience === "customer_user"
+      ? resolveCustomerUserPortalPane({
+          currentHash,
+          currentRoute,
+        })
+      : null;
 
   return (
     <PortalOrganizationProvider runtimeConfig={runtimeConfig} session={session}>
@@ -126,16 +145,43 @@ export function PortalApp() {
           <DashboardPage runtimeConfig={runtimeConfig} session={session} />
         ) : null}
         {currentRoute.key === "workspace" ? (
-          <WorkspacePage endpoints={endpoints} session={session} />
+          audience === "customer_user" && customerUserPane ? (
+            <CustomerUserSearchPage
+              pane={
+                customerUserPane === "search-address"
+                  ? "search-address"
+                  : "search-ein"
+              }
+            />
+          ) : (
+            <WorkspacePage endpoints={endpoints} session={session} />
+          )
         ) : null}
         {currentRoute.key === "api-access" ? (
-          <ApiAccessPage endpoints={endpoints} session={session} />
+          audience === "customer_user" && customerUserPane ? (
+            <CustomerUserAutomationPage
+              pane={
+                customerUserPane === "automation-api"
+                  ? "automation-api"
+                  : customerUserPane === "automation-oauth"
+                    ? "automation-oauth"
+                    : "automation-general"
+              }
+              session={session}
+            />
+          ) : (
+            <ApiAccessPage endpoints={endpoints} session={session} />
+          )
         ) : null}
         {currentRoute.key === "usage-billing" ? (
           <BillingPage endpoints={endpoints} session={session} />
         ) : null}
         {currentRoute.key === "settings" ? (
-          <SettingsPage endpoints={endpoints} session={session} />
+          audience === "customer_user" && customerUserPane === "profile" ? (
+            <CustomerUserProfilePage session={session} />
+          ) : (
+            <SettingsPage endpoints={endpoints} session={session} />
+          )
         ) : null}
       </PortalLayout>
     </PortalOrganizationProvider>

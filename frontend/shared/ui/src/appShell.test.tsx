@@ -83,7 +83,6 @@ describe("VerifyForGoodAppShell", () => {
     });
 
     expect(screen.getByTestId("vf-app-shell-sidebar-header")).toBeTruthy();
-    expect(screen.getByTestId("vf-app-shell-sidebar-summary")).toBeTruthy();
     expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
     expect(screen.getByTestId("vf-app-shell-sidebar-footer")).toBeTruthy();
     expect(screen.getByText("Footer slot")).toBeTruthy();
@@ -106,7 +105,6 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(screen.getByText("Core")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
-    expect(screen.getByText("Primary product views.")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /^Organizations\b/i }),
@@ -207,24 +205,28 @@ describe("VerifyForGoodAppShell", () => {
     expect(screen.getByRole("link", { name: "Profile" })).toBeTruthy();
   });
 
-  it("renders item descriptions inline for top-level links", () => {
+  it("keeps top-level help text on aria metadata instead of inline copy", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,
     });
 
-    expect(
-      screen.getByText(
-        "High-level product activity and recent verification signals.",
-      ),
-    ).toBeTruthy();
+    const dashboardLink = screen.getByRole("link", { name: /^Dashboard\b/i });
+
+    expect(dashboardLink.getAttribute("aria-describedby")).toContain(
+      "dashboard-navigation-help",
+    );
   });
 
-  it("does not render inline item descriptions for links without help text", () => {
+  it("does not render a tooltip for links without help text", () => {
     renderAppShell({
       navigationSections: sectionedNavigation,
     });
 
-    expect(screen.queryByText("Subscription and billing controls.")).toBeNull();
+    vi.useFakeTimers();
+    fireEvent.mouseEnter(screen.getByRole("link", { name: /^Billing\b/i }));
+    vi.advanceTimersByTime(150);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    vi.useRealTimers();
   });
 
   it("renders locked items as disabled buttons with a visible unavailable state", () => {
@@ -254,16 +256,16 @@ describe("VerifyForGoodAppShell", () => {
     expect(onNavigationChange).not.toHaveBeenCalled();
   });
 
-  it("renders locked item copy inline", () => {
+  it("keeps locked item help text behind aria metadata", () => {
     renderAppShell({
       navigationSections: lockedResolvedNavigation,
     });
 
-    expect(
-      screen.getByText(
-        "Self-serve API credentials and token access. Available on Growth and higher plans.",
-      ),
-    ).toBeTruthy();
+    const apiButton = screen.getByRole("button", { name: /^API\b/i });
+
+    expect(apiButton.getAttribute("aria-describedby")).toContain(
+      "api-navigation-help",
+    );
   });
 
   it("skips empty sections so the sidebar stays stable after filtering", () => {

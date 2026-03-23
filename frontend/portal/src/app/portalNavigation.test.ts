@@ -60,12 +60,8 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Search", "Results"],
-        label: "Work",
-      },
-      {
-        items: ["Reports", "Profile"],
-        label: "Personal",
+        items: ["Dashboard", "Search", "Automation"],
+        label: "",
       },
     ]);
   });
@@ -135,8 +131,17 @@ describe("portal navigation config", () => {
       routes: portalProtectedRoutes,
     });
 
-    expect(sections).toHaveLength(2);
-    expect(sections[0]?.label).toBe("Work");
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.label).toBe("");
+    expect(sections[0]?.items[1]?.children?.map((item) => item.label)).toEqual([
+      "Search by EIN",
+      "Search by Address",
+    ]);
+    expect(sections[0]?.items[2]?.children?.map((item) => item.label)).toEqual([
+      "General",
+      "API Key",
+      "OAuth",
+    ]);
   });
 
   it("keeps discoverable plan-gated API access locked for lower-tier customer admins", () => {

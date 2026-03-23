@@ -94,11 +94,10 @@ Sidebar structure responsibilities:
 
 - the shared shell owns the overall sidebar frame:
   - app/header area
-  - branded summary block
   - scrollable grouped navigation content
-  - footer/context slot
+  - footer/profile slot
 - downstream apps should pass already-filtered navigation into the shell and keep permission logic out of rendering components
-- downstream apps can provide a `sidebarSummary` slot when they need product-specific summary content above the grouped nav
+- downstream apps can provide a `sidebarSummary` slot when they need a compact branded header summary above the links
 - downstream apps can customize the footer slot for context/profile content without changing the shared sidebar layout contract
 - `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context only; appearance controls should live on a profile or settings surface instead of the sidebar footer
 
@@ -113,14 +112,13 @@ Footer/profile metadata expectations:
 
 Nested navigation behavior assumptions:
 
-- keep `label` concise and scannable; use `helpText` for short inline descriptions rather than tooltip-dependent copy
+- keep `label` concise and scannable; use `helpText` for short tooltip metadata instead of inline descriptions in the nav list
 - labels should remain understandable on their own without requiring extra affordances to make sense
 - keep role-restricted items hidden; use locked plan behavior only when discovery is useful and the destination should remain visibly unavailable
 - choose `planRestrictedBehavior: "hidden"` when a feature should stay out of the information architecture for lower tiers
 - choose `planRestrictedBehavior: "locked"` when a feature should remain discoverable for upgrade awareness and should include clear availability copy in `helpText`
-- section `helpText` renders as compact inline helper copy beneath the section label
-- top-level item `helpText` renders as compact inline description copy beneath the item label
-- locked items render as disabled rows, do not navigate, and keep their availability copy visible inline
+- section and item `helpText` are exposed through tooltip/aria metadata rather than persistent inline copy inside the sidebar
+- locked items render as disabled rows, do not navigate, and expose their availability copy through tooltip/aria metadata
 - items with `children` render as expandable groups in the sidebar
 - active descendants automatically open and highlight their parent group
 - if a parent has only one visible child after upstream filtering, the group opens automatically

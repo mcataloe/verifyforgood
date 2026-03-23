@@ -1,0 +1,52 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
+import { CustomerUserSearchPage } from "./CustomerUserSearchPage";
+
+describe("CustomerUserSearchPage", () => {
+  it("renders the EIN search pane with sortable location columns and detail drill-in", () => {
+    render(
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <CustomerUserSearchPage pane="search-ein" />
+      </VerifyForGoodMantineProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("EIN"), {
+      target: { value: "13-1635294" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search by EIN" }));
+
+    expect(
+      screen.getAllByText("American National Red Cross").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Sort by City" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sort by State" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sort by Zip" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+
+    expect(
+      screen.getByRole("heading", { name: "American National Red Cross" }),
+    ).toBeTruthy();
+  });
+
+  it("renders the address search pane with address, city, state, and zip fields", () => {
+    render(
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <CustomerUserSearchPage pane="search-address" />
+      </VerifyForGoodMantineProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("City"), {
+      target: { value: "Chicago" },
+    });
+    fireEvent.change(screen.getByLabelText("State"), {
+      target: { value: "IL" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search by Address" }));
+
+    expect(screen.getByLabelText("Address")).toBeTruthy();
+    expect(screen.getByLabelText("Zip")).toBeTruthy();
+    expect(screen.getAllByText("Feeding America").length).toBeGreaterThan(0);
+  });
+});
