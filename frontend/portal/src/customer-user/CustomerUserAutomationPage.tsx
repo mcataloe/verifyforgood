@@ -8,9 +8,6 @@ import {
 } from "@mantine/core";
 import {
   EmptyState,
-  Grid,
-  PageHeader,
-  Panel,
 } from "@charity-status/shared-ui";
 import {
   IconCopy,
@@ -30,6 +27,7 @@ import {
   useCustomerUserApiKeys,
   useCustomerUserOAuthClients,
 } from "./useCustomerUserAutomationCredentials";
+import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
 
 interface CustomerUserAutomationPageProps {
   pane: "automation-api" | "automation-general" | "automation-oauth";
@@ -54,12 +52,11 @@ export function CustomerUserAutomationPage({
         : "Generate client credentials for server-to-server OAuth automation without introducing backend token issuance yet.";
 
   return (
-    <Grid className="portal-page-grid">
-      <PageHeader
+    <PortalDetailView
         eyebrow="Automation"
+        intro={description}
         title={title}
-        description={description}
-      />
+      >
 
       {pane === "automation-general" ? (
         <AutomationGeneralPanel />
@@ -72,7 +69,7 @@ export function CustomerUserAutomationPage({
       {pane === "automation-oauth" ? (
         <AutomationOAuthPanel session={session} />
       ) : null}
-    </Grid>
+    </PortalDetailView>
   );
 }
 
@@ -83,9 +80,9 @@ function AutomationGeneralPanel() {
   );
 
   return (
-    <Panel
-      title="General"
-      subtitle="This pane intentionally contains only the hard-stop automation control in this phase."
+    <PortalDetailSection
+      intro="This pane intentionally contains only the hard-stop automation control in this phase."
+      title="General settings"
     >
       <div className="portal-budget-form">
         <HardStopEnforcementField
@@ -128,7 +125,7 @@ function AutomationGeneralPanel() {
           </button>
         </div>
       </div>
-    </Panel>
+    </PortalDetailSection>
   );
 }
 
@@ -146,9 +143,9 @@ function AutomationApiKeyPanel({
 
   return (
     <>
-      <Panel
+      <PortalDetailSection
+        intro="Create browser-local placeholder keys with audit metadata that can later align to a backend customer credential API."
         title="API Keys"
-        subtitle="Create browser-local placeholder keys with audit metadata that can later align to a backend customer credential API."
       >
         <form
           className="portal-form portal-form--two-column"
@@ -206,11 +203,11 @@ function AutomationApiKeyPanel({
           the signed-in portal user and should align with the eventual customer
           credential API contract.
         </p>
-      </Panel>
+      </PortalDetailSection>
 
-      <Panel
+      <PortalDetailSection
+        intro="Keys are masked by default and surfaced here as placeholder values only."
         title="Usable API keys"
-        subtitle="Keys are masked by default and surfaced here as placeholder values only."
       >
         {apiKeys.isLoading ? <p>Loading API keys...</p> : null}
         {!apiKeys.isLoading && apiKeys.items.length === 0 ? (
@@ -250,7 +247,7 @@ function AutomationApiKeyPanel({
             />
           ))}
         </Stack>
-      </Panel>
+      </PortalDetailSection>
 
       <DeleteCredentialModal
         itemLabel={pendingDelete?.name ?? null}
@@ -285,9 +282,9 @@ function AutomationOAuthPanel({
 
   return (
     <>
-      <Panel
+      <PortalDetailSection
+        intro="Generate placeholder client credentials with the same title-row action pattern as API keys."
         title="OAuth clients"
-        subtitle="Generate placeholder client credentials with the same title-row action pattern as API keys."
       >
         <form
           className="portal-form portal-form--two-column"
@@ -345,11 +342,11 @@ function AutomationOAuthPanel({
           and `created_by` metadata are local placeholders until customer OAuth
           lifecycle endpoints exist.
         </p>
-      </Panel>
+      </PortalDetailSection>
 
-      <Panel
+      <PortalDetailSection
+        intro="Client identifiers and secrets stay masked until explicitly revealed."
         title="Usable OAuth clients"
-        subtitle="Client identifiers and secrets stay masked until explicitly revealed."
       >
         {oauthClients.isLoading ? <p>Loading OAuth clients...</p> : null}
         {!oauthClients.isLoading && oauthClients.items.length === 0 ? (
@@ -413,7 +410,7 @@ function AutomationOAuthPanel({
             />
           ))}
         </Stack>
-      </Panel>
+      </PortalDetailSection>
 
       <DeleteCredentialModal
         itemLabel={pendingDelete?.name ?? null}

@@ -104,6 +104,7 @@ export function PortalLayout({
           primaryLabel={session.user.display_name}
         />
       }
+      showSidebarHeader={false}
       subtitle={app.description}
     >
       {children}

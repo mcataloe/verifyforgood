@@ -71,6 +71,7 @@ export type VerifyForGoodAppShellProps = PropsWithChildren<{
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
+  showSidebarHeader?: boolean;
   sidebarNavigationAriaLabel?: string;
   sidebarSummary?: ReactNode;
   subtitle?: string;
@@ -90,6 +91,7 @@ export function VerifyForGoodAppShell({
   navigationSections,
   onNavigationChange,
   sidebarFooter,
+  showSidebarHeader = true,
   sidebarNavigationAriaLabel = "Application navigation",
   sidebarSummary,
   subtitle = "Compliance and CSR operations",
@@ -117,6 +119,9 @@ export function VerifyForGoodAppShell({
       }}
       padding="lg"
       styles={{
+        root: {
+          minHeight: "100vh",
+        },
         main: {
           backgroundColor: semantic.background,
           color: semantic.text_primary,
@@ -163,52 +168,57 @@ export function VerifyForGoodAppShell({
       </MantineAppShell.Header>
 
       <MantineAppShell.Navbar p={0}>
-        <MantineAppShell.Section
-          className="vf-app-shell-sidebar__header"
-          data-testid="vf-app-shell-sidebar-header"
-        >
-          <Box className="vf-app-shell-sidebar__header-inner">
-            <Group
-              align="flex-start"
-              className="vf-app-shell-sidebar__brand"
-              gap="sm"
-              wrap="nowrap"
-            >
-              <Box
-                aria-hidden="true"
-                className="vf-app-shell-sidebar__brand-mark"
+        {showSidebarHeader ? (
+          <MantineAppShell.Section
+            className="vf-app-shell-sidebar__header"
+            data-testid="vf-app-shell-sidebar-header"
+          >
+            <Box className="vf-app-shell-sidebar__header-inner">
+              <Group
+                align="flex-start"
+                className="vf-app-shell-sidebar__brand"
+                gap="sm"
+                wrap="nowrap"
               >
-                {getAppShellBrandMark(appName)}
-              </Box>
-              <Box className="vf-app-shell-sidebar__brand-copy">
-                <Text
-                  className="vf-app-shell-sidebar__header-eyebrow"
-                  fw={500}
-                  fz="xs"
-                  tt="uppercase"
+                <Box
+                  aria-hidden="true"
+                  className="vf-app-shell-sidebar__brand-mark"
                 >
-                  Application
-                </Text>
-                <Text className="vf-app-shell-sidebar__header-title" fw={700}>
-                  {appName}
-                </Text>
-                {subtitle ? (
-                  <Text className="vf-app-shell-sidebar__header-subtitle" fz="sm">
-                    {subtitle}
+                  {getAppShellBrandMark(appName)}
+                </Box>
+                <Box className="vf-app-shell-sidebar__brand-copy">
+                  <Text
+                    className="vf-app-shell-sidebar__header-eyebrow"
+                    fw={500}
+                    fz="xs"
+                    tt="uppercase"
+                  >
+                    Application
                   </Text>
-                ) : null}
-              </Box>
-            </Group>
-            {sidebarSummary ? (
-              <Box
-                className="vf-app-shell-sidebar__header-summary"
-                data-testid="vf-app-shell-sidebar-summary"
-              >
-                {sidebarSummary}
-              </Box>
-            ) : null}
-          </Box>
-        </MantineAppShell.Section>
+                  <Text className="vf-app-shell-sidebar__header-title" fw={700}>
+                    {appName}
+                  </Text>
+                  {subtitle ? (
+                    <Text
+                      className="vf-app-shell-sidebar__header-subtitle"
+                      fz="sm"
+                    >
+                      {subtitle}
+                    </Text>
+                  ) : null}
+                </Box>
+              </Group>
+              {sidebarSummary ? (
+                <Box
+                  className="vf-app-shell-sidebar__header-summary"
+                  data-testid="vf-app-shell-sidebar-summary"
+                >
+                  {sidebarSummary}
+                </Box>
+              ) : null}
+            </Box>
+          </MantineAppShell.Section>
+        ) : null}
 
         <MantineAppShell.Section
           className="vf-app-shell-sidebar__content"

@@ -346,6 +346,16 @@ describe("VerifyForGoodAppShell", () => {
 
     expect(screen.getByText("Custom summary")).toBeTruthy();
   });
+
+  it("can suppress the sidebar header when the consumer opts out", () => {
+    renderAppShell({
+      showSidebarHeader: false,
+    });
+
+    expect(screen.queryByTestId("vf-app-shell-sidebar-header")).toBeNull();
+    expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
+    expect(screen.getByTestId("vf-app-shell-sidebar-footer")).toBeTruthy();
+  });
 });
 
 function renderAppShell(

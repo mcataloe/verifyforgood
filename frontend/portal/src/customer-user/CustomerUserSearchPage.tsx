@@ -2,9 +2,6 @@ import { useMemo, useState } from "react";
 import {
   DataTable,
   EmptyState,
-  Grid,
-  PageHeader,
-  Panel,
   type DataTableColumn,
 } from "@charity-status/shared-ui";
 import {
@@ -15,6 +12,7 @@ import {
   type CustomerUserOrganizationRecord,
 } from "./customerUserOrganizations";
 import { PortalNonprofitDetailView } from "../nonprofits/PortalNonprofitDetailView";
+import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
 
 interface CustomerUserSearchPageProps {
   pane: "search-address" | "search-ein";
@@ -103,20 +101,18 @@ export function CustomerUserSearchPage({
     : null;
 
   return (
-    <Grid className="portal-page-grid">
-      <PageHeader
-        eyebrow="Search"
-        title={title}
-        description={description}
-      />
-
-      <Panel
-        title={title}
-        subtitle={
+    <PortalDetailView
+      eyebrow="Search"
+      intro={description}
+      title={title}
+    >
+      <PortalDetailSection
+        intro={
           pane === "search-ein"
             ? "Exact EIN lookup with sortable location fields in the results list."
             : "Address discovery that accepts partial location input and keeps the results sortable."
         }
+        title="Lookup"
       >
         {pane === "search-ein" ? (
           <form
@@ -244,51 +240,58 @@ export function CustomerUserSearchPage({
             </div>
           </form>
         )}
-      </Panel>
+      </PortalDetailSection>
 
-      {hasSearched && mappedRows.length === 0 ? (
-        <EmptyState
-          description="Adjust the current query and try again. These panes are backed by a local placeholder dataset in this phase."
-          title={`No organizations matched this ${pane === "search-ein" ? "EIN" : "address"} search`}
-        />
-      ) : null}
-
-      {mappedRows.length > 0 ? (
-        <Panel
-          title="Matching organizations"
-          subtitle="Use the sortable city, state, and zip columns before opening the organization review pane."
+      {hasSearched ? (
+        <PortalDetailSection
+          intro="Use the sortable city, state, and zip columns before opening the organization review pane."
+          title="Results"
         >
-          <DataTable
-            columns={[
-              ...resultColumns,
-              {
-                key: "actions",
-                header: "Actions",
-                render: (row) => (
-                  <button
-                    className="portal-shell__action"
-                    onClick={() => {
-                      setSelectedEin(row.ein);
-                    }}
-                    type="button"
-                  >
-                    View details
-                  </button>
-                ),
-              },
-            ]}
-            getSearchText={(row) =>
-              `${row.name} ${row.ein} ${row.address} ${row.city} ${row.state} ${row.zip}`
-            }
-            initialSort={{ columnKey: "city", direction: "asc" }}
-            rows={mappedRows}
-            searchPlaceholder="Filter returned organizations"
-          />
-        </Panel>
+          {mappedRows.length === 0 ? (
+            <EmptyState
+              description="Adjust the current query and try again. These panes are backed by a local placeholder dataset in this phase."
+              title={`No organizations matched this ${pane === "search-ein" ? "EIN" : "address"} search`}
+            />
+          ) : (
+            <DataTable
+              columns={[
+                ...resultColumns,
+                {
+                  key: "actions",
+                  header: "Actions",
+                  render: (row) => (
+                    <button
+                      className="portal-shell__action"
+                      onClick={() => {
+                        setSelectedEin(row.ein);
+                      }}
+                      type="button"
+                    >
+                      View details
+                    </button>
+                  ),
+                },
+              ]}
+              getSearchText={(row) =>
+                `${row.name} ${row.ein} ${row.address} ${row.city} ${row.state} ${row.zip}`
+              }
+              initialSort={{ columnKey: "city", direction: "asc" }}
+              rows={mappedRows}
+              searchPlaceholder="Filter returned organizations"
+            />
+          )}
+        </PortalDetailSection>
       ) : null}
 
-      {selectedDetail ? <PortalNonprofitDetailView detail={selectedDetail} /> : null}
-    </Grid>
+      {selectedDetail ? (
+        <PortalDetailSection
+          intro="Organization detail remains placeholder-backed in this phase."
+          title="Organization details"
+        >
+          <PortalNonprofitDetailView detail={selectedDetail} />
+        </PortalDetailSection>
+      ) : null}
+    </PortalDetailView>
   );
 }
 
