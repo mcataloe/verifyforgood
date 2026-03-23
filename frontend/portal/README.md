@@ -190,6 +190,7 @@ pnpm run build
 - keep portal-specific summary metadata in the shell summary slot and user/account context in the footer slot through `SidebarProfileSection`
 - derive the footer access badge from `getPortalAccessLabel(...)`, which intentionally maps the resolved audience into user-facing labels such as `Admin`, `User`, `Developer`, or `Platform admin`
 - do not keep theme controls in the portal sidebar; footer content should stay focused on user and account context
+- let the footer expose only a lightweight profile/settings link when a role has that destination in its filtered navigation; do not turn the footer into a second nav cluster
 - keep appearance preferences on the settings/profile route so theme selection sits with user-owned preferences instead of shell composition
 - the current profile-related experience lives on `src/pages/SettingsPage.tsx`, where account context and `Auto` / `Light` / `Dark` appearance controls share one surface
 - organize portal navigation by user mental model:

@@ -1,7 +1,9 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
+import type { ReactNode } from "react";
 
 export type SidebarProfileSectionProps = {
   accessLabel?: string;
+  action?: ReactNode;
   eyebrow?: string;
   primaryLabel: string;
   secondaryLabel?: string;
@@ -14,6 +16,7 @@ export type SidebarProfileSectionProps = {
  */
 export function SidebarProfileSection({
   accessLabel,
+  action,
   eyebrow = "Profile",
   primaryLabel,
   secondaryLabel,
@@ -53,6 +56,8 @@ export function SidebarProfileSection({
           </Text>
         ) : null}
       </Group>
+
+      {action ? <Box className="vf-sidebar-profile__action">{action}</Box> : null}
     </Stack>
   );
 }

@@ -34,4 +34,20 @@ describe("SidebarProfileSection", () => {
     expect(screen.queryByText("Admin")).toBeNull();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
+
+  it("renders an optional footer action without reintroducing theme controls", () => {
+    render(
+      <VerifyForGoodMantineProvider>
+        <SidebarProfileSection
+          action={<a href="#/settings">Profile & preferences</a>}
+          primaryLabel="Acme Relief Fund"
+        />
+      </VerifyForGoodMantineProvider>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Profile & preferences" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+  });
 });

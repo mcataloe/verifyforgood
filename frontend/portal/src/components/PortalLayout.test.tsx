@@ -53,6 +53,9 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Profile & preferences" }),
+    ).toBeTruthy();
   });
 
   it("keeps customer-user navigation limited to the home/search surface", () => {
@@ -70,6 +73,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Results\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Profile\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open profile" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();

@@ -52,6 +52,8 @@ export function PortalLayout({
     currentRoute,
     navigationSections,
   });
+  const profileNavigationTarget =
+    resolveProfileNavigationTarget(navigationSections);
 
   return (
     <VerifyForGoodAppShell
@@ -105,6 +107,13 @@ export function PortalLayout({
       }
       sidebarFooter={
         <SidebarProfileSection
+          action={
+            profileNavigationTarget ? (
+              <a href={profileNavigationTarget.href}>
+                {profileNavigationTarget.label}
+              </a>
+            ) : undefined
+          }
           accessLabel={accessLabel}
           eyebrow="Signed in"
           primaryLabel={session.user.display_name}
@@ -140,4 +149,44 @@ function getPortalSidebarSummary(
     case "customer_user":
       return "Search, results, reports, and profile entry points aligned to the current customer experience.";
   }
+}
+
+function resolveProfileNavigationTarget(
+  navigationSections: ReturnType<typeof resolvePortalNavigation>,
+) {
+  for (const section of navigationSections) {
+    for (const item of section.items) {
+      const match = findProfileNavigationTarget(item);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function findProfileNavigationTarget(
+  item: ReturnType<typeof resolvePortalNavigation>[number]["items"][number],
+): { href: string; label: string } | undefined {
+  const normalizedLabel = item.label.trim().toLowerCase();
+  const isProfileLike =
+    normalizedLabel === "profile" || normalizedLabel === "settings";
+
+  if (isProfileLike && item.href) {
+    return {
+      href: item.href,
+      label:
+        normalizedLabel === "profile" ? "Open profile" : "Profile & preferences",
+    };
+  }
+
+  for (const child of item.children ?? []) {
+    const match = findProfileNavigationTarget(child);
+    if (match) {
+      return match;
+    }
+  }
+
+  return undefined;
 }

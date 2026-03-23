@@ -108,6 +108,7 @@ Footer/profile metadata expectations:
 - `secondaryLabel`: optional compact account/workspace identifier
 - `tertiaryLabel`: optional user display name or secondary identity line
 - `accessLabel`: optional short badge-like access descriptor supplied by the consuming app
+- `action`: optional lightweight footer action such as a profile/settings link when the consuming app wants to connect identity context back to a user-owned preferences surface
 - `ColorSchemeToggle` remains available for profile or settings surfaces that need local appearance preferences, but it should not be treated as sidebar content
 
 Nested navigation behavior assumptions:
