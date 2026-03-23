@@ -506,6 +506,78 @@ code {
   gap: var(--vf-space-3);
 }
 
+.portal-settings-page__profile-stack {
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-settings-profile,
+.portal-settings-preferences {
+  display: grid;
+  gap: var(--vf-space-4);
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-lg);
+  background: color-mix(in srgb, var(--vf-theme-panel-bg) 88%, transparent);
+}
+
+.portal-settings-profile__hero {
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.portal-settings-profile__hero h3,
+.portal-settings-profile__hero p {
+  margin: 0;
+}
+
+.portal-settings-profile__hero p:last-child,
+.portal-settings-preferences__copy p,
+.portal-settings-preferences__note {
+  color: var(--vf-theme-muted);
+  line-height: 1.6;
+}
+
+.portal-settings-profile__details {
+  margin: 0;
+  display: grid;
+  gap: var(--vf-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.portal-settings-profile__details div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.portal-settings-profile__details dt {
+  font-size: var(--vf-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vf-theme-muted);
+}
+
+.portal-settings-profile__details dd {
+  margin: 0;
+  color: var(--vf-theme-text);
+  word-break: break-word;
+}
+
+.portal-settings-preferences__copy {
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.portal-settings-preferences__copy h3,
+.portal-settings-preferences__copy p,
+.portal-settings-preferences__note {
+  margin: 0;
+}
+
+.portal-settings-preferences__control {
+  max-width: 24rem;
+}
+
 .portal-budget-form {
   display: grid;
   gap: var(--vf-space-4);

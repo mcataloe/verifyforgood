@@ -1,5 +1,4 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { ColorSchemeToggle } from "./ColorSchemeToggle";
 
 export type SidebarProfileSectionProps = {
   accessLabel?: string;
@@ -7,13 +6,11 @@ export type SidebarProfileSectionProps = {
   primaryLabel: string;
   secondaryLabel?: string;
   tertiaryLabel?: string;
-  showThemeControls?: boolean;
 };
 
 /**
  * Compact sidebar footer/profile block for user, organization, or account
- * context with optional theme controls when a consuming surface explicitly opts
- * in.
+ * context.
  */
 export function SidebarProfileSection({
   accessLabel,
@@ -21,7 +18,6 @@ export function SidebarProfileSection({
   primaryLabel,
   secondaryLabel,
   tertiaryLabel,
-  showThemeControls = false,
 }: SidebarProfileSectionProps) {
   return (
     <Stack className="vf-sidebar-profile" gap="sm">
@@ -57,8 +53,6 @@ export function SidebarProfileSection({
           </Text>
         ) : null}
       </Group>
-
-      {showThemeControls ? <ColorSchemeToggle label="Theme" /> : null}
     </Stack>
   );
 }

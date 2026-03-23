@@ -118,7 +118,6 @@ export function PortalLayout({
               ? `Account ${organization.activeOrganization.account_id}`
               : undefined
           }
-          showThemeControls={false}
         />
       }
       subtitle={app.description}

@@ -100,7 +100,7 @@ Sidebar structure responsibilities:
 - downstream apps should pass already-filtered navigation into the shell and keep permission logic out of rendering components
 - downstream apps can provide a `sidebarSummary` slot when they need product-specific summary content above the grouped nav
 - downstream apps can customize the footer slot for context/profile content without changing the shared sidebar layout contract
-- `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context and does not show theme controls unless a surface opts in explicitly
+- `SidebarProfileSection` is the compact shared footer/profile primitive for organization or account context only; appearance controls should live on a profile or settings surface instead of the sidebar footer
 
 Footer/profile metadata expectations:
 
@@ -108,7 +108,7 @@ Footer/profile metadata expectations:
 - `secondaryLabel`: optional compact account/workspace identifier
 - `tertiaryLabel`: optional user display name or secondary identity line
 - `accessLabel`: optional short badge-like access descriptor supplied by the consuming app
-- theme controls remain available through `ColorSchemeToggle`, but they are opt-in and should not be treated as default sidebar content
+- `ColorSchemeToggle` remains available for profile or settings surfaces that need local appearance preferences, but it should not be treated as sidebar content
 
 Nested navigation behavior assumptions:
 

@@ -5,8 +5,11 @@ import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
 } from "../billing/usePortalUsageBilling";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
+import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { BudgetLimitVisualization } from "../settings/BudgetLimitVisualization";
+import { ProfileContextSection } from "../settings/ProfileContextSection";
 import {
   usePortalBudgetSettings,
   type PortalBudgetSettingsController,
@@ -29,9 +32,23 @@ export function SettingsPage({
   const budget = budgetController ?? defaultBudgetController;
   const defaultUsageController = usePortalUsageBilling(session);
   const usage = usageController ?? defaultUsageController;
+  const organization = usePortalOrganization();
 
   return (
     <Grid className="portal-page-grid">
+      <Panel
+        title="Profile & preferences"
+        subtitle="User identity, account context, and local appearance preferences for the current portal session."
+      >
+        <div className="portal-settings-page__profile-stack">
+          <ProfileContextSection
+            organization={organization.activeOrganization}
+            session={session}
+          />
+          <AppearancePreferenceSection />
+        </div>
+      </Panel>
+
       <Panel
         title="Usage budget controls"
         subtitle="Persisted through the existing organization settings contract."
@@ -60,7 +77,7 @@ export function SettingsPage({
 
       <Panel
         title="Current backend anchor"
-        subtitle="Budget controls remain explicit about persistence and consequences."
+        subtitle="Budget controls and session-scoped settings remain explicit about persistence and consequences."
       >
         <p>
           Budget configuration loads from and persists to{" "}
@@ -78,16 +95,14 @@ export function SettingsPage({
         </ul>
         <dl className="portal-shell__details">
           <div>
-            <dt>Workspace</dt>
-            <dd>{session.workspace_id}</dd>
-          </div>
-          <div>
-            <dt>Account</dt>
-            <dd>{session.account_id}</dd>
-          </div>
-          <div>
             <dt>Plan</dt>
             <dd>{session.plan}</dd>
+          </div>
+          <div>
+            <dt>Current theme storage</dt>
+            <dd>
+              <code>verifyforgood-color-scheme</code>
+            </dd>
           </div>
         </dl>
       </Panel>

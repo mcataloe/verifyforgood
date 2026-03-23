@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import { createMockPortalSession } from "../app/portalSession";
 import type { PortalUsageBillingController } from "../billing/usePortalUsageBilling";
@@ -24,6 +25,13 @@ const endpoints: PortalEndpoints = {
 };
 
 describe("SettingsPage", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+  });
+
   it("renders budget controls and persists the configured state", () => {
     const save = vi.fn(async () => {});
     const budgetController: PortalBudgetSettingsController = {
@@ -82,6 +90,17 @@ describe("SettingsPage", () => {
     expect(
       screen.getByRole("heading", { name: "Usage budget controls" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Profile & preferences" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Portal Test Org")).toBeTruthy();
+    expect(screen.getByText("acct_portal_test")).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Alex Operator")).toBeTruthy();
+    expect(screen.getByText("alex.operator@example.org")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
     expect(screen.getByDisplayValue("800")).toBeTruthy();
     expect(screen.getByText("Budget controls saved.")).toBeTruthy();
     expect(screen.getByText("240 / 800")).toBeTruthy();
@@ -163,7 +182,50 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(screen.getByText("Overage allowed")).toBeTruthy();
   });
+
+  it("persists the appearance preference through the existing theme storage key", () => {
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+
+    expect(window.localStorage.getItem("verifyforgood-color-scheme")).toBe(
+      "dark",
+    );
+    expect(
+      screen.getByText(/Current selection:/i).textContent,
+    ).toContain("Dark");
+  });
 });
+
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+
+  return {
+    clear() {
+      store.clear();
+    },
+    getItem(key) {
+      return store.get(key) ?? null;
+    },
+    key(index) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    get length() {
+      return store.size;
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    setItem(key, value) {
+      store.set(key, value);
+    },
+  };
+}
 
 function renderWithOrganization(element: ReactNode) {
   const value: PortalOrganizationContextValue = {
@@ -184,7 +246,9 @@ function renderWithOrganization(element: ReactNode) {
 
   return render(
     <PortalOrganizationContext.Provider value={value}>
-      {element}
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        {element}
+      </VerifyForGoodMantineProvider>
     </PortalOrganizationContext.Provider>,
   );
 }
