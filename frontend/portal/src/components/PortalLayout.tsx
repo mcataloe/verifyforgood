@@ -8,7 +8,6 @@ import type {
 } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import {
-  getPortalAccessLabel,
   resolveCustomerUserPortalPane,
   resolveActivePortalNavigationKey,
   resolvePortalProfileNavigationTarget,
@@ -17,7 +16,6 @@ import {
 } from "../app/portalNavigation";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
@@ -34,12 +32,10 @@ export function PortalLayout({
   currentRoute,
   onSignOut,
   routes,
-  runtimeConfig,
+  runtimeConfig: _runtimeConfig,
   session,
 }: PortalLayoutProps) {
-  const organization = usePortalOrganization();
   const audience = resolvePortalNavigationAudience(session.roles);
-  const accessLabel = getPortalAccessLabel(session.roles);
   const navigationSections = resolvePortalNavigation({
     plan: session.plan,
     roles: session.roles,
@@ -68,32 +64,16 @@ export function PortalLayout({
     <VerifyForGoodAppShell
       activeNavigationKey={activeNavigationKey}
       appName={app.title}
-      headerActions={
-        <div className="portal-shell__status-row">
-          <span className="portal-shell__status-pill">
-            Org: {organization.activeOrganization.organization_name}
-          </span>
-          <span className="portal-shell__status-pill">
-            Env: {runtimeConfig.environment}
-          </span>
-          <span className="portal-shell__status-pill">
-            Plan: {session.plan}
-          </span>
-          <button
-            className="portal-shell__action"
-            onClick={() => void onSignOut()}
-            type="button"
-          >
-            Sign out
-          </button>
-        </div>
-      }
       navigationSections={navigationSections}
       sidebarNavigationAriaLabel="Portal navigation"
       sidebarFooter={
         <SidebarProfileSection
           active={isProfileActive}
-          accessLabel={accessLabel}
+          actionAriaLabel="Log out of the portal"
+          actionLabel="Log out"
+          actionOnClick={() => {
+            void onSignOut();
+          }}
           ariaLabel={
             profileNavigationTarget
               ? `${profileNavigationTarget.label} for ${session.user.display_name}`
@@ -104,6 +84,7 @@ export function PortalLayout({
           primaryLabel={session.user.display_name}
         />
       }
+      showHeader={false}
       showSidebarHeader={false}
       subtitle={app.description}
     >

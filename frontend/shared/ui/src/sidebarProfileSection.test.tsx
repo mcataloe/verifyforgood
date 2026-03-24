@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import { SidebarProfileSection, VerifyForGoodMantineProvider } from "./index";
 
 describe("SidebarProfileSection", () => {
-  it("renders organization, account, and access context without theme controls by default", () => {
+  it("renders organization and account context without theme controls by default", () => {
     render(
       <VerifyForGoodMantineProvider>
         <SidebarProfileSection
-          accessLabel="Admin"
           eyebrow="Customer context"
           primaryLabel="Acme Relief Fund"
           secondaryLabel="Account acct_12345"
@@ -19,7 +18,6 @@ describe("SidebarProfileSection", () => {
     expect(screen.getByText("Acme Relief Fund")).toBeTruthy();
     expect(screen.getByText("Account acct_12345")).toBeTruthy();
     expect(screen.getByText("Riley Admin")).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
@@ -31,7 +29,6 @@ describe("SidebarProfileSection", () => {
     );
 
     expect(screen.getByText("Acme Relief Fund")).toBeTruthy();
-    expect(screen.queryByText("Admin")).toBeNull();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
@@ -50,5 +47,18 @@ describe("SidebarProfileSection", () => {
       screen.getByRole("link", { name: "Profile & preferences" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+  });
+
+  it("renders an inline footer action link when provided", () => {
+    render(
+      <VerifyForGoodMantineProvider>
+        <SidebarProfileSection
+          actionLabel="Log out"
+          primaryLabel="Acme Relief Fund"
+        />
+      </VerifyForGoodMantineProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
   });
 });

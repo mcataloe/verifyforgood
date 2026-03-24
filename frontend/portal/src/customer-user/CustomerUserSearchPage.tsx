@@ -78,7 +78,7 @@ export function CustomerUserSearchPage({
   const [selectedEin, setSelectedEin] = useState<string | null>(null);
 
   const title =
-    pane === "search-ein" ? "Search by EIN" : "Search by Address";
+    pane === "search-ein" ? "By EIN" : "By Address";
   const description =
     pane === "search-ein"
       ? "Run an exact EIN lookup and sort any returned candidates by city, state, or zip before opening the organization record."
@@ -145,7 +145,7 @@ export function CustomerUserSearchPage({
                 disabled={!einQuery.trim()}
                 type="submit"
               >
-                Search by EIN
+                By EIN
               </button>
             </div>
           </form>
@@ -235,7 +235,7 @@ export function CustomerUserSearchPage({
                 disabled={!hasAddressSearchInput(addressQuery)}
                 type="submit"
               >
-                Search by Address
+                By Address
               </button>
             </div>
           </form>

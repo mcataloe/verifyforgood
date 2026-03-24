@@ -211,7 +211,7 @@ code {
   gap: 0.3rem;
   padding: 1rem 1.05rem;
   border: 1px solid var(--vf-theme-panel-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   background: color-mix(in srgb, var(--vf-theme-panel-bg) 78%, transparent);
 }
 
@@ -233,7 +233,7 @@ code {
 
 .portal-auth-page__onboarding {
   padding: 1rem 1.1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.1);
   background: rgba(255, 255, 255, 0.5);
   display: grid;
@@ -736,7 +736,7 @@ code {
 .portal-notice {
   margin-top: var(--vf-space-4);
   padding: 0.95rem 1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.1);
   display: grid;
   gap: var(--vf-space-3);
@@ -803,7 +803,7 @@ code {
 
 .portal-key-card {
   padding: 1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.12);
   background: rgba(255, 255, 255, 0.58);
   display: grid;
@@ -833,7 +833,7 @@ code {
 
 .portal-result-card {
   padding: 1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.12);
   background: rgba(255, 255, 255, 0.58);
   display: grid;
@@ -870,7 +870,7 @@ code {
 .portal-usage-context {
   margin-bottom: var(--vf-space-5);
   padding: 1rem 1.1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.08);
   background: rgba(255, 255, 255, 0.52);
   display: grid;
@@ -1019,7 +1019,7 @@ code {
 .portal-subscription-summary {
   margin: 0 0 var(--vf-space-5);
   padding: 1rem 1.1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid rgba(15, 42, 33, 0.1);
   background: rgba(255, 255, 255, 0.52);
   display: grid;
@@ -1215,7 +1215,7 @@ code {
   display: grid;
   gap: var(--vf-space-4);
   padding: 1rem 1.1rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid var(--vf-theme-panel-border);
   background: color-mix(in srgb, var(--vf-theme-panel-bg) 90%, transparent);
 }

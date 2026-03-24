@@ -6,10 +6,12 @@ import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSec
 import { ProfileContextSection } from "../settings/ProfileContextSection";
 
 interface CustomerUserProfilePageProps {
+  environment: string;
   session: PortalAuthenticatedSession;
 }
 
 export function CustomerUserProfilePage({
+  environment,
   session,
 }: CustomerUserProfilePageProps) {
   const organization = usePortalOrganization();
@@ -126,6 +128,7 @@ export function CustomerUserProfilePage({
         title="Account context"
       >
         <ProfileContextSection
+          environment={environment}
           organization={organization.activeOrganization}
           session={session}
           showTitle={false}

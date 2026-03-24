@@ -3,6 +3,7 @@ import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { PortalOrganizationContextValue } from "../organization/usePortalOrganization";
 
 interface ProfileContextSectionProps {
+  environment?: string;
   organization: PortalOrganizationContextValue["activeOrganization"];
   session: PortalAuthenticatedSession;
   showTitle?: boolean;
@@ -14,6 +15,7 @@ interface ProfileContextSectionProps {
  * available on the settings/profile surface.
  */
 export function ProfileContextSection({
+  environment,
   organization,
   session,
   showTitle = true,
@@ -51,6 +53,12 @@ export function ProfileContextSection({
           <dt>Plan</dt>
           <dd>{session.plan}</dd>
         </div>
+        {environment ? (
+          <div>
+            <dt>Environment</dt>
+            <dd>{environment}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Auth mode</dt>
           <dd>{session.auth_method.replaceAll("_", " ")}</dd>

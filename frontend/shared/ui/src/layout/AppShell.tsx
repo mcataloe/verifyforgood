@@ -71,6 +71,7 @@ export type VerifyForGoodAppShellProps = PropsWithChildren<{
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
+  showHeader?: boolean;
   showSidebarHeader?: boolean;
   sidebarNavigationAriaLabel?: string;
   sidebarSummary?: ReactNode;
@@ -91,6 +92,7 @@ export function VerifyForGoodAppShell({
   navigationSections,
   onNavigationChange,
   sidebarFooter,
+  showHeader = true,
   showSidebarHeader = true,
   sidebarNavigationAriaLabel = "Application navigation",
   sidebarSummary,
@@ -111,7 +113,7 @@ export function VerifyForGoodAppShell({
 
   return (
     <MantineAppShell
-      header={{ height: HEADER_HEIGHT }}
+      header={showHeader ? { height: HEADER_HEIGHT } : undefined}
       navbar={{
         breakpoint: "md",
         collapsed: { desktop: desktopCollapsed, mobile: !mobileOpened },
@@ -125,7 +127,7 @@ export function VerifyForGoodAppShell({
         main: {
           backgroundColor: semantic.background,
           color: semantic.text_primary,
-          minHeight: `calc(100vh - ${HEADER_HEIGHT})`,
+          minHeight: showHeader ? `calc(100vh - ${HEADER_HEIGHT})` : "100vh",
           overflowY: "auto",
         },
         header: {
@@ -138,34 +140,36 @@ export function VerifyForGoodAppShell({
         },
       }}
     >
-      <MantineAppShell.Header px="lg">
-        <Group h="100%" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger
-              hiddenFrom="md"
-              onClick={() => setMobileOpened((current) => !current)}
-              opened={mobileOpened}
-              size="sm"
-            />
-            <Burger
-              visibleFrom="md"
-              onClick={() => setDesktopCollapsed((current) => !current)}
-              opened={!desktopCollapsed}
-              size="sm"
-            />
-            <Box>
-              <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
-                Application Shell
-              </Text>
-              <Title order={4}>{appName}</Title>
-            </Box>
-          </Group>
+      {showHeader ? (
+        <MantineAppShell.Header px="lg">
+          <Group h="100%" justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              <Burger
+                hiddenFrom="md"
+                onClick={() => setMobileOpened((current) => !current)}
+                opened={mobileOpened}
+                size="sm"
+              />
+              <Burger
+                visibleFrom="md"
+                onClick={() => setDesktopCollapsed((current) => !current)}
+                opened={!desktopCollapsed}
+                size="sm"
+              />
+              <Box>
+                <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
+                  Application Shell
+                </Text>
+                <Title order={4}>{appName}</Title>
+              </Box>
+            </Group>
 
-          <Group gap="sm" wrap="nowrap">
-            {headerActions}
+            <Group gap="sm" wrap="nowrap">
+              {headerActions}
+            </Group>
           </Group>
-        </Group>
-      </MantineAppShell.Header>
+        </MantineAppShell.Header>
+      ) : null}
 
       <MantineAppShell.Navbar p={0}>
         {showSidebarHeader ? (
@@ -244,6 +248,7 @@ export function VerifyForGoodAppShell({
           <Box className="vf-app-shell-sidebar__footer-inner">
             {sidebarFooter ?? (
               <SidebarProfileSection
+                actionLabel="Log out"
                 eyebrow="Application"
                 primaryLabel={appName}
                 secondaryLabel="Shared application shell"

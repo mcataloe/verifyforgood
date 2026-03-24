@@ -45,11 +45,8 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
-    expect(
-      screen.getByText(/Org:\s*VerifyForGood Demo Workspace/i),
-    ).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
     expect(
       screen.getByRole("link", { name: /Profile & preferences/i }),
@@ -68,6 +65,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("button", { name: /^Search\b/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Open profile/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
     expect(screen.queryByText("Account acct_verifyforgood_demo")).toBeNull();
     expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
@@ -118,7 +116,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
-    expect(screen.getByText("Platform admin")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
   });
 
   it("renders discoverable plan-gated items as locked for lower-tier admins", () => {

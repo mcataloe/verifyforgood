@@ -134,8 +134,8 @@ describe("portal navigation config", () => {
     expect(sections).toHaveLength(1);
     expect(sections[0]?.label).toBe("");
     expect(sections[0]?.items[1]?.children?.map((item) => item.label)).toEqual([
-      "Search by EIN",
-      "Search by Address",
+      "By EIN",
+      "By Address",
     ]);
     expect(sections[0]?.items[2]?.children?.map((item) => item.label)).toEqual([
       "General",

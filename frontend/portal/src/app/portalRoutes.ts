@@ -84,10 +84,13 @@ export const defaultProtectedPortalRoute = portalProtectedRoutes[0];
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
   const candidate = getPortalHashPath(hash) || defaultProtectedPortalRoute.hash;
-  return (
+  const resolved =
     portalRoutes.find((route) => route.hash === candidate) ??
-    defaultProtectedPortalRoute
-  );
+    defaultProtectedPortalRoute;
+
+  // Return a fresh object so hash-only query changes like ?nav=... still
+  // trigger React state updates even when the base route key stays the same.
+  return { ...resolved };
 }
 
 export function usePortalRoute(): PortalRouteDefinition {

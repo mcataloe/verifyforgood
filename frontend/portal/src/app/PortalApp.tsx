@@ -52,7 +52,7 @@ export function PortalApp() {
       auth.status === "unauthenticated" &&
       currentRoute.access === "protected"
     ) {
-      rememberPortalReturnTo(currentRoute.hash);
+      rememberPortalReturnTo(window.location.hash || currentRoute.hash);
       navigateToPortalRoute(signInPortalRoute.hash);
     }
   }, [auth.status, currentRoute]);
@@ -178,7 +178,10 @@ export function PortalApp() {
         ) : null}
         {currentRoute.key === "settings" ? (
           audience === "customer_user" && customerUserPane === "profile" ? (
-            <CustomerUserProfilePage session={session} />
+            <CustomerUserProfilePage
+              environment={runtimeConfig.environment}
+              session={session}
+            />
           ) : (
             <SettingsPage endpoints={endpoints} session={session} />
           )

@@ -208,7 +208,7 @@ pnpm run build
   - `#/api-access?nav=customer-user-automation-oauth`
   - `#/settings?nav=customer-user-profile`
 - customer-user search and automation panes are local interactive mocks in this phase:
-  - `Search by EIN` and `Search by Address` reuse the `workspace` route and provide sortable placeholder organization results
+  - `By EIN` and `By Address` reuse the `workspace` route and provide sortable placeholder organization results
   - `Automation > API Key` and `Automation > OAuth` reuse the `api-access` route and persist masked placeholder credentials in browser-local storage only
 - when a session can hold multiple roles, keep the audience-priority order in `resolvePortalNavigationAudience(...)` in sync with product intent so the sidebar stays deterministic
 - derive sidebar/navigation rendering from the schema config and centralized filtering helpers instead of embedding role checks in `PortalLayout`

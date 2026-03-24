@@ -20,6 +20,7 @@ describe("CustomerUserProfilePage", () => {
   it("renders profile fields, account context, and appearance controls", () => {
     renderWithOrganization(
       <CustomerUserProfilePage
+        environment="test"
         session={createMockPortalSession({ roles: ["customer_user"] })}
       />,
     );
@@ -39,6 +40,7 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
+    expect(screen.getByText("test")).toBeTruthy();
     expect(screen.getByText("User")).toBeTruthy();
     expect(screen.queryByText("Profile details")).toBeNull();
   });
@@ -46,6 +48,7 @@ describe("CustomerUserProfilePage", () => {
   it("persists appearance selection through the shared color-scheme storage key", () => {
     renderWithOrganization(
       <CustomerUserProfilePage
+        environment="test"
         session={createMockPortalSession({ roles: ["customer_user"] })}
       />,
     );

@@ -150,14 +150,9 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(
-      (await screen.findAllByRole("heading", {
-        name: "Customer portal shell",
-      })).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText(/Org: VerifyForGood Demo Workspace/i)).toBeTruthy();
     expect(await screen.findByLabelText("Request usage meter")).toBeTruthy();
     expect(screen.getByText(/Signed in plan baseline/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
   });
 
   it("renders the nonprofit search dashboard on the default protected route", async () => {
@@ -181,5 +176,63 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Recent verifications" }),
     ).toBeTruthy();
     expect(screen.getByText("Verifications this month")).toBeTruthy();
+  });
+
+  it("restores customer-user automation deep links with their nav alias after sign-in", async () => {
+    window.location.hash = "#/api-access?nav=customer-user-automation-oauth";
+
+    render(<App />);
+
+    await screen.findByRole("heading", {
+      name: "Sign in to the customer portal",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with Microsoft" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "OAuth",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("OAuth client name")).toBeTruthy();
+    expect(window.location.hash).toBe(
+      "#/api-access?nav=customer-user-automation-oauth",
+    );
+  });
+
+  it("updates customer-user detail panes when switching between nav aliases on the same route", async () => {
+    window.location.hash = "#/api-access?nav=customer-user-automation-oauth";
+
+    render(<App />);
+
+    await screen.findByRole("heading", {
+      name: "Sign in to the customer portal",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "OAuth",
+      }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("link", { name: /^General\b/i }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "General",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("Enable hard-stop enforcement")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("link", { name: /^API Key\b/i }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "API Key",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("API key name")).toBeTruthy();
   });
 });

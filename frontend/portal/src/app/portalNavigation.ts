@@ -482,7 +482,7 @@ function buildAudienceNavigationSections(
                   routeByKey,
                   "workspace",
                   "customer-user-search-ein",
-                  "Search by EIN",
+                  "By EIN",
                   {
                     helpText: "Run an exact lookup using a 9-digit EIN.",
                   },
@@ -491,7 +491,7 @@ function buildAudienceNavigationSections(
                   routeByKey,
                   "workspace",
                   "customer-user-search-address",
-                  "Search by Address",
+                  "By Address",
                   {
                     helpText:
                       "Find organizations with any combination of address, city, state, or zip.",

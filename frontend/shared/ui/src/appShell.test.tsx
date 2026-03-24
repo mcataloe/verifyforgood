@@ -95,6 +95,7 @@ describe("VerifyForGoodAppShell", () => {
     });
 
     expect(screen.getByText("Shared application shell")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
@@ -355,6 +356,15 @@ describe("VerifyForGoodAppShell", () => {
     expect(screen.queryByTestId("vf-app-shell-sidebar-header")).toBeNull();
     expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
     expect(screen.getByTestId("vf-app-shell-sidebar-footer")).toBeTruthy();
+  });
+
+  it("can suppress the top application header when the consumer opts out", () => {
+    renderAppShell({
+      showHeader: false,
+    });
+
+    expect(screen.queryByText("Application Shell")).toBeNull();
+    expect(screen.getByTestId("vf-app-shell-sidebar-content")).toBeTruthy();
   });
 });
 

@@ -25,7 +25,7 @@ def test_design_tokens_cover_foundational_groups():
     assert "--vf-color-forest-950" in theme_css
     assert "--vf-space-4" in theme_css
     assert "--vf-font-sans" in theme_css
-    assert "--vf-radius-lg" in theme_css
+    assert "--vf-radius-sm" in theme_css
     assert "--vf-shadow-sm" in theme_css
     assert '[data-theme="inverse"]' in theme_css
 

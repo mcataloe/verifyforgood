@@ -52,7 +52,7 @@
 
 .shared-panel {
   border: 1px solid var(--vf-theme-panel-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   background: var(--vf-theme-panel-bg);
   box-shadow: var(--vf-theme-panel-shadow);
   padding: var(--vf-space-5);
@@ -220,6 +220,10 @@
   padding: 0.15rem 0;
 }
 
+.vf-sidebar-profile__compound {
+  width: 100%;
+}
+
 .vf-sidebar-profile__identity {
   min-width: 0;
 }
@@ -230,7 +234,7 @@
   height: 2.35rem;
   display: grid;
   place-items: center;
-  border-radius: 0.85rem;
+  border-radius: 0.5rem;
   background:
     linear-gradient(
       145deg,
@@ -259,8 +263,7 @@
 
 .vf-sidebar-profile__primary,
 .vf-sidebar-profile__secondary,
-.vf-sidebar-profile__tertiary,
-.vf-sidebar-profile__access {
+.vf-sidebar-profile__tertiary {
   margin: 0;
 }
 
@@ -275,22 +278,28 @@
   line-height: 1.35;
 }
 
-.vf-sidebar-profile__access {
-  padding: 0.22rem 0.55rem;
-  border: 1px solid
-    color-mix(in srgb, var(--vf-theme-accent) 22%, var(--vf-theme-panel-border));
-  border-radius: var(--vf-radius-pill);
-  background: color-mix(in srgb, var(--vf-theme-accent) 10%, transparent);
+.vf-sidebar-profile__action-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vf-theme-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--vf-font-size-sm);
+  line-height: 1.35;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.vf-sidebar-profile__action-link:hover {
   color: var(--vf-theme-text);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .vf-sidebar-profile--interactive {
   display: block;
   padding: 0.85rem 0.9rem;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   border: 1px solid transparent;
   transition:
     background-color 150ms ease,
@@ -343,7 +352,7 @@
 .vf-app-shell-nav__item {
   min-height: 2.45rem;
   padding-inline: 0.2rem;
-  border-radius: 0.85rem;
+  border-radius: 0.5rem;
   color: var(--vf-theme-text);
   transition:
     background-color 150ms ease,
@@ -489,7 +498,7 @@
   display: grid;
   gap: var(--vf-space-4);
   border: 1px solid var(--vf-theme-panel-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%),
     var(--vf-theme-panel-bg);

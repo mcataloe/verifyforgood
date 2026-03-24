@@ -14,7 +14,7 @@ describe("CustomerUserSearchPage", () => {
     fireEvent.change(screen.getByLabelText("EIN"), {
       target: { value: "13-1635294" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Search by EIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "By EIN" }));
 
     expect(
       screen.getAllByText("American National Red Cross").length,
@@ -43,7 +43,7 @@ describe("CustomerUserSearchPage", () => {
     fireEvent.change(screen.getByLabelText("State"), {
       target: { value: "IL" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Search by Address" }));
+    fireEvent.click(screen.getByRole("button", { name: "By Address" }));
 
     expect(screen.getByLabelText("Address")).toBeTruthy();
     expect(screen.getByLabelText("Zip")).toBeTruthy();

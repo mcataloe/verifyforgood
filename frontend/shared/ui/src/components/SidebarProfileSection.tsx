@@ -1,8 +1,12 @@
 import { Box, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import type { MouseEvent } from "react";
 
 export type SidebarProfileSectionProps = {
-  accessLabel?: string;
   active?: boolean;
+  actionAriaLabel?: string;
+  actionHref?: string;
+  actionLabel?: string;
+  actionOnClick?: () => void;
   ariaLabel?: string;
   eyebrow?: string;
   href?: string;
@@ -17,8 +21,11 @@ export type SidebarProfileSectionProps = {
  * context.
  */
 export function SidebarProfileSection({
-  accessLabel,
   active = false,
+  actionAriaLabel,
+  actionHref,
+  actionLabel,
+  actionOnClick,
   ariaLabel,
   eyebrow = "Profile",
   href,
@@ -53,17 +60,11 @@ export function SidebarProfileSection({
           ) : null}
         </Stack>
       </Group>
-
-      {accessLabel ? (
-        <Text className="vf-sidebar-profile__access" fz="xs" fw={700}>
-          {accessLabel}
-        </Text>
-      ) : null}
     </Group>
   );
 
-  if (href || onClick) {
-    return (
+  const mainContent =
+    href || onClick ? (
       <UnstyledButton
         aria-current={active ? "page" : undefined}
         aria-label={ariaLabel}
@@ -75,14 +76,34 @@ export function SidebarProfileSection({
       >
         {content}
       </UnstyledButton>
+    ) : (
+      <Stack className="vf-sidebar-profile" gap="sm">
+        {content}
+      </Stack>
+    );
+
+  if (actionLabel) {
+    return (
+      <Stack className="vf-sidebar-profile__compound" gap={6}>
+        {mainContent}
+        <Text
+          aria-label={actionAriaLabel}
+          className="vf-sidebar-profile__action-link"
+          component={actionHref ? "a" : "button"}
+          href={actionHref}
+          onClick={(event: MouseEvent<HTMLElement>) => {
+            event.stopPropagation();
+            actionOnClick?.();
+          }}
+          type={actionHref ? undefined : "button"}
+        >
+          {actionLabel}
+        </Text>
+      </Stack>
     );
   }
 
-  return (
-    <Stack className="vf-sidebar-profile" gap="sm">
-      {content}
-    </Stack>
-  );
+  return mainContent;
 }
 
 function getProfileInitials(value: string) {
