@@ -2,11 +2,11 @@
 
 ## Status
 
-not started
+schema implemented
 
 ## Next Phase
 
-19B
+19C
 
 ## Scope
 
