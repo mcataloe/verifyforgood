@@ -211,6 +211,7 @@ def _user_item(user: UserRecord) -> dict[str, Any]:
         "full_name": user.full_name,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
+        "password_hash": user.password_hash,
         "gsi1pk": f"EMAIL#{user.normalized_email}",
         "gsi1sk": _user_pk(user.user_id),
     }
@@ -274,6 +275,7 @@ def _user_from_item(item: dict[str, Any]) -> UserRecord:
         full_name=_optional_string(item.get("full_name")),
         created_at=str(item.get("created_at") or ""),
         updated_at=str(item.get("updated_at") or ""),
+        password_hash=_optional_string(item.get("password_hash")),
     )
 
 

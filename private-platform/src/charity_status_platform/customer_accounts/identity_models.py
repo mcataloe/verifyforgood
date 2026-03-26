@@ -29,6 +29,7 @@ class UserRecord:
     full_name: str | None
     created_at: str
     updated_at: str
+    password_hash: str | None = None
 
 
 @dataclass(frozen=True)

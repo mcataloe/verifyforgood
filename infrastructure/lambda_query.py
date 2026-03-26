@@ -84,6 +84,15 @@ from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
+from charity_status_platform.customer_accounts import DynamoUserRepository
+from charity_status_platform.identity_access import (
+    AuthService,
+    BcryptPasswordHasher,
+    HmacBearerTokenCodec,
+    PortalAuthValidationError,
+    UserCreateRequest,
+    UserLoginRequest,
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -128,6 +137,9 @@ ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 FORM990_ORCHESTRATOR_FUNCTION_NAME = os.environ.get("FORM990_ORCHESTRATOR_FUNCTION_NAME", "").strip()
+IDENTITY_TABLE_NAME = os.environ.get("IDENTITY_TABLE_NAME", "identity").strip() or "identity"
+PORTAL_AUTH_TOKEN_SECRET = os.environ.get("PORTAL_AUTH_TOKEN_SECRET", "dev-portal-auth-secret")
+PORTAL_AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("PORTAL_AUTH_TOKEN_TTL_SECONDS", "86400"))
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
@@ -157,6 +169,7 @@ billing_portal_service: BillingPortalService | None = None
 billing_visibility_service: BillingVisibilityService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
+portal_auth_service: AuthService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -369,6 +382,20 @@ def _get_trial_lifecycle_service() -> TrialLifecycleService:
     return trial_lifecycle_service
 
 
+def _get_portal_auth_service() -> AuthService:
+    global portal_auth_service
+    if portal_auth_service is None:
+        portal_auth_service = AuthService(
+            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+            password_hasher=BcryptPasswordHasher(),
+            token_codec=HmacBearerTokenCodec(
+                secret=PORTAL_AUTH_TOKEN_SECRET,
+                token_ttl_seconds=PORTAL_AUTH_TOKEN_TTL_SECONDS,
+            ),
+        )
+    return portal_auth_service
+
+
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
     return _MergedApiKeyStore(
         _ManagedApiKeyStore(_get_control_plane_service().store),
@@ -561,6 +588,49 @@ def _is_admin_request(event: dict[str, Any], method: str) -> bool:
     return resource.startswith("/admin/") or path.startswith("/admin/")
 
 
+def _is_portal_auth_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {"/auth/register", "/auth/login", "/auth/me"}
+
+
+def _handle_portal_auth_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    service = _get_portal_auth_service()
+
+    if resource == "/auth/register" and method == "POST":
+        payload = _parse_json_body(event)
+        session = service.register_user(
+            UserCreateRequest(
+                email=str(payload.get("email") or ""),
+                password=str(payload.get("password") or ""),
+                full_name=(str(payload.get("full_name")) if payload.get("full_name") is not None else None),
+            )
+        )
+        return json_response(201, session.to_dict(), response_context=response_context)
+
+    if resource == "/auth/login" and method == "POST":
+        payload = _parse_json_body(event)
+        session = service.login_user(
+            UserLoginRequest(
+                email=str(payload.get("email") or ""),
+                password=str(payload.get("password") or ""),
+            )
+        )
+        return json_response(200, session.to_dict(), response_context=response_context)
+
+    if resource == "/auth/me" and method == "GET":
+        headers = event.get("headers") or {}
+        authorization = str(_get_header(headers, "authorization") or "")
+        user = service.get_current_user(authorization)
+        return json_response(200, {"user": user.to_dict()}, response_context=response_context)
+
+    return error_response(404, "Auth route not found", response_context=response_context, code="not_found")
+
+
 def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = _route_template(event)
@@ -661,6 +731,21 @@ def handler(event, context):
 
     if _is_public_plan_catalog_request(event, method):
         return _handle_public_plan_catalog_request(response_context=api_context)
+
+    if _is_portal_auth_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+        )
+        try:
+            return _handle_portal_auth_request(event, portal_context)
+        except PortalAuthValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
 
     try:
         auth_context = _get_auth_context_provider().extract_context(event or {})

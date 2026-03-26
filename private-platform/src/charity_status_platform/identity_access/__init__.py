@@ -36,6 +36,16 @@ from charity_status.platform import (
     load_oauth_client_store,
     load_oauth_token_store,
 )
+from .auth_service import (
+    AuthService,
+    AuthenticatedUserSession,
+    BcryptPasswordHasher,
+    HmacBearerTokenCodec,
+    PortalAuthValidationError,
+    UserCreateRequest,
+    UserLoginRequest,
+    UserResponse,
+)
 
 __all__ = [
     "ApiKeyPrincipal",
@@ -72,4 +82,12 @@ __all__ = [
     "load_api_key_store",
     "load_oauth_client_store",
     "load_oauth_token_store",
+    "AuthService",
+    "AuthenticatedUserSession",
+    "BcryptPasswordHasher",
+    "HmacBearerTokenCodec",
+    "PortalAuthValidationError",
+    "UserCreateRequest",
+    "UserLoginRequest",
+    "UserResponse",
 ]

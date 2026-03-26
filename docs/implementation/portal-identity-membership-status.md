@@ -2,11 +2,11 @@
 
 ## Status
 
-schema implemented
+authentication complete
 
 ## Next Phase
 
-19C
+19D
 
 ## Scope
 

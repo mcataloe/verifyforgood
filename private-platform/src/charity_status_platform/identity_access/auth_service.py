@@ -1,0 +1,238 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Protocol
+
+import bcrypt
+
+from charity_status.auth import AuthenticationError
+from charity_status_platform.customer_accounts.identity_models import UserRecord
+from charity_status_platform.customer_accounts.identity_repositories import DuplicateUserEmailError, UserRepository
+
+
+class PortalAuthValidationError(ValueError):
+    status_code = 400
+
+
+@dataclass(frozen=True)
+class UserCreateRequest:
+    email: str
+    password: str
+    full_name: str | None = None
+
+
+@dataclass(frozen=True)
+class UserLoginRequest:
+    email: str
+    password: str
+
+
+@dataclass(frozen=True)
+class UserResponse:
+    user_id: str
+    email: str
+    full_name: str | None
+    created_at: str
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "user_id": self.user_id,
+            "email": self.email,
+            "full_name": self.full_name,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class AuthenticatedUserSession:
+    user: UserResponse
+    access_token: str
+    token_type: str = "Bearer"
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "user": self.user.to_dict(),
+            "access_token": self.access_token,
+            "token_type": self.token_type,
+        }
+
+
+class PasswordHasher(Protocol):
+    def hash_password(self, password: str) -> str:
+        ...
+
+    def verify_password(self, password: str, stored_hash: str) -> bool:
+        ...
+
+
+class BearerTokenCodec(Protocol):
+    def issue_token(self, user: UserRecord) -> str:
+        ...
+
+    def decode_token(self, token: str) -> str:
+        ...
+
+
+class BcryptPasswordHasher:
+    def hash_password(self, password: str) -> str:
+        encoded = _validate_password(password).encode("utf-8")
+        return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8")
+
+    def verify_password(self, password: str, stored_hash: str) -> bool:
+        return bcrypt.checkpw(str(password or "").encode("utf-8"), stored_hash.encode("utf-8"))
+
+
+class HmacBearerTokenCodec:
+    def __init__(self, secret: str, token_ttl_seconds: int = 86400) -> None:
+        normalized_secret = str(secret or "").strip()
+        if not normalized_secret:
+            raise ValueError("Auth token secret is required")
+        self._secret = normalized_secret.encode("utf-8")
+        self._token_ttl_seconds = max(60, int(token_ttl_seconds))
+
+    def issue_token(self, user: UserRecord) -> str:
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=self._token_ttl_seconds)
+        payload = {
+            "sub": user.user_id,
+            "email": user.normalized_email,
+            "exp": int(expires_at.timestamp()),
+        }
+        encoded_payload = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        signature = hmac.new(self._secret, encoded_payload.encode("utf-8"), hashlib.sha256).digest()
+        return f"{encoded_payload}.{_b64url_encode(signature)}"
+
+    def decode_token(self, token: str) -> str:
+        encoded_payload, encoded_signature = _split_token(token)
+        expected = _b64url_encode(hmac.new(self._secret, encoded_payload.encode("utf-8"), hashlib.sha256).digest())
+        if not hmac.compare_digest(expected, encoded_signature):
+            raise AuthenticationError("Invalid bearer token")
+        try:
+            payload = json.loads(_b64url_decode(encoded_payload).decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise AuthenticationError("Invalid bearer token") from exc
+        expiry = int(payload.get("exp") or 0)
+        if expiry <= int(datetime.now(timezone.utc).timestamp()):
+            raise AuthenticationError("Bearer token expired")
+        user_id = str(payload.get("sub") or "").strip()
+        if not user_id:
+            raise AuthenticationError("Invalid bearer token")
+        return user_id
+
+
+class AuthService:
+    def __init__(
+        self,
+        *,
+        users: UserRepository,
+        password_hasher: PasswordHasher,
+        token_codec: BearerTokenCodec,
+    ) -> None:
+        self._users = users
+        self._password_hasher = password_hasher
+        self._token_codec = token_codec
+
+    def register_user(self, request: UserCreateRequest) -> AuthenticatedUserSession:
+        normalized_email = _validate_email(request.email)
+        created_at = _utc_now()
+        user = UserRecord(
+            user_id=f"user_{secrets.token_hex(16)}",
+            email=normalized_email,
+            normalized_email=normalized_email,
+            full_name=_optional_name(request.full_name),
+            created_at=created_at,
+            updated_at=created_at,
+            password_hash=self._password_hasher.hash_password(request.password),
+        )
+        try:
+            persisted = self._users.create(user)
+        except DuplicateUserEmailError:
+            raise PortalAuthValidationError("Email is already registered") from None
+        return self._session_for_user(persisted)
+
+    def login_user(self, request: UserLoginRequest) -> AuthenticatedUserSession:
+        normalized_email = _validate_email(request.email)
+        _validate_password(request.password)
+        user = self._users.get_by_email(normalized_email)
+        if user is None or not user.password_hash:
+            raise AuthenticationError("Invalid email or password")
+        if not self._password_hasher.verify_password(request.password, user.password_hash):
+            raise AuthenticationError("Invalid email or password")
+        return self._session_for_user(user)
+
+    def get_current_user(self, authorization_header: str) -> UserResponse:
+        token = _extract_bearer_token(authorization_header)
+        user_id = self._token_codec.decode_token(token)
+        user = self._users.get(user_id)
+        if user is None:
+            raise AuthenticationError("Authenticated user was not found")
+        return _to_user_response(user)
+
+    def _session_for_user(self, user: UserRecord) -> AuthenticatedUserSession:
+        return AuthenticatedUserSession(
+            user=_to_user_response(user),
+            access_token=self._token_codec.issue_token(user),
+        )
+
+
+def _to_user_response(user: UserRecord) -> UserResponse:
+    return UserResponse(
+        user_id=user.user_id,
+        email=user.email,
+        full_name=user.full_name,
+        created_at=user.created_at,
+    )
+
+
+def _validate_email(email: str) -> str:
+    normalized = str(email or "").strip().lower()
+    if not normalized or "@" not in normalized:
+        raise PortalAuthValidationError("email must be a valid email address")
+    return normalized
+
+
+def _validate_password(password: str) -> str:
+    candidate = str(password or "")
+    if len(candidate.strip()) < 8:
+        raise PortalAuthValidationError("password must be at least 8 characters")
+    return candidate
+
+
+def _optional_name(full_name: str | None) -> str | None:
+    candidate = str(full_name or "").strip()
+    return candidate or None
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _extract_bearer_token(header_value: str) -> str:
+    value = str(header_value or "").strip()
+    if not value.lower().startswith("bearer "):
+        raise AuthenticationError("Missing bearer token")
+    token = value[7:].strip()
+    if not token:
+        raise AuthenticationError("Missing bearer token")
+    return token
+
+
+def _split_token(token: str) -> tuple[str, str]:
+    parts = str(token or "").split(".", 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise AuthenticationError("Invalid bearer token")
+    return parts[0], parts[1]
+
+
+def _b64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}")
