@@ -32,6 +32,22 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
 )
 
 
+def test_customer_accounts_exports_identity_phase_surface():
+    import charity_status_platform.customer_accounts as customer_accounts
+
+    assert customer_accounts.IDENTITY_TABLE_NAME == "identity"
+    assert hasattr(customer_accounts, "UserRepository")
+    assert hasattr(customer_accounts, "OrganizationRepository")
+    assert hasattr(customer_accounts, "MembershipRepository")
+    assert hasattr(customer_accounts, "InvitationRepository")
+    assert hasattr(customer_accounts, "DynamoUserRepository")
+    assert hasattr(customer_accounts, "DynamoOrganizationRepository")
+    assert hasattr(customer_accounts, "DynamoMembershipRepository")
+    assert hasattr(customer_accounts, "DynamoInvitationRepository")
+    assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
+    assert hasattr(customer_accounts, "FakeIdentityDynamoResource")
+
+
 def test_membership_creation_supports_org_and_user_lookup_patterns():
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -75,6 +91,30 @@ def test_duplicate_membership_prevention_raises_domain_error():
 
     with pytest.raises(DuplicateMembershipError):
         memberships.create(membership)
+
+
+def test_membership_role_update_returns_updated_shape():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    memberships = DynamoMembershipRepository(dynamodb_resource=resource)
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_1",
+            user_id="user_1",
+            role=MembershipRole.USER,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+        )
+    )
+
+    updated = memberships.update_role("org_1", "user_1", "admin")
+    reloaded = memberships.get("org_1", "user_1")
+
+    assert updated is not None
+    assert updated.role is MembershipRole.ADMIN
+    assert reloaded is not None
+    assert reloaded.role is MembershipRole.ADMIN
 
 
 def test_email_uniqueness_logic_uses_normalized_lookup():
