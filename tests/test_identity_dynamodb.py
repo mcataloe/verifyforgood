@@ -15,6 +15,7 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
 
 from charity_status_platform.customer_accounts import (  # noqa: E402
     DuplicateMembershipError,
+    DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
     DynamoInvitationRepository,
     DynamoMembershipRepository,
@@ -189,3 +190,34 @@ def test_invitation_lookup_by_token_and_acceptance_round_trip():
     assert accepted is not None
     assert accepted.status is InvitationStatus.ACCEPTED
     assert accepted.accepted_at == "2026-03-27T00:00:00+00:00"
+
+
+def test_organization_lookup_by_slug_and_duplicate_slug_rejection():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+        )
+    )
+
+    loaded = organizations.get_by_slug("VERIFY-FOR-GOOD-ORG")
+
+    assert loaded is not None
+    assert loaded.organization_id == "org_1"
+
+    with pytest.raises(DuplicateOrganizationSlugError):
+        organizations.create(
+            OrganizationRecord(
+                organization_id="org_2",
+                name="Second Org",
+                slug="verify-for-good-org",
+                created_at="2026-03-26T00:00:00+00:00",
+                updated_at="2026-03-26T00:00:00+00:00",
+            )
+        )

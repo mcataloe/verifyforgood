@@ -2,11 +2,11 @@
 
 ## Status
 
-authentication complete
+organization bootstrap complete
 
 ## Next Phase
 
-19D
+19E
 
 ## Scope
 

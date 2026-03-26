@@ -16,6 +16,7 @@ from .identity_models import (
 )
 from .identity_repositories import (
     DuplicateMembershipError,
+    DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
 )
 
@@ -23,6 +24,7 @@ IDENTITY_TABLE_NAME = "identity"
 EMAIL_LOOKUP_INDEX = "email_lookup"
 USER_MEMBERSHIPS_INDEX = "user_memberships"
 INVITATION_TOKEN_INDEX = "invitation_token_lookup"
+ORGANIZATION_SLUG_LOOKUP_INDEX = "organization_slug_lookup"
 
 
 class DynamoUserRepository:
@@ -65,6 +67,9 @@ class DynamoOrganizationRepository:
         self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
 
     def create(self, organization: OrganizationRecord) -> OrganizationRecord:
+        existing = self.get_by_slug(organization.slug)
+        if existing is not None and existing.organization_id != organization.organization_id:
+            raise DuplicateOrganizationSlugError(f"Organization slug already exists: {organization.slug}")
         self._table.put_item(
             Item=_organization_item(organization),
             ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)",
@@ -77,6 +82,19 @@ class DynamoOrganizationRepository:
         if item is None:
             return None
         return _organization_from_item(item)
+
+    def get_by_slug(self, slug: str) -> OrganizationRecord | None:
+        normalized_slug = _normalize_slug(slug)
+        response = self._table.query(
+            IndexName=ORGANIZATION_SLUG_LOOKUP_INDEX,
+            KeyConditionExpression="gsi4pk = :gsi4pk",
+            ExpressionAttributeValues={":gsi4pk": f"ORGSLUG#{normalized_slug}"},
+            Limit=1,
+        )
+        items = response.get("Items") or []
+        if not items:
+            return None
+        return _organization_from_item(items[0])
 
 
 class DynamoMembershipRepository:
@@ -200,6 +218,10 @@ def _normalize_email(email: str) -> str:
     return str(email or "").strip().lower()
 
 
+def _normalize_slug(slug: str) -> str:
+    return str(slug or "").strip().lower()
+
+
 def _user_item(user: UserRecord) -> dict[str, Any]:
     return {
         "pk": _user_pk(user.user_id),
@@ -227,6 +249,8 @@ def _organization_item(organization: OrganizationRecord) -> dict[str, Any]:
         "slug": organization.slug,
         "created_at": organization.created_at,
         "updated_at": organization.updated_at,
+        "gsi4pk": f"ORGSLUG#{organization.slug}",
+        "gsi4sk": _organization_pk(organization.organization_id),
     }
 
 
@@ -352,6 +376,9 @@ class FakeIdentityDynamoTable:
         elif IndexName == INVITATION_TOKEN_INDEX:
             matches = [item for item in items if item.get("gsi3pk") == values.get(":gsi3pk")]
             matches.sort(key=lambda item: str(item.get("gsi3sk") or ""))
+        elif IndexName == ORGANIZATION_SLUG_LOOKUP_INDEX:
+            matches = [item for item in items if item.get("gsi4pk") == values.get(":gsi4pk")]
+            matches.sort(key=lambda item: str(item.get("gsi4sk") or ""))
         elif KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)":
             matches = [
                 item

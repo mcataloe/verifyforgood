@@ -84,7 +84,14 @@ from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
-from charity_status_platform.customer_accounts import DynamoUserRepository
+from charity_status_platform.customer_accounts import (
+    DynamoMembershipRepository,
+    DynamoOrganizationRepository,
+    DynamoUserRepository,
+    OrganizationBootstrapValidationError,
+    OrganizationCreateRequest,
+    OrganizationService,
+)
 from charity_status_platform.identity_access import (
     AuthService,
     BcryptPasswordHasher,
@@ -170,6 +177,7 @@ billing_visibility_service: BillingVisibilityService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
+portal_organization_service: OrganizationService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -396,6 +404,17 @@ def _get_portal_auth_service() -> AuthService:
     return portal_auth_service
 
 
+def _get_portal_organization_service() -> OrganizationService:
+    global portal_organization_service
+    if portal_organization_service is None:
+        portal_organization_service = OrganizationService(
+            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return portal_organization_service
+
+
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
     return _MergedApiKeyStore(
         _ManagedApiKeyStore(_get_control_plane_service().store),
@@ -596,6 +615,14 @@ def _is_portal_auth_request(event: dict[str, Any], method: str) -> bool:
     return candidate in {"/auth/register", "/auth/login", "/auth/me"}
 
 
+def _is_portal_organization_request(event: dict[str, Any], method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate == "/organizations"
+
+
 def _handle_portal_auth_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = _route_template(event)
@@ -629,6 +656,21 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
         return json_response(200, {"user": user.to_dict()}, response_context=response_context)
 
     return error_response(404, "Auth route not found", response_context=response_context, code="not_found")
+
+
+def _handle_portal_organization_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    payload = _parse_json_body(event)
+    organization = _get_portal_organization_service().create_organization(
+        creator_user_id=current_user.user_id,
+        request=OrganizationCreateRequest(
+            name=str(payload.get("name") or ""),
+            slug=(str(payload.get("slug")) if payload.get("slug") is not None else None),
+        ),
+    )
+    return json_response(201, organization.to_dict(), response_context=response_context)
 
 
 def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -740,6 +782,23 @@ def handler(event, context):
         )
         try:
             return _handle_portal_auth_request(event, portal_context)
+        except PortalAuthValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_portal_organization_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+        )
+        try:
+            return _handle_portal_organization_request(event, portal_context)
+        except OrganizationBootstrapValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
         except PortalAuthValidationError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
         except AuthenticationError as exc:

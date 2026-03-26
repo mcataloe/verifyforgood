@@ -46,12 +46,19 @@ from .identity_models import (
 )
 from .identity_repositories import (
     DuplicateMembershipError,
+    DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
     IdentityRepositoryError,
     InvitationRepository,
     MembershipRepository,
     OrganizationRepository,
     UserRepository,
+)
+from .organization_service import (
+    OrganizationBootstrapValidationError,
+    OrganizationContextResponse,
+    OrganizationCreateRequest,
+    OrganizationService,
 )
 
 __all__ = [
@@ -90,6 +97,7 @@ __all__ = [
     "IdentityRepositoryError",
     "DuplicateUserEmailError",
     "DuplicateMembershipError",
+    "DuplicateOrganizationSlugError",
     "UserRepository",
     "OrganizationRepository",
     "MembershipRepository",
@@ -100,4 +108,8 @@ __all__ = [
     "DynamoInvitationRepository",
     "FakeIdentityDynamoTable",
     "FakeIdentityDynamoResource",
+    "OrganizationBootstrapValidationError",
+    "OrganizationCreateRequest",
+    "OrganizationContextResponse",
+    "OrganizationService",
 ]

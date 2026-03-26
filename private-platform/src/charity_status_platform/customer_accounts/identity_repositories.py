@@ -17,6 +17,10 @@ class DuplicateMembershipError(IdentityRepositoryError):
     """Raised when attempting to create the same user/org membership twice."""
 
 
+class DuplicateOrganizationSlugError(IdentityRepositoryError):
+    """Raised when attempting to create an organization with an existing slug."""
+
+
 class UserRepository(Protocol):
     def create(self, user: UserRecord) -> UserRecord:
         ...
@@ -33,6 +37,9 @@ class OrganizationRepository(Protocol):
         ...
 
     def get(self, organization_id: str) -> OrganizationRecord | None:
+        ...
+
+    def get_by_slug(self, slug: str) -> OrganizationRecord | None:
         ...
 
 
