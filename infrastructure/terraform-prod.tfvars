@@ -2,3 +2,6 @@ environment                 = "prod"
 form990_schedule_expression = ""
 refresh_schedule_expression = ""
 enable_custom_domain        = false
+cors_allowed_origins = [
+  "https://charitystatusapi.com",
+]

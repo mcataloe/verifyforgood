@@ -843,6 +843,12 @@ variable "api_auth_enabled" {
   default     = false
 }
 
+variable "cors_allowed_origins" {
+  description = "Explicit browser Origin allowlist for API CORS responses."
+  type        = list(string)
+  default     = []
+}
+
 variable "api_key_records_json" {
   description = "JSON array of API key records with key_id/secret_hash/account_id/workspace_id/scopes/plan_id/revoked."
   type        = string

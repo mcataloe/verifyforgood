@@ -171,8 +171,12 @@ With the current Terraform defaults and custom domain enabled, the dev API host
 is expected to be:
 
 ```bash
-https://dev.verifyforgood.com
+https://dev.charitystatusapi.com
 ```
+
+For local browser development, the AWS dev API must also allowlist your frontend
+origin through the Terraform `cors_allowed_origins` setting. The current dev
+defaults include `http://localhost:5173` and `http://127.0.0.1:5173`.
 
 The AWS dev API is expected to expose the current portal auth and onboarding
 routes, including:

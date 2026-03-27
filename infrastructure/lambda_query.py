@@ -573,6 +573,7 @@ def _handle_oauth_token_request(event: dict[str, Any], response_context: Respons
             request_id=response_context.request_id,
             plan=str(auth_context.plan or "public"),
             deprecation=response_context.deprecation,
+            cors_origin=response_context.cors_origin,
         )
         return json_response(200, token_payload, response_context=token_context)
     except AuthenticationError as exc:
@@ -882,6 +883,7 @@ def handler(event, context):
                 request_id=api_context.request_id,
                 plan="admin",
                 deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
             )
             if _is_ops_request(event, method):
                 status_code, payload = _handle_ops_request(event)
@@ -890,9 +892,30 @@ def handler(event, context):
         except AuthenticationError as exc:
             return error_response(exc.status_code, str(exc), response_context=api_context)
         except ControlPlaneError as exc:
-            return error_response(exc.status_code, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
+            return error_response(
+                exc.status_code,
+                str(exc),
+                response_context=ResponseContext(
+                    api_context.request_id,
+                    "admin",
+                    api_context.deprecation,
+                    api_context.cors_origin,
+                ),
+            )
         except ValueError as exc:
-            return error_response(400, str(exc), response_context=ResponseContext(api_context.request_id, "admin", api_context.deprecation))
+            return error_response(
+                400,
+                str(exc),
+                response_context=ResponseContext(
+                    api_context.request_id,
+                    "admin",
+                    api_context.deprecation,
+                    api_context.cors_origin,
+                ),
+            )
+
+    if method == "OPTIONS":
+        return json_response(200, {}, response_context=api_context)
 
     if _is_stripe_webhook_request(event, method):
         try:
@@ -911,6 +934,7 @@ def handler(event, context):
             request_id=api_context.request_id,
             plan="portal",
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
         try:
             return _handle_portal_auth_request(event, portal_context)
@@ -926,6 +950,7 @@ def handler(event, context):
             request_id=api_context.request_id,
             plan="portal",
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
         try:
             return _handle_portal_organization_request(event, portal_context)
@@ -943,6 +968,7 @@ def handler(event, context):
             request_id=api_context.request_id,
             plan="portal",
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
         try:
             return _handle_portal_membership_request(event, portal_context)
@@ -958,6 +984,7 @@ def handler(event, context):
             request_id=api_context.request_id,
             plan="portal",
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
         try:
             return _handle_invitation_accept_request(event, portal_context)
@@ -975,12 +1002,14 @@ def handler(event, context):
             request_id=api_context.request_id,
             plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
         _get_quota_metering_hook().on_request(auth_context, route_key)
         api_context = ResponseContext(
             request_id=api_context.request_id,
             plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
             deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
         )
     except AuthenticationError as exc:
         return fail(exc.status_code, str(exc))

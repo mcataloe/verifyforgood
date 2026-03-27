@@ -153,6 +153,7 @@ resource "aws_lambda_function" "query" {
       PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
       CONTROL_PLANE_TABLE_NAME                         = aws_dynamodb_table.control_plane.name
       APP_ENV                                          = var.environment
+      CORS_ALLOWED_ORIGINS                             = join(",", var.cors_allowed_origins)
       SERVING_DDB_ENABLED                              = tostring(var.serving_dynamodb_enabled)
       BATCH_VERIFY_MAX_SIZE                            = tostring(var.batch_verify_max_size)
       SEARCH_MAX_LIMIT                                 = tostring(var.search_max_limit)

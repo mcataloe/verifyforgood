@@ -4,3 +4,8 @@ form990_execution_mode          = "orchestrated"
 form990_incremental_year_window = 1
 refresh_schedule_expression     = "cron(0 6 * * ? *)"
 enable_custom_domain            = true
+cors_allowed_origins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://dev.charitystatusapi.com",
+]

@@ -367,6 +367,26 @@ resource "aws_api_gateway_resource" "ops_nonprofit_pipeline_status" {
   path_part   = "pipeline-status"
 }
 
+locals {
+  browser_cors_allowed_headers = "Content-Type,Authorization,X-Portal-Account-Id,X-Portal-Workspace-Id"
+  browser_cors_allowed_methods = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+  browser_cors_resource_ids = {
+    auth_register                            = aws_api_gateway_resource.auth_register.id
+    auth_login                               = aws_api_gateway_resource.auth_login.id
+    auth_me                                  = aws_api_gateway_resource.auth_me.id
+    plans                                    = aws_api_gateway_resource.plans.id
+    portal_organizations                     = aws_api_gateway_resource.portal_organizations.id
+    portal_organizations_current_members     = aws_api_gateway_resource.portal_organizations_current_members.id
+    portal_organizations_current_invitations = aws_api_gateway_resource.portal_organizations_current_invitations.id
+    portal_organizations_current_member_id   = aws_api_gateway_resource.portal_organizations_current_member_id.id
+    organizations_integrations               = aws_api_gateway_resource.organizations_integrations.id
+    organization_billing_checkout_session    = aws_api_gateway_resource.organization_billing_checkout_session.id
+    organization_billing_plan_change         = aws_api_gateway_resource.organization_billing_plan_change.id
+    organization_billing_portal_session      = aws_api_gateway_resource.organization_billing_portal_session.id
+    organization_billing_subscription        = aws_api_gateway_resource.organization_billing_subscription.id
+  }
+}
+
 resource "aws_api_gateway_method" "get_ein" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.ein_id.id
@@ -997,6 +1017,15 @@ resource "aws_api_gateway_method" "get_ops_nonprofit_pipeline_status" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "options_browser_cors" {
+  for_each = local.browser_cors_resource_ids
+
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = each.value
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "lambda_verify_batch_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.verify_batch.id
@@ -1186,6 +1215,41 @@ resource "aws_api_gateway_integration" "lambda_ops_nonprofit_pipeline_status_int
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "lambda_options_browser_cors_integration" {
+  for_each = local.browser_cors_resource_ids
+
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = each.value
+  http_method             = aws_api_gateway_method.options_browser_cors[each.key].http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_gateway_response" "default_4xx_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  response_type = "DEFAULT_4XX"
+
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "method.request.header.Origin"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'${local.browser_cors_allowed_headers}'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'${local.browser_cors_allowed_methods}'"
+    "gatewayresponse.header.Vary"                         = "'Origin'"
+  }
+}
+
+resource "aws_api_gateway_gateway_response" "default_5xx_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  response_type = "DEFAULT_5XX"
+
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "method.request.header.Origin"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'${local.browser_cors_allowed_headers}'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'${local.browser_cors_allowed_methods}'"
+    "gatewayresponse.header.Vary"                         = "'Origin'"
+  }
+}
+
 resource "aws_lambda_permission" "api_gw" {
   statement_id  = "AllowApiGateway"
   action        = "lambda:InvokeFunction"
@@ -1248,7 +1312,8 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_ops_refresh_runs_integration,
     aws_api_gateway_integration.lambda_ops_refresh_run_id_integration,
     aws_api_gateway_integration.lambda_ops_refresh_run_eins_integration,
-    aws_api_gateway_integration.lambda_ops_nonprofit_pipeline_status_integration
+    aws_api_gateway_integration.lambda_ops_nonprofit_pipeline_status_integration,
+    aws_api_gateway_integration.lambda_options_browser_cors_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
