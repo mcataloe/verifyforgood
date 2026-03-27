@@ -25,6 +25,26 @@ export const organizationEndpoints = {
   create: defineEndpoint("POST", "/organizations", {
     name: "createOrganization",
   }),
+  currentInvitations: defineEndpoint("POST", "/organizations/current/invitations", {
+    name: "currentOrganizationInvitations",
+  }),
+  currentMembers: defineEndpoint("GET", "/organizations/current/members", {
+    name: "currentOrganizationMembers",
+  }),
+  currentMember: defineEndpoint(
+    "PATCH",
+    "/organizations/current/members/{memberId}",
+    {
+      name: "currentOrganizationMember",
+    },
+  ),
+  deleteCurrentMember: defineEndpoint(
+    "DELETE",
+    "/organizations/current/members/{memberId}",
+    {
+      name: "deleteCurrentOrganizationMember",
+    },
+  ),
   settings: defineEndpoint("GET", "/organization/settings", {
     name: "organizationSettings",
   }),

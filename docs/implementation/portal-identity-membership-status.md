@@ -2,11 +2,11 @@
 
 ## Status
 
-organization onboarding complete
+team management UI complete
 
 ## Next Phase
 
-19H
+TBD
 
 ## Scope
 

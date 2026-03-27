@@ -27,6 +27,11 @@ describe("PortalOrganizationProvider", () => {
     const session = {
       ...createMockPortalSession(),
       auth_method: "portal_browser_session" as const,
+      organization_membership: {
+        role: "admin",
+        status: "active",
+        user_id: "user_verifyforgood_demo",
+      },
       organization_context_status: "active" as const,
       organization_name: "Stored Organization Context",
     };

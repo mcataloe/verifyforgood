@@ -1,6 +1,7 @@
 import { Grid, OnboardingLayout, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { TeamManagementPanel } from "../organization/TeamManagementPanel";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface WorkspacePageProps {
@@ -130,6 +131,8 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
           </div>
         </dl>
       </Panel>
+
+      <TeamManagementPanel />
     </Grid>
   );
 }

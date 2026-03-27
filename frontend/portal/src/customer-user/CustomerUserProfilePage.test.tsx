@@ -99,7 +99,16 @@ function renderWithOrganization(element: ReactNode) {
       workspace_id: "ws_portal_test",
     },
     apiClient: {} as PortalOrganizationContextValue["apiClient"],
+    currentMembership: {
+      role: "user",
+      status: "active",
+      user_id: "user_verifyforgood_demo",
+    },
+    members: [],
+    membersStatus: "ready",
     refresh: async () => {},
+    refreshMembers: async () => [],
+    setMembers: () => {},
     setActiveOrganization: () => {},
     status: "ready",
   };

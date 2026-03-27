@@ -11,8 +11,10 @@ import {
 } from "./portalOrganization";
 import {
   PortalOrganizationContext,
+  type PortalOrganizationMemberSummary,
   type PortalOrganizationStatus,
 } from "./usePortalOrganization";
+import { createPortalMembershipClient } from "./portalMembership";
 
 interface PortalOrganizationProviderProps extends PropsWithChildren {
   accessToken?: string | null;
@@ -64,6 +66,12 @@ export function PortalOrganizationProvider({
   const [status, setStatus] = useState<PortalOrganizationStatus>(
     sessionScope.auth_method === "portal_browser_session" ? "loading" : "ready",
   );
+  const [members, setMembersState] = useState<PortalOrganizationMemberSummary[]>(
+    [],
+  );
+  const [membersStatus, setMembersStatus] = useState<"idle" | "loading" | "ready">(
+    "idle",
+  );
 
   const loaderClient = useMemo(
     () =>
@@ -86,6 +94,10 @@ export function PortalOrganizationProvider({
       }),
     [accessToken, activeOrganization, fetchImpl, runtimeScope, sessionScope],
   );
+  const membershipClient = useMemo(
+    () => createPortalMembershipClient(apiClient),
+    [apiClient],
+  );
 
   useEffect(() => {
     setActiveOrganization(sessionOrganization);
@@ -94,6 +106,8 @@ export function PortalOrganizationProvider({
         ? "loading"
         : "ready",
     );
+    setMembersState([]);
+    setMembersStatus("idle");
   }, [sessionOrganization, sessionScope]);
 
   useEffect(() => {
@@ -129,12 +143,42 @@ export function PortalOrganizationProvider({
     setStatus("ready");
   };
 
+  const setMembers = (nextMembers: PortalOrganizationMemberSummary[]) => {
+    setMembersState(nextMembers);
+    setMembersStatus("ready");
+  };
+
+  const refreshMembers = async () => {
+    setMembersStatus("loading");
+    const nextMembers = await membershipClient.listMembers();
+    setMembers(nextMembers);
+    return nextMembers;
+  };
+
+  const currentMembership =
+    members.find((member) => member.user_id === session.user.subject_id)
+      ? {
+          role:
+            members.find((member) => member.user_id === session.user.subject_id)
+              ?.role ?? "",
+          status:
+            members.find((member) => member.user_id === session.user.subject_id)
+              ?.status ?? "",
+          user_id: session.user.subject_id,
+        }
+      : session.organization_membership;
+
   return (
     <PortalOrganizationContext.Provider
       value={{
         activeOrganization,
         apiClient,
+        currentMembership,
+        members,
+        membersStatus,
         refresh,
+        refreshMembers,
+        setMembers,
         setActiveOrganization,
         status,
       }}

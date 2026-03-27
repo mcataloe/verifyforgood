@@ -16,11 +16,18 @@ export interface PortalSessionUser {
   subject_id: string;
 }
 
+export interface PortalOrganizationMembership {
+  role: string;
+  status: string;
+  user_id: string;
+}
+
 export interface PortalAuthenticatedSession extends OrganizationContext {
   account_id: string;
   auth_method: "mock_browser_session" | "portal_browser_session";
   billing_status: "active" | "stubbed" | "trialing";
   issued_at: string;
+  organization_membership: PortalOrganizationMembership | null;
   organization_context_status: "active" | "pending";
   organization_name: string;
   plan: string;
@@ -81,6 +88,11 @@ export function createMockPortalSession(
     auth_method: "mock_browser_session",
     billing_status: "active",
     issued_at: "2026-03-20T00:00:00Z",
+    organization_membership: {
+      role: "admin",
+      status: "active",
+      user_id: "user_verifyforgood_demo",
+    },
     organization_context_status: "active",
     organization_name: "VerifyForGood Demo Workspace",
     plan: "growth",
@@ -111,6 +123,7 @@ export function createPortalCompatibilitySession(
       auth_method: "portal_browser_session",
       billing_status: "stubbed",
       issued_at: new Date().toISOString(),
+      organization_membership: organization.membership,
       organization_context_status: "active",
       organization_name: organization.organization_name,
       plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
@@ -130,6 +143,7 @@ export function createPortalCompatibilitySession(
     auth_method: "portal_browser_session",
     billing_status: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.billing_status,
     issued_at: new Date().toISOString(),
+    organization_membership: null,
     organization_context_status: "pending",
     organization_name: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.organization_name,
     plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
