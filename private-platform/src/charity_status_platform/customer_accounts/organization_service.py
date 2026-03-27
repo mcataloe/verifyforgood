@@ -5,6 +5,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from .audit_logging import AuditEventType, AuditLogService
 from .identity_models import MembershipRecord, MembershipRole, MembershipStatus, OrganizationRecord
 from .identity_repositories import (
     DuplicateMembershipError,
@@ -52,10 +53,12 @@ class OrganizationService:
         users: UserRepository,
         organizations: OrganizationRepository,
         memberships: MembershipRepository,
+        audit_log_service: AuditLogService | None = None,
     ) -> None:
         self._users = users
         self._organizations = organizations
         self._memberships = memberships
+        self._audit_log_service = audit_log_service
 
     def create_organization(
         self,
@@ -98,6 +101,20 @@ class OrganizationService:
             persisted_membership = self._memberships.create(membership)
         except DuplicateMembershipError:
             raise OrganizationBootstrapValidationError("Bootstrap membership already exists for this user") from None
+
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.ORGANIZATION_CREATION,
+                actor_user_id=creator.user_id,
+                organization_id=persisted_organization.organization_id,
+                target_user_id=creator.user_id,
+                metadata={
+                    "organization_name": persisted_organization.name,
+                    "slug": persisted_organization.slug,
+                    "bootstrap_role": persisted_membership.role.value,
+                    "bootstrap_status": persisted_membership.status.value,
+                },
+            )
 
         return OrganizationContextResponse(
             organization_id=persisted_organization.organization_id,

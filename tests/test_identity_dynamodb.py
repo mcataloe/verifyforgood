@@ -14,9 +14,13 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
 
 
 from charity_status_platform.customer_accounts import (  # noqa: E402
+    AUDIT_GLOBAL_PARTITION_KEY,
+    AuditEventType,
+    AuditRecord,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
+    DynamoAuditLogRepository,
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -41,10 +45,15 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "OrganizationRepository")
     assert hasattr(customer_accounts, "MembershipRepository")
     assert hasattr(customer_accounts, "InvitationRepository")
+    assert hasattr(customer_accounts, "AuditLogRepository")
     assert hasattr(customer_accounts, "DynamoUserRepository")
     assert hasattr(customer_accounts, "DynamoOrganizationRepository")
     assert hasattr(customer_accounts, "DynamoMembershipRepository")
     assert hasattr(customer_accounts, "DynamoInvitationRepository")
+    assert hasattr(customer_accounts, "DynamoAuditLogRepository")
+    assert hasattr(customer_accounts, "AuditLogService")
+    assert hasattr(customer_accounts, "AuditRecord")
+    assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
     assert hasattr(customer_accounts, "FakeIdentityDynamoResource")
 
@@ -221,3 +230,42 @@ def test_organization_lookup_by_slug_and_duplicate_slug_rejection():
                 updated_at="2026-03-26T00:00:00+00:00",
             )
         )
+
+
+def test_audit_record_round_trips_with_metadata_and_scope_partitioning():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    audits = DynamoAuditLogRepository(dynamodb_resource=resource)
+
+    org_event = audits.create(
+        AuditRecord(
+            audit_id="audit_org_1",
+            event_type=AuditEventType.ORGANIZATION_CREATION,
+            actor_user_id="user_admin",
+            organization_id="org_1",
+            target_user_id="user_admin",
+            timestamp="2026-03-27T00:00:00+00:00",
+            metadata={"slug": "verify-for-good-org", "bootstrap_role": "admin"},
+        )
+    )
+    identity_event = audits.create(
+        AuditRecord(
+            audit_id="audit_user_1",
+            event_type=AuditEventType.USER_REGISTRATION,
+            actor_user_id="user_1",
+            organization_id=None,
+            target_user_id="user_1",
+            timestamp="2026-03-27T00:05:00+00:00",
+            metadata={"email": "person@example.com"},
+        )
+    )
+
+    org_items = audits.list_for_organization("org_1")
+    identity_items = audits.list_identity_events()
+
+    assert org_event.event_type is AuditEventType.ORGANIZATION_CREATION
+    assert org_items[0].metadata["slug"] == "verify-for-good-org"
+    assert org_items[0].organization_id == "org_1"
+    assert identity_event.event_type is AuditEventType.USER_REGISTRATION
+    assert identity_items[0].metadata["email"] == "person@example.com"
+    assert identity_items[0].organization_id is None

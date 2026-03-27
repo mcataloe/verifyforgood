@@ -4,6 +4,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from .audit_logging import AuditEventType, AuditLogService
 from .identity_models import InvitationRecord, InvitationStatus, MembershipRecord, MembershipRole, MembershipStatus
 from .identity_repositories import InvitationRepository, MembershipRepository, OrganizationRepository, UserRepository
 
@@ -79,11 +80,13 @@ class MembershipManagementService:
         organizations: OrganizationRepository,
         memberships: MembershipRepository,
         invitations: InvitationRepository,
+        audit_log_service: AuditLogService | None = None,
     ) -> None:
         self._users = users
         self._organizations = organizations
         self._memberships = memberships
         self._invitations = invitations
+        self._audit_log_service = audit_log_service
 
     def list_members(self, *, organization_id: str) -> list[MemberSummary]:
         if self._organizations.get(organization_id) is None:
@@ -132,6 +135,20 @@ class MembershipManagementService:
             expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(microsecond=0).isoformat(),
         )
         persisted = self._invitations.create(invitation)
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.INVITATION_CREATION,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=None,
+                metadata={
+                    "invitation_id": persisted.invitation_id,
+                    "email": persisted.email,
+                    "role": persisted.role.value,
+                    "status": persisted.status.value,
+                    "expires_at": persisted.expires_at,
+                },
+            )
         return InvitationCreateResponse(
             invitation_id=persisted.invitation_id,
             token=persisted.token,
@@ -152,6 +169,7 @@ class MembershipManagementService:
         self._require_admin(organization_id=organization_id, user_id=actor_user_id)
         role = _validate_role(request.role) if request.role is not None else None
         status = _validate_membership_status(request.status) if request.status is not None else None
+        existing = self._memberships.get(organization_id, member_user_id)
         updated = self._memberships.update_membership(
             organization_id,
             member_user_id,
@@ -161,6 +179,22 @@ class MembershipManagementService:
         )
         if updated is None:
             raise MembershipManagementError("Member was not found in the current organization")
+        if (
+            self._audit_log_service is not None
+            and role is not None
+            and existing is not None
+            and existing.role.value != updated.role.value
+        ):
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.MEMBERSHIP_ROLE_CHANGE,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=member_user_id,
+                metadata={
+                    "role": updated.role.value,
+                    "status": updated.status.value,
+                },
+            )
         user = self._users.get(updated.user_id)
         return MemberSummary(
             user_id=updated.user_id,
@@ -177,6 +211,14 @@ class MembershipManagementService:
         removed = self._memberships.delete(organization_id, member_user_id)
         if not removed:
             raise MembershipManagementError("Member was not found in the current organization")
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.MEMBER_REMOVAL,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=member_user_id,
+                metadata={},
+            )
         return {"removed_member_id": member_user_id, "organization_id": organization_id}
 
     def accept_invitation(self, *, user_id: str, request: InvitationAcceptRequest) -> dict[str, object]:
@@ -208,6 +250,19 @@ class MembershipManagementService:
         accepted = self._invitations.mark_accepted(invitation.token, accepted_at=_utc_now())
         if accepted is None:
             raise MembershipManagementError("Invitation token was not found")
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.INVITATION_ACCEPTANCE,
+                actor_user_id=user.user_id,
+                organization_id=invitation.organization_id,
+                target_user_id=user.user_id,
+                metadata={
+                    "invitation_id": accepted.invitation_id,
+                    "email": accepted.email,
+                    "role": accepted.role.value,
+                    "status": accepted.status.value,
+                },
+            )
         organization = self._organizations.get(invitation.organization_id)
         return {
             "invitation": {

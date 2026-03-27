@@ -12,6 +12,7 @@ from typing import Protocol
 import bcrypt
 
 from charity_status.auth import AuthenticationError
+from charity_status_platform.customer_accounts.audit_logging import AuditEventType, AuditLogService
 from charity_status_platform.customer_accounts.identity_models import UserRecord
 from charity_status_platform.customer_accounts.identity_repositories import DuplicateUserEmailError, UserRepository
 
@@ -132,10 +133,12 @@ class AuthService:
         users: UserRepository,
         password_hasher: PasswordHasher,
         token_codec: BearerTokenCodec,
+        audit_log_service: AuditLogService | None = None,
     ) -> None:
         self._users = users
         self._password_hasher = password_hasher
         self._token_codec = token_codec
+        self._audit_log_service = audit_log_service
 
     def register_user(self, request: UserCreateRequest) -> AuthenticatedUserSession:
         normalized_email = _validate_email(request.email)
@@ -153,6 +156,18 @@ class AuthService:
             persisted = self._users.create(user)
         except DuplicateUserEmailError:
             raise PortalAuthValidationError("Email is already registered") from None
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.USER_REGISTRATION,
+                actor_user_id=persisted.user_id,
+                organization_id=None,
+                target_user_id=persisted.user_id,
+                metadata={
+                    "email": persisted.email,
+                    "full_name": persisted.full_name,
+                },
+                timestamp=created_at,
+            )
         return self._session_for_user(persisted)
 
     def login_user(self, request: UserLoginRequest) -> AuthenticatedUserSession:

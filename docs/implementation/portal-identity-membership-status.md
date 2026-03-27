@@ -2,11 +2,11 @@
 
 ## Status
 
-org context provider implemented
+audit logging implemented
 
 ## Next Phase
 
-19J
+TBD
 
 ## Scope
 

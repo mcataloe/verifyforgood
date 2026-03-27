@@ -104,20 +104,6 @@ def test_admin_only_modification_rules():
         actor_user_id=admin_session.user.user_id,
         request=InvitationCreateRequest(email="member@example.com", role="user"),
     )
-    invitation = next(iter([item for item in DynamoInvitationRepository(dynamodb_resource=resource).query(IndexName="invitation_token_lookup", KeyConditionExpression="gsi3pk = :gsi3pk", ExpressionAttributeValues={":gsi3pk": ""})] if False else []), None)
-    # accept via service lookup
-    token = DynamoInvitationRepository(dynamodb_resource=resource).get_by_token(
-        next(
-            item.token
-            for item in [
-                DynamoInvitationRepository(dynamodb_resource=resource).get_by_token(
-                    DynamoInvitationRepository(dynamodb_resource=resource)._table._items[next(iter(DynamoInvitationRepository(dynamodb_resource=resource)._table._items))].get("token")  # type: ignore[attr-defined]
-                )
-            ]
-            if item is not None
-        )
-    )
-    del token
     first_invitation = None
     for item in DynamoInvitationRepository(dynamodb_resource=resource)._table._items.values():  # type: ignore[attr-defined]
         if item.get("type") == "INVITATION":

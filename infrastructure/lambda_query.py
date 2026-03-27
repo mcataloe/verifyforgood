@@ -85,6 +85,8 @@ from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
 from charity_status_platform.customer_accounts import (
+    AuditLogService,
+    DynamoAuditLogRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -185,6 +187,7 @@ trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
 portal_organization_service: OrganizationService | None = None
 portal_membership_service: MembershipManagementService | None = None
+portal_audit_log_service: AuditLogService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -397,6 +400,16 @@ def _get_trial_lifecycle_service() -> TrialLifecycleService:
     return trial_lifecycle_service
 
 
+def _get_portal_audit_log_service() -> AuditLogService:
+    global portal_audit_log_service
+    if portal_audit_log_service is None:
+        portal_audit_log_service = AuditLogService(
+            repository=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
+            logger=logger,
+        )
+    return portal_audit_log_service
+
+
 def _get_portal_auth_service() -> AuthService:
     global portal_auth_service
     if portal_auth_service is None:
@@ -407,6 +420,7 @@ def _get_portal_auth_service() -> AuthService:
                 secret=PORTAL_AUTH_TOKEN_SECRET,
                 token_ttl_seconds=PORTAL_AUTH_TOKEN_TTL_SECONDS,
             ),
+            audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_auth_service
 
@@ -418,6 +432,7 @@ def _get_portal_organization_service() -> OrganizationService:
             users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
             organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
             memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+            audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_organization_service
 
@@ -430,6 +445,7 @@ def _get_portal_membership_service() -> MembershipManagementService:
             organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
             memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
             invitations=DynamoInvitationRepository(table_name=IDENTITY_TABLE_NAME),
+            audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_membership_service
 
