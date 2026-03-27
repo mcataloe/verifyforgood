@@ -1,5 +1,6 @@
 import { createApiClient, type ApiClient } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type { OrganizationContextValue } from "../organization";
 import type {
   PortalOrganization,
   PortalOrganizationSessionScope,
@@ -12,6 +13,7 @@ type PortalApiRuntimeConfig = Pick<
 
 interface CreatePortalApiClientOptions {
   accessToken?: string | null;
+  context?: Pick<OrganizationContextValue, "activeOrganization"> | null;
   fetchImpl?: typeof fetch;
   organization?: Pick<PortalOrganization, "account_id" | "workspace_id"> | null;
   runtimeConfig: PortalApiRuntimeConfig;
@@ -20,12 +22,13 @@ interface CreatePortalApiClientOptions {
 
 export function createPortalApiClient({
   accessToken,
+  context,
   fetchImpl,
   organization,
   runtimeConfig,
   session,
 }: CreatePortalApiClientOptions): ApiClient {
-  const activeScope = organization ?? session;
+  const activeScope = context?.activeOrganization ?? organization ?? session;
 
   return createApiClient({
     fetchImpl,

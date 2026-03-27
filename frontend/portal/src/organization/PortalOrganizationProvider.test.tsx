@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createMockPortalSession } from "../app/portalSession";
+import { OrganizationProvider } from "./OrganizationProvider";
 import { PortalOrganizationProvider } from "./PortalOrganizationProvider";
+import { useOrganization } from "./useOrganization";
 import { usePortalOrganization } from "./usePortalOrganization";
 
 const runtimeConfig = {
@@ -18,6 +20,17 @@ function OrganizationProbe() {
       <p>Name: {organization.activeOrganization.organization_name}</p>
       <p>Workspace: {organization.activeOrganization.workspace_id}</p>
       <p>Account: {organization.activeOrganization.account_id}</p>
+    </div>
+  );
+}
+
+function CanonicalOrganizationProbe() {
+  const organization = useOrganization();
+
+  return (
+    <div>
+      <p>Canonical ready: {String(organization.isTenantReady)}</p>
+      <p>Selection: {organization.selectionStatus}</p>
     </div>
   );
 }
@@ -60,5 +73,42 @@ describe("PortalOrganizationProvider", () => {
     expect(screen.getByText("Name: Stored Organization Context")).toBeTruthy();
     expect(screen.getByText("Workspace: ws_stored")).toBeTruthy();
     expect(screen.getByText("Account: acct_stored")).toBeTruthy();
+  });
+
+  it("exposes the canonical organization context API with tenant readiness", async () => {
+    const session = {
+      ...createMockPortalSession(),
+      auth_method: "portal_browser_session" as const,
+      organization_membership: {
+        role: "admin",
+        status: "active",
+        user_id: "user_verifyforgood_demo",
+      },
+      organization_context_status: "active" as const,
+      organization_name: "Stored Organization Context",
+    };
+    const organizationLoader = vi.fn(async () => ({
+      account_id: "acct_stored",
+      billing_allow_overage: false,
+      billing_monthly_request_cap: 800,
+      organization_name: "Stored Organization Context",
+      scope_source: "backend_settings" as const,
+      settings_source: "stored" as const,
+      updated_at: "2026-03-21T00:00:00Z",
+      workspace_id: "ws_stored",
+    }));
+
+    render(
+      <OrganizationProvider
+        organizationLoader={organizationLoader}
+        runtimeConfig={runtimeConfig}
+        session={session}
+      >
+        <CanonicalOrganizationProbe />
+      </OrganizationProvider>,
+    );
+
+    expect(await screen.findByText("Canonical ready: true")).toBeTruthy();
+    expect(screen.getByText("Selection: active")).toBeTruthy();
   });
 });
