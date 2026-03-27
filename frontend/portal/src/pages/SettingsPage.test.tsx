@@ -13,6 +13,9 @@ import type { PortalBudgetSettingsController } from "../settings/usePortalBudget
 import { SettingsPage } from "./SettingsPage";
 
 const endpoints: PortalEndpoints = {
+  authLogin: "/v1/auth/login",
+  authMe: "/v1/auth/me",
+  authRegister: "/v1/auth/register",
   billingCheckout: "/v1/organization/billing/checkout-session",
   billingPlanChange: "/v1/organization/billing/plan-change",
   billingPortal: "/v1/organization/billing/portal-session",

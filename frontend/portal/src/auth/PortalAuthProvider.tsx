@@ -1,0 +1,142 @@
+import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
+import {
+  type PropsWithChildren,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  createPortalAuthClient,
+  type PortalAuthClient,
+  type PortalLoginRequest,
+  type PortalRegisterRequest,
+} from "./portalAuthClient";
+import {
+  PortalAuthContext,
+  type PortalAuthStatus,
+} from "./usePortalAuth";
+import type { PortalAuthenticatedSession } from "../app/portalSession";
+
+interface PortalAuthProviderProps extends PropsWithChildren {
+  authClient?: PortalAuthClient;
+  fetchImpl?: typeof fetch;
+  runtimeConfig: Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">;
+}
+
+interface PortalAuthState {
+  accessToken: string | null;
+  isBusy: boolean;
+  session: PortalAuthenticatedSession | null;
+  status: PortalAuthStatus;
+}
+
+export function PortalAuthProvider({
+  authClient,
+  children,
+  fetchImpl,
+  runtimeConfig,
+}: PortalAuthProviderProps) {
+  const resolvedAuthClient = useMemo(
+    () =>
+      authClient ??
+      createPortalAuthClient({
+        fetchImpl,
+        runtimeConfig,
+      }),
+    [authClient, fetchImpl, runtimeConfig],
+  );
+  const [authState, setAuthState] = useState<PortalAuthState>({
+    accessToken: null,
+    isBusy: true,
+    session: null,
+    status: "loading",
+  });
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadSession = async () => {
+      try {
+        const state = await resolvedAuthClient.getSession();
+        if (isCancelled) {
+          return;
+        }
+
+        setAuthState({
+          accessToken: state?.accessToken ?? null,
+          isBusy: false,
+          session: state?.session ?? null,
+          status: state ? "authenticated" : "unauthenticated",
+        });
+      } catch {
+        if (isCancelled) {
+          return;
+        }
+
+        setAuthState({
+          accessToken: null,
+          isBusy: false,
+          session: null,
+          status: "unauthenticated",
+        });
+      }
+    };
+
+    void loadSession();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [resolvedAuthClient]);
+
+  const login = async (request: PortalLoginRequest) => {
+    setAuthState((currentState) => ({ ...currentState, isBusy: true }));
+    const state = await resolvedAuthClient.login(request);
+    setAuthState({
+      accessToken: state.accessToken,
+      isBusy: false,
+      session: state.session,
+      status: "authenticated",
+    });
+    return state.session;
+  };
+
+  const register = async (request: PortalRegisterRequest) => {
+    setAuthState((currentState) => ({ ...currentState, isBusy: true }));
+    const state = await resolvedAuthClient.register(request);
+    setAuthState({
+      accessToken: state.accessToken,
+      isBusy: false,
+      session: state.session,
+      status: "authenticated",
+    });
+    return state.session;
+  };
+
+  const signOut = async () => {
+    setAuthState((currentState) => ({ ...currentState, isBusy: true }));
+    await resolvedAuthClient.signOut();
+    setAuthState({
+      accessToken: null,
+      isBusy: false,
+      session: null,
+      status: "unauthenticated",
+    });
+  };
+
+  return (
+    <PortalAuthContext.Provider
+      value={{
+        accessToken: authState.accessToken,
+        isBusy: authState.isBusy,
+        login,
+        register,
+        session: authState.session,
+        signOut,
+        status: authState.status,
+      }}
+    >
+      {children}
+    </PortalAuthContext.Provider>
+  );
+}

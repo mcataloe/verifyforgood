@@ -2,11 +2,11 @@
 
 ## Status
 
-membership management complete
+frontend auth foundation complete
 
 ## Next Phase
 
-19F
+19G
 
 ## Scope
 

@@ -1,8 +1,17 @@
 import { defineEndpoint } from "./routes";
 
 export const authEndpoints = {
+  login: defineEndpoint("POST", "/auth/login", {
+    name: "authLogin",
+  }),
+  me: defineEndpoint("GET", "/auth/me", {
+    name: "authMe",
+  }),
   oauthToken: defineEndpoint("POST", "/oauth/token", {
     name: "oauthToken",
+  }),
+  register: defineEndpoint("POST", "/auth/register", {
+    name: "authRegister",
   }),
 } as const;
 

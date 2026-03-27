@@ -1,83 +1,178 @@
+import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/shared-api";
+import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import {
-  createMockPortalSession,
+  createPortalCompatibilitySession,
   type PortalAuthenticatedSession,
+  type PortalIdentityUser,
+  type PortalStoredAuthRecord,
 } from "../app/portalSession";
-import {
-  FRONTEND_ACCESS_ROLE,
-  isFrontendAccessRole,
-} from "@charity-status/shared-types";
 
-const PORTAL_SESSION_STORAGE_KEY = "verifyforgood.portal.auth.session";
+const PORTAL_AUTH_STORAGE_KEY = "verifyforgood.portal.auth.session";
 
-export type PortalSignInMethod = "google" | "microsoft" | "password";
+type PortalAuthRuntimeConfig = Pick<
+  FrontendRuntimeConfig,
+  "apiBaseUrl" | "apiVersion"
+>;
 
-export interface PortalSignInRequest {
-  email?: string;
-  method: PortalSignInMethod;
-  password?: string;
+interface PortalAuthApiSessionPayload {
+  access_token: string;
+  token_type: "Bearer";
+  user: PortalIdentityUser;
+}
+
+interface PortalAuthMePayload {
+  user: PortalIdentityUser;
+}
+
+export interface PortalLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface PortalRegisterRequest {
+  email: string;
+  full_name?: string;
+  password: string;
+}
+
+export interface PortalAuthState {
+  accessToken: string;
+  session: PortalAuthenticatedSession;
 }
 
 export interface PortalAuthClient {
-  getSession(): Promise<PortalAuthenticatedSession | null>;
-  signIn(request?: PortalSignInRequest): Promise<PortalAuthenticatedSession>;
+  getSession(): Promise<PortalAuthState | null>;
+  login(request: PortalLoginRequest): Promise<PortalAuthState>;
+  register(request: PortalRegisterRequest): Promise<PortalAuthState>;
   signOut(): Promise<void>;
 }
 
-export function createMockPortalAuthClient(): PortalAuthClient {
+interface CreatePortalAuthClientOptions {
+  fetchImpl?: typeof fetch;
+  runtimeConfig: PortalAuthRuntimeConfig;
+}
+
+export function createPortalAuthClient({
+  fetchImpl,
+  runtimeConfig,
+}: CreatePortalAuthClientOptions): PortalAuthClient {
+  const apiClient = createApiClient({
+    fetchImpl,
+    runtimeConfig,
+  });
+
   return {
     async getSession() {
-      return readStoredPortalSession();
+      const record = readStoredPortalAuthRecord();
+      if (!record) {
+        return null;
+      }
+
+      return hydrateSession(apiClient, record);
     },
-    async signIn(request) {
-      const session = createMockPortalSession({
-        email: request?.email,
-        provider: request?.method ?? "password",
-        roles: [FRONTEND_ACCESS_ROLE.customerUser],
+    async login(request) {
+      const payload = await apiClient.post<
+        PortalAuthApiSessionPayload,
+        PortalLoginRequest
+      >(apiEndpoints.auth.login, {
+        body: request,
       });
-      writeStoredPortalSession(session);
-      return session;
+      const record = writeStoredPortalAuthRecord(payload);
+      return requireHydratedSession(apiClient, record);
+    },
+    async register(request) {
+      const payload = await apiClient.post<
+        PortalAuthApiSessionPayload,
+        PortalRegisterRequest
+      >(apiEndpoints.auth.register, {
+        body: request,
+      });
+      const record = writeStoredPortalAuthRecord(payload);
+      return requireHydratedSession(apiClient, record);
     },
     async signOut() {
-      clearStoredPortalSession();
+      clearStoredPortalAuthRecord();
     },
   };
 }
 
-function readStoredPortalSession(): PortalAuthenticatedSession | null {
+async function hydrateSession(
+  apiClient: ApiClient,
+  record: PortalStoredAuthRecord,
+): Promise<PortalAuthState | null> {
+  try {
+    const payload = await apiClient.get<PortalAuthMePayload>(apiEndpoints.auth.me, {
+      headers: {
+        Authorization: `${record.token_type} ${record.access_token}`,
+      },
+    });
+    const refreshedRecord = writeStoredPortalAuthRecord({
+      access_token: record.access_token,
+      token_type: record.token_type,
+      user: payload.user,
+    });
+    return {
+      accessToken: refreshedRecord.access_token,
+      session: createPortalCompatibilitySession(refreshedRecord.user),
+    };
+  } catch (error) {
+    const status = typeof error === "object" && error !== null ? (error as { status?: unknown }).status : null;
+    if (status === 401) {
+      clearStoredPortalAuthRecord();
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function requireHydratedSession(
+  apiClient: ApiClient,
+  record: PortalStoredAuthRecord,
+): Promise<PortalAuthState> {
+  const state = await hydrateSession(apiClient, record);
+  if (!state) {
+    throw new Error("Authentication is required");
+  }
+
+  return state;
+}
+
+function readStoredPortalAuthRecord(): PortalStoredAuthRecord | null {
   const storage = resolveStorage();
   if (!storage) {
     return null;
   }
 
-  const raw = storage.getItem(PORTAL_SESSION_STORAGE_KEY);
+  const raw = storage.getItem(PORTAL_AUTH_STORAGE_KEY);
   if (!raw) {
     return null;
   }
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return isPortalAuthenticatedSession(parsed) ? parsed : null;
+    return isPortalStoredAuthRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function writeStoredPortalSession(session: PortalAuthenticatedSession) {
+function writeStoredPortalAuthRecord(
+  record: PortalStoredAuthRecord,
+): PortalStoredAuthRecord {
   const storage = resolveStorage();
-  if (!storage) {
-    return;
+  if (storage) {
+    storage.setItem(PORTAL_AUTH_STORAGE_KEY, JSON.stringify(record));
   }
-
-  storage.setItem(PORTAL_SESSION_STORAGE_KEY, JSON.stringify(session));
+  return record;
 }
 
-function clearStoredPortalSession() {
+function clearStoredPortalAuthRecord() {
   const storage = resolveStorage();
   if (!storage) {
     return;
   }
 
-  storage.removeItem(PORTAL_SESSION_STORAGE_KEY);
+  storage.removeItem(PORTAL_AUTH_STORAGE_KEY);
 }
 
 function resolveStorage(): Storage | null {
@@ -88,29 +183,30 @@ function resolveStorage(): Storage | null {
   return window.localStorage;
 }
 
-function isPortalAuthenticatedSession(
+function isPortalStoredAuthRecord(
   value: unknown,
-): value is PortalAuthenticatedSession {
+): value is PortalStoredAuthRecord {
   if (!value || typeof value !== "object") {
     return false;
   }
 
   const candidate = value as Record<string, unknown>;
-  const user = candidate.user;
   return (
-    typeof candidate.account_id === "string" &&
-    typeof candidate.workspace_id === "string" &&
-    typeof candidate.organization_name === "string" &&
-    typeof candidate.plan === "string" &&
-    typeof candidate.auth_method === "string" &&
-    Array.isArray(candidate.roles) &&
-    candidate.roles.every((role) => isFrontendAccessRole(role)) &&
-    Array.isArray(candidate.scopes) &&
-    candidate.scopes.every((scope) => typeof scope === "string") &&
-    Boolean(user) &&
-    typeof user === "object" &&
-    typeof (user as Record<string, unknown>).display_name === "string" &&
-    typeof (user as Record<string, unknown>).email === "string" &&
-    typeof (user as Record<string, unknown>).subject_id === "string"
+    typeof candidate.access_token === "string" &&
+    candidate.token_type === "Bearer" &&
+    isPortalIdentityUser(candidate.user)
+  );
+}
+
+function isPortalIdentityUser(value: unknown): value is PortalIdentityUser {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.email === "string" &&
+    typeof candidate.user_id === "string" &&
+    (typeof candidate.full_name === "string" || candidate.full_name === null || candidate.full_name === undefined)
   );
 }

@@ -13,6 +13,9 @@ import type { PortalPricingPlansController } from "./usePortalPricingPlans";
 import { UsageBillingPanel } from "./UsageBillingPanel";
 
 const endpoints: PortalEndpoints = {
+  authLogin: "/v1/auth/login",
+  authMe: "/v1/auth/me",
+  authRegister: "/v1/auth/register",
   billingCheckout: "/v1/organization/billing/checkout-session",
   billingPlanChange: "/v1/organization/billing/plan-change",
   billingPortal: "/v1/organization/billing/portal-session",

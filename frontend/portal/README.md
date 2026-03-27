@@ -51,16 +51,17 @@ Route protection is enforced before protected content renders. An unauthenticate
 ## Current auth model
 
 - auth state is portal-local and replaceable through `src/auth/portalAuthClient.ts`
-- the current implementation is a mock browser session stored in local storage for local development only
-- the public entry screen lives in `src/pages/PortalSignInPage.tsx` and now renders email/password plus Google and Microsoft entry buttons
-- all three entry methods currently resolve through the same mock `PortalAuthClient.signIn(...)` path; the screen is real UX, but provider exchange is still deferred
+- the current implementation uses the backend portal auth endpoints for login, registration, and current-user hydration
+- the browser persists a bearer token in local storage and restores the active session through `GET /v1/auth/me`
+- the public entry screens live in `src/pages/PortalSignInPage.tsx` and `src/pages/PortalRegisterPage.tsx`
+- Google and Microsoft buttons remain visible as disabled placeholders; provider exchange is still deferred
 - session state already carries `account_id`, `workspace_id`, `roles`, and `scopes` so the shell does not block future tenant or RBAC work
 - roles now use the canonical frontend vocabulary shared across the workspace:
   - `developer`
   - `portal_admin`
   - `customer_admin`
   - `customer_user`
-- this phase formalizes typing and helper checks only; it does not introduce route gating or backend authorization policy
+- the auth provider restores protected-route access and keeps network/session exchange inside `src/auth/`
 - portal UI auth is intentionally not modeled as raw API-key entry in the browser
 
 Current backend integration anchors:
@@ -68,7 +69,7 @@ Current backend integration anchors:
 - the backend already normalizes API key and OAuth client-credentials into a shared `AuthContext`
 - `POST /v1/oauth/token` exists today and remains an auth integration touchpoint
 - future production portal auth can exchange browser identity into backend account/workspace context without changing the portal route-protection boundary
-- future real auth integration should keep `PortalSignInPage` as the public route surface and swap the implementation behind `src/auth/portalAuthClient.ts` / `usePortalAuth.ts`
+- future provider-based auth should keep the public auth route surfaces and swap the implementation behind `src/auth/portalAuthClient.ts` / `PortalAuthProvider.tsx`
 
 ## Organization scope
 

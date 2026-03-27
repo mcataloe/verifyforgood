@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { FRONTEND_ACCESS_ROLE } from "@charity-status/shared-types";
-import { createMockPortalAuthClient } from "./portalAuthClient";
+import { describe, expect, it, vi } from "vitest";
+import { createPortalAuthClient } from "./portalAuthClient";
+
+const runtimeConfig = {
+  apiBaseUrl: "https://api.verifyforgood.test",
+  apiVersion: "v1",
+} as const;
 
 function createStorageMock(): Storage {
   const store = new Map<string, string>();
@@ -27,28 +31,142 @@ function createStorageMock(): Storage {
   };
 }
 
+function buildEnvelope<TData>(data: TData, errors: Array<{ code: string; message: string }> = []) {
+  return {
+    api_release: "2026-03-27",
+    api_version: "v1",
+    data,
+    deprecation: {
+      recommended_version: null,
+      status: "active",
+      sunset_date: null,
+    },
+    errors,
+    meta: {},
+    plan: "public",
+    request_id: "req_portal_auth_test",
+  };
+}
+
 describe("portal auth client", () => {
-  it("persists a mock session with canonical frontend roles", async () => {
+  it("registers, stores the token, and hydrates the current user through /auth/me", async () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: createStorageMock(),
     });
-    const client = createMockPortalAuthClient();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/register")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              access_token: "token_register",
+              token_type: "Bearer",
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 201 },
+        );
+      }
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
 
-    const session = await client.signIn({
-      email: "jamie.admin@example.org",
-      method: "password",
-      password: "top-secret",
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const state = await client.register({
+      email: "person@example.com",
+      full_name: "Portal Person",
+      password: "top-secret-password",
+    });
+
+    expect(state.accessToken).toBe("token_register");
+    expect(state.session.user.email).toBe("person@example.com");
+    expect(state.session.user.display_name).toBe("Portal Person");
+    expect(state.session.account_id).toBe("acct_portal_pending");
+    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toContain(
+      "token_register",
+    );
+  });
+
+  it("logs in, stores the token, and can restore the session from local storage", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/login")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              access_token: "token_login",
+              token_type: "Bearer",
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const loggedIn = await client.login({
+      email: "person@example.com",
+      password: "top-secret-password",
     });
     const restored = await client.getSession();
 
-    expect(session.roles).toEqual([FRONTEND_ACCESS_ROLE.customerAdmin]);
-    expect(session.user.email).toBe("jamie.admin@example.org");
-    expect(restored?.roles).toEqual([FRONTEND_ACCESS_ROLE.customerAdmin]);
-    expect(restored?.user.email).toBe("jamie.admin@example.org");
+    expect(loggedIn.session.user.email).toBe("person@example.com");
+    expect(restored?.accessToken).toBe("token_login");
+    expect(restored?.session.user.subject_id).toBe("user_portal_person");
+    expect(restored?.session.roles).toEqual(["customer_admin"]);
   });
 
-  it("rejects stored sessions with non-canonical role values", async () => {
+  it("clears invalid stored tokens when /auth/me returns unauthorized", async () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: createStorageMock(),
@@ -56,22 +174,66 @@ describe("portal auth client", () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
-        account_id: "acct_invalid",
-        auth_method: "mock_browser_session",
-        organization_name: "Invalid Workspace",
-        plan: "growth",
-        roles: ["workspace_owner"],
-        scopes: ["portal:access"],
+        access_token: "expired_token",
+        token_type: "Bearer",
         user: {
-          display_name: "Invalid User",
-          email: "invalid@example.org",
-          subject_id: "user_invalid",
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
         },
-        workspace_id: "ws_invalid",
       }),
     );
-    const client = createMockPortalAuthClient();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope(
+              {},
+              [{ code: "unauthorized", message: "Authentication is required" }],
+            ),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 401 },
+        );
+      }
 
-    expect(await client.getSession()).toBeNull();
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored).toBeNull();
+    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
+  });
+
+  it("removes persisted auth state on sign out", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    const client = createPortalAuthClient({
+      fetchImpl: vi.fn(async () => new Response("Not Found", { status: 404 })) as typeof fetch,
+      runtimeConfig,
+    });
+
+    await client.signOut();
+
+    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
   });
 });

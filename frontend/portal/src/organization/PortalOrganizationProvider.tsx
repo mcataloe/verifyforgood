@@ -15,6 +15,7 @@ import {
 } from "./usePortalOrganization";
 
 interface PortalOrganizationProviderProps extends PropsWithChildren {
+  accessToken?: string | null;
   fetchImpl?: typeof fetch;
   organizationLoader?: (
     options: LoadActivePortalOrganizationOptions,
@@ -24,6 +25,7 @@ interface PortalOrganizationProviderProps extends PropsWithChildren {
 }
 
 export function PortalOrganizationProvider({
+  accessToken,
   children,
   fetchImpl,
   organizationLoader = loadActivePortalOrganization,
@@ -64,21 +66,23 @@ export function PortalOrganizationProvider({
   const loaderClient = useMemo(
     () =>
       createPortalApiClient({
+        accessToken,
         fetchImpl,
         runtimeConfig: runtimeScope,
         session: sessionScope,
       }),
-    [fetchImpl, runtimeScope, sessionScope],
+    [accessToken, fetchImpl, runtimeScope, sessionScope],
   );
   const apiClient = useMemo(
     () =>
       createPortalApiClient({
+        accessToken,
         fetchImpl,
         organization: activeOrganization,
         runtimeConfig: runtimeScope,
         session: sessionScope,
       }),
-    [activeOrganization, fetchImpl, runtimeScope, sessionScope],
+    [accessToken, activeOrganization, fetchImpl, runtimeScope, sessionScope],
   );
 
   useEffect(() => {

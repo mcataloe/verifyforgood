@@ -39,6 +39,7 @@ describe("portal shared api integration", () => {
     ) as unknown as typeof fetch;
     const session = createMockPortalSession();
     const client = createPortalApiClient({
+      accessToken: "portal_token",
       fetchImpl,
       organization: createSessionPortalOrganization(session),
       runtimeConfig,
@@ -63,6 +64,7 @@ describe("portal shared api integration", () => {
     const fetchMock = vi.mocked(fetchImpl);
     const [, requestInit] = fetchMock.mock.calls[0] ?? [];
     const headers = requestInit?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer portal_token");
     expect(headers.get("X-Portal-Account-Id")).toBe(session.account_id);
     expect(headers.get("X-Portal-Workspace-Id")).toBe(session.workspace_id);
   });

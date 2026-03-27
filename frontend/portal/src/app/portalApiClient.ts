@@ -11,6 +11,7 @@ type PortalApiRuntimeConfig = Pick<
 >;
 
 interface CreatePortalApiClientOptions {
+  accessToken?: string | null;
   fetchImpl?: typeof fetch;
   organization?: Pick<PortalOrganization, "account_id" | "workspace_id"> | null;
   runtimeConfig: PortalApiRuntimeConfig;
@@ -18,6 +19,7 @@ interface CreatePortalApiClientOptions {
 }
 
 export function createPortalApiClient({
+  accessToken,
   fetchImpl,
   organization,
   runtimeConfig,
@@ -28,6 +30,11 @@ export function createPortalApiClient({
   return createApiClient({
     fetchImpl,
     headersProvider: async () => ({
+      ...(accessToken
+        ? {
+            Authorization: `Bearer ${accessToken}`,
+          }
+        : {}),
       "X-Portal-Account-Id": activeScope.account_id,
       "X-Portal-Workspace-Id": activeScope.workspace_id,
     }),

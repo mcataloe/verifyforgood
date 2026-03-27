@@ -7,7 +7,7 @@ export type PortalProtectedRouteKey =
   | "usage-billing"
   | "settings";
 
-export type PortalPublicRouteKey = "sign-in";
+export type PortalPublicRouteKey = "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
 export interface PortalRouteDefinition {
@@ -28,6 +28,14 @@ export const portalPublicRoutes: PortalRouteDefinition[] = [
     hash: "#/sign-in",
     description:
       "Public auth boundary for the portal shell while production identity integration remains deferred.",
+  },
+  {
+    access: "public",
+    key: "register",
+    label: "Register",
+    hash: "#/register",
+    description:
+      "Public registration boundary for creating a new portal account before onboarding is complete.",
   },
 ];
 
@@ -80,6 +88,7 @@ export const portalRoutes: PortalRouteDefinition[] = [
 ];
 
 export const signInPortalRoute = portalPublicRoutes[0];
+export const registerPortalRoute = portalPublicRoutes[1];
 export const defaultProtectedPortalRoute = portalProtectedRoutes[0];
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
@@ -148,7 +157,7 @@ export function rememberPortalReturnTo(hash: string) {
   const normalizedHash = normalizePortalHash(hash);
   if (
     !normalizedHash ||
-    getPortalHashPath(normalizedHash) === signInPortalRoute.hash
+    portalPublicRoutes.some((route) => route.hash === getPortalHashPath(normalizedHash))
   ) {
     return;
   }

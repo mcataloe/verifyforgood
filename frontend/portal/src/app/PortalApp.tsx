@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
 import { usePortalAuth } from "../auth/usePortalAuth";
+import { PortalAuthProvider } from "../auth/PortalAuthProvider";
 import { PortalAuthLayout } from "../components/PortalAuthLayout";
 import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
@@ -12,6 +13,7 @@ import { PortalOrganizationProvider } from "../organization/PortalOrganizationPr
 import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
 import { DashboardPage } from "../pages/DashboardPage";
+import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WorkspacePage } from "../pages/WorkspacePage";
@@ -25,6 +27,7 @@ import {
   navigateToPortalRoute,
   peekPortalReturnTo,
   portalProtectedRoutes,
+  registerPortalRoute,
   rememberPortalReturnTo,
   resolvePortalRoute,
   signInPortalRoute,
@@ -42,6 +45,18 @@ const appInfo: FrontendAppInfo = {
 
 export function PortalApp() {
   const runtimeConfig = readRuntimeConfig(import.meta.env);
+  return (
+    <PortalAuthProvider runtimeConfig={runtimeConfig}>
+      <PortalAppShell runtimeConfig={runtimeConfig} />
+    </PortalAuthProvider>
+  );
+}
+
+function PortalAppShell({
+  runtimeConfig,
+}: {
+  runtimeConfig: ReturnType<typeof readRuntimeConfig>;
+}) {
   const currentRoute = usePortalRoute();
   const auth = usePortalAuth();
   const endpoints = portalEndpoints(runtimeConfig);
@@ -60,7 +75,8 @@ export function PortalApp() {
   useEffect(() => {
     if (
       auth.status === "authenticated" &&
-      currentRoute.key === signInPortalRoute.key
+      (currentRoute.key === signInPortalRoute.key ||
+        currentRoute.key === registerPortalRoute.key)
     ) {
       navigateToPortalRoute(consumePortalReturnTo());
     }
@@ -86,15 +102,28 @@ export function PortalApp() {
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="This is the only public route inside the portal application shell."
-        title="Sign in to the customer portal"
+        subtitle="These are the public auth routes inside the portal application shell."
+        title={
+          currentRoute.key === registerPortalRoute.key
+            ? "Create your customer portal account"
+            : "Sign in to the customer portal"
+        }
       >
-        <PortalSignInPage
-          endpoints={endpoints}
-          isBusy={auth.isBusy}
-          onSignIn={auth.signIn}
-          requestedRoute={requestedRoute}
-        />
+        {currentRoute.key === registerPortalRoute.key ? (
+          <PortalRegisterPage
+            endpoints={endpoints}
+            isBusy={auth.isBusy}
+            onRegister={auth.register}
+            requestedRoute={requestedRoute}
+          />
+        ) : (
+          <PortalSignInPage
+            endpoints={endpoints}
+            isBusy={auth.isBusy}
+            onLogin={auth.login}
+            requestedRoute={requestedRoute}
+          />
+        )}
       </PortalAuthLayout>
     );
   }
@@ -132,7 +161,11 @@ export function PortalApp() {
       : null;
 
   return (
-    <PortalOrganizationProvider runtimeConfig={runtimeConfig} session={session}>
+    <PortalOrganizationProvider
+      accessToken={auth.accessToken}
+      runtimeConfig={runtimeConfig}
+      session={session}
+    >
       <PortalLayout
         app={appInfo}
         currentRoute={currentRoute}

@@ -1,14 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PortalSignInPage } from "./PortalSignInPage";
+import { PortalRegisterPage } from "./PortalRegisterPage";
 
-describe("PortalSignInPage", () => {
-  it("renders the typed login form and disabled provider placeholders", () => {
-    renderSignInPage();
+describe("PortalRegisterPage", () => {
+  it("renders registration inputs and disabled provider placeholders", () => {
+    renderRegisterPage();
 
+    expect(screen.getByLabelText("Full name")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Password")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create account" })).toBeTruthy();
     expect(
       screen
         .getByRole("button", { name: "Google available soon" })
@@ -19,62 +20,46 @@ describe("PortalSignInPage", () => {
         .getByRole("button", { name: "Microsoft available soon" })
         .hasAttribute("disabled"),
     ).toBe(true);
-    expect(screen.getByText("Requested area")).toBeTruthy();
   });
 
-  it("submits the typed login contract", () => {
-    const onLogin = vi.fn(async () => undefined);
-    renderSignInPage(onLogin);
+  it("submits the typed registration contract", () => {
+    const onRegister = vi.fn(async () => undefined);
+    renderRegisterPage(onRegister);
 
+    fireEvent.change(screen.getByLabelText("Full name"), {
+      target: { value: "Jamie Admin" },
+    });
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jamie.admin@example.org" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(onLogin).toHaveBeenCalledWith({
+    expect(onRegister).toHaveBeenCalledWith({
       email: "jamie.admin@example.org",
+      full_name: "Jamie Admin",
       password: "top-secret-password",
     });
   });
 
-  it("shows validation before login when required fields are empty", () => {
-    const onLogin = vi.fn(async () => undefined);
-    renderSignInPage(onLogin);
+  it("shows validation before registration when required fields are empty", () => {
+    const onRegister = vi.fn(async () => undefined);
+    renderRegisterPage(onRegister);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(screen.getByRole("alert").textContent).toContain(
-      "Enter both email and password to continue.",
+      "Enter an email and password to create your account.",
     );
-    expect(onLogin).not.toHaveBeenCalled();
-  });
-
-  it("renders backend error messages returned from the login action", async () => {
-    const onLogin = vi.fn(async () => {
-      throw new Error("Invalid email or password");
-    });
-    renderSignInPage(onLogin);
-
-    fireEvent.change(screen.getByLabelText("Email"), {
-      target: { value: "jamie.admin@example.org" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "wrong-pass" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-
-    expect(
-      await screen.findByText("Invalid email or password"),
-    ).toBeTruthy();
+    expect(onRegister).not.toHaveBeenCalled();
   });
 });
 
-function renderSignInPage(onLogin = vi.fn(async () => undefined)) {
+function renderRegisterPage(onRegister = vi.fn(async () => undefined)) {
   return render(
-    <PortalSignInPage
+    <PortalRegisterPage
       endpoints={{
         authLogin: "/v1/auth/login",
         authMe: "/v1/auth/me",
@@ -90,7 +75,7 @@ function renderSignInPage(onLogin = vi.fn(async () => undefined)) {
         organizationSettings: "/v1/organization/settings",
       }}
       isBusy={false}
-      onLogin={onLogin}
+      onRegister={onRegister}
       requestedRoute={{
         access: "protected",
         description: "Dashboard overview route.",

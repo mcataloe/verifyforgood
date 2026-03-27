@@ -2,6 +2,9 @@ import { apiEndpoints, buildApiUrl } from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 
 export interface PortalEndpoints {
+  authLogin: string;
+  authMe: string;
+  authRegister: string;
   billingCheckout: string;
   billingPortal: string;
   billingPlanChange: string;
@@ -17,6 +20,9 @@ export function portalEndpoints(
   runtimeConfig: FrontendRuntimeConfig,
 ): PortalEndpoints {
   return {
+    authLogin: buildApiUrl(apiEndpoints.auth.login, runtimeConfig),
+    authMe: buildApiUrl(apiEndpoints.auth.me, runtimeConfig),
+    authRegister: buildApiUrl(apiEndpoints.auth.register, runtimeConfig),
     billingCheckout: buildApiUrl(
       apiEndpoints.billing.checkoutSession,
       runtimeConfig,

@@ -1,23 +1,25 @@
 import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
-import type { PortalLoginRequest } from "../auth/portalAuthClient";
+import type { PortalRegisterRequest } from "../auth/portalAuthClient";
 
-interface PortalSignInPageProps {
+interface PortalRegisterPageProps {
   endpoints: PortalEndpoints;
   isBusy: boolean;
-  onLogin: (request: PortalLoginRequest) => Promise<unknown>;
+  onRegister: (request: PortalRegisterRequest) => Promise<unknown>;
   requestedRoute: PortalRouteDefinition;
 }
 
-export function PortalSignInPage({
+export function PortalRegisterPage({
   endpoints,
   isBusy,
-  onLogin,
+  onRegister,
   requestedRoute,
-}: PortalSignInPageProps) {
+}: PortalRegisterPageProps) {
+  const fullNameId = useId();
   const emailId = useId();
   const passwordId = useId();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [validationMessage, setValidationMessage] = useState<string | null>(
@@ -28,20 +30,21 @@ export function PortalSignInPage({
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
-      setValidationMessage("Enter both email and password to continue.");
+      setValidationMessage("Enter an email and password to create your account.");
       return;
     }
 
     setValidationMessage(null);
 
     try {
-      await onLogin({
+      await onRegister({
         email,
+        full_name: fullName.trim() || undefined,
         password,
       });
     } catch (error) {
       setValidationMessage(
-        error instanceof Error ? error.message : "Sign-in failed.",
+        error instanceof Error ? error.message : "Registration failed.",
       );
     }
   };
@@ -50,12 +53,12 @@ export function PortalSignInPage({
     <div className="portal-auth-page">
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
-          <p className="portal-shell__eyebrow">Portal entry</p>
-          <h2>Secure access for verification operations</h2>
+          <p className="portal-shell__eyebrow">Create access</p>
+          <h2>Start your portal account</h2>
           <p>
-            Sign in to continue to {requestedRoute.label}. This frontend now
-            uses the backend portal auth endpoints and restores the browser
-            session through <code>{endpoints.authMe}</code>.
+            Register to continue to {requestedRoute.label}. Account creation
+            uses <code>{endpoints.authRegister}</code>, then restores the
+            authenticated browser session through <code>{endpoints.authMe}</code>.
           </p>
         </div>
 
@@ -65,35 +68,33 @@ export function PortalSignInPage({
             <span>{requestedRoute.label}</span>
           </div>
           <div>
-            <strong>Login endpoint</strong>
+            <strong>Register endpoint</strong>
             <span>
-              <code>{endpoints.authLogin}</code>
+              <code>{endpoints.authRegister}</code>
             </span>
           </div>
           <div>
-            <strong>Session restore</strong>
+            <strong>Login route</strong>
             <span>
-              <code>{endpoints.authMe}</code>
+              <code>#/sign-in</code>
             </span>
           </div>
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What stays true after sign-in</p>
-          <h3>Protected routes still use one consistent auth boundary</h3>
+          <p className="portal-shell__eyebrow">What happens next</p>
+          <h3>Create identity now, finish organization setup later</h3>
           <ul className="portal-list">
             <li>
-              Requested protected routes are remembered and restored after a
-              successful sign-in.
+              Registration creates the authenticated user only in this phase.
             </li>
             <li>
-              Session identity comes from the backend, while temporary
-              organization context stays compatibility-backed until onboarding
-              lands.
+              The current portal shell uses temporary compatibility context
+              until real onboarding and organization selection land.
             </li>
             <li>
-              Google and Microsoft sign-in remain visible, but they are not yet
-              available in this phase.
+              Google and Microsoft registration stay visible as disabled
+              placeholders until provider support exists.
             </li>
           </ul>
         </div>
@@ -105,10 +106,24 @@ export function PortalSignInPage({
         onSubmit={handleSubmit}
       >
         <div className="portal-auth-page__card-copy">
-          <p className="portal-shell__eyebrow">Welcome back</p>
-          <h3>Sign in</h3>
-          <p>Use your work email and password to access the portal.</p>
+          <p className="portal-shell__eyebrow">New to VerifyForGood</p>
+          <h3>Create account</h3>
+          <p>Use your work identity to establish the first browser session.</p>
         </div>
+
+        <label className="portal-form__field" htmlFor={fullNameId}>
+          <span>Full name</span>
+          <input
+            autoComplete="name"
+            className="portal-form__input"
+            id={fullNameId}
+            name="full_name"
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder="Alex Operator"
+            type="text"
+            value={fullName}
+          />
+        </label>
 
         <label className="portal-form__field" htmlFor={emailId}>
           <span>Email</span>
@@ -127,12 +142,12 @@ export function PortalSignInPage({
         <label className="portal-form__field" htmlFor={passwordId}>
           <span>Password</span>
           <input
-            autoComplete="current-password"
+            autoComplete="new-password"
             className="portal-form__input"
             id={passwordId}
             name="password"
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter your password"
+            placeholder="Choose a password"
             type="password"
             value={password}
           />
@@ -154,13 +169,13 @@ export function PortalSignInPage({
             disabled={isBusy}
             type="submit"
           >
-            {isBusy ? "Signing in..." : "Sign in"}
+            {isBusy ? "Creating account..." : "Create account"}
           </button>
           <a
             className="portal-shell__action portal-shell__action--secondary"
-            href="#/register"
+            href="#/sign-in"
           >
-            Create account
+            Back to sign in
           </a>
         </div>
 
@@ -198,16 +213,6 @@ export function PortalSignInPage({
             </span>
             Microsoft available soon
           </button>
-        </div>
-
-        <div className="portal-auth-page__utility-links">
-          <a href="#/register">Need an account?</a>
-          <a href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20password%20help">
-            Forgot password
-          </a>
-          <a href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20help">
-            Help
-          </a>
         </div>
       </form>
     </div>
