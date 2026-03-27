@@ -140,19 +140,48 @@ class DynamoMembershipRepository:
         return [_membership_from_item(item) for item in items if item.get("type") == "MEMBERSHIP"]
 
     def update_role(self, organization_id: str, user_id: str, role: str) -> MembershipRecord | None:
+        return self.update_membership(
+            organization_id,
+            user_id,
+            role=role,
+            updated_at=self.get(organization_id, user_id).updated_at if self.get(organization_id, user_id) else "",
+        )
+
+    def update_membership(
+        self,
+        organization_id: str,
+        user_id: str,
+        *,
+        role: str | None = None,
+        status: str | None = None,
+        updated_at: str,
+    ) -> MembershipRecord | None:
         existing = self.get(organization_id, user_id)
         if existing is None:
             return None
         updated = MembershipRecord(
             organization_id=existing.organization_id,
             user_id=existing.user_id,
-            role=MembershipRole(role),
-            status=existing.status,
+            role=MembershipRole(role or existing.role.value),
+            status=MembershipStatus(status or existing.status.value),
             created_at=existing.created_at,
-            updated_at=existing.updated_at,
+            updated_at=updated_at,
         )
         self._table.put_item(Item=_membership_item(updated))
         return updated
+
+    def delete(self, organization_id: str, user_id: str) -> bool:
+        existing = self.get(organization_id, user_id)
+        if existing is None:
+            return False
+        if hasattr(self._table, "delete_item"):
+            self._table.delete_item(Key={"pk": _organization_pk(organization_id), "sk": f"MEMBERSHIP#{user_id}"})
+        else:
+            try:
+                del self._table._items[(_organization_pk(organization_id), f"MEMBERSHIP#{user_id}")]
+            except Exception:
+                return False
+        return True
 
 
 class DynamoInvitationRepository:
@@ -363,6 +392,10 @@ class FakeIdentityDynamoTable:
     def get_item(self, Key):  # noqa: N803
         item = self._items.get((Key["pk"], Key["sk"]))
         return {"Item": deepcopy(item)} if item is not None else {}
+
+    def delete_item(self, Key):  # noqa: N803
+        self._items.pop((Key["pk"], Key["sk"]), None)
+        return {}
 
     def query(self, IndexName=None, KeyConditionExpression=None, ExpressionAttributeValues=None, Limit=None):  # noqa: N803
         values = ExpressionAttributeValues or {}

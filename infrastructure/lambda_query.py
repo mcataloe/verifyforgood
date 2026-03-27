@@ -88,6 +88,12 @@ from charity_status_platform.customer_accounts import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
+    DynamoInvitationRepository,
+    InvitationAcceptRequest,
+    InvitationCreateRequest,
+    MemberUpdateRequest,
+    MembershipManagementError,
+    MembershipManagementService,
     OrganizationBootstrapValidationError,
     OrganizationCreateRequest,
     OrganizationService,
@@ -178,6 +184,7 @@ stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
 portal_organization_service: OrganizationService | None = None
+portal_membership_service: MembershipManagementService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -415,6 +422,18 @@ def _get_portal_organization_service() -> OrganizationService:
     return portal_organization_service
 
 
+def _get_portal_membership_service() -> MembershipManagementService:
+    global portal_membership_service
+    if portal_membership_service is None:
+        portal_membership_service = MembershipManagementService(
+            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+            invitations=DynamoInvitationRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return portal_membership_service
+
+
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
     return _MergedApiKeyStore(
         _ManagedApiKeyStore(_get_control_plane_service().store),
@@ -623,6 +642,26 @@ def _is_portal_organization_request(event: dict[str, Any], method: str) -> bool:
     return candidate == "/organizations"
 
 
+def _is_portal_membership_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "PATCH", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {
+        "/organizations/current/members",
+        "/organizations/current/invitations",
+        "/organizations/current/members/{memberId}",
+    }
+
+
+def _is_invitation_accept_request(event: dict[str, Any], method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate == "/invitations/accept"
+
+
 def _handle_portal_auth_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = _route_template(event)
@@ -671,6 +710,83 @@ def _handle_portal_organization_request(event: dict[str, Any], response_context:
         ),
     )
     return json_response(201, organization.to_dict(), response_context=response_context)
+
+
+def _resolve_current_portal_context(event: dict[str, Any]) -> tuple[str, str]:
+    headers = event.get("headers") or {}
+    account_id = str(_get_header(headers, "x-portal-account-id") or "").strip()
+    workspace_id = str(_get_header(headers, "x-portal-workspace-id") or "").strip()
+    if not account_id or not workspace_id:
+        raise MembershipManagementError("Current organization headers are required")
+    if account_id != workspace_id:
+        raise MembershipManagementError("Current organization headers must identify the same scope")
+    return account_id, workspace_id
+
+
+def _handle_portal_membership_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    account_id, workspace_id = _resolve_current_portal_context(event)
+    del workspace_id
+    service = _get_portal_membership_service()
+
+    if resource == "/organizations/current/members" and method == "GET":
+        items = [item.to_dict() for item in service.list_members(organization_id=account_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
+    if resource == "/organizations/current/invitations" and method == "POST":
+        payload = _parse_json_body(event)
+        invitation = service.invite_member(
+            organization_id=account_id,
+            actor_user_id=current_user.user_id,
+            request=InvitationCreateRequest(
+                email=str(payload.get("email") or ""),
+                role=str(payload.get("role") or ""),
+            ),
+        )
+        return json_response(201, invitation.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/members/{memberId}" and method == "PATCH":
+        path_params = event.get("pathParameters") or {}
+        member_id = str(path_params.get("memberId") or "")
+        payload = _parse_json_body(event)
+        member = service.update_member(
+            organization_id=account_id,
+            actor_user_id=current_user.user_id,
+            member_user_id=member_id,
+            request=MemberUpdateRequest(
+                role=(str(payload.get("role")) if payload.get("role") is not None else None),
+                status=(str(payload.get("status")) if payload.get("status") is not None else None),
+            ),
+        )
+        return json_response(200, member.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/members/{memberId}" and method == "DELETE":
+        path_params = event.get("pathParameters") or {}
+        member_id = str(path_params.get("memberId") or "")
+        payload = service.remove_member(
+            organization_id=account_id,
+            actor_user_id=current_user.user_id,
+            member_user_id=member_id,
+        )
+        return json_response(200, payload, response_context=response_context)
+
+    return error_response(404, "Membership route not found", response_context=response_context, code="not_found")
+
+
+def _handle_invitation_accept_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    payload = _parse_json_body(event)
+    accepted = _get_portal_membership_service().accept_invitation(
+        user_id=current_user.user_id,
+        request=InvitationAcceptRequest(token=str(payload.get("token") or "")),
+    )
+    return json_response(200, accepted, response_context=response_context)
 
 
 def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -800,6 +916,36 @@ def handler(event, context):
         except OrganizationBootstrapValidationError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
         except PortalAuthValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_portal_membership_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+        )
+        try:
+            return _handle_portal_membership_request(event, portal_context)
+        except MembershipManagementError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_invitation_accept_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+        )
+        try:
+            return _handle_invitation_accept_request(event, portal_context)
+        except MembershipManagementError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
         except AuthenticationError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")

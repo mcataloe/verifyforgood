@@ -60,6 +60,15 @@ from .organization_service import (
     OrganizationCreateRequest,
     OrganizationService,
 )
+from .membership_service import (
+    InvitationAcceptRequest,
+    InvitationCreateRequest,
+    InvitationCreateResponse,
+    MemberSummary,
+    MemberUpdateRequest,
+    MembershipManagementError,
+    MembershipManagementService,
+)
 
 __all__ = [
     "Account",
@@ -112,4 +121,11 @@ __all__ = [
     "OrganizationCreateRequest",
     "OrganizationContextResponse",
     "OrganizationService",
+    "MembershipManagementError",
+    "MemberSummary",
+    "InvitationCreateRequest",
+    "InvitationCreateResponse",
+    "MemberUpdateRequest",
+    "InvitationAcceptRequest",
+    "MembershipManagementService",
 ]

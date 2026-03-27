@@ -59,6 +59,20 @@ class MembershipRepository(Protocol):
     def update_role(self, organization_id: str, user_id: str, role: str) -> MembershipRecord | None:
         ...
 
+    def update_membership(
+        self,
+        organization_id: str,
+        user_id: str,
+        *,
+        role: str | None = None,
+        status: str | None = None,
+        updated_at: str,
+    ) -> MembershipRecord | None:
+        ...
+
+    def delete(self, organization_id: str, user_id: str) -> bool:
+        ...
+
 
 class InvitationRepository(Protocol):
     def create(self, invitation: InvitationRecord) -> InvitationRecord:

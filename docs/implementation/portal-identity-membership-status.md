@@ -2,11 +2,11 @@
 
 ## Status
 
-organization bootstrap complete
+membership management complete
 
 ## Next Phase
 
-19E
+19F
 
 ## Scope
 
