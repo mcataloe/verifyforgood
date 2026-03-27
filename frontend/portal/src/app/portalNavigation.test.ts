@@ -69,6 +69,7 @@ describe("portal navigation config", () => {
   it("maps customer admins to the workspace and account information architecture", () => {
     expect(
       summarizeSections({
+        membershipRole: "admin",
         plan: "growth",
         roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       }),
@@ -146,6 +147,7 @@ describe("portal navigation config", () => {
 
   it("keeps discoverable plan-gated API access locked for lower-tier customer admins", () => {
     const sections = resolvePortalNavigation({
+      membershipRole: "admin",
       plan: "free",
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
@@ -168,6 +170,7 @@ describe("portal navigation config", () => {
 
   it("resolves the active navigation item from the current hash alias before falling back to the base route", () => {
     const sections = resolvePortalNavigation({
+      membershipRole: "admin",
       plan: "growth",
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
@@ -190,9 +193,25 @@ describe("portal navigation config", () => {
       }),
     ).toBe("customer-admin-billing");
   });
+
+  it("removes admin-only customer navigation items when the membership role is user", () => {
+    expect(
+      summarizeSections({
+        membershipRole: "user",
+        plan: "growth",
+        roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+      }),
+    ).toEqual([
+      {
+        items: ["Home", "Team"],
+        label: "Workspace",
+      },
+    ]);
+  });
 });
 
 function summarizeSections(params: {
+  membershipRole?: "admin" | "user" | null;
   plan: string;
   roles: readonly FrontendAccessRole[];
 }) {

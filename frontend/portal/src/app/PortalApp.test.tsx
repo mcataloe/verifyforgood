@@ -455,4 +455,42 @@ describe("PortalApp", () => {
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/onboarding/organization");
   });
+
+  it("redirects customer admins without admin membership away from admin-only routes", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/usage-billing?nav=customer-admin-usage";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Verification dashboard" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
+  });
 });

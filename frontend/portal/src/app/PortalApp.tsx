@@ -10,6 +10,7 @@ import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomat
 import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
 import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   createPortalActiveOrganizationRecord,
   createPortalOrganizationClient,
@@ -22,6 +23,10 @@ import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WorkspacePage } from "../pages/WorkspacePage";
+import {
+  resolveMembershipRoleFromContext,
+  resolveRouteAuthorization,
+} from "./portalAuthorization";
 import {
   resolveCustomerUserPortalPane,
   resolvePortalNavigationAudience,
@@ -230,62 +235,139 @@ function PortalAppShell({
       runtimeConfig={runtimeConfig}
       session={session}
     >
-      <PortalLayout
-        app={appInfo}
+      <PortalAuthorizedShell
+        appInfo={appInfo}
         currentRoute={currentRoute}
-        onSignOut={auth.signOut}
-        routes={portalProtectedRoutes.filter(
-          (route) => route.key !== organizationOnboardingPortalRoute.key,
-        )}
+        customerUserPane={customerUserPane}
+        endpoints={endpoints}
         runtimeConfig={runtimeConfig}
         session={session}
-      >
-        {currentRoute.key === "dashboard" ? (
-          <DashboardPage runtimeConfig={runtimeConfig} session={session} />
-        ) : null}
-        {currentRoute.key === "workspace" ? (
-          audience === "customer_user" && customerUserPane ? (
-            <CustomerUserSearchPage
-              pane={
-                customerUserPane === "search-address"
-                  ? "search-address"
-                  : "search-ein"
-              }
-            />
-          ) : (
-            <WorkspacePage endpoints={endpoints} session={session} />
-          )
-        ) : null}
-        {currentRoute.key === "api-access" ? (
-          audience === "customer_user" && customerUserPane ? (
-            <CustomerUserAutomationPage
-              pane={
-                customerUserPane === "automation-api"
-                  ? "automation-api"
-                  : customerUserPane === "automation-oauth"
-                    ? "automation-oauth"
-                    : "automation-general"
-              }
-              session={session}
-            />
-          ) : (
-            <ApiAccessPage endpoints={endpoints} session={session} />
-          )
-        ) : null}
-        {currentRoute.key === "usage-billing" ? (
-          <BillingPage endpoints={endpoints} session={session} />
-        ) : null}
-        {currentRoute.key === "settings" ? (
-          audience === "customer_user" && customerUserPane === "profile" ? (
-            <CustomerUserProfilePage
-              environment={runtimeConfig.environment}
-              session={session}
-            />
-          ) : (
-            <SettingsPage endpoints={endpoints} session={session} />
-          )
-        ) : null}
-      </PortalLayout>
+        onSignOut={auth.signOut}
+      />
     </PortalOrganizationProvider>
+  );
+}
+
+function PortalAuthorizedShell({
+  appInfo,
+  currentRoute,
+  customerUserPane,
+  endpoints,
+  onSignOut,
+  runtimeConfig,
+  session,
+}: {
+  appInfo: FrontendAppInfo;
+  currentRoute: ReturnType<typeof usePortalRoute>;
+  customerUserPane: ReturnType<typeof resolveCustomerUserPortalPane> | null;
+  endpoints: ReturnType<typeof portalEndpoints>;
+  onSignOut: () => Promise<void>;
+  runtimeConfig: ReturnType<typeof readRuntimeConfig>;
+  session: NonNullable<ReturnType<typeof usePortalAuth>["session"]>;
+}) {
+  const organization = usePortalOrganization();
+  const audience = resolvePortalNavigationAudience(session.roles);
+  const currentHash =
+    typeof window === "undefined"
+      ? currentRoute.hash
+      : window.location.hash || currentRoute.hash;
+  const membershipRole = resolveMembershipRoleFromContext(
+    organization.currentMembership ?? session.organization_membership,
+  );
+  const routeAuthorization = resolveRouteAuthorization({
+    audience,
+    currentHash,
+    currentRoute,
+    membershipRole,
+  });
+
+  useEffect(() => {
+    if (
+      currentRoute.access === "protected" &&
+      !routeAuthorization.allowed &&
+      routeAuthorization.redirectHash &&
+      currentHash !== routeAuthorization.redirectHash
+    ) {
+      navigateToPortalRoute(routeAuthorization.redirectHash);
+    }
+  }, [
+    currentHash,
+    currentRoute.access,
+    routeAuthorization.allowed,
+    routeAuthorization.redirectHash,
+  ]);
+
+  if (!routeAuthorization.allowed) {
+    return (
+      <PortalAuthLayout
+        app={appInfo}
+        runtimeConfig={runtimeConfig}
+        subtitle="Checking whether the current organization role allows this route."
+        title="Redirecting to an allowed area"
+      >
+        <PortalNotice title="Redirecting" tone="loading">
+          <p>Returning to the nearest allowed portal destination.</p>
+        </PortalNotice>
+      </PortalAuthLayout>
+    );
+  }
+
+  return (
+    <PortalLayout
+      app={appInfo}
+      currentRoute={currentRoute}
+      onSignOut={onSignOut}
+      routes={portalProtectedRoutes.filter(
+        (route) => route.key !== organizationOnboardingPortalRoute.key,
+      )}
+      runtimeConfig={runtimeConfig}
+      session={session}
+    >
+      {currentRoute.key === "dashboard" ? (
+        <DashboardPage runtimeConfig={runtimeConfig} session={session} />
+      ) : null}
+      {currentRoute.key === "workspace" ? (
+        audience === "customer_user" && customerUserPane ? (
+          <CustomerUserSearchPage
+            pane={
+              customerUserPane === "search-address"
+                ? "search-address"
+                : "search-ein"
+            }
+          />
+        ) : (
+          <WorkspacePage endpoints={endpoints} session={session} />
+        )
+      ) : null}
+      {currentRoute.key === "api-access" ? (
+        audience === "customer_user" && customerUserPane ? (
+          <CustomerUserAutomationPage
+            pane={
+              customerUserPane === "automation-api"
+                ? "automation-api"
+                : customerUserPane === "automation-oauth"
+                  ? "automation-oauth"
+                  : "automation-general"
+            }
+            session={session}
+          />
+        ) : (
+          <ApiAccessPage endpoints={endpoints} session={session} />
+        )
+      ) : null}
+      {currentRoute.key === "usage-billing" ? (
+        <BillingPage endpoints={endpoints} session={session} />
+      ) : null}
+      {currentRoute.key === "settings" ? (
+        audience === "customer_user" && customerUserPane === "profile" ? (
+          <CustomerUserProfilePage
+            environment={runtimeConfig.environment}
+            session={session}
+          />
+        ) : (
+          <SettingsPage endpoints={endpoints} session={session} />
+        )
+      ) : null}
+    </PortalLayout>
   );
 }

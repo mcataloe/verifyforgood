@@ -21,6 +21,8 @@ import type {
   PortalProtectedRouteKey,
   PortalRouteDefinition,
 } from "./portalRoutes";
+import type { CustomerMembershipRole } from "./portalAuthorization";
+import { filterNavigationSectionsByMembershipRole as filterResolvedNavigationSectionsByMembershipRole } from "./portalAuthorization";
 
 export type PortalNavigationAudience =
   | "developer"
@@ -59,19 +61,25 @@ export function buildPortalNavigationSections(
 }
 
 export function resolvePortalNavigation(params: {
+  membershipRole?: CustomerMembershipRole | null;
   plan: string;
   roles: readonly FrontendAccessRole[];
   routes: readonly PortalRouteDefinition[];
 }): VerifyForGoodResolvedNavigationSection[] {
   const audience = resolvePortalNavigationAudience(params.roles);
-
-  return filterNavigationSections(
+  const sections = filterNavigationSections(
     buildPortalNavigationSections(params.routes, audience),
     {
       plan: params.plan,
       roles: params.roles,
     },
   );
+
+  return filterResolvedNavigationSectionsByMembershipRole({
+    audience,
+    membershipRole: params.membershipRole ?? null,
+    sections,
+  });
 }
 
 export function resolvePortalNavigationAudience(

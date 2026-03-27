@@ -14,8 +14,10 @@ import {
   resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
+import { resolveMembershipRoleFromContext } from "../app/portalAuthorization";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
@@ -35,8 +37,13 @@ export function PortalLayout({
   runtimeConfig: _runtimeConfig,
   session,
 }: PortalLayoutProps) {
+  const organization = usePortalOrganization();
   const audience = resolvePortalNavigationAudience(session.roles);
+  const membershipRole = resolveMembershipRoleFromContext(
+    organization.currentMembership ?? session.organization_membership,
+  );
   const navigationSections = resolvePortalNavigation({
+    membershipRole,
     plan: session.plan,
     roles: session.roles,
     routes,

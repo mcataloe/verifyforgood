@@ -53,6 +53,26 @@ describe("PortalLayout", () => {
     ).toBeTruthy();
   });
 
+  it("hides admin-only navigation items when the current membership role is user", () => {
+    renderPortalLayout({
+      session: {
+        ...createMockPortalSession(),
+        organization_membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_verifyforgood_demo",
+        },
+      },
+    });
+
+    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Usage\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
+  });
+
   it("maps customer-user navigation to dashboard, search, automation, and footer profile access", () => {
     renderPortalLayout({
       session: {
