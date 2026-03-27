@@ -2,11 +2,11 @@
 
 ## Status
 
-frontend auth foundation complete
+organization onboarding complete
 
 ## Next Phase
 
-19G
+19H
 
 ## Scope
 

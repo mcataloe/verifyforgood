@@ -27,6 +27,7 @@ describe("PortalOrganizationProvider", () => {
     const session = {
       ...createMockPortalSession(),
       auth_method: "portal_browser_session" as const,
+      organization_context_status: "active" as const,
       organization_name: "Stored Organization Context",
     };
     const organizationLoader = vi.fn(async () => ({

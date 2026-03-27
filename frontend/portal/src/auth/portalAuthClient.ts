@@ -6,6 +6,10 @@ import {
   type PortalIdentityUser,
   type PortalStoredAuthRecord,
 } from "../app/portalSession";
+import {
+  clearStoredActiveOrganization,
+  readStoredActiveOrganization,
+} from "../organization/portalOrganization";
 
 const PORTAL_AUTH_STORAGE_KEY = "verifyforgood.portal.auth.session";
 
@@ -91,6 +95,7 @@ export function createPortalAuthClient({
       return requireHydratedSession(apiClient, record);
     },
     async signOut() {
+      clearStoredActiveOrganization();
       clearStoredPortalAuthRecord();
     },
   };
@@ -113,11 +118,15 @@ async function hydrateSession(
     });
     return {
       accessToken: refreshedRecord.access_token,
-      session: createPortalCompatibilitySession(refreshedRecord.user),
+      session: createPortalCompatibilitySession(
+        refreshedRecord.user,
+        readStoredActiveOrganization(),
+      ),
     };
   } catch (error) {
     const status = typeof error === "object" && error !== null ? (error as { status?: unknown }).status : null;
     if (status === 401) {
+      clearStoredActiveOrganization();
       clearStoredPortalAuthRecord();
       return null;
     }

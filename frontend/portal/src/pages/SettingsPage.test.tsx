@@ -23,6 +23,7 @@ const endpoints: PortalEndpoints = {
   nonprofitFilings: "/v1/nonprofit/{ein}/filings",
   nonprofitLookup: "/v1/nonprofit/{ein}",
   nonprofitSearch: "/v1/nonprofits/search",
+  organizationCreate: "/v1/organizations",
   oauthToken: "/v1/oauth/token",
   organizationSettings: "/v1/organization/settings",
 };
@@ -244,6 +245,7 @@ function renderWithOrganization(element: ReactNode) {
     },
     apiClient: {} as PortalOrganizationContextValue["apiClient"],
     refresh: async () => {},
+    setActiveOrganization: () => {},
     status: "ready",
   };
 

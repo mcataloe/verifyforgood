@@ -203,6 +203,7 @@ function renderPortalLayout({
           put: vi.fn(),
         } as never,
         refresh: vi.fn(async () => {}),
+        setActiveOrganization: vi.fn(),
         status: "ready",
       }}
     >

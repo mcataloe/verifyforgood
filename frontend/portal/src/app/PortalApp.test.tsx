@@ -114,18 +114,52 @@ function buildFetchMock() {
       );
     }
 
-    if (url.endsWith("/v1/organization/settings")) {
+    if (url.endsWith("/v1/organizations")) {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      const normalizedSlug =
+        String(body.slug || body.name || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "new-organization";
       return new Response(
         JSON.stringify(
           buildEnvelope({
-            account_id: "acct_portal_pending",
+            account_id: "org_123",
+            membership: {
+              role: "admin",
+              status: "active",
+              user_id: "user_jamie_admin",
+            },
+            organization_id: "org_123",
+            organization_name: body.name ?? "Verify For Good Org",
+            slug: normalizedSlug,
+            workspace_id: "org_123",
+          }),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 201,
+        },
+      );
+    }
+
+    if (url.endsWith("/v1/organization/settings")) {
+      const headers = new Headers(init?.headers);
+      return new Response(
+        JSON.stringify(
+          buildEnvelope({
+            account_id: headers.get("X-Portal-Account-Id") ?? "acct_portal_pending",
             billing: {
               allowOverage: false,
               monthlyRequestCap: null,
             },
             source: "default",
             updated_at: "2026-03-27T00:00:00Z",
-            workspace_id: "ws_portal_pending",
+            workspace_id:
+              headers.get("X-Portal-Workspace-Id") ?? "ws_portal_pending",
           }),
         ),
         {
@@ -287,11 +321,13 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByLabelText("Request usage meter")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Create your first organization" }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Organization name")).toBeTruthy();
   });
 
-  it("allows the registration flow and restores the protected route", async () => {
+  it("allows the registration flow and redirects into organization onboarding", async () => {
     render(<App />);
 
     await screen.findByRole("heading", {
@@ -316,10 +352,12 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByLabelText("Request usage meter")).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Create your first organization" }),
+    ).toBeTruthy();
   });
 
-  it("renders the nonprofit search dashboard on the default protected route after login", async () => {
+  it("creates an organization during onboarding and redirects to the dashboard", async () => {
     window.location.hash = "#/dashboard";
 
     render(<App />);
@@ -334,6 +372,16 @@ describe("PortalApp", () => {
       target: { value: "top-secret-password" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByRole("heading", {
+      name: "Create your first organization",
+    });
+    fireEvent.change(screen.getByLabelText("Organization name"), {
+      target: { value: "Verify For Good Org" },
+    });
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "verify-for-good-org" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
     expect(
       await screen.findByRole("heading", {
@@ -344,9 +392,10 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Recent verifications" }),
     ).toBeTruthy();
     expect(screen.getByText("Verifications this month")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
   });
 
-  it("redirects authenticated users away from public auth routes", async () => {
+  it("redirects authenticated users with stored active org state away from public auth routes", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -359,6 +408,21 @@ describe("PortalApp", () => {
         },
       }),
     );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
     window.location.hash = "#/register";
 
     render(<App />);
@@ -367,5 +431,28 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Verification dashboard" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("gates authenticated users with pending org context to onboarding", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.location.hash = "#/usage-billing";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Create your first organization" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("#/onboarding/organization");
   });
 });

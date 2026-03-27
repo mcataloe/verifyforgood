@@ -100,6 +100,7 @@ function renderWithOrganization(element: ReactNode) {
     },
     apiClient: {} as PortalOrganizationContextValue["apiClient"],
     refresh: async () => {},
+    setActiveOrganization: () => {},
     status: "ready",
   };
 

@@ -22,6 +22,9 @@ export const publicEndpoints = {
 } as const;
 
 export const organizationEndpoints = {
+  create: defineEndpoint("POST", "/organizations", {
+    name: "createOrganization",
+  }),
   settings: defineEndpoint("GET", "/organization/settings", {
     name: "organizationSettings",
   }),

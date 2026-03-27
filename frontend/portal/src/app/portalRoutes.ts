@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 export type PortalProtectedRouteKey =
+  | "onboarding-organization"
   | "dashboard"
   | "workspace"
   | "api-access"
@@ -39,7 +40,17 @@ export const portalPublicRoutes: PortalRouteDefinition[] = [
   },
 ];
 
+export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
+  access: "protected",
+  key: "onboarding-organization",
+  label: "Create Organization",
+  hash: "#/onboarding/organization",
+  description:
+    "Protected onboarding route for creating the first organization context.",
+};
+
 export const portalProtectedRoutes: PortalRouteDefinition[] = [
+  organizationOnboardingPortalRoute,
   {
     access: "protected",
     key: "dashboard",

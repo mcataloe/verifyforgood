@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   consumePortalReturnTo,
   defaultProtectedPortalRoute,
+  organizationOnboardingPortalRoute,
   rememberPortalReturnTo,
   registerPortalRoute,
   resolvePortalRoute,
@@ -17,6 +18,10 @@ describe("portal route resolution", () => {
     expect(resolvePortalRoute("#/usage-billing")).toMatchObject({
       hash: "#/usage-billing",
       key: "usage-billing",
+    });
+    expect(resolvePortalRoute("#/onboarding/organization")).toMatchObject({
+      hash: "#/onboarding/organization",
+      key: "onboarding-organization",
     });
   });
 
@@ -46,6 +51,16 @@ describe("portal route resolution", () => {
 
     expect(consumePortalReturnTo()).toBe(
       "#/usage-billing?nav=customer-admin-usage",
+    );
+  });
+
+  it("keeps onboarding routes as protected return targets", () => {
+    window.sessionStorage.clear();
+
+    rememberPortalReturnTo(organizationOnboardingPortalRoute.hash);
+
+    expect(consumePortalReturnTo()).toBe(
+      organizationOnboardingPortalRoute.hash,
     );
   });
 

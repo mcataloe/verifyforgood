@@ -135,6 +135,7 @@ function renderWithOrganization(element: ReactNode) {
       put: vi.fn(async () => ({})),
     } as never,
     refresh: vi.fn(async () => {}),
+    setActiveOrganization: vi.fn(),
     status: "ready",
   };
 

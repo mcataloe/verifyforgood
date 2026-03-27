@@ -36,12 +36,14 @@ export function PortalOrganizationProvider({
     () => ({
       account_id: session.account_id,
       auth_method: session.auth_method,
+      organization_context_status: session.organization_context_status,
       organization_name: session.organization_name,
       workspace_id: session.workspace_id,
     }),
     [
       session.account_id,
       session.auth_method,
+      session.organization_context_status,
       session.organization_name,
       session.workspace_id,
     ],
@@ -133,6 +135,7 @@ export function PortalOrganizationProvider({
         activeOrganization,
         apiClient,
         refresh,
+        setActiveOrganization,
         status,
       }}
     >

@@ -164,6 +164,71 @@ describe("portal auth client", () => {
     expect(restored?.accessToken).toBe("token_login");
     expect(restored?.session.user.subject_id).toBe("user_portal_person");
     expect(restored?.session.roles).toEqual(["customer_admin"]);
+    expect(restored?.session.organization_context_status).toBe("pending");
+  });
+
+  it("hydrates a stored active organization into the restored session", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "token_login",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_portal_person",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.session.organization_context_status).toBe("active");
+    expect(restored?.session.organization_name).toBe("Verify For Good Org");
+    expect(restored?.session.account_id).toBe("org_123");
+    expect(restored?.session.workspace_id).toBe("org_123");
   });
 
   it("clears invalid stored tokens when /auth/me returns unauthorized", async () => {

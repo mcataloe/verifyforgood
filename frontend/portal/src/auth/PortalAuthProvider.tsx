@@ -6,6 +6,11 @@ import {
   useState,
 } from "react";
 import {
+  createPortalCompatibilitySession,
+  type PortalActiveOrganizationRecord,
+  type PortalAuthenticatedSession,
+} from "../app/portalSession";
+import {
   createPortalAuthClient,
   type PortalAuthClient,
   type PortalLoginRequest,
@@ -15,7 +20,7 @@ import {
   PortalAuthContext,
   type PortalAuthStatus,
 } from "./usePortalAuth";
-import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { writeStoredActiveOrganization } from "../organization/portalOrganization";
 
 interface PortalAuthProviderProps extends PropsWithChildren {
   authClient?: PortalAuthClient;
@@ -113,6 +118,28 @@ export function PortalAuthProvider({
     return state.session;
   };
 
+  const applyOrganization = (organization: PortalActiveOrganizationRecord) => {
+    if (!authState.session) {
+      throw new Error("An authenticated session is required");
+    }
+
+    const persisted = writeStoredActiveOrganization(organization);
+    const nextSession = createPortalCompatibilitySession(
+      {
+        email: authState.session.user.email,
+        full_name: authState.session.user.display_name,
+        user_id: authState.session.user.subject_id,
+      },
+      persisted,
+    );
+    setAuthState((currentState) => ({
+      ...currentState,
+      session: nextSession,
+      status: "authenticated",
+    }));
+    return nextSession;
+  };
+
   const signOut = async () => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
     await resolvedAuthClient.signOut();
@@ -128,6 +155,7 @@ export function PortalAuthProvider({
     <PortalAuthContext.Provider
       value={{
         accessToken: authState.accessToken,
+        applyOrganization,
         isBusy: authState.isBusy,
         login,
         register,

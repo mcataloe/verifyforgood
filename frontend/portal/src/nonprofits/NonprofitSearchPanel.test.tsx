@@ -14,11 +14,13 @@ function renderWithOrganization(controller: PortalNonprofitSearchController) {
     activeOrganization: createSessionPortalOrganization({
       account_id: "acct_portal_test",
       auth_method: "mock_browser_session",
+      organization_context_status: "active",
       organization_name: "Portal Test Org",
       workspace_id: "ws_portal_test",
     }),
     apiClient: {} as PortalOrganizationContextValue["apiClient"],
     refresh: async () => {},
+    setActiveOrganization: () => {},
     status: "ready",
   };
 

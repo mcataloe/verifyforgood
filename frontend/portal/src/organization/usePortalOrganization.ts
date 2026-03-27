@@ -7,6 +7,7 @@ export type PortalOrganizationStatus = "loading" | "ready";
 export interface PortalOrganizationContextValue {
   activeOrganization: PortalOrganization;
   apiClient: ApiClient;
+  setActiveOrganization: (organization: PortalOrganization) => void;
   refresh: () => Promise<void>;
   status: PortalOrganizationStatus;
 }

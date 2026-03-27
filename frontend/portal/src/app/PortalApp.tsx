@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
 import { usePortalAuth } from "../auth/usePortalAuth";
@@ -10,9 +10,14 @@ import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomat
 import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
 import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
+import {
+  createPortalActiveOrganizationRecord,
+  createPortalOrganizationClient,
+} from "../organization/portalOrganization";
 import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
 import { DashboardPage } from "../pages/DashboardPage";
+import { PortalOrganizationOnboardingPage } from "../pages/PortalOrganizationOnboardingPage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -25,6 +30,7 @@ import { portalEndpoints } from "./portalEndpoints";
 import {
   consumePortalReturnTo,
   navigateToPortalRoute,
+  organizationOnboardingPortalRoute,
   peekPortalReturnTo,
   portalProtectedRoutes,
   registerPortalRoute,
@@ -61,6 +67,18 @@ function PortalAppShell({
   const auth = usePortalAuth();
   const endpoints = portalEndpoints(runtimeConfig);
   const requestedRoute = resolvePortalRoute(peekPortalReturnTo());
+  const hasPendingOrganization =
+    auth.session?.organization_context_status === "pending";
+  const organizationClient = useMemo(
+    () =>
+      auth.accessToken
+        ? createPortalOrganizationClient({
+            accessToken: auth.accessToken,
+            runtimeConfig,
+          })
+        : null,
+    [auth.accessToken, runtimeConfig],
+  );
 
   useEffect(() => {
     if (
@@ -81,6 +99,26 @@ function PortalAppShell({
       navigateToPortalRoute(consumePortalReturnTo());
     }
   }, [auth.status, currentRoute.key]);
+
+  useEffect(() => {
+    if (
+      auth.status === "authenticated" &&
+      hasPendingOrganization &&
+      currentRoute.key !== organizationOnboardingPortalRoute.key
+    ) {
+      navigateToPortalRoute(organizationOnboardingPortalRoute.hash);
+    }
+  }, [auth.status, currentRoute.key, hasPendingOrganization]);
+
+  useEffect(() => {
+    if (
+      auth.status === "authenticated" &&
+      !hasPendingOrganization &&
+      currentRoute.key === organizationOnboardingPortalRoute.key
+    ) {
+      navigateToPortalRoute("#/dashboard");
+    }
+  }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
   if (auth.status === "loading") {
     return (
@@ -147,6 +185,32 @@ function PortalAppShell({
   if (!session) {
     return null;
   }
+  if (hasPendingOrganization) {
+    return (
+      <PortalAuthLayout
+        app={appInfo}
+        runtimeConfig={runtimeConfig}
+        subtitle="Create the first organization context before the rest of the portal opens."
+        title="Create your first organization"
+      >
+        <PortalOrganizationOnboardingPage
+          endpoints={endpoints}
+          isBusy={auth.isBusy}
+          onCreateOrganization={async (request) => {
+            if (!organizationClient) {
+              throw new Error("Authentication is required");
+            }
+
+            const created = await organizationClient.createOrganization(request);
+            auth.applyOrganization(
+              createPortalActiveOrganizationRecord(created),
+            );
+            navigateToPortalRoute("#/dashboard");
+          }}
+        />
+      </PortalAuthLayout>
+    );
+  }
   const audience = resolvePortalNavigationAudience(session.roles);
   const currentHash =
     typeof window === "undefined"
@@ -170,7 +234,9 @@ function PortalAppShell({
         app={appInfo}
         currentRoute={currentRoute}
         onSignOut={auth.signOut}
-        routes={portalProtectedRoutes}
+        routes={portalProtectedRoutes.filter(
+          (route) => route.key !== organizationOnboardingPortalRoute.key,
+        )}
         runtimeConfig={runtimeConfig}
         session={session}
       >

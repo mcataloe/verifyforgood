@@ -21,6 +21,7 @@ export interface PortalAuthenticatedSession extends OrganizationContext {
   auth_method: "mock_browser_session" | "portal_browser_session";
   billing_status: "active" | "stubbed" | "trialing";
   issued_at: string;
+  organization_context_status: "active" | "pending";
   organization_name: string;
   plan: string;
   roles: FrontendAccessRole[];
@@ -33,6 +34,19 @@ export interface PortalStoredAuthRecord {
   access_token: string;
   token_type: "Bearer";
   user: PortalIdentityUser;
+}
+
+export interface PortalActiveOrganizationRecord {
+  account_id: string;
+  membership: {
+    role: string;
+    status: string;
+    user_id: string;
+  };
+  organization_id: string;
+  organization_name: string;
+  slug: string;
+  workspace_id: string;
 }
 
 const PORTAL_SESSION_COMPATIBILITY_DEFAULTS = {
@@ -67,6 +81,7 @@ export function createMockPortalSession(
     auth_method: "mock_browser_session",
     billing_status: "active",
     issued_at: "2026-03-20T00:00:00Z",
+    organization_context_status: "active",
     organization_name: "VerifyForGood Demo Workspace",
     plan: "growth",
     roles: options.roles ?? [FRONTEND_ACCESS_ROLE.customerAdmin],
@@ -88,12 +103,34 @@ export function createMockPortalSession(
 
 export function createPortalCompatibilitySession(
   user: PortalIdentityUser,
+  organization?: PortalActiveOrganizationRecord | null,
 ): PortalAuthenticatedSession {
+  if (organization) {
+    return {
+      account_id: organization.account_id,
+      auth_method: "portal_browser_session",
+      billing_status: "stubbed",
+      issued_at: new Date().toISOString(),
+      organization_context_status: "active",
+      organization_name: organization.organization_name,
+      plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
+      roles: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.roles,
+      scopes: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.scopes,
+      user: {
+        display_name: resolvePortalDisplayName(user),
+        email: user.email,
+        subject_id: user.user_id,
+      },
+      workspace_id: organization.workspace_id,
+    };
+  }
+
   return {
     account_id: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.account_id,
     auth_method: "portal_browser_session",
     billing_status: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.billing_status,
     issued_at: new Date().toISOString(),
+    organization_context_status: "pending",
     organization_name: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.organization_name,
     plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
     roles: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.roles,

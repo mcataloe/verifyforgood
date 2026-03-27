@@ -70,6 +70,7 @@ describe("portal usage billing service", () => {
       organization: createSessionPortalOrganization({
         account_id: session.account_id,
         auth_method: session.auth_method,
+        organization_context_status: "active",
         organization_name: session.organization_name,
         workspace_id: session.workspace_id,
       }),
