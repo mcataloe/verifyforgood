@@ -163,6 +163,26 @@ This keeps nonprofit search, API access, billing visibility, and the auth shell 
 
 ## Running the portal
 
+Before running the portal locally, copy `.env.example` to `.env.local` or
+`.env.development.local` in this package and point `VITE_API_BASE_URL` at the
+AWS dev API Gateway host.
+
+With the current Terraform defaults and custom domain enabled, the dev API host
+is expected to be:
+
+```bash
+https://dev.verifyforgood.com
+```
+
+The AWS dev API is expected to expose the current portal auth and onboarding
+routes, including:
+
+- `POST /v1/auth/register`
+- `POST /v1/auth/login`
+- `GET /v1/auth/me`
+- `POST /v1/organizations`
+- `GET /v1/plans`
+
 From the workspace root:
 
 ```bash

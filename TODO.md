@@ -28,3 +28,21 @@ DynamoDB is being used initially for cost control.
 ### Constraint
 
 Service and repository interfaces should remain datastore-agnostic.
+
+## TODO-ARCH-002
+
+### Title
+
+Reconcile API Endpoints
+
+### Rationale
+
+Need to ensure that all API endpoints that are expected by the frontend repo are deployed in the infrastructure / data access layer.
+
+### Migration Triggers
+
+None
+
+### Constraint
+
+None
