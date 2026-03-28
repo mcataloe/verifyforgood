@@ -15,6 +15,16 @@ from charity_status.billing.service import monthly_period_for
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 from charity_status.platform.auth import ApiKeyAuthContextProvider
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
+from charity_status_platform.customer_accounts import (
+    DynamoOrganizationRepository,
+    DynamoUsageRepository,
+    FakeIdentityDynamoResource,
+    FakeIdentityDynamoTable,
+    OrganizationRecord,
+    UsageMetricType,
+    UsageService,
+    usage_metrics_for_route,
+)
 
 
 class _BillingSettingsResolver:
@@ -384,6 +394,79 @@ def test_quota_metering_continues_past_limit_when_overage_allowed():
     hook.on_response(context, "GET /v1/nonprofit/{ein}", 200)
 
     assert store.get_usage("acct_1", month_key) == 251
+
+
+def test_usage_metric_mapping_covers_lookup_and_enrichment_routes():
+    assert tuple(metric.value for metric in usage_metrics_for_route("GET /v1/nonprofit/{ein}")) == (
+        "api_requests",
+        "nonprofit_lookups",
+    )
+    assert tuple(metric.value for metric in usage_metrics_for_route("POST /v1/verify")) == (
+        "api_requests",
+        "enrichment_requests",
+    )
+
+
+def test_org_managed_api_key_tracks_parallel_usage_records():
+    display_key, record = build_api_key_record(
+        key_id="dev_001",
+        secret="test-secret",
+        account_id="org_1",
+        workspace_id="org_1",
+        scopes=["verify:read"],
+        plan_id="free",
+    )
+    event = {"headers": {"x-api-key": display_key}}
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    usage_service = UsageService(
+        organizations=organizations,
+        usage=DynamoUsageRepository(dynamodb_resource=identity_resource),
+    )
+
+    class _OrgKeyStore(StaticApiKeyStore):
+        def get_organization_id(self, key_id: str):
+            return "org_1" if key_id == "dev_001" else None
+
+    class _OrgUsageTracker:
+        def __init__(self, service: UsageService) -> None:
+            self._service = service
+
+        def record_usage(self, *, organization_id: str, route_key: str, billable_units: int, period_month: str) -> None:
+            for metric in usage_metrics_for_route(route_key):
+                self._service.increment_metric(
+                    organization_id=organization_id,
+                    metric_type=metric.value,
+                    period_month=period_month,
+                    units=billable_units,
+                )
+
+    context = ApiKeyAuthContextProvider(_OrgKeyStore([record])).extract_context(event)
+    store = InMemoryUsageStore()
+    month_key = monthly_period_for()
+
+    hook = ApiKeyQuotaMeteringHook(
+        store,
+        billing_settings_resolver=_BillingSettingsResolver(True),
+        organization_usage_tracker=_OrgUsageTracker(usage_service),
+    )
+    hook.on_request(context, "GET /v1/nonprofit/{ein}")
+    hook.on_response(context, "GET /v1/nonprofit/{ein}", 200)
+
+    usage_records = {item.metric_type.value: item.request_count for item in usage_service.get_monthly_usage(organization_id="org_1", period_month=month_key)}
+    assert usage_records["api_requests"] == 1
+    assert usage_records["nonprofit_lookups"] == 1
+    assert "enrichment_requests" not in usage_records
 
 
 def test_quota_hook_starts_trial_on_first_customer_product_request():

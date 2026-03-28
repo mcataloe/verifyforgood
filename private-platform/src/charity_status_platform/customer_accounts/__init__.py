@@ -36,6 +36,7 @@ from .dynamodb_identity import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoSubscriptionRepository,
+    DynamoUsageRepository,
     DynamoUserRepository,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
@@ -54,6 +55,8 @@ from .identity_models import (
     PlanRecord,
     SubscriptionRecord,
     SubscriptionStatus,
+    UsageMetricType,
+    UsageRecord,
     UserRecord,
 )
 from .identity_repositories import (
@@ -68,10 +71,12 @@ from .identity_repositories import (
     OrganizationRepository,
     PlanRepository,
     SubscriptionRepository,
+    UsageRepository,
     UserRepository,
 )
 from .api_key_service import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyManagementError, ApiKeyResponse, ApiKeyService
 from .subscription_service import DEFAULT_PORTAL_PLANS, SubscriptionResolvedResponse, SubscriptionScaffoldingError, SubscriptionService
+from .usage_service import UsageService, UsageTrackingError, usage_metrics_for_route
 from .organization_service import (
     OrganizationBootstrapValidationError,
     OrganizationContextResponse,
@@ -122,6 +127,8 @@ __all__ = [
     "PlanRecord",
     "SubscriptionRecord",
     "SubscriptionStatus",
+    "UsageMetricType",
+    "UsageRecord",
     "UserRecord",
     "OrganizationRecord",
     "MembershipRecord",
@@ -143,6 +150,7 @@ __all__ = [
     "ApiKeyRepository",
     "PlanRepository",
     "SubscriptionRepository",
+    "UsageRepository",
     "AuditLogRepository",
     "DynamoApiKeyRepository",
     "DynamoPlanRepository",
@@ -151,6 +159,7 @@ __all__ = [
     "DynamoMembershipRepository",
     "DynamoInvitationRepository",
     "DynamoSubscriptionRepository",
+    "DynamoUsageRepository",
     "DynamoAuditLogRepository",
     "FakeIdentityDynamoTable",
     "FakeIdentityDynamoResource",
@@ -175,4 +184,7 @@ __all__ = [
     "SubscriptionResolvedResponse",
     "SubscriptionScaffoldingError",
     "SubscriptionService",
+    "UsageTrackingError",
+    "UsageService",
+    "usage_metrics_for_route",
 ]

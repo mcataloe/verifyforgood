@@ -17,6 +17,8 @@ from .identity_models import (
     PlanRecord,
     SubscriptionRecord,
     SubscriptionStatus,
+    UsageMetricType,
+    UsageRecord,
     UserRecord,
 )
 from .identity_repositories import (
@@ -357,6 +359,51 @@ class DynamoSubscriptionRepository:
         return _subscription_from_item(item)
 
 
+class DynamoUsageRepository:
+    def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
+        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+
+    def increment(
+        self,
+        organization_id: str,
+        metric_type: str,
+        period_month: str,
+        *,
+        units: int,
+        last_updated: str,
+    ) -> UsageRecord:
+        existing = self.get(organization_id, metric_type, period_month)
+        request_count = (existing.request_count if existing is not None else 0) + max(0, int(units))
+        record = UsageRecord(
+            organization_id=organization_id,
+            metric_type=UsageMetricType(metric_type),
+            period_month=period_month,
+            request_count=request_count,
+            last_updated=last_updated,
+        )
+        self._table.put_item(Item=_usage_item(record))
+        return record
+
+    def get(self, organization_id: str, metric_type: str, period_month: str) -> UsageRecord | None:
+        response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": _usage_sk(period_month, metric_type)})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _usage_from_item(item)
+
+    def list_for_period(self, organization_id: str, period_month: str) -> list[UsageRecord]:
+        response = self._table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _organization_pk(organization_id), ":prefix": f"USAGE#{period_month}#"},
+        )
+        items = response.get("Items") or []
+        return [_usage_from_item(item) for item in items if item.get("type") == "USAGE_RECORD"]
+
+    def put(self, record: UsageRecord) -> UsageRecord:
+        self._table.put_item(Item=_usage_item(record))
+        return record
+
+
 def _user_pk(user_id: str) -> str:
     return f"USER#{user_id}"
 
@@ -367,6 +414,10 @@ def _organization_pk(organization_id: str) -> str:
 
 def _plan_pk(plan_id: str) -> str:
     return f"PLAN#{plan_id}"
+
+
+def _usage_sk(period_month: str, metric_type: str) -> str:
+    return f"USAGE#{period_month}#{metric_type}"
 
 
 def _normalize_email(email: str) -> str:
@@ -495,6 +546,19 @@ def _subscription_item(subscription: SubscriptionRecord) -> dict[str, Any]:
     }
 
 
+def _usage_item(record: UsageRecord) -> dict[str, Any]:
+    return {
+        "pk": _organization_pk(record.organization_id),
+        "sk": _usage_sk(record.period_month, record.metric_type.value),
+        "type": "USAGE_RECORD",
+        "organization_id": record.organization_id,
+        "metric_type": record.metric_type.value,
+        "period_month": record.period_month,
+        "request_count": record.request_count,
+        "last_updated": record.last_updated,
+    }
+
+
 def _user_from_item(item: dict[str, Any]) -> UserRecord:
     return UserRecord(
         user_id=str(item.get("user_id") or ""),
@@ -578,6 +642,16 @@ def _subscription_from_item(item: dict[str, Any]) -> SubscriptionRecord:
         billing_cycle_start=str(item.get("billing_cycle_start") or ""),
         billing_cycle_end=str(item.get("billing_cycle_end") or ""),
         created_at=str(item.get("created_at") or ""),
+    )
+
+
+def _usage_from_item(item: dict[str, Any]) -> UsageRecord:
+    return UsageRecord(
+        organization_id=str(item.get("organization_id") or ""),
+        metric_type=UsageMetricType(str(item.get("metric_type") or UsageMetricType.API_REQUESTS.value)),
+        period_month=str(item.get("period_month") or ""),
+        request_count=int(item.get("request_count") or 0),
+        last_updated=str(item.get("last_updated") or ""),
     )
 
 

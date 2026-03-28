@@ -91,6 +91,7 @@ from charity_status_platform.customer_accounts import (
     AuditLogService,
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
+    DynamoUsageRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -103,6 +104,8 @@ from charity_status_platform.customer_accounts import (
     OrganizationBootstrapValidationError,
     OrganizationCreateRequest,
     OrganizationService,
+    UsageService,
+    usage_metrics_for_route,
 )
 from charity_status_platform.identity_access import (
     AuthService,
@@ -192,6 +195,7 @@ portal_auth_service: AuthService | None = None
 portal_organization_service: OrganizationService | None = None
 portal_membership_service: MembershipManagementService | None = None
 portal_api_key_service: ApiKeyService | None = None
+portal_usage_service: UsageService | None = None
 portal_audit_log_service: AuditLogService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -291,11 +295,13 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
     if quota_metering_hook is None:
         if API_AUTH_ENABLED:
             usage_store = usage_store or _get_control_plane_service().store
+            usage_service = _get_portal_usage_service()
             quota_metering_hook = ApiKeyQuotaMeteringHook(
                 usage_store=usage_store,
                 entitlement_service=_get_entitlement_service(),
                 billing_settings_resolver=_get_organization_integration_settings_service(),
                 trial_lifecycle_service=_get_trial_lifecycle_service(),
+                organization_usage_tracker=_PortalOrganizationUsageTracker(usage_service) if usage_service is not None else None,
             )
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
@@ -430,6 +436,19 @@ def _get_portal_auth_service() -> AuthService:
     return portal_auth_service
 
 
+def _get_portal_usage_service() -> UsageService | None:
+    global portal_usage_service
+    if portal_usage_service is None:
+        try:
+            portal_usage_service = UsageService(
+                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+                usage=DynamoUsageRepository(table_name=IDENTITY_TABLE_NAME),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_usage_service
+
+
 def _get_portal_organization_service() -> OrganizationService:
     global portal_organization_service
     if portal_organization_service is None:
@@ -536,6 +555,18 @@ class _ManagedOrganizationApiKeyStore:
         except Exception:  # noqa: BLE001
             return None
 
+    def get_organization_id(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            record = repository.get_by_key_id(key_id)
+        except Exception:  # noqa: BLE001
+            return None
+        if record is None:
+            return None
+        return record.organization_id
+
 
 class _MergedApiKeyStore:
     def __init__(self, primary: Any, secondary: Any, fallback: StaticApiKeyStore) -> None:
@@ -550,6 +581,26 @@ class _MergedApiKeyStore:
         touch_last_used = getattr(self._primary, "touch_last_used", None)
         if callable(touch_last_used):
             touch_last_used(key_id)
+
+    def get_organization_id(self, key_id: str):
+        get_organization_id = getattr(self._primary, "get_organization_id", None)
+        if callable(get_organization_id):
+            return get_organization_id(key_id)
+        return None
+
+
+class _PortalOrganizationUsageTracker:
+    def __init__(self, usage_service: UsageService) -> None:
+        self._usage_service = usage_service
+
+    def record_usage(self, *, organization_id: str, route_key: str, billable_units: int, period_month: str) -> None:
+        for metric in usage_metrics_for_route(route_key):
+            self._usage_service.increment_metric(
+                organization_id=organization_id,
+                metric_type=metric.value,
+                period_month=period_month,
+                units=billable_units,
+            )
 
 
 class _ManagedOAuthClientStore:

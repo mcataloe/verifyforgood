@@ -43,6 +43,15 @@ class ApiKeyAuthContextProvider:
             except Exception:  # noqa: BLE001
                 pass
         context = _to_context(principal, self._entitlement_service)
+        get_organization_id = getattr(self._store, "get_organization_id", None)
+        if callable(get_organization_id):
+            try:
+                organization_id = get_organization_id(principal.credential_id)
+            except Exception:  # noqa: BLE001
+                organization_id = None
+            if organization_id:
+                context.metadata["organization_id"] = str(organization_id)
+                context.metadata["organization_api_key"] = "true"
         _attach_context(event, context)
         return context
 
@@ -111,11 +120,13 @@ class ApiKeyQuotaMeteringHook:
         entitlement_service: EntitlementService | None = None,
         billing_settings_resolver: Any | None = None,
         trial_lifecycle_service: Any | None = None,
+        organization_usage_tracker: Any | None = None,
     ):
         self._usage_store = usage_store
         self._entitlement_service = entitlement_service or EntitlementService()
         self._billing_settings_resolver = billing_settings_resolver
         self._trial_lifecycle_service = trial_lifecycle_service
+        self._organization_usage_tracker = organization_usage_tracker
 
     def on_request(self, auth_context: AuthContext, route_key: str) -> None:
         if not auth_context.account_id or not auth_context.plan:
@@ -185,9 +196,29 @@ class ApiKeyQuotaMeteringHook:
         increment_usage = getattr(self._usage_store, "increment_usage", None)
         if callable(increment_usage):
             increment_usage(str(auth_context.account_id), month_key, billable_units)
+        else:
+            for _ in range(billable_units):
+                self._usage_store.increment(str(auth_context.account_id), month_key)
+        self._track_organization_usage(auth_context, route_key, billable_units, month_key)
+
+    def _track_organization_usage(self, auth_context: AuthContext, route_key: str, billable_units: int, month_key: str) -> None:
+        if self._organization_usage_tracker is None or billable_units <= 0:
             return
-        for _ in range(billable_units):
-            self._usage_store.increment(str(auth_context.account_id), month_key)
+        organization_id = auth_context.metadata.get("organization_id")
+        if not organization_id or auth_context.metadata.get("organization_api_key") != "true":
+            return
+        record_usage = getattr(self._organization_usage_tracker, "record_usage", None)
+        if not callable(record_usage):
+            return
+        try:
+            record_usage(
+                organization_id=str(organization_id),
+                route_key=normalize_route_key(route_key),
+                billable_units=billable_units,
+                period_month=month_key,
+            )
+        except Exception:  # noqa: BLE001
+            return
 
     def _allow_overage(self, account_id: str, *, metadata: dict[str, str] | None = None) -> bool:
         cached = (metadata or {}).get("billing_allow_overage")

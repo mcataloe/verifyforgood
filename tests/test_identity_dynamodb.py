@@ -25,6 +25,7 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     DynamoApiKeyRepository,
     DynamoPlanRepository,
     DynamoSubscriptionRepository,
+    DynamoUsageRepository,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
@@ -46,6 +47,9 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     SubscriptionScaffoldingError,
     SubscriptionService,
     SubscriptionStatus,
+    UsageMetricType,
+    UsageService,
+    UsageTrackingError,
     UserRecord,
 )
 
@@ -63,9 +67,11 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "ApiKeyRepository")
     assert hasattr(customer_accounts, "PlanRepository")
     assert hasattr(customer_accounts, "SubscriptionRepository")
+    assert hasattr(customer_accounts, "UsageRepository")
     assert hasattr(customer_accounts, "AuditLogRepository")
     assert hasattr(customer_accounts, "DynamoApiKeyRepository")
     assert hasattr(customer_accounts, "DynamoPlanRepository")
+    assert hasattr(customer_accounts, "DynamoUsageRepository")
     assert hasattr(customer_accounts, "DynamoSubscriptionRepository")
     assert hasattr(customer_accounts, "DynamoUserRepository")
     assert hasattr(customer_accounts, "DynamoOrganizationRepository")
@@ -75,6 +81,7 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "AuditLogService")
     assert hasattr(customer_accounts, "ApiKeyService")
     assert hasattr(customer_accounts, "SubscriptionService")
+    assert hasattr(customer_accounts, "UsageService")
     assert hasattr(customer_accounts, "AuditRecord")
     assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
@@ -425,3 +432,82 @@ def test_subscription_service_rejects_unknown_plan_and_unknown_organization():
 
     with pytest.raises(SubscriptionScaffoldingError, match="known portal subscription plan"):
         service.get_plan("unknown")
+
+
+def test_usage_service_tracks_monthly_metrics_and_supports_reset():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    usage = DynamoUsageRepository(dynamodb_resource=resource)
+    service = UsageService(
+        organizations=organizations,
+        usage=usage,
+    )
+
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+
+    first = service.increment_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.API_REQUESTS.value,
+        period_month="2026-03",
+        units=1,
+    )
+    second = service.increment_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.API_REQUESTS.value,
+        period_month="2026-03",
+        units=2,
+    )
+    lookups = service.increment_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.NONPROFIT_LOOKUPS.value,
+        period_month="2026-03",
+        units=1,
+    )
+    april = service.increment_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.API_REQUESTS.value,
+        period_month="2026-04",
+        units=1,
+    )
+    reset = service.reset_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.API_REQUESTS.value,
+        period_month="2026-04",
+    )
+    march_usage = service.get_monthly_usage(organization_id="org_1", period_month="2026-03")
+
+    assert first.request_count == 1
+    assert second.request_count == 3
+    assert lookups.request_count == 1
+    assert april.request_count == 1
+    assert reset.request_count == 0
+    assert {(item.metric_type.value, item.request_count) for item in march_usage} == {
+        ("api_requests", 3),
+        ("nonprofit_lookups", 1),
+    }
+
+
+def test_usage_service_rejects_unknown_organization():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    service = UsageService(
+        organizations=DynamoOrganizationRepository(dynamodb_resource=resource),
+        usage=DynamoUsageRepository(dynamodb_resource=resource),
+    )
+
+    with pytest.raises(UsageTrackingError, match="existing organization"):
+        service.increment_metric(
+            organization_id="org_missing",
+            metric_type=UsageMetricType.API_REQUESTS.value,
+            period_month="2026-03",
+            units=1,
+        )

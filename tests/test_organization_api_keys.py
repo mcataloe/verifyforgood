@@ -4,7 +4,13 @@ import importlib
 import json
 import sys
 
-from charity_status_platform.customer_accounts import DynamoApiKeyRepository, FakeIdentityDynamoResource, FakeIdentityDynamoTable
+from charity_status_platform.billing_usage import monthly_period_for
+from charity_status_platform.customer_accounts import (
+    DynamoApiKeyRepository,
+    DynamoUsageRepository,
+    FakeIdentityDynamoResource,
+    FakeIdentityDynamoTable,
+)
 
 
 def _load_module_with_identity_store(monkeypatch, *, api_auth_enabled: bool = False):
@@ -204,11 +210,16 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
     )
     auth_payload = _response_body(auth_response)
     persisted = DynamoApiKeyRepository(dynamodb_resource=resource).get_by_key_id(key_id)
+    usage = DynamoUsageRepository(dynamodb_resource=resource).list_for_period(organization["organization_id"], monthly_period_for())
 
     assert auth_response["statusCode"] == 400
     assert "invalid characters" in auth_payload["errors"][0]["message"]
     assert persisted is not None
     assert persisted.last_used_at is not None
+    assert {item.metric_type.value: item.request_count for item in usage} == {
+        "api_requests": 1,
+        "nonprofit_lookups": 1,
+    }
 
 
 def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):

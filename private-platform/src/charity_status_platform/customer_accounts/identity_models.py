@@ -32,6 +32,12 @@ class SubscriptionStatus(str, Enum):
     CANCELED = "canceled"
 
 
+class UsageMetricType(str, Enum):
+    API_REQUESTS = "api_requests"
+    NONPROFIT_LOOKUPS = "nonprofit_lookups"
+    ENRICHMENT_REQUESTS = "enrichment_requests"
+
+
 @dataclass(frozen=True)
 class UserRecord:
     user_id: str
@@ -108,3 +114,12 @@ class SubscriptionRecord:
     billing_cycle_start: str
     billing_cycle_end: str
     created_at: str
+
+
+@dataclass(frozen=True)
+class UsageRecord:
+    organization_id: str
+    metric_type: UsageMetricType
+    period_month: str
+    request_count: int
+    last_updated: str

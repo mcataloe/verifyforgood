@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, PlanRecord, SubscriptionRecord, UserRecord
+from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, PlanRecord, SubscriptionRecord, UsageRecord, UserRecord
 
 
 class IdentityRepositoryError(Exception):
@@ -125,4 +125,26 @@ class SubscriptionRepository(Protocol):
         ...
 
     def get_by_organization(self, organization_id: str) -> SubscriptionRecord | None:
+        ...
+
+
+class UsageRepository(Protocol):
+    def increment(
+        self,
+        organization_id: str,
+        metric_type: str,
+        period_month: str,
+        *,
+        units: int,
+        last_updated: str,
+    ) -> UsageRecord:
+        ...
+
+    def get(self, organization_id: str, metric_type: str, period_month: str) -> UsageRecord | None:
+        ...
+
+    def list_for_period(self, organization_id: str, period_month: str) -> list[UsageRecord]:
+        ...
+
+    def put(self, record: UsageRecord) -> UsageRecord:
         ...
