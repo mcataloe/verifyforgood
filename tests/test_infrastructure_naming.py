@@ -81,12 +81,14 @@ def test_identity_table_is_provisioned_and_authorized_for_query_lambda():
     assert 'name            = "user_memberships"' in main_content
     assert 'name            = "invitation_token_lookup"' in main_content
     assert 'name            = "organization_slug_lookup"' in main_content
+    assert 'name            = "api_key_lookup"' in main_content
 
     assert "aws_dynamodb_table.identity.arn" in iam_content
     assert '"${aws_dynamodb_table.identity.arn}/index/email_lookup"' in iam_content
     assert '"${aws_dynamodb_table.identity.arn}/index/user_memberships"' in iam_content
     assert '"${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup"' in iam_content
     assert '"${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup"' in iam_content
+    assert '"${aws_dynamodb_table.identity.arn}/index/api_key_lookup"' in iam_content
     assert '"dynamodb:DeleteItem"' in iam_content
 
     assert 'output "identity_dynamodb_table_name"' in outputs_content

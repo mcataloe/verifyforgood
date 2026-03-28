@@ -503,6 +503,16 @@ resource "aws_dynamodb_table" "identity" {
     type = "S"
   }
 
+  attribute {
+    name = "gsi5pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi5sk"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "email_lookup"
     hash_key        = "gsi1pk"
@@ -528,6 +538,13 @@ resource "aws_dynamodb_table" "identity" {
     name            = "organization_slug_lookup"
     hash_key        = "gsi4pk"
     range_key       = "gsi4sk"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "api_key_lookup"
+    hash_key        = "gsi5pk"
+    range_key       = "gsi5sk"
     projection_type = "ALL"
   }
 

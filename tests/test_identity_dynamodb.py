@@ -14,9 +14,14 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
 
 
 from charity_status_platform.customer_accounts import (  # noqa: E402
+    API_KEY_LOOKUP_INDEX,
     AUDIT_GLOBAL_PARTITION_KEY,
+    ApiKeyCreateRequest,
+    ApiKeyService,
+    ApiKeyStatus,
     AuditEventType,
     AuditRecord,
+    DynamoApiKeyRepository,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
@@ -41,17 +46,21 @@ def test_customer_accounts_exports_identity_phase_surface():
     import charity_status_platform.customer_accounts as customer_accounts
 
     assert customer_accounts.IDENTITY_TABLE_NAME == "identity"
+    assert customer_accounts.API_KEY_LOOKUP_INDEX == API_KEY_LOOKUP_INDEX
     assert hasattr(customer_accounts, "UserRepository")
     assert hasattr(customer_accounts, "OrganizationRepository")
     assert hasattr(customer_accounts, "MembershipRepository")
     assert hasattr(customer_accounts, "InvitationRepository")
+    assert hasattr(customer_accounts, "ApiKeyRepository")
     assert hasattr(customer_accounts, "AuditLogRepository")
+    assert hasattr(customer_accounts, "DynamoApiKeyRepository")
     assert hasattr(customer_accounts, "DynamoUserRepository")
     assert hasattr(customer_accounts, "DynamoOrganizationRepository")
     assert hasattr(customer_accounts, "DynamoMembershipRepository")
     assert hasattr(customer_accounts, "DynamoInvitationRepository")
     assert hasattr(customer_accounts, "DynamoAuditLogRepository")
     assert hasattr(customer_accounts, "AuditLogService")
+    assert hasattr(customer_accounts, "ApiKeyService")
     assert hasattr(customer_accounts, "AuditRecord")
     assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
@@ -269,3 +278,63 @@ def test_audit_record_round_trips_with_metadata_and_scope_partitioning():
     assert identity_event.event_type is AuditEventType.USER_REGISTRATION
     assert identity_items[0].metadata["email"] == "person@example.com"
     assert identity_items[0].organization_id is None
+
+
+def test_org_api_key_round_trips_with_lookup_revocation_and_last_used():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    memberships = DynamoMembershipRepository(dynamodb_resource=resource)
+    api_keys = DynamoApiKeyRepository(dynamodb_resource=resource)
+    service = ApiKeyService(
+        organizations=organizations,
+        memberships=memberships,
+        api_keys=api_keys,
+    )
+
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_1",
+            user_id="user_admin",
+            role=MembershipRole.ADMIN,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+
+    created = service.create_key(
+        organization_id="org_1",
+        actor_user_id="user_admin",
+        request=ApiKeyCreateRequest(display_name="CI Key"),
+    )
+    persisted = api_keys.get_by_key_id(created.api_key.key_id)
+    listed = service.list_keys(organization_id="org_1", actor_user_id="user_admin")
+    touched = api_keys.touch_last_used(created.api_key.key_id, used_at="2026-03-28T01:00:00+00:00")
+    revoked = service.revoke_key(
+        organization_id="org_1",
+        actor_user_id="user_admin",
+        key_id=created.api_key.key_id,
+    )
+
+    assert created.secret.startswith(f"csk_{created.api_key.key_id}.")
+    assert persisted is not None
+    assert persisted.hashed_key_value != created.secret
+    assert persisted.display_name == "CI Key"
+    assert len(listed) == 1
+    assert listed[0].key_id == created.api_key.key_id
+    assert touched is not None
+    assert touched.last_used_at == "2026-03-28T01:00:00+00:00"
+    assert revoked.status == ApiKeyStatus.REVOKED.value
+    reloaded = api_keys.get_by_key_id(created.api_key.key_id)
+    assert reloaded is not None
+    assert reloaded.status is ApiKeyStatus.REVOKED

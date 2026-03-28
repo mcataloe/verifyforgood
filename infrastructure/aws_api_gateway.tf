@@ -247,6 +247,18 @@ resource "aws_api_gateway_resource" "portal_organizations_current_invitations" {
   path_part   = "invitations"
 }
 
+resource "aws_api_gateway_resource" "portal_organizations_current_api_keys" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.portal_organizations_current.id
+  path_part   = "api-keys"
+}
+
+resource "aws_api_gateway_resource" "portal_organizations_current_api_key_id" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+  path_part   = "{keyId}"
+}
+
 resource "aws_api_gateway_resource" "organizations_integrations" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.organizations.id
@@ -379,6 +391,8 @@ locals {
     portal_organizations_current_members     = aws_api_gateway_resource.portal_organizations_current_members.id
     portal_organizations_current_invitations = aws_api_gateway_resource.portal_organizations_current_invitations.id
     portal_organizations_current_member_id   = aws_api_gateway_resource.portal_organizations_current_member_id.id
+    portal_organizations_current_api_keys    = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+    portal_organizations_current_api_key_id  = aws_api_gateway_resource.portal_organizations_current_api_key_id.id
     organizations_integrations               = aws_api_gateway_resource.organizations_integrations.id
     organization_billing_checkout_session    = aws_api_gateway_resource.organization_billing_checkout_session.id
     organization_billing_plan_change         = aws_api_gateway_resource.organization_billing_plan_change.id
@@ -905,6 +919,20 @@ resource "aws_api_gateway_method" "post_portal_organizations_current_invitations
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_portal_organizations_current_api_keys" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_portal_organizations_current_api_keys" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "patch_portal_organizations_current_member_id" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.portal_organizations_current_member_id.id
@@ -915,6 +943,13 @@ resource "aws_api_gateway_method" "patch_portal_organizations_current_member_id"
 resource "aws_api_gateway_method" "delete_portal_organizations_current_member_id" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.portal_organizations_current_member_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_portal_organizations_current_api_key_id" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.portal_organizations_current_api_key_id.id
   http_method   = "DELETE"
   authorization = "NONE"
 }
@@ -1071,6 +1106,24 @@ resource "aws_api_gateway_integration" "lambda_post_portal_organizations_current
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "lambda_get_portal_organizations_current_api_keys_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+  http_method             = aws_api_gateway_method.get_portal_organizations_current_api_keys.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_post_portal_organizations_current_api_keys_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.portal_organizations_current_api_keys.id
+  http_method             = aws_api_gateway_method.post_portal_organizations_current_api_keys.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
 resource "aws_api_gateway_integration" "lambda_patch_portal_organizations_current_member_id_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.portal_organizations_current_member_id.id
@@ -1084,6 +1137,15 @@ resource "aws_api_gateway_integration" "lambda_delete_portal_organizations_curre
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.portal_organizations_current_member_id.id
   http_method             = aws_api_gateway_method.delete_portal_organizations_current_member_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "lambda_delete_portal_organizations_current_api_key_id_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.portal_organizations_current_api_key_id.id
+  http_method             = aws_api_gateway_method.delete_portal_organizations_current_api_key_id.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.query.invoke_arn
@@ -1303,8 +1365,11 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_post_portal_organizations_integration,
     aws_api_gateway_integration.lambda_get_portal_organizations_current_members_integration,
     aws_api_gateway_integration.lambda_post_portal_organizations_current_invitations_integration,
+    aws_api_gateway_integration.lambda_get_portal_organizations_current_api_keys_integration,
+    aws_api_gateway_integration.lambda_post_portal_organizations_current_api_keys_integration,
     aws_api_gateway_integration.lambda_patch_portal_organizations_current_member_id_integration,
     aws_api_gateway_integration.lambda_delete_portal_organizations_current_member_id_integration,
+    aws_api_gateway_integration.lambda_delete_portal_organizations_current_api_key_id_integration,
     aws_api_gateway_integration.lambda_ops_ingest_runs_integration,
     aws_api_gateway_integration.lambda_ops_ingest_run_id_integration,
     aws_api_gateway_integration.lambda_ops_ingest_run_filings_integration,

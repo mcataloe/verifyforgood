@@ -24,10 +24,12 @@ from charity_status.enrichments.organization_store import (
     validate_organization_integration_settings,
 )
 from .dynamodb_identity import (
+    API_KEY_LOOKUP_INDEX,
     EMAIL_LOOKUP_INDEX,
     IDENTITY_TABLE_NAME,
     INVITATION_TOKEN_INDEX,
     USER_MEMBERSHIPS_INDEX,
+    DynamoApiKeyRepository,
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -38,6 +40,8 @@ from .dynamodb_identity import (
 from .audit_logging import AuditEventType, AuditLogRepository, AuditLogService, AuditRecord
 from .audit_repository import AUDIT_GLOBAL_PARTITION_KEY, DynamoAuditLogRepository
 from .identity_models import (
+    ApiKeyRecord,
+    ApiKeyStatus,
     InvitationRecord,
     InvitationStatus,
     MembershipRecord,
@@ -47,6 +51,8 @@ from .identity_models import (
     UserRecord,
 )
 from .identity_repositories import (
+    ApiKeyRepository,
+    DuplicateApiKeyError,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
@@ -56,6 +62,7 @@ from .identity_repositories import (
     OrganizationRepository,
     UserRepository,
 )
+from .api_key_service import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyManagementError, ApiKeyResponse, ApiKeyService
 from .organization_service import (
     OrganizationBootstrapValidationError,
     OrganizationContextResponse,
@@ -98,7 +105,10 @@ __all__ = [
     "EMAIL_LOOKUP_INDEX",
     "USER_MEMBERSHIPS_INDEX",
     "INVITATION_TOKEN_INDEX",
+    "API_KEY_LOOKUP_INDEX",
     "AUDIT_GLOBAL_PARTITION_KEY",
+    "ApiKeyRecord",
+    "ApiKeyStatus",
     "UserRecord",
     "OrganizationRecord",
     "MembershipRecord",
@@ -112,11 +122,14 @@ __all__ = [
     "DuplicateUserEmailError",
     "DuplicateMembershipError",
     "DuplicateOrganizationSlugError",
+    "DuplicateApiKeyError",
     "UserRepository",
     "OrganizationRepository",
     "MembershipRepository",
     "InvitationRepository",
+    "ApiKeyRepository",
     "AuditLogRepository",
+    "DynamoApiKeyRepository",
     "DynamoUserRepository",
     "DynamoOrganizationRepository",
     "DynamoMembershipRepository",
@@ -136,4 +149,9 @@ __all__ = [
     "MemberUpdateRequest",
     "InvitationAcceptRequest",
     "MembershipManagementService",
+    "ApiKeyManagementError",
+    "ApiKeyCreateRequest",
+    "ApiKeyResponse",
+    "ApiKeyCreateResponse",
+    "ApiKeyService",
 ]

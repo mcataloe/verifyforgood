@@ -85,7 +85,11 @@ from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
 from charity_status_platform.customer_accounts import (
+    ApiKeyCreateRequest,
+    ApiKeyManagementError,
+    ApiKeyService,
     AuditLogService,
+    DynamoApiKeyRepository,
     DynamoAuditLogRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -187,6 +191,7 @@ trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
 portal_organization_service: OrganizationService | None = None
 portal_membership_service: MembershipManagementService | None = None
+portal_api_key_service: ApiKeyService | None = None
 portal_audit_log_service: AuditLogService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -450,8 +455,21 @@ def _get_portal_membership_service() -> MembershipManagementService:
     return portal_membership_service
 
 
+def _get_portal_api_key_service() -> ApiKeyService:
+    global portal_api_key_service
+    if portal_api_key_service is None:
+        portal_api_key_service = ApiKeyService(
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+            api_keys=DynamoApiKeyRepository(table_name=IDENTITY_TABLE_NAME),
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return portal_api_key_service
+
+
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
     return _MergedApiKeyStore(
+        _ManagedOrganizationApiKeyStore(),
         _ManagedApiKeyStore(_get_control_plane_service().store),
         load_api_key_store(API_KEY_RECORDS_JSON),
     )
@@ -484,13 +502,54 @@ class _ManagedApiKeyStore:
         return self._store.get_api_key_record(key_id)
 
 
+class _ManagedOrganizationApiKeyStore:
+    def __init__(self, repository: DynamoApiKeyRepository | None = None) -> None:
+        self._repository = repository
+
+    def _get_repository(self) -> DynamoApiKeyRepository | None:
+        if self._repository is not None:
+            return self._repository
+        try:
+            self._repository = DynamoApiKeyRepository(table_name=IDENTITY_TABLE_NAME)
+        except Exception:  # noqa: BLE001
+            return None
+        return self._repository
+
+    def get(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            record = repository.get_by_key_id(key_id)
+        except Exception:  # noqa: BLE001
+            return None
+        if record is None:
+            return None
+        return _to_stored_api_key_record(record)
+
+    def touch_last_used(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            repository.touch_last_used(key_id, used_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        except Exception:  # noqa: BLE001
+            return None
+
+
 class _MergedApiKeyStore:
-    def __init__(self, primary: Any, fallback: StaticApiKeyStore) -> None:
+    def __init__(self, primary: Any, secondary: Any, fallback: StaticApiKeyStore) -> None:
         self._primary = primary
+        self._secondary = secondary
         self._fallback = fallback
 
     def get(self, key_id: str):
-        return self._primary.get(key_id) or self._fallback.get(key_id)
+        return self._primary.get(key_id) or self._secondary.get(key_id) or self._fallback.get(key_id)
+
+    def touch_last_used(self, key_id: str):
+        touch_last_used = getattr(self._primary, "touch_last_used", None)
+        if callable(touch_last_used):
+            touch_last_used(key_id)
 
 
 class _ManagedOAuthClientStore:
@@ -508,6 +567,28 @@ class _MergedOAuthClientStore:
 
     def get(self, client_id: str):
         return self._primary.get(client_id) or self._fallback.get(client_id)
+
+
+def _to_stored_api_key_record(record):
+    from charity_status.auth.service import StoredApiKeyRecord
+
+    return StoredApiKeyRecord(
+        key_id=record.key_id,
+        secret_hash=record.hashed_key_value,
+        account_id=record.organization_id,
+        workspace_id=record.organization_id,
+        scopes=(
+            "verify:read",
+            "verify:write",
+            "nonprofits:read",
+            "sources:read",
+            "compliance:read",
+            "federal_awards:read",
+        ),
+        revoked=record.status.value != "active",
+        plan_id="free",
+        rate_limit_profile="free",
+    )
 
 
 def _get_ops_run_store() -> Any | None:
@@ -671,6 +752,17 @@ def _is_portal_membership_request(event: dict[str, Any], method: str) -> bool:
     }
 
 
+def _is_portal_api_key_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {
+        "/organizations/current/api-keys",
+        "/organizations/current/api-keys/{keyId}",
+    }
+
+
 def _is_invitation_accept_request(event: dict[str, Any], method: str) -> bool:
     if method != "POST":
         return False
@@ -804,6 +896,42 @@ def _handle_invitation_accept_request(event: dict[str, Any], response_context: R
         request=InvitationAcceptRequest(token=str(payload.get("token") or "")),
     )
     return json_response(200, accepted, response_context=response_context)
+
+
+def _handle_portal_api_key_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    account_id, workspace_id = _resolve_current_portal_context(event)
+    del workspace_id
+    service = _get_portal_api_key_service()
+
+    if resource == "/organizations/current/api-keys" and method == "GET":
+        items = [item.to_dict() for item in service.list_keys(organization_id=account_id, actor_user_id=current_user.user_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
+    if resource == "/organizations/current/api-keys" and method == "POST":
+        payload = _parse_json_body(event)
+        created = service.create_key(
+            organization_id=account_id,
+            actor_user_id=current_user.user_id,
+            request=ApiKeyCreateRequest(display_name=str(payload.get("display_name") or "")),
+        )
+        return json_response(201, created.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/api-keys/{keyId}" and method == "DELETE":
+        path_params = event.get("pathParameters") or {}
+        key_id = str(path_params.get("keyId") or "")
+        revoked = service.revoke_key(
+            organization_id=account_id,
+            actor_user_id=current_user.user_id,
+            key_id=key_id,
+        )
+        return json_response(200, revoked.to_dict(), response_context=response_context)
+
+    return error_response(404, "API key route not found", response_context=response_context, code="not_found")
 
 
 def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -973,6 +1101,22 @@ def handler(event, context):
         try:
             return _handle_portal_membership_request(event, portal_context)
         except MembershipManagementError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_portal_api_key_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+        try:
+            return _handle_portal_api_key_request(event, portal_context)
+        except ApiKeyManagementError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
         except AuthenticationError as exc:
             return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")

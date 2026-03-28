@@ -2,11 +2,11 @@
 
 ## Status
 
-audit logging implemented
+API key management implemented
 
 ## Next Phase
 
-TBD
+19M
 
 ## Scope
 

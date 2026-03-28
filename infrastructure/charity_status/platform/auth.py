@@ -36,6 +36,12 @@ class ApiKeyAuthContextProvider:
 
     def extract_context(self, event: dict[str, Any]) -> AuthContext:
         principal = authenticate_api_key(event.get("headers") or {}, self._store, self._plan_limits)
+        touch_last_used = getattr(self._store, "touch_last_used", None)
+        if callable(touch_last_used):
+            try:
+                touch_last_used(principal.credential_id)
+            except Exception:  # noqa: BLE001
+                pass
         context = _to_context(principal, self._entitlement_service)
         _attach_context(event, context)
         return context

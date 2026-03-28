@@ -68,6 +68,7 @@ resource "aws_iam_role_policy" "lambda_data_access" {
           "${aws_dynamodb_table.identity.arn}/index/user_memberships",
           "${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup",
           "${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup",
+          "${aws_dynamodb_table.identity.arn}/index/api_key_lookup",
           "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
           "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
           "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",

@@ -15,6 +15,8 @@ class AuditEventType(str, Enum):
     MEMBER_REMOVAL = "member_removal"
     INVITATION_CREATION = "invitation_creation"
     INVITATION_ACCEPTANCE = "invitation_acceptance"
+    API_KEY_CREATION = "api_key_creation"
+    API_KEY_REVOCATION = "api_key_revocation"
 
 
 @dataclass(frozen=True)

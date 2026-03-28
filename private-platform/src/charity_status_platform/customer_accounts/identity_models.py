@@ -21,6 +21,11 @@ class InvitationStatus(str, Enum):
     EXPIRED = "expired"
 
 
+class ApiKeyStatus(str, Enum):
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
 @dataclass(frozen=True)
 class UserRecord:
     user_id: str
@@ -64,3 +69,15 @@ class InvitationRecord:
     created_at: str
     expires_at: str
     accepted_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ApiKeyRecord:
+    key_id: str
+    organization_id: str
+    hashed_key_value: str
+    display_name: str
+    created_at: str
+    created_by_user_id: str
+    status: ApiKeyStatus
+    last_used_at: str | None = None

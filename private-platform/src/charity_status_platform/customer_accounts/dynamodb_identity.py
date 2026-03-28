@@ -6,6 +6,8 @@ from typing import Any
 import boto3
 
 from .identity_models import (
+    ApiKeyRecord,
+    ApiKeyStatus,
     InvitationRecord,
     InvitationStatus,
     MembershipRecord,
@@ -15,6 +17,7 @@ from .identity_models import (
     UserRecord,
 )
 from .identity_repositories import (
+    DuplicateApiKeyError,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
@@ -25,6 +28,7 @@ EMAIL_LOOKUP_INDEX = "email_lookup"
 USER_MEMBERSHIPS_INDEX = "user_memberships"
 INVITATION_TOKEN_INDEX = "invitation_token_lookup"
 ORGANIZATION_SLUG_LOOKUP_INDEX = "organization_slug_lookup"
+API_KEY_LOOKUP_INDEX = "api_key_lookup"
 
 
 class DynamoUserRepository:
@@ -235,6 +239,77 @@ class DynamoInvitationRepository:
         return updated
 
 
+class DynamoApiKeyRepository:
+    def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
+        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+
+    def create(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
+        try:
+            self._table.put_item(
+                Item=_api_key_item(api_key),
+                ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)",
+            )
+        except Exception as exc:
+            if exc.__class__.__name__ == "ConditionalCheckFailedException":
+                raise DuplicateApiKeyError(f"API key already exists: {api_key.key_id}") from exc
+            raise
+        return api_key
+
+    def list_for_organization(self, organization_id: str) -> list[ApiKeyRecord]:
+        response = self._table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _organization_pk(organization_id), ":prefix": "APIKEY#"},
+        )
+        items = response.get("Items") or []
+        return [_api_key_from_item(item) for item in items if item.get("type") == "API_KEY"]
+
+    def get_by_key_id(self, key_id: str) -> ApiKeyRecord | None:
+        response = self._table.query(
+            IndexName=API_KEY_LOOKUP_INDEX,
+            KeyConditionExpression="gsi5pk = :gsi5pk",
+            ExpressionAttributeValues={":gsi5pk": f"APIKEY#{key_id}"},
+            Limit=1,
+        )
+        items = response.get("Items") or []
+        if not items:
+            return None
+        return _api_key_from_item(items[0])
+
+    def revoke(self, organization_id: str, key_id: str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
+        existing = self.get_by_key_id(key_id)
+        if existing is None or existing.organization_id != organization_id:
+            return None
+        updated = ApiKeyRecord(
+            key_id=existing.key_id,
+            organization_id=existing.organization_id,
+            hashed_key_value=existing.hashed_key_value,
+            display_name=existing.display_name,
+            created_at=existing.created_at,
+            created_by_user_id=existing.created_by_user_id,
+            status=ApiKeyStatus.REVOKED,
+            last_used_at=existing.last_used_at,
+        )
+        self._table.put_item(Item=_api_key_item(updated))
+        return updated
+
+    def touch_last_used(self, key_id: str, *, used_at: str) -> ApiKeyRecord | None:
+        existing = self.get_by_key_id(key_id)
+        if existing is None:
+            return None
+        updated = ApiKeyRecord(
+            key_id=existing.key_id,
+            organization_id=existing.organization_id,
+            hashed_key_value=existing.hashed_key_value,
+            display_name=existing.display_name,
+            created_at=existing.created_at,
+            created_by_user_id=existing.created_by_user_id,
+            status=existing.status,
+            last_used_at=used_at,
+        )
+        self._table.put_item(Item=_api_key_item(updated))
+        return updated
+
+
 def _user_pk(user_id: str) -> str:
     return f"USER#{user_id}"
 
@@ -320,6 +395,24 @@ def _invitation_item(invitation: InvitationRecord) -> dict[str, Any]:
     }
 
 
+def _api_key_item(api_key: ApiKeyRecord) -> dict[str, Any]:
+    return {
+        "pk": _organization_pk(api_key.organization_id),
+        "sk": f"APIKEY#{api_key.key_id}",
+        "type": "API_KEY",
+        "organization_id": api_key.organization_id,
+        "key_id": api_key.key_id,
+        "hashed_key_value": api_key.hashed_key_value,
+        "display_name": api_key.display_name,
+        "created_at": api_key.created_at,
+        "created_by_user_id": api_key.created_by_user_id,
+        "status": api_key.status.value,
+        "last_used_at": api_key.last_used_at,
+        "gsi5pk": f"APIKEY#{api_key.key_id}",
+        "gsi5sk": f"ORG#{api_key.organization_id}",
+    }
+
+
 def _user_from_item(item: dict[str, Any]) -> UserRecord:
     return UserRecord(
         user_id=str(item.get("user_id") or ""),
@@ -369,6 +462,19 @@ def _invitation_from_item(item: dict[str, Any]) -> InvitationRecord:
     )
 
 
+def _api_key_from_item(item: dict[str, Any]) -> ApiKeyRecord:
+    return ApiKeyRecord(
+        key_id=str(item.get("key_id") or ""),
+        organization_id=str(item.get("organization_id") or ""),
+        hashed_key_value=str(item.get("hashed_key_value") or ""),
+        display_name=str(item.get("display_name") or ""),
+        created_at=str(item.get("created_at") or ""),
+        created_by_user_id=str(item.get("created_by_user_id") or ""),
+        status=ApiKeyStatus(str(item.get("status") or ApiKeyStatus.ACTIVE.value)),
+        last_used_at=_optional_string(item.get("last_used_at")),
+    )
+
+
 def _optional_string(value: Any) -> str | None:
     candidate = str(value or "").strip()
     return candidate or None
@@ -412,6 +518,9 @@ class FakeIdentityDynamoTable:
         elif IndexName == ORGANIZATION_SLUG_LOOKUP_INDEX:
             matches = [item for item in items if item.get("gsi4pk") == values.get(":gsi4pk")]
             matches.sort(key=lambda item: str(item.get("gsi4sk") or ""))
+        elif IndexName == API_KEY_LOOKUP_INDEX:
+            matches = [item for item in items if item.get("gsi5pk") == values.get(":gsi5pk")]
+            matches.sort(key=lambda item: str(item.get("gsi5sk") or ""))
         elif KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)":
             matches = [
                 item

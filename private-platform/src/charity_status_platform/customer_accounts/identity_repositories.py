@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .identity_models import InvitationRecord, MembershipRecord, OrganizationRecord, UserRecord
+from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, UserRecord
 
 
 class IdentityRepositoryError(Exception):
@@ -19,6 +19,10 @@ class DuplicateMembershipError(IdentityRepositoryError):
 
 class DuplicateOrganizationSlugError(IdentityRepositoryError):
     """Raised when attempting to create an organization with an existing slug."""
+
+
+class DuplicateApiKeyError(IdentityRepositoryError):
+    """Raised when attempting to create an API key with an existing key id."""
 
 
 class UserRepository(Protocol):
@@ -85,4 +89,21 @@ class InvitationRepository(Protocol):
         ...
 
     def mark_accepted(self, token: str, accepted_at: str) -> InvitationRecord | None:
+        ...
+
+
+class ApiKeyRepository(Protocol):
+    def create(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
+        ...
+
+    def list_for_organization(self, organization_id: str) -> list[ApiKeyRecord]:
+        ...
+
+    def get_by_key_id(self, key_id: str) -> ApiKeyRecord | None:
+        ...
+
+    def revoke(self, organization_id: str, key_id: str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
+        ...
+
+    def touch_last_used(self, key_id: str, *, used_at: str) -> ApiKeyRecord | None:
         ...

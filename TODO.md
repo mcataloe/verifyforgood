@@ -46,3 +46,30 @@ None
 ### Constraint
 
 None
+
+## TODO-ARCH-003
+
+### Title
+
+Link portal organizations to control-plane accounts and subscriptions for org-managed API keys.
+
+### Rationale
+
+Phase 19L introduces organization-managed API keys in the identity domain. Until portal organizations provision or map to control-plane accounts, these keys use a temporary compatibility model:
+
+- `account_id = organization_id`
+- `workspace_id = organization_id`
+- `plan_id = free`
+
+That is enough for initial authentication, but it does not inherit real billing, subscription, or entitlement state.
+
+### Migration Triggers
+
+- portal billing parity
+- organization subscription-aware entitlements
+- API key plan inheritance requirements
+- multi-org account mapping
+
+### Constraint
+
+Keep the org-managed API-key repository/service interfaces stable so real control-plane linkage can replace the temporary compatibility mapping without changing frontend or handler contracts.
