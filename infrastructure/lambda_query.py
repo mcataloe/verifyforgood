@@ -91,11 +91,15 @@ from charity_status_platform.customer_accounts import (
     AuditLogService,
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
+    DynamoFeatureFlagRepository,
     DynamoUsageRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
+    DynamoPlanRepository,
+    DynamoSubscriptionRepository,
     DynamoUserRepository,
     DynamoInvitationRepository,
+    FeatureFlagService,
     InvitationAcceptRequest,
     InvitationCreateRequest,
     MemberUpdateRequest,
@@ -104,6 +108,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationBootstrapValidationError,
     OrganizationCreateRequest,
     OrganizationService,
+    SubscriptionService,
     UsageService,
     usage_metrics_for_route,
 )
@@ -196,6 +201,8 @@ portal_organization_service: OrganizationService | None = None
 portal_membership_service: MembershipManagementService | None = None
 portal_api_key_service: ApiKeyService | None = None
 portal_usage_service: UsageService | None = None
+portal_subscription_service: SubscriptionService | None = None
+portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -302,6 +309,7 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
                 billing_settings_resolver=_get_organization_integration_settings_service(),
                 trial_lifecycle_service=_get_trial_lifecycle_service(),
                 organization_usage_tracker=_PortalOrganizationUsageTracker(usage_service) if usage_service is not None else None,
+                organization_feature_service=_get_portal_feature_flag_service(),
             )
         else:
             quota_metering_hook = NoopQuotaMeteringHook()
@@ -447,6 +455,38 @@ def _get_portal_usage_service() -> UsageService | None:
         except Exception:  # noqa: BLE001
             return None
     return portal_usage_service
+
+
+def _get_portal_subscription_service() -> SubscriptionService | None:
+    global portal_subscription_service
+    if portal_subscription_service is None:
+        try:
+            portal_subscription_service = SubscriptionService(
+                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+                plans=DynamoPlanRepository(table_name=IDENTITY_TABLE_NAME),
+                subscriptions=DynamoSubscriptionRepository(table_name=IDENTITY_TABLE_NAME),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_subscription_service
+
+
+def _get_portal_feature_flag_service() -> FeatureFlagService | None:
+    global portal_feature_flag_service
+    if portal_feature_flag_service is None:
+        subscription_service = _get_portal_subscription_service()
+        if subscription_service is None:
+            return None
+        try:
+            portal_feature_flag_service = FeatureFlagService(
+                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+                subscriptions=DynamoSubscriptionRepository(table_name=IDENTITY_TABLE_NAME),
+                flags=DynamoFeatureFlagRepository(table_name=IDENTITY_TABLE_NAME),
+                subscription_service=subscription_service,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_feature_flag_service
 
 
 def _get_portal_organization_service() -> OrganizationService:
@@ -688,10 +728,24 @@ def _get_organization_integration_settings_service() -> OrganizationIntegrationS
 
 
 def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
-    return _get_organization_integration_settings_service().resolve_context(
+    context = _get_organization_integration_settings_service().resolve_context(
         workspace_id=getattr(auth_context, "workspace_id", None),
         account_id=getattr(auth_context, "account_id", None),
     )
+    metadata = getattr(auth_context, "metadata", {}) or {}
+    organization_id = metadata.get("organization_id")
+    if metadata.get("organization_api_key") != "true" or not organization_id:
+        return context
+    feature_service = _get_portal_feature_flag_service()
+    if feature_service is None:
+        return context
+    try:
+        return feature_service.apply_evaluation_context_overrides(
+            organization_id=str(organization_id),
+            context=context,
+        )
+    except Exception:  # noqa: BLE001
+        return context
 
 
 def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:

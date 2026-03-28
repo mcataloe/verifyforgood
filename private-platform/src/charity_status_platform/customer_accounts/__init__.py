@@ -32,6 +32,7 @@ from .dynamodb_identity import (
     USER_MEMBERSHIPS_INDEX,
     DynamoPlanRepository,
     DynamoApiKeyRepository,
+    DynamoFeatureFlagRepository,
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -46,6 +47,8 @@ from .audit_repository import AUDIT_GLOBAL_PARTITION_KEY, DynamoAuditLogReposito
 from .identity_models import (
     ApiKeyRecord,
     ApiKeyStatus,
+    FeatureFlagKey,
+    FeatureFlagRecord,
     InvitationRecord,
     InvitationStatus,
     MembershipRecord,
@@ -65,6 +68,7 @@ from .identity_repositories import (
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
+    FeatureFlagRepository,
     IdentityRepositoryError,
     InvitationRepository,
     MembershipRepository,
@@ -75,6 +79,14 @@ from .identity_repositories import (
     UserRepository,
 )
 from .api_key_service import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyManagementError, ApiKeyResponse, ApiKeyService
+from .feature_flag_service import (
+    FeatureFlagError,
+    FeatureFlagService,
+    PLAN_DEFAULT_FEATURE_FLAGS,
+    ResolvedFeatureFlag,
+    organization_feature_guard,
+    service_level_feature_enabled,
+)
 from .subscription_service import DEFAULT_PORTAL_PLANS, SubscriptionResolvedResponse, SubscriptionScaffoldingError, SubscriptionService
 from .usage_service import UsageService, UsageTrackingError, usage_metrics_for_route
 from .organization_service import (
@@ -124,6 +136,8 @@ __all__ = [
     "AUDIT_GLOBAL_PARTITION_KEY",
     "ApiKeyRecord",
     "ApiKeyStatus",
+    "FeatureFlagKey",
+    "FeatureFlagRecord",
     "PlanRecord",
     "SubscriptionRecord",
     "SubscriptionStatus",
@@ -143,6 +157,7 @@ __all__ = [
     "DuplicateMembershipError",
     "DuplicateOrganizationSlugError",
     "DuplicateApiKeyError",
+    "FeatureFlagRepository",
     "UserRepository",
     "OrganizationRepository",
     "MembershipRepository",
@@ -153,6 +168,7 @@ __all__ = [
     "UsageRepository",
     "AuditLogRepository",
     "DynamoApiKeyRepository",
+    "DynamoFeatureFlagRepository",
     "DynamoPlanRepository",
     "DynamoUserRepository",
     "DynamoOrganizationRepository",
@@ -180,6 +196,12 @@ __all__ = [
     "ApiKeyResponse",
     "ApiKeyCreateResponse",
     "ApiKeyService",
+    "FeatureFlagError",
+    "ResolvedFeatureFlag",
+    "PLAN_DEFAULT_FEATURE_FLAGS",
+    "FeatureFlagService",
+    "organization_feature_guard",
+    "service_level_feature_enabled",
     "DEFAULT_PORTAL_PLANS",
     "SubscriptionResolvedResponse",
     "SubscriptionScaffoldingError",

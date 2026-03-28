@@ -164,6 +164,7 @@ def enforce_quota_and_scope(
     entitlement_service: EntitlementService | None = None,
     billing_settings_resolver: BillingSettingsResolver | None = None,
     consumed_units: int = 1,
+    feature_entitlements: Any | None = None,
 ) -> tuple[str, int, int]:
     route_key = normalize_route_key(route_key)
     required_scope = ROUTE_SCOPE_REQUIREMENTS.get(route_key)
@@ -181,7 +182,8 @@ def enforce_quota_and_scope(
         route_key=route_key,
         consumed_units=consumed_units,
     )
-    missing_requirement = missing_route_requirement(resolved.entitlements, route_key)
+    effective_entitlements = feature_entitlements or resolved.entitlements
+    missing_requirement = missing_route_requirement(effective_entitlements, route_key)
     if missing_requirement is not None:
         requirement_type, requirement_name = missing_requirement
         raise FeatureUnavailableError(

@@ -121,12 +121,14 @@ class ApiKeyQuotaMeteringHook:
         billing_settings_resolver: Any | None = None,
         trial_lifecycle_service: Any | None = None,
         organization_usage_tracker: Any | None = None,
+        organization_feature_service: Any | None = None,
     ):
         self._usage_store = usage_store
         self._entitlement_service = entitlement_service or EntitlementService()
         self._billing_settings_resolver = billing_settings_resolver
         self._trial_lifecycle_service = trial_lifecycle_service
         self._organization_usage_tracker = organization_usage_tracker
+        self._organization_feature_service = organization_feature_service
 
     def on_request(self, auth_context: AuthContext, route_key: str) -> None:
         if not auth_context.account_id or not auth_context.plan:
@@ -156,6 +158,23 @@ class ApiKeyQuotaMeteringHook:
                 resolved.entitlements.monthly_request_limit,
             )
         )
+        effective_entitlements = resolved.entitlements
+        organization_id = auth_context.metadata.get("organization_id")
+        if (
+            self._organization_feature_service is not None
+            and auth_context.metadata.get("organization_api_key") == "true"
+            and organization_id
+        ):
+            apply_overrides = getattr(self._organization_feature_service, "apply_entitlement_overrides", None)
+            if callable(apply_overrides):
+                try:
+                    effective_entitlements = apply_overrides(
+                        organization_id=str(organization_id),
+                        entitlements=resolved.entitlements,
+                    )
+                except Exception:  # noqa: BLE001
+                    effective_entitlements = resolved.entitlements
+        auth_context.entitlements = effective_entitlements
         if resolved.subscription.trial_status:
             auth_context.metadata["trial_status"] = resolved.subscription.trial_status
         if resolved.subscription.trial_ends_at:
@@ -169,6 +188,7 @@ class ApiKeyQuotaMeteringHook:
             self._entitlement_service,
             self._billing_settings_resolver,
             consumed_units=billable_units,
+            feature_entitlements=effective_entitlements,
         )
         auth_context.metadata["quota_month"] = month_key
         auth_context.metadata["billing_allow_overage"] = "true" if self._allow_overage(str(auth_context.account_id)) else "false"

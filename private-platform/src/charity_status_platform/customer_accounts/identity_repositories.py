@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, PlanRecord, SubscriptionRecord, UsageRecord, UserRecord
+from .identity_models import ApiKeyRecord, FeatureFlagRecord, InvitationRecord, MembershipRecord, OrganizationRecord, PlanRecord, SubscriptionRecord, UsageRecord, UserRecord
 
 
 class IdentityRepositoryError(Exception):
@@ -147,4 +147,15 @@ class UsageRepository(Protocol):
         ...
 
     def put(self, record: UsageRecord) -> UsageRecord:
+        ...
+
+
+class FeatureFlagRepository(Protocol):
+    def get(self, organization_id: str, flag_key: str) -> FeatureFlagRecord | None:
+        ...
+
+    def list_for_organization(self, organization_id: str) -> list[FeatureFlagRecord]:
+        ...
+
+    def put(self, record: FeatureFlagRecord) -> FeatureFlagRecord:
         ...

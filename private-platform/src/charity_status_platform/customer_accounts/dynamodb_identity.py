@@ -8,6 +8,8 @@ import boto3
 from .identity_models import (
     ApiKeyRecord,
     ApiKeyStatus,
+    FeatureFlagKey,
+    FeatureFlagRecord,
     InvitationRecord,
     InvitationStatus,
     MembershipRecord,
@@ -404,6 +406,30 @@ class DynamoUsageRepository:
         return record
 
 
+class DynamoFeatureFlagRepository:
+    def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
+        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+
+    def get(self, organization_id: str, flag_key: str) -> FeatureFlagRecord | None:
+        response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": _feature_flag_sk(flag_key)})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _feature_flag_from_item(item)
+
+    def list_for_organization(self, organization_id: str) -> list[FeatureFlagRecord]:
+        response = self._table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _organization_pk(organization_id), ":prefix": "FEATUREFLAG#"},
+        )
+        items = response.get("Items") or []
+        return [_feature_flag_from_item(item) for item in items if item.get("type") == "FEATURE_FLAG"]
+
+    def put(self, record: FeatureFlagRecord) -> FeatureFlagRecord:
+        self._table.put_item(Item=_feature_flag_item(record))
+        return record
+
+
 def _user_pk(user_id: str) -> str:
     return f"USER#{user_id}"
 
@@ -418,6 +444,10 @@ def _plan_pk(plan_id: str) -> str:
 
 def _usage_sk(period_month: str, metric_type: str) -> str:
     return f"USAGE#{period_month}#{metric_type}"
+
+
+def _feature_flag_sk(flag_key: str) -> str:
+    return f"FEATUREFLAG#{str(flag_key or '').strip().lower()}"
 
 
 def _normalize_email(email: str) -> str:
@@ -559,6 +589,19 @@ def _usage_item(record: UsageRecord) -> dict[str, Any]:
     }
 
 
+def _feature_flag_item(record: FeatureFlagRecord) -> dict[str, Any]:
+    return {
+        "pk": _organization_pk(record.organization_id),
+        "sk": _feature_flag_sk(record.flag_key.value),
+        "type": "FEATURE_FLAG",
+        "organization_id": record.organization_id,
+        "flag_key": record.flag_key.value,
+        "enabled": bool(record.enabled),
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+    }
+
+
 def _user_from_item(item: dict[str, Any]) -> UserRecord:
     return UserRecord(
         user_id=str(item.get("user_id") or ""),
@@ -652,6 +695,16 @@ def _usage_from_item(item: dict[str, Any]) -> UsageRecord:
         period_month=str(item.get("period_month") or ""),
         request_count=int(item.get("request_count") or 0),
         last_updated=str(item.get("last_updated") or ""),
+    )
+
+
+def _feature_flag_from_item(item: dict[str, Any]) -> FeatureFlagRecord:
+    return FeatureFlagRecord(
+        organization_id=str(item.get("organization_id") or ""),
+        flag_key=FeatureFlagKey(str(item.get("flag_key") or FeatureFlagKey.ENABLE_CANDID.value)),
+        enabled=bool(item.get("enabled", False)),
+        created_at=str(item.get("created_at") or ""),
+        updated_at=str(item.get("updated_at") or ""),
     )
 
 

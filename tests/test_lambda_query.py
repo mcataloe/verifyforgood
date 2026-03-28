@@ -20,6 +20,18 @@ from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsSt
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.core.models import AuthContext
+from charity_status_platform.customer_accounts import (
+    DynamoFeatureFlagRepository,
+    DynamoOrganizationRepository,
+    DynamoPlanRepository,
+    DynamoSubscriptionRepository,
+    FakeIdentityDynamoResource,
+    FakeIdentityDynamoTable,
+    FeatureFlagKey,
+    FeatureFlagService,
+    OrganizationRecord,
+    SubscriptionService,
+)
 
 
 def _response_envelope(response):
@@ -506,6 +518,64 @@ def test_get_organization_integrations_returns_current_settings():
     assert body["integrations"]["charityNavigator"]["enabled"] is False
     assert body["billing"]["allowOverage"] is True
     assert body["billing"]["monthlyRequestCap"] is None
+
+
+def test_resolve_evaluation_context_applies_org_feature_flag_overrides():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    plans = DynamoPlanRepository(dynamodb_resource=identity_resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=identity_resource)
+    subscription_service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    feature_service = FeatureFlagService(
+        organizations=organizations,
+        subscriptions=subscriptions,
+        flags=DynamoFeatureFlagRepository(dynamodb_resource=identity_resource),
+        subscription_service=subscription_service,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    subscription_service.upsert_subscription(
+        organization_id="org_1",
+        plan_id="starter",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+    feature_service.set_override(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_CANDID.value,
+        enabled=True,
+    )
+    module.portal_feature_flag_service = feature_service
+
+    class _IntegrationService:
+        def resolve_context(self, *, workspace_id, account_id):
+            return load_organization_integration_settings("[]").resolve(workspace_id=workspace_id, account_id=account_id)
+
+    module.organization_integration_settings_service = _IntegrationService()
+
+    context = module._resolve_evaluation_context(
+        SimpleNamespace(
+            workspace_id="org_1",
+            account_id="org_1",
+            metadata={"organization_api_key": "true", "organization_id": "org_1"},
+        )
+    )
+
+    assert context.setting_for("candid").enabled is True
+    assert context.setting_for("charity_navigator").enabled is False
 
 
 def test_put_organization_integrations_updates_settings():

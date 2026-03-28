@@ -22,6 +22,10 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     AuditEventType,
     AuditRecord,
     DEFAULT_PORTAL_PLANS,
+    DynamoFeatureFlagRepository,
+    FeatureFlagKey,
+    FeatureFlagRecord,
+    FeatureFlagService,
     DynamoApiKeyRepository,
     DynamoPlanRepository,
     DynamoSubscriptionRepository,
@@ -43,6 +47,8 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     MembershipStatus,
     OrganizationRecord,
     PLAN_LOOKUP_INDEX,
+    PLAN_DEFAULT_FEATURE_FLAGS,
+    ResolvedFeatureFlag,
     SubscriptionResolvedResponse,
     SubscriptionScaffoldingError,
     SubscriptionService,
@@ -80,9 +86,11 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "DynamoAuditLogRepository")
     assert hasattr(customer_accounts, "AuditLogService")
     assert hasattr(customer_accounts, "ApiKeyService")
+    assert hasattr(customer_accounts, "FeatureFlagService")
     assert hasattr(customer_accounts, "SubscriptionService")
     assert hasattr(customer_accounts, "UsageService")
     assert hasattr(customer_accounts, "AuditRecord")
+    assert hasattr(customer_accounts, "FeatureFlagRecord")
     assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
     assert hasattr(customer_accounts, "FakeIdentityDynamoResource")
@@ -511,3 +519,102 @@ def test_usage_service_rejects_unknown_organization():
             period_month="2026-03",
             units=1,
         )
+
+
+def test_feature_flag_repository_round_trips_org_override():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    flags = DynamoFeatureFlagRepository(dynamodb_resource=resource)
+
+    stored = flags.put(
+        FeatureFlagRecord(
+            organization_id="org_1",
+            flag_key=FeatureFlagKey.ENABLE_CANDID,
+            enabled=True,
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    loaded = flags.get("org_1", "enable_candid")
+    listed = flags.list_for_organization("org_1")
+
+    assert stored.flag_key is FeatureFlagKey.ENABLE_CANDID
+    assert loaded is not None
+    assert loaded.enabled is True
+    assert len(listed) == 1
+    assert listed[0].flag_key is FeatureFlagKey.ENABLE_CANDID
+
+
+def test_feature_flag_service_resolves_plan_defaults_and_overrides():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=resource)
+    flags = DynamoFeatureFlagRepository(dynamodb_resource=resource)
+    subscription_service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    feature_service = FeatureFlagService(
+        organizations=organizations,
+        subscriptions=subscriptions,
+        flags=flags,
+        subscription_service=subscription_service,
+    )
+
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    subscription_service.upsert_subscription(
+        organization_id="org_1",
+        plan_id="growth",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+
+    assert PLAN_DEFAULT_FEATURE_FLAGS["growth"] == (
+        FeatureFlagKey.ENABLE_BULK_LOOKUP,
+        FeatureFlagKey.ENABLE_ADVANCED_REPORTING,
+    )
+
+    default_bulk = feature_service.resolve_flag(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_BULK_LOOKUP.value,
+    )
+    default_candid = feature_service.resolve_flag(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_CANDID.value,
+    )
+    override = feature_service.set_override(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_CANDID.value,
+        enabled=True,
+    )
+    overridden = feature_service.resolve_flag(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_CANDID.value,
+    )
+    resolved = feature_service.list_resolved_flags(organization_id="org_1")
+
+    assert isinstance(default_bulk, ResolvedFeatureFlag)
+    assert default_bulk.plan_default is True
+    assert default_bulk.enabled is True
+    assert default_candid.plan_default is False
+    assert default_candid.enabled is False
+    assert override.enabled is True
+    assert overridden.override_enabled is True
+    assert overridden.enabled is True
+    assert {item.flag_key.value for item in resolved} == {
+        "enable_charity_navigator",
+        "enable_candid",
+        "enable_bulk_lookup",
+        "enable_advanced_reporting",
+    }

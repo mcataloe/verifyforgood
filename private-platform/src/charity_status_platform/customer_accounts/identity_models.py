@@ -38,6 +38,13 @@ class UsageMetricType(str, Enum):
     ENRICHMENT_REQUESTS = "enrichment_requests"
 
 
+class FeatureFlagKey(str, Enum):
+    ENABLE_CHARITY_NAVIGATOR = "enable_charity_navigator"
+    ENABLE_CANDID = "enable_candid"
+    ENABLE_BULK_LOOKUP = "enable_bulk_lookup"
+    ENABLE_ADVANCED_REPORTING = "enable_advanced_reporting"
+
+
 @dataclass(frozen=True)
 class UserRecord:
     user_id: str
@@ -123,3 +130,12 @@ class UsageRecord:
     period_month: str
     request_count: int
     last_updated: str
+
+
+@dataclass(frozen=True)
+class FeatureFlagRecord:
+    organization_id: str
+    flag_key: FeatureFlagKey
+    enabled: bool
+    created_at: str
+    updated_at: str

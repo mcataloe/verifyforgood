@@ -17,10 +17,16 @@ from charity_status.platform.auth import ApiKeyAuthContextProvider
 from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status_platform.customer_accounts import (
     DynamoOrganizationRepository,
+    DynamoFeatureFlagRepository,
+    DynamoPlanRepository,
+    DynamoSubscriptionRepository,
     DynamoUsageRepository,
+    FeatureFlagKey,
+    FeatureFlagService,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
     OrganizationRecord,
+    SubscriptionService,
     UsageMetricType,
     UsageService,
     usage_metrics_for_route,
@@ -467,6 +473,132 @@ def test_org_managed_api_key_tracks_parallel_usage_records():
     assert usage_records["api_requests"] == 1
     assert usage_records["nonprofit_lookups"] == 1
     assert "enrichment_requests" not in usage_records
+
+
+def test_org_managed_growth_key_gets_batch_access_from_subscription_feature_defaults():
+    display_key, record = build_api_key_record(
+        key_id="org_growth_001",
+        secret="test-secret",
+        account_id="org_1",
+        workspace_id="org_1",
+        scopes=["verify:write"],
+        plan_id="free",
+    )
+    event = {"headers": {"x-api-key": display_key}}
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    plans = DynamoPlanRepository(dynamodb_resource=identity_resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=identity_resource)
+    subscription_service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    feature_service = FeatureFlagService(
+        organizations=organizations,
+        subscriptions=subscriptions,
+        flags=DynamoFeatureFlagRepository(dynamodb_resource=identity_resource),
+        subscription_service=subscription_service,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    subscription_service.upsert_subscription(
+        organization_id="org_1",
+        plan_id="growth",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+
+    class _OrgKeyStore(StaticApiKeyStore):
+        def get_organization_id(self, key_id: str):
+            return "org_1" if key_id == "org_growth_001" else None
+
+    context = ApiKeyAuthContextProvider(_OrgKeyStore([record])).extract_context(event)
+    hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        billing_settings_resolver=_BillingSettingsResolver(True),
+        organization_feature_service=feature_service,
+    )
+
+    hook.on_request(context, "POST /v1/verify/batch")
+
+    assert context.entitlements is not None
+    assert context.entitlements.batch_request_limit >= 100
+    assert context.entitlements.allows_capability("batch_verification") is True
+
+
+def test_org_feature_override_can_disable_growth_batch_access():
+    display_key, record = build_api_key_record(
+        key_id="org_growth_002",
+        secret="test-secret",
+        account_id="org_2",
+        workspace_id="org_2",
+        scopes=["verify:write"],
+        plan_id="free",
+    )
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    plans = DynamoPlanRepository(dynamodb_resource=identity_resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=identity_resource)
+    subscription_service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    feature_service = FeatureFlagService(
+        organizations=organizations,
+        subscriptions=subscriptions,
+        flags=DynamoFeatureFlagRepository(dynamodb_resource=identity_resource),
+        subscription_service=subscription_service,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_2",
+            name="Org Two",
+            slug="org-two",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    subscription_service.upsert_subscription(
+        organization_id="org_2",
+        plan_id="growth",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+    feature_service.set_override(
+        organization_id="org_2",
+        flag_key=FeatureFlagKey.ENABLE_BULK_LOOKUP.value,
+        enabled=False,
+    )
+
+    class _OrgKeyStore(StaticApiKeyStore):
+        def get_organization_id(self, key_id: str):
+            return "org_2" if key_id == "org_growth_002" else None
+
+    context = ApiKeyAuthContextProvider(_OrgKeyStore([record])).extract_context({"headers": {"x-api-key": display_key}})
+    hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        billing_settings_resolver=_BillingSettingsResolver(True),
+        organization_feature_service=feature_service,
+    )
+
+    try:
+        hook.on_request(context, "POST /v1/verify/batch")
+    except Exception as exc:  # noqa: BLE001
+        assert exc.__class__.__name__ == "FeatureUnavailableError"
+        assert getattr(exc, "capability", None) == "batch_verification"
+    else:
+        assert False, "Expected batch access to be blocked by feature override"
 
 
 def test_quota_hook_starts_trial_on_first_customer_product_request():
