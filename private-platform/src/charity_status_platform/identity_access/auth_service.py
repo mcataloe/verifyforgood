@@ -13,7 +13,7 @@ import bcrypt
 
 from charity_status.auth import AuthenticationError
 from charity_status_platform.customer_accounts.audit_logging import AuditEventType, AuditLogService
-from charity_status_platform.customer_accounts.identity_models import UserRecord
+from charity_status_platform.customer_accounts.identity_models import IdentityProviderType, UserRecord
 from charity_status_platform.customer_accounts.identity_repositories import DuplicateUserEmailError, UserRepository
 
 
@@ -80,6 +80,23 @@ class BearerTokenCodec(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class ProvisionedIdentity:
+    identity_provider_type: IdentityProviderType
+    password_hash: str | None = None
+    external_subject_id: str | None = None
+
+
+class IdentityProviderService(Protocol):
+    identity_provider_type: IdentityProviderType
+
+    def provision_identity(self, *, password: str | None = None, external_subject_id: str | None = None) -> ProvisionedIdentity:
+        ...
+
+    def authenticate(self, *, user: UserRecord, password: str | None = None) -> bool:
+        ...
+
+
 class BcryptPasswordHasher:
     def hash_password(self, password: str) -> str:
         encoded = _validate_password(password).encode("utf-8")
@@ -87,6 +104,29 @@ class BcryptPasswordHasher:
 
     def verify_password(self, password: str, stored_hash: str) -> bool:
         return bcrypt.checkpw(str(password or "").encode("utf-8"), stored_hash.encode("utf-8"))
+
+
+class LocalPasswordIdentityProviderService:
+    identity_provider_type = IdentityProviderType.LOCAL_PASSWORD
+
+    def __init__(self, password_hasher: PasswordHasher) -> None:
+        self._password_hasher = password_hasher
+
+    def provision_identity(self, *, password: str | None = None, external_subject_id: str | None = None) -> ProvisionedIdentity:
+        if external_subject_id is not None:
+            raise PortalAuthValidationError("external_subject_id is not supported for local password identities")
+        return ProvisionedIdentity(
+            identity_provider_type=self.identity_provider_type,
+            password_hash=self._password_hasher.hash_password(str(password or "")),
+            external_subject_id=None,
+        )
+
+    def authenticate(self, *, user: UserRecord, password: str | None = None) -> bool:
+        if user.identity_provider_type is not IdentityProviderType.LOCAL_PASSWORD:
+            return False
+        if not user.password_hash:
+            return False
+        return self._password_hasher.verify_password(str(password or ""), user.password_hash)
 
 
 class HmacBearerTokenCodec:
@@ -134,15 +174,23 @@ class AuthService:
         password_hasher: PasswordHasher,
         token_codec: BearerTokenCodec,
         audit_log_service: AuditLogService | None = None,
+        identity_provider_services: tuple[IdentityProviderService, ...] | None = None,
     ) -> None:
         self._users = users
-        self._password_hasher = password_hasher
         self._token_codec = token_codec
         self._audit_log_service = audit_log_service
+        default_local_provider = LocalPasswordIdentityProviderService(password_hasher)
+        configured = identity_provider_services or (default_local_provider,)
+        self._identity_providers = {provider.identity_provider_type: provider for provider in configured}
+        self._local_password_provider = self._identity_providers.get(IdentityProviderType.LOCAL_PASSWORD)
+        if self._local_password_provider is None:
+            self._local_password_provider = default_local_provider
+            self._identity_providers[IdentityProviderType.LOCAL_PASSWORD] = default_local_provider
 
     def register_user(self, request: UserCreateRequest) -> AuthenticatedUserSession:
         normalized_email = _validate_email(request.email)
         created_at = _utc_now()
+        provisioned = self._local_password_provider.provision_identity(password=request.password)
         user = UserRecord(
             user_id=f"user_{secrets.token_hex(16)}",
             email=normalized_email,
@@ -150,7 +198,9 @@ class AuthService:
             full_name=_optional_name(request.full_name),
             created_at=created_at,
             updated_at=created_at,
-            password_hash=self._password_hasher.hash_password(request.password),
+            password_hash=provisioned.password_hash,
+            identity_provider_type=provisioned.identity_provider_type,
+            external_subject_id=provisioned.external_subject_id,
         )
         try:
             persisted = self._users.create(user)
@@ -174,9 +224,12 @@ class AuthService:
         normalized_email = _validate_email(request.email)
         _validate_password(request.password)
         user = self._users.get_by_email(normalized_email)
-        if user is None or not user.password_hash:
+        if user is None:
             raise AuthenticationError("Invalid email or password")
-        if not self._password_hasher.verify_password(request.password, user.password_hash):
+        provider = self._identity_providers.get(user.identity_provider_type)
+        if provider is None:
+            raise AuthenticationError("Invalid email or password")
+        if not provider.authenticate(user=user, password=request.password):
             raise AuthenticationError("Invalid email or password")
         return self._session_for_user(user)
 

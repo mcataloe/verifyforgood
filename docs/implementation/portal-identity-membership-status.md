@@ -2,11 +2,11 @@
 
 ## Status
 
-feature flag framework complete
+SSO seams prepared
 
 ## Next Phase
 
-19P
+TBD
 
 ## Scope
 

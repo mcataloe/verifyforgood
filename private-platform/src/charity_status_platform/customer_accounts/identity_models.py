@@ -45,6 +45,12 @@ class FeatureFlagKey(str, Enum):
     ENABLE_ADVANCED_REPORTING = "enable_advanced_reporting"
 
 
+class IdentityProviderType(str, Enum):
+    LOCAL_PASSWORD = "local_password"
+    SAML_FUTURE = "saml_future"
+    OIDC_FUTURE = "oidc_future"
+
+
 @dataclass(frozen=True)
 class UserRecord:
     user_id: str
@@ -54,6 +60,8 @@ class UserRecord:
     created_at: str
     updated_at: str
     password_hash: str | None = None
+    identity_provider_type: IdentityProviderType = IdentityProviderType.LOCAL_PASSWORD
+    external_subject_id: str | None = None
 
 
 @dataclass(frozen=True)

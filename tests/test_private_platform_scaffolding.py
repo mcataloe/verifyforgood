@@ -22,6 +22,9 @@ def test_private_platform_service_area_packages_import():
 
     assert hasattr(identity_access, "authenticate_api_key")
     assert hasattr(identity_access, "ApiKeyAuthContextProvider")
+    assert hasattr(identity_access, "IdentityProviderType")
+    assert hasattr(identity_access, "IdentityProviderService")
+    assert hasattr(identity_access, "LocalPasswordIdentityProviderService")
     assert hasattr(customer_accounts, "ControlPlaneService")
     assert hasattr(customer_accounts, "OrganizationIntegrationSettingsService")
     assert hasattr(billing_usage, "EntitlementService")

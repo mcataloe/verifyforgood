@@ -94,3 +94,31 @@ Phase 19M introduces `PLAN` and `SUBSCRIPTION` entities in the portal identity d
 ### Constraint
 
 Keep the portal `PlanRepository`, `SubscriptionRepository`, and `SubscriptionService` contracts stable so control-plane linkage can replace the scaffolded storage model without changing portal-facing callers.
+
+## TODO-ARCH-005
+
+### Title
+
+SSO integration design details pending.
+
+### Rationale
+
+Phase 19P adds identity-provider seams and user provider metadata, but it does not define the full SAML/OIDC integration model yet.
+
+Open design areas include:
+
+- provider configuration storage
+- tenant-to-provider mapping
+- account linking and JIT provisioning rules
+- assertion validation boundaries
+- admin onboarding and certificate/metadata rotation
+
+### Migration Triggers
+
+- first SAML pilot
+- first OIDC enterprise integration
+- provider discovery and login initiation requirements
+
+### Constraint
+
+Keep the `IdentityProviderService` abstraction and user provider fields stable so future SSO support can plug in without breaking the existing local-password auth flow.

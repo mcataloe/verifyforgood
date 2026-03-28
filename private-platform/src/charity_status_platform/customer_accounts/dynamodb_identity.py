@@ -10,6 +10,7 @@ from .identity_models import (
     ApiKeyStatus,
     FeatureFlagKey,
     FeatureFlagRecord,
+    IdentityProviderType,
     InvitationRecord,
     InvitationStatus,
     MembershipRecord,
@@ -470,6 +471,8 @@ def _user_item(user: UserRecord) -> dict[str, Any]:
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "password_hash": user.password_hash,
+        "identity_provider_type": user.identity_provider_type.value,
+        "external_subject_id": user.external_subject_id,
         "gsi1pk": f"EMAIL#{user.normalized_email}",
         "gsi1sk": _user_pk(user.user_id),
     }
@@ -611,6 +614,10 @@ def _user_from_item(item: dict[str, Any]) -> UserRecord:
         created_at=str(item.get("created_at") or ""),
         updated_at=str(item.get("updated_at") or ""),
         password_hash=_optional_string(item.get("password_hash")),
+        identity_provider_type=IdentityProviderType(
+            str(item.get("identity_provider_type") or IdentityProviderType.LOCAL_PASSWORD.value)
+        ),
+        external_subject_id=_optional_string(item.get("external_subject_id")),
     )
 
 

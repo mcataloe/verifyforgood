@@ -41,11 +41,15 @@ from .auth_service import (
     AuthenticatedUserSession,
     BcryptPasswordHasher,
     HmacBearerTokenCodec,
+    IdentityProviderService,
+    LocalPasswordIdentityProviderService,
     PortalAuthValidationError,
+    ProvisionedIdentity,
     UserCreateRequest,
     UserLoginRequest,
     UserResponse,
 )
+from charity_status_platform.customer_accounts import IdentityProviderType
 
 __all__ = [
     "ApiKeyPrincipal",
@@ -86,6 +90,10 @@ __all__ = [
     "AuthenticatedUserSession",
     "BcryptPasswordHasher",
     "HmacBearerTokenCodec",
+    "IdentityProviderType",
+    "IdentityProviderService",
+    "LocalPasswordIdentityProviderService",
+    "ProvisionedIdentity",
     "PortalAuthValidationError",
     "UserCreateRequest",
     "UserLoginRequest",

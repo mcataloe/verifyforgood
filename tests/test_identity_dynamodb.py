@@ -26,6 +26,7 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     FeatureFlagKey,
     FeatureFlagRecord,
     FeatureFlagService,
+    IdentityProviderType,
     DynamoApiKeyRepository,
     DynamoPlanRepository,
     DynamoSubscriptionRepository,
@@ -91,6 +92,7 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "UsageService")
     assert hasattr(customer_accounts, "AuditRecord")
     assert hasattr(customer_accounts, "FeatureFlagRecord")
+    assert hasattr(customer_accounts, "IdentityProviderType")
     assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
     assert hasattr(customer_accounts, "FakeIdentityDynamoResource")
@@ -197,6 +199,51 @@ def test_email_uniqueness_logic_uses_normalized_lookup():
 
     assert loaded is not None
     assert loaded.user_id == "user_1"
+
+
+def test_user_round_trip_includes_identity_provider_metadata_and_legacy_defaults():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    users = DynamoUserRepository(dynamodb_resource=resource)
+
+    users.create(
+        UserRecord(
+            user_id="user_1",
+            email="alice@example.com",
+            normalized_email="alice@example.com",
+            full_name="Alice",
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+            password_hash="hashed",
+            identity_provider_type=IdentityProviderType.OIDC_FUTURE,
+            external_subject_id="oidc|alice",
+        )
+    )
+    loaded = users.get("user_1")
+
+    legacy_key = ("USER#legacy_user", "USER")
+    table._items[legacy_key] = {
+        "pk": "USER#legacy_user",
+        "sk": "USER",
+        "type": "USER",
+        "user_id": "legacy_user",
+        "email": "legacy@example.com",
+        "normalized_email": "legacy@example.com",
+        "full_name": "Legacy User",
+        "created_at": "2026-03-26T00:00:00+00:00",
+        "updated_at": "2026-03-26T00:00:00+00:00",
+        "password_hash": "legacy-hash",
+        "gsi1pk": "EMAIL#legacy@example.com",
+        "gsi1sk": "USER#legacy_user",
+    }
+    legacy_loaded = users.get("legacy_user")
+
+    assert loaded is not None
+    assert loaded.identity_provider_type is IdentityProviderType.OIDC_FUTURE
+    assert loaded.external_subject_id == "oidc|alice"
+    assert legacy_loaded is not None
+    assert legacy_loaded.identity_provider_type is IdentityProviderType.LOCAL_PASSWORD
+    assert legacy_loaded.external_subject_id is None
 
 
 def test_invitation_lookup_by_token_and_acceptance_round_trip():
