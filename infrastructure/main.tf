@@ -28,6 +28,7 @@ locals {
     athena_results_bucket             = "${local.namespace}-${local.platform}-athena-results-${local.environment_slug}-${local.region_short}"
     ecs_cluster                       = "${local.namespace}-${local.platform}-platform-processing-${local.environment_slug}-${local.region_short}"
     profile_table                     = "${local.namespace}-${local.platform}-profiles-${local.environment_slug}-${local.region_short}"
+    identity_table                    = "${local.namespace}-${local.platform}-identity-${local.environment_slug}-${local.region_short}"
     organization_settings_table       = "${local.namespace}-${local.platform}-organization-settings-${local.environment_slug}-${local.region_short}"
     control_plane_table               = "${local.namespace}-${local.platform}-control-plane-${local.environment_slug}-${local.region_short}"
     athena_workgroup                  = "${local.namespace}-${local.platform}-athena-workgroup-${local.environment_slug}-${local.region_short}"
@@ -58,6 +59,7 @@ locals {
     athena_results_bucket             = "${local.legacy_name_prefix}-athena-results"
     ecs_cluster                       = "${local.legacy_name_prefix}-platform-processing"
     profile_table                     = "${local.legacy_name_prefix}-profiles"
+    identity_table                    = "identity"
     organization_settings_table       = "${local.legacy_name_prefix}-organization-settings"
     control_plane_table               = "${local.legacy_name_prefix}-control-plane"
     athena_workgroup                  = local.environment_slug == "prod" ? var.athena_workgroup_name : "${var.athena_workgroup_name}-${local.environment_slug}"
@@ -117,6 +119,7 @@ locals {
   athena_results_bucket_name             = local.resource_names.athena_results_bucket
   ecs_cluster_name                       = local.resource_names.ecs_cluster
   profile_table_name                     = local.resource_names.profile_table
+  identity_table_name                    = local.resource_names.identity_table
   organization_settings_table_name       = local.resource_names.organization_settings_table
   control_plane_table_name               = local.resource_names.control_plane_table
   glue_database_name                     = "${local.data_catalog_prefix}_irs_db"
@@ -439,6 +442,93 @@ resource "aws_dynamodb_table" "profiles" {
   attribute {
     name = "sk"
     type = "S"
+  }
+
+  tags = local.platform_common_tags
+}
+
+resource "aws_dynamodb_table" "identity" {
+  name         = local.identity_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi1pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi1sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi2pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi2sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi3pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi3sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi4pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi4sk"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "email_lookup"
+    hash_key        = "gsi1pk"
+    range_key       = "gsi1sk"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "user_memberships"
+    hash_key        = "gsi2pk"
+    range_key       = "gsi2sk"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "invitation_token_lookup"
+    hash_key        = "gsi3pk"
+    range_key       = "gsi3sk"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "organization_slug_lookup"
+    hash_key        = "gsi4pk"
+    range_key       = "gsi4sk"
+    projection_type = "ALL"
   }
 
   tags = local.platform_common_tags

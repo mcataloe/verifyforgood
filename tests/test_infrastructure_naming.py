@@ -29,6 +29,7 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "source_data_bucket_name" in content and "local.resource_names.source_data_bucket" in content
     assert "athena_results_bucket_name" in content and "local.resource_names.athena_results_bucket" in content
     assert "profile_table_name" in content and "local.resource_names.profile_table" in content
+    assert "identity_table_name" in content and "local.resource_names.identity_table" in content
     assert "organization_settings_table_name" in content and "local.resource_names.organization_settings_table" in content
     assert "control_plane_table_name" in content and "local.resource_names.control_plane_table" in content
     assert "ecs_cluster_name" in content and "local.resource_names.ecs_cluster" in content
@@ -64,6 +65,32 @@ def test_lambda_and_schedule_resources_use_neutral_capability_maps():
     assert "local.scheduled_workflow_names.regulatory_data_ingestion" in content
     assert "local.scheduled_workflow_names.platform_refresh" in content
     assert "local.scheduled_workflow_names.monthly_filing_ingestion" in content
+    assert "IDENTITY_TABLE_NAME" in content and "aws_dynamodb_table.identity.name" in content
+
+
+def test_identity_table_is_provisioned_and_authorized_for_query_lambda():
+    main_content = Path("infrastructure/main.tf").read_text(encoding="utf-8")
+    iam_content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
+    outputs_content = Path("infrastructure/outputs.tf").read_text(encoding="utf-8")
+
+    assert 'identity_table                    = "${local.namespace}-${local.platform}-identity-${local.environment_slug}-${local.region_short}"' in main_content
+    assert 'identity_table                    = "identity"' in main_content
+    assert 'resource "aws_dynamodb_table" "identity"' in main_content
+    assert 'name         = local.identity_table_name' in main_content
+    assert 'name            = "email_lookup"' in main_content
+    assert 'name            = "user_memberships"' in main_content
+    assert 'name            = "invitation_token_lookup"' in main_content
+    assert 'name            = "organization_slug_lookup"' in main_content
+
+    assert "aws_dynamodb_table.identity.arn" in iam_content
+    assert '"${aws_dynamodb_table.identity.arn}/index/email_lookup"' in iam_content
+    assert '"${aws_dynamodb_table.identity.arn}/index/user_memberships"' in iam_content
+    assert '"${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup"' in iam_content
+    assert '"${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup"' in iam_content
+    assert '"dynamodb:DeleteItem"' in iam_content
+
+    assert 'output "identity_dynamodb_table_name"' in outputs_content
+    assert "aws_dynamodb_table.identity.name" in outputs_content
 
 
 def test_variables_expose_migration_safe_naming_controls():

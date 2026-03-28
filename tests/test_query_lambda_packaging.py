@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import sys
+from pathlib import Path
 
 
 def test_lambda_query_import_does_not_require_ingest_package(monkeypatch):
@@ -28,3 +29,17 @@ def test_lambda_query_import_does_not_require_ingest_package(monkeypatch):
     module = importlib.import_module("infrastructure.lambda_query")
 
     assert module.__name__ == "infrastructure.lambda_query"
+
+
+def test_query_lambda_packaging_includes_private_platform_sources():
+    terraform = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+    script = Path("infrastructure/build_query_package.ps1").read_text(encoding="utf-8")
+
+    assert 'resource "terraform_data" "query_package_build"' in terraform
+    assert 'source_dir  = local.query_package_dir' in terraform
+    assert "private-platform/src/charity_status_platform" in terraform
+    assert "Copy-Item -Path (Join-Path $repoRoot \"private-platform\\\\src\\\\charity_status_platform\")" in script
+    assert "Copy-Item -Path (Join-Path $moduleDir \"verification_platform\")" in script
+    assert "--platform manylinux2014_x86_64" in script
+    assert "--python-version 311" in script
+    assert "--only-binary=:all:" in script

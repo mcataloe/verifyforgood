@@ -1,6 +1,9 @@
 base_name              = "charitystatusapi"
 aws_region             = "us-east-1"
 resource_name_strategy = "legacy"
+public_brand_name      = "VerifyForGood"
+support_email          = "support@verifyforgood.com"
+domain                 = "verifyforgood.com"
 source_data_prefix     = "eo_bmf/"
 athena_workgroup_name  = "irs-eo-bmf"
 
@@ -40,6 +43,14 @@ form990_worker_reserved_concurrency      = 5
 form990_queue_visibility_timeout_seconds = 600
 form990_queue_max_receive_count          = 3
 form990_queue_batch_size                 = 1
+
+monthly_ingest_state_machine_enabled      = false
+monthly_ingest_worker_image_tag           = "latest"
+monthly_ingest_task_cpu                   = 2048
+monthly_ingest_task_memory                = 8192
+monthly_ingest_task_ephemeral_storage_gib = 100
+monthly_ingest_task_log_retention_days    = 30
+monthly_ingest_task_allowed_bucket_arns   = []
 
 enrichment_mock_enabled          = false
 enrichment_mock_offered          = null

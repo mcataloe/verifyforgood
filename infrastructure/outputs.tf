@@ -63,6 +63,11 @@ output "profiles_dynamodb_table_name" {
   value       = aws_dynamodb_table.profiles.name
 }
 
+output "identity_dynamodb_table_name" {
+  description = "DynamoDB table for identity, organizations, memberships, invitations, and audit records."
+  value       = aws_dynamodb_table.identity.name
+}
+
 output "organization_settings_dynamodb_table_name" {
   description = "DynamoDB table for organization-level integration settings."
   value       = aws_dynamodb_table.organization_settings.name

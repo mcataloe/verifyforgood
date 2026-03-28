@@ -8,6 +8,37 @@ locals {
   use_ingest_build_dir = length(local.ingest_package_files) > 0
 }
 
+locals {
+  query_package_dir          = "${path.module}/build/query_package"
+  query_private_platform_dir = "${path.root}/private-platform/src/charity_status_platform"
+  query_package_source_files = concat(
+    [
+      "${path.module}/lambda_query.py",
+      "${path.module}/requirements.txt",
+      "${path.module}/build_query_package.ps1",
+    ],
+    [
+      for file in fileset("${path.module}/charity_status", "**") :
+      "${path.module}/charity_status/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+    [
+      for file in fileset("${path.module}/verification_platform", "**") :
+      "${path.module}/verification_platform/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+    [
+      for file in fileset(local.query_private_platform_dir, "**") :
+      "${local.query_private_platform_dir}/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+  )
+  query_package_source_hash = sha1(join("", [
+    for file in sort(local.query_package_source_files) :
+    "${file}:${filesha1(file)}"
+  ]))
+}
+
 data "archive_file" "ingest_zip_from_dir" {
   count       = local.use_ingest_build_dir ? 1 : 0
   type        = "zip"
@@ -69,31 +100,20 @@ resource "aws_lambda_function" "ingest" {
 # LAMBDA QUERY FUNCTION
 #############################################
 
+resource "terraform_data" "query_package_build" {
+  triggers_replace = [local.query_package_source_hash]
+
+  provisioner "local-exec" {
+    interpreter = ["PowerShell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+    command     = "& '${path.module}/build_query_package.ps1'"
+  }
+}
+
 data "archive_file" "query_zip" {
+  depends_on  = [terraform_data.query_package_build]
   type        = "zip"
-  source_dir  = path.module
+  source_dir  = local.query_package_dir
   output_path = "${path.module}/query.zip"
-  excludes = [
-    ".terraform/**",
-    "build/**",
-    "__pycache__/**",
-    "terraform.tfstate",
-    "terraform.tfstate.*",
-    ".terraform.tfstate.lock.info",
-    "charity_status/ingest/**",
-    "charity_status/form990/**",
-    "charity_status/future/**",
-    "ingest.zip",
-    "query.zip",
-    "form990.zip",
-    "lambda_ingest.py",
-    "lambda_form990.py",
-    "*.tf",
-    "*.tfvars",
-    "*.hcl",
-    "*.ps1",
-    "requirements*.txt",
-  ]
 }
 
 resource "aws_lambda_function" "query" {
@@ -151,6 +171,7 @@ resource "aws_lambda_function" "query" {
       ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
       PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
+      IDENTITY_TABLE_NAME                              = aws_dynamodb_table.identity.name
       CONTROL_PLANE_TABLE_NAME                         = aws_dynamodb_table.control_plane.name
       APP_ENV                                          = var.environment
       CORS_ALLOWED_ORIGINS                             = join(",", var.cors_allowed_origins)

@@ -7,5 +7,6 @@ enable_custom_domain            = true
 cors_allowed_origins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://104.5.153.3:5173",
   "https://dev.charitystatusapi.com",
 ]

@@ -55,13 +55,19 @@ resource "aws_iam_role_policy" "lambda_data_access" {
           "dynamodb:GetItem",
           "dynamodb:Query",
           "dynamodb:PutItem",
-          "dynamodb:UpdateItem"
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
         ]
         Effect = "Allow"
         Resource = [
           aws_dynamodb_table.profiles.arn,
+          aws_dynamodb_table.identity.arn,
           aws_dynamodb_table.organization_settings.arn,
           aws_dynamodb_table.control_plane.arn,
+          "${aws_dynamodb_table.identity.arn}/index/email_lookup",
+          "${aws_dynamodb_table.identity.arn}/index/user_memberships",
+          "${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup",
+          "${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup",
           "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
           "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
           "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",
