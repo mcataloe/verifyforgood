@@ -77,6 +77,8 @@ def test_identity_table_is_provisioned_and_authorized_for_query_lambda():
     assert 'identity_table                    = "identity"' in main_content
     assert 'resource "aws_dynamodb_table" "identity"' in main_content
     assert 'name         = local.identity_table_name' in main_content
+    assert 'timeouts {' in main_content
+    assert 'update = "2h"' in main_content
     assert 'name            = "email_lookup"' in main_content
     assert 'name            = "user_memberships"' in main_content
     assert 'name            = "invitation_token_lookup"' in main_content

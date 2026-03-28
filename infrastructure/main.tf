@@ -453,6 +453,12 @@ resource "aws_dynamodb_table" "identity" {
   hash_key     = "pk"
   range_key    = "sk"
 
+  # DynamoDB GSI creation backfills asynchronously and can exceed Terraform's
+  # default update wait on existing tables.
+  timeouts {
+    update = "2h"
+  }
+
   attribute {
     name = "pk"
     type = "S"
