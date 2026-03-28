@@ -73,3 +73,24 @@ That is enough for initial authentication, but it does not inherit real billing,
 ### Constraint
 
 Keep the org-managed API-key repository/service interfaces stable so real control-plane linkage can replace the temporary compatibility mapping without changing frontend or handler contracts.
+
+## TODO-ARCH-004
+
+### Title
+
+Reconcile portal subscription scaffolding with control-plane billing accounts and subscriptions.
+
+### Rationale
+
+Phase 19M introduces `PLAN` and `SUBSCRIPTION` entities in the portal identity domain so organization-linked subscription state can exist before full billing parity. The repo already has a mature control-plane billing model, so these portal records are scaffolding until a real linkage model is implemented.
+
+### Migration Triggers
+
+- portal billing UI parity
+- Stripe-backed portal subscription changes
+- entitlement inheritance from paid subscriptions
+- organization to control-plane account mapping
+
+### Constraint
+
+Keep the portal `PlanRepository`, `SubscriptionRepository`, and `SubscriptionService` contracts stable so control-plane linkage can replace the scaffolded storage model without changing portal-facing callers.

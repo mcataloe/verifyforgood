@@ -14,6 +14,9 @@ from .identity_models import (
     MembershipRole,
     MembershipStatus,
     OrganizationRecord,
+    PlanRecord,
+    SubscriptionRecord,
+    SubscriptionStatus,
     UserRecord,
 )
 from .identity_repositories import (
@@ -29,6 +32,7 @@ USER_MEMBERSHIPS_INDEX = "user_memberships"
 INVITATION_TOKEN_INDEX = "invitation_token_lookup"
 ORGANIZATION_SLUG_LOOKUP_INDEX = "organization_slug_lookup"
 API_KEY_LOOKUP_INDEX = "api_key_lookup"
+PLAN_LOOKUP_INDEX = "plan_lookup"
 
 
 class DynamoUserRepository:
@@ -310,12 +314,59 @@ class DynamoApiKeyRepository:
         return updated
 
 
+class DynamoPlanRepository:
+    def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
+        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+
+    def get(self, plan_id: str) -> PlanRecord | None:
+        response = self._table.get_item(Key={"pk": _plan_pk(plan_id), "sk": "PLAN"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _plan_from_item(item)
+
+    def list_all(self) -> list[PlanRecord]:
+        response = self._table.query(
+            IndexName=PLAN_LOOKUP_INDEX,
+            KeyConditionExpression="gsi6pk = :gsi6pk",
+            ExpressionAttributeValues={":gsi6pk": "PLANCATALOG"},
+        )
+        items = response.get("Items") or []
+        return [_plan_from_item(item) for item in items if item.get("type") == "PLAN"]
+
+    def seed_defaults(self, plans: list[PlanRecord]) -> None:
+        for plan in plans:
+            if self.get(plan.plan_id) is not None:
+                continue
+            self._table.put_item(Item=_plan_item(plan))
+
+
+class DynamoSubscriptionRepository:
+    def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
+        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+
+    def put(self, subscription: SubscriptionRecord) -> SubscriptionRecord:
+        self._table.put_item(Item=_subscription_item(subscription))
+        return subscription
+
+    def get_by_organization(self, organization_id: str) -> SubscriptionRecord | None:
+        response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": "SUBSCRIPTION"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _subscription_from_item(item)
+
+
 def _user_pk(user_id: str) -> str:
     return f"USER#{user_id}"
 
 
 def _organization_pk(organization_id: str) -> str:
     return f"ORG#{organization_id}"
+
+
+def _plan_pk(plan_id: str) -> str:
+    return f"PLAN#{plan_id}"
 
 
 def _normalize_email(email: str) -> str:
@@ -413,6 +464,37 @@ def _api_key_item(api_key: ApiKeyRecord) -> dict[str, Any]:
     }
 
 
+def _plan_item(plan: PlanRecord) -> dict[str, Any]:
+    return {
+        "pk": _plan_pk(plan.plan_id),
+        "sk": "PLAN",
+        "type": "PLAN",
+        "plan_id": plan.plan_id,
+        "plan_name": plan.plan_name,
+        "monthly_price": plan.monthly_price,
+        "feature_flags": list(plan.feature_flags),
+        "request_limit": plan.request_limit,
+        "description": plan.description,
+        "gsi6pk": "PLANCATALOG",
+        "gsi6sk": plan.plan_id,
+    }
+
+
+def _subscription_item(subscription: SubscriptionRecord) -> dict[str, Any]:
+    return {
+        "pk": _organization_pk(subscription.organization_id),
+        "sk": "SUBSCRIPTION",
+        "type": "SUBSCRIPTION",
+        "subscription_id": subscription.subscription_id,
+        "organization_id": subscription.organization_id,
+        "plan_id": subscription.plan_id,
+        "status": subscription.status.value,
+        "billing_cycle_start": subscription.billing_cycle_start,
+        "billing_cycle_end": subscription.billing_cycle_end,
+        "created_at": subscription.created_at,
+    }
+
+
 def _user_from_item(item: dict[str, Any]) -> UserRecord:
     return UserRecord(
         user_id=str(item.get("user_id") or ""),
@@ -475,6 +557,30 @@ def _api_key_from_item(item: dict[str, Any]) -> ApiKeyRecord:
     )
 
 
+def _plan_from_item(item: dict[str, Any]) -> PlanRecord:
+    feature_flags = item.get("feature_flags") or []
+    return PlanRecord(
+        plan_id=str(item.get("plan_id") or ""),
+        plan_name=str(item.get("plan_name") or ""),
+        monthly_price=int(item.get("monthly_price") or 0),
+        feature_flags=tuple(str(flag) for flag in feature_flags),
+        request_limit=int(item.get("request_limit") or 0),
+        description=str(item.get("description") or ""),
+    )
+
+
+def _subscription_from_item(item: dict[str, Any]) -> SubscriptionRecord:
+    return SubscriptionRecord(
+        subscription_id=str(item.get("subscription_id") or ""),
+        organization_id=str(item.get("organization_id") or ""),
+        plan_id=str(item.get("plan_id") or ""),
+        status=SubscriptionStatus(str(item.get("status") or SubscriptionStatus.ACTIVE.value)),
+        billing_cycle_start=str(item.get("billing_cycle_start") or ""),
+        billing_cycle_end=str(item.get("billing_cycle_end") or ""),
+        created_at=str(item.get("created_at") or ""),
+    )
+
+
 def _optional_string(value: Any) -> str | None:
     candidate = str(value or "").strip()
     return candidate or None
@@ -521,6 +627,9 @@ class FakeIdentityDynamoTable:
         elif IndexName == API_KEY_LOOKUP_INDEX:
             matches = [item for item in items if item.get("gsi5pk") == values.get(":gsi5pk")]
             matches.sort(key=lambda item: str(item.get("gsi5sk") or ""))
+        elif IndexName == PLAN_LOOKUP_INDEX:
+            matches = [item for item in items if item.get("gsi6pk") == values.get(":gsi6pk")]
+            matches.sort(key=lambda item: str(item.get("gsi6sk") or ""))
         elif KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)":
             matches = [
                 item

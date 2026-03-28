@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, UserRecord
+from .identity_models import ApiKeyRecord, InvitationRecord, MembershipRecord, OrganizationRecord, PlanRecord, SubscriptionRecord, UserRecord
 
 
 class IdentityRepositoryError(Exception):
@@ -106,4 +106,23 @@ class ApiKeyRepository(Protocol):
         ...
 
     def touch_last_used(self, key_id: str, *, used_at: str) -> ApiKeyRecord | None:
+        ...
+
+
+class PlanRepository(Protocol):
+    def get(self, plan_id: str) -> PlanRecord | None:
+        ...
+
+    def list_all(self) -> list[PlanRecord]:
+        ...
+
+    def seed_defaults(self, plans: list[PlanRecord]) -> None:
+        ...
+
+
+class SubscriptionRepository(Protocol):
+    def put(self, subscription: SubscriptionRecord) -> SubscriptionRecord:
+        ...
+
+    def get_by_organization(self, organization_id: str) -> SubscriptionRecord | None:
         ...

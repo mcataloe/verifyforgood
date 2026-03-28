@@ -2,11 +2,11 @@
 
 ## Status
 
-API key management implemented
+subscription scaffolding complete
 
 ## Next Phase
 
-19M
+19N
 
 ## Scope
 

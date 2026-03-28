@@ -21,7 +21,10 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     ApiKeyStatus,
     AuditEventType,
     AuditRecord,
+    DEFAULT_PORTAL_PLANS,
     DynamoApiKeyRepository,
+    DynamoPlanRepository,
+    DynamoSubscriptionRepository,
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
@@ -38,6 +41,11 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     MembershipRole,
     MembershipStatus,
     OrganizationRecord,
+    PLAN_LOOKUP_INDEX,
+    SubscriptionResolvedResponse,
+    SubscriptionScaffoldingError,
+    SubscriptionService,
+    SubscriptionStatus,
     UserRecord,
 )
 
@@ -47,13 +55,18 @@ def test_customer_accounts_exports_identity_phase_surface():
 
     assert customer_accounts.IDENTITY_TABLE_NAME == "identity"
     assert customer_accounts.API_KEY_LOOKUP_INDEX == API_KEY_LOOKUP_INDEX
+    assert customer_accounts.PLAN_LOOKUP_INDEX == PLAN_LOOKUP_INDEX
     assert hasattr(customer_accounts, "UserRepository")
     assert hasattr(customer_accounts, "OrganizationRepository")
     assert hasattr(customer_accounts, "MembershipRepository")
     assert hasattr(customer_accounts, "InvitationRepository")
     assert hasattr(customer_accounts, "ApiKeyRepository")
+    assert hasattr(customer_accounts, "PlanRepository")
+    assert hasattr(customer_accounts, "SubscriptionRepository")
     assert hasattr(customer_accounts, "AuditLogRepository")
     assert hasattr(customer_accounts, "DynamoApiKeyRepository")
+    assert hasattr(customer_accounts, "DynamoPlanRepository")
+    assert hasattr(customer_accounts, "DynamoSubscriptionRepository")
     assert hasattr(customer_accounts, "DynamoUserRepository")
     assert hasattr(customer_accounts, "DynamoOrganizationRepository")
     assert hasattr(customer_accounts, "DynamoMembershipRepository")
@@ -61,6 +74,7 @@ def test_customer_accounts_exports_identity_phase_surface():
     assert hasattr(customer_accounts, "DynamoAuditLogRepository")
     assert hasattr(customer_accounts, "AuditLogService")
     assert hasattr(customer_accounts, "ApiKeyService")
+    assert hasattr(customer_accounts, "SubscriptionService")
     assert hasattr(customer_accounts, "AuditRecord")
     assert customer_accounts.AUDIT_GLOBAL_PARTITION_KEY == AUDIT_GLOBAL_PARTITION_KEY
     assert hasattr(customer_accounts, "FakeIdentityDynamoTable")
@@ -338,3 +352,76 @@ def test_org_api_key_round_trips_with_lookup_revocation_and_last_used():
     reloaded = api_keys.get_by_key_id(created.api_key.key_id)
     assert reloaded is not None
     assert reloaded.status is ApiKeyStatus.REVOKED
+
+
+def test_seeded_portal_plans_round_trip_through_plan_repository():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+
+    assert plans.list_all() == []
+
+    plans.seed_defaults(list(DEFAULT_PORTAL_PLANS))
+
+    loaded = plans.list_all()
+    growth = plans.get("growth")
+
+    assert [plan.plan_id for plan in loaded] == ["enterprise", "growth", "starter"]
+    assert growth is not None
+    assert growth.plan_name == "Growth"
+    assert "financial_trends" in growth.feature_flags
+    assert growth.request_limit == 10000
+
+
+def test_subscription_service_links_subscription_to_organization_and_resolves_plan():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=resource)
+    service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+
+    created = service.upsert_subscription(
+        organization_id="org_1",
+        plan_id="growth",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+    loaded = service.get_subscription_for_organization("org_1")
+
+    assert isinstance(created, SubscriptionResolvedResponse)
+    assert created.subscription.organization_id == "org_1"
+    assert created.subscription.status is SubscriptionStatus.ACTIVE
+    assert created.plan.plan_id == "growth"
+    assert loaded.subscription.subscription_id == created.subscription.subscription_id
+    assert loaded.plan.plan_name == "Growth"
+
+
+def test_subscription_service_rejects_unknown_plan_and_unknown_organization():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    service = SubscriptionService(
+        organizations=DynamoOrganizationRepository(dynamodb_resource=resource),
+        plans=DynamoPlanRepository(dynamodb_resource=resource),
+        subscriptions=DynamoSubscriptionRepository(dynamodb_resource=resource),
+    )
+
+    with pytest.raises(SubscriptionScaffoldingError, match="organization_id must reference an existing organization"):
+        service.upsert_subscription(organization_id="org_missing", plan_id="growth")
+
+    with pytest.raises(SubscriptionScaffoldingError, match="known portal subscription plan"):
+        service.get_plan("unknown")

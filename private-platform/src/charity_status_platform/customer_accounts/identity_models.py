@@ -26,6 +26,12 @@ class ApiKeyStatus(str, Enum):
     REVOKED = "revoked"
 
 
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+
+
 @dataclass(frozen=True)
 class UserRecord:
     user_id: str
@@ -81,3 +87,24 @@ class ApiKeyRecord:
     created_by_user_id: str
     status: ApiKeyStatus
     last_used_at: str | None = None
+
+
+@dataclass(frozen=True)
+class PlanRecord:
+    plan_id: str
+    plan_name: str
+    monthly_price: int
+    feature_flags: tuple[str, ...]
+    request_limit: int
+    description: str
+
+
+@dataclass(frozen=True)
+class SubscriptionRecord:
+    subscription_id: str
+    organization_id: str
+    plan_id: str
+    status: SubscriptionStatus
+    billing_cycle_start: str
+    billing_cycle_end: str
+    created_at: str
