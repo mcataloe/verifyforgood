@@ -10,6 +10,7 @@ import {
   type DataTableColumn,
   type DataTableFilterDefinition,
 } from "@charity-status/shared-ui";
+import { Button, Group, Text } from "@mantine/core";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   PortalNonprofitDetailView,
@@ -68,17 +69,6 @@ const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
     ],
     getValue: (row) => summaryStatus(row),
   },
-  {
-    key: "state",
-    label: "State",
-    options: [
-      { label: "California", value: "CA" },
-      { label: "Illinois", value: "IL" },
-      { label: "New York", value: "NY" },
-      { label: "Texas", value: "TX" },
-    ],
-    getValue: (row) => row.state,
-  },
 ];
 
 export function NonprofitSearchPanel({
@@ -88,12 +78,34 @@ export function NonprofitSearchPanel({
   const defaultController = usePortalNonprofitSearch();
   const search = controller ?? defaultController;
   const [query, setQuery] = useState("");
+  const stateFilters = Array.from(
+    new Set(search.results.map((row) => row.state).filter(Boolean)),
+  )
+    .sort((left, right) => left.localeCompare(right))
+    .map((value) => ({
+      label: value,
+      value,
+    }));
+  const filterDefinitions: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
+    [
+      ...resultFilters,
+      ...(stateFilters.length
+        ? [
+            {
+              key: "state",
+              label: "State",
+              options: stateFilters,
+              getValue: (row: PortalNonprofitSearchSummary) => row.state,
+            },
+          ]
+        : []),
+    ];
 
   return (
     <Grid className="portal-page-grid">
       <Panel
         title="Nonprofit verification search"
-        subtitle="Search by EIN for an exact lookup or by organization name for a lightweight listing."
+        subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
       >
         <p>
           This is the portal&apos;s core product interaction. Requests run
@@ -146,6 +158,10 @@ export function NonprofitSearchPanel({
           <div>
             <dt>Workspace</dt>
             <dd>{organization.activeOrganization.workspace_id}</dd>
+          </div>
+          <div>
+            <dt>Loaded results</dt>
+            <dd>{String(search.results.length)}</dd>
           </div>
         </dl>
       </Panel>
@@ -211,13 +227,30 @@ export function NonprofitSearchPanel({
                 ),
               },
             ]}
-            filterDefinitions={resultFilters}
+            filterDefinitions={filterDefinitions}
             getSearchText={(row) =>
               `${row.name} ${row.ein} ${row.state} ${row.irsStatus}`
             }
             rows={search.results}
             searchPlaceholder="Refine search results"
           />
+          {search.hasMoreResults ? (
+            <Group justify="space-between" mt="md" wrap="wrap">
+              <Text c="dimmed" fz="sm">
+                More backend search results are available for this organization
+                query.
+              </Text>
+              <Button
+                loading={search.isLoadingMore}
+                onClick={() => {
+                  void search.loadMoreResults();
+                }}
+                variant="light"
+              >
+                Load more results
+              </Button>
+            </Group>
+          ) : null}
         </Panel>
       ) : null}
 

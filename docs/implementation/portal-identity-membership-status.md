@@ -2,11 +2,11 @@
 
 ## Status
 
-centralized tenant authorization implemented
+tenant-aware nonprofit search UI implemented
 
 ## Next Phase
 
-20E
+20F
 
 ## Scope
 

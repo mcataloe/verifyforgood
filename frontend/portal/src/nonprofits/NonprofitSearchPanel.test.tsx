@@ -63,14 +63,25 @@ describe("NonprofitSearchPanel", () => {
         queryExecutionId: "qry_123",
         recent990OnFile: "true",
         state: "IL",
+        sourceAvailability: [
+          {
+            attempted: false,
+            integrationId: "candid",
+            label: "Candid",
+            status: "tenant_disabled",
+          },
+        ],
         subsection: "03",
         taxDeductible: "yes",
         taxPeriod: "202412",
       },
       error: null,
       hasSearched: true,
+      hasMoreResults: true,
       isLoading: false,
+      isLoadingMore: false,
       lastQuery: "Helping Hands",
+      loadMoreResults: vi.fn(async () => {}),
       results: [
         {
           active: true,
@@ -101,8 +112,32 @@ describe("NonprofitSearchPanel", () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
     expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
+    expect(screen.getByText("Disabled for this workspace")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
+    expect(controller.loadMoreResults).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(controller.viewResultDetail).toHaveBeenCalledWith("12-3456789");
+  });
+
+  it("renders loading, empty, and error states consistently", () => {
+    const controller: PortalNonprofitSearchController = {
+      detail: null,
+      error: "The nonprofit lookup failed. Try again.",
+      hasSearched: true,
+      hasMoreResults: false,
+      isLoading: false,
+      isLoadingMore: false,
+      lastQuery: "Helping Hands",
+      loadMoreResults: vi.fn(async () => {}),
+      results: [],
+      runSearch: vi.fn(async () => {}),
+      searchMode: "name",
+      viewResultDetail: vi.fn(async () => {}),
+    };
+
+    renderWithOrganization(controller);
+
+    expect(screen.getByText("Nonprofit lookup unavailable")).toBeTruthy();
   });
 });

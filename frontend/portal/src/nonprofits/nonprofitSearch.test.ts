@@ -38,6 +38,16 @@ describe("portal nonprofit search service", () => {
               ein: "12-3456789",
               name: "Helping Hands Foundation",
             },
+            integration_evaluation: {
+              integrations: [
+                {
+                  attempted: false,
+                  availability_status: "tenant_disabled",
+                  integration_id: "candid",
+                  label: "Candid",
+                },
+              ],
+            },
             queryExecutionId: "qry_123",
             source_record: {
               subsection: "03",
@@ -77,6 +87,14 @@ describe("portal nonprofit search service", () => {
     expect(detail?.filingTaxYear).toBe("2024");
     expect(detail?.filingsCount).toBe(1);
     expect(detail?.modelSource).toBe("irs_eo_bmf_athena");
+    expect(detail?.sourceAvailability).toEqual([
+      {
+        attempted: false,
+        integrationId: "candid",
+        label: "Candid",
+        status: "tenant_disabled",
+      },
+    ]);
   });
 
   it("runs name search and maps lightweight nonprofit summaries", async () => {
@@ -111,16 +129,54 @@ describe("portal nonprofit search service", () => {
 
     const results = await service.searchByName("Helping Hands");
 
-    expect(results).toEqual([
-      {
-        active: true,
-        ein: "12-3456789",
-        irsStatus: "active",
-        name: "Helping Hands Foundation",
-        state: "IL",
-        subsection: "03",
-        taxPeriod: "202412",
+    expect(results).toEqual({
+      items: [
+        {
+          active: true,
+          ein: "12-3456789",
+          irsStatus: "active",
+          name: "Helping Hands Foundation",
+          state: "IL",
+          subsection: "03",
+          taxPeriod: "202412",
+        },
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it("passes the backend cursor through for paginated name search", async () => {
+    const get = vi.fn(
+      async (
+        target: Parameters<ApiClient["get"]>[0],
+        options?: Parameters<ApiClient["get"]>[1],
+      ) => {
+        expect(target).toBe(apiEndpoints.nonprofits.search);
+        expect(options?.query).toEqual({
+          cursor: "cursor_123",
+          limit: 5,
+          q: "Helping Hands",
+        });
+        return {
+          items: [],
+          pagination: {
+            next_cursor: "cursor_456",
+          },
+        };
       },
-    ]);
+    );
+    const service = createPortalNonprofitSearchService({
+      get,
+    } as unknown as ApiClient);
+
+    const results = await service.searchByName("Helping Hands", {
+      cursor: "cursor_123",
+      limit: 5,
+    });
+
+    expect(results).toEqual({
+      items: [],
+      nextCursor: "cursor_456",
+    });
   });
 });

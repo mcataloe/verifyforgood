@@ -213,3 +213,23 @@ Phase 20D centralizes tenant authorization for nonprofit, membership, and organi
 ### Constraint
 
 Keep the Phase 20D `TenantContext` contract stable so additional organization-scoped routes can adopt the middleware without changing existing nonprofit, membership, or API-key handler contracts.
+
+## TODO-ARCH-010
+
+### Title
+
+Replace the customer-user address-search placeholder with a backend-supported nonprofit discovery workflow.
+
+### Rationale
+
+Phase 20E moves the real tenant-aware nonprofit experience onto the portal workspace route using the backend-supported EIN and name search endpoints. The older customer-user address-search placeholder remains out of scope until the platform exposes a real address or richer organization discovery API.
+
+### Migration Triggers
+
+- backend address-search support for nonprofit discovery
+- customer-user IA refresh for search and review workflows
+- need to retire placeholder local datasets from the portal surface
+
+### Constraint
+
+Keep the Phase 20E workspace nonprofit-search contract stable so future address or expanded discovery support can plug into the existing portal organization provider and API client without changing tenant header behavior.

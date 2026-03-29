@@ -4,6 +4,7 @@ import {
   createPortalNonprofitSearchService,
   looksLikeEinQuery,
   type PortalNonprofitDetail,
+  type PortalNonprofitSearchPage,
   type PortalNonprofitSearchService,
   type PortalNonprofitSearchSummary,
 } from "./nonprofitSearch";
@@ -13,8 +14,11 @@ export interface PortalNonprofitSearchController {
   detail: PortalNonprofitDetail | null;
   error: string | null;
   hasSearched: boolean;
+  hasMoreResults: boolean;
   isLoading: boolean;
+  isLoadingMore: boolean;
   lastQuery: string;
+  loadMoreResults: () => Promise<void>;
   results: PortalNonprofitSearchSummary[];
   runSearch: (query: string) => Promise<void>;
   searchMode: "ein" | "name" | null;
@@ -30,8 +34,11 @@ export function usePortalNonprofitSearch(
   const [detail, setDetail] = useState<PortalNonprofitDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastQuery, setLastQuery] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [results, setResults] = useState<PortalNonprofitSearchSummary[]>([]);
   const [searchMode, setSearchMode] = useState<"ein" | "name" | null>(null);
 
@@ -48,8 +55,11 @@ export function usePortalNonprofitSearch(
 
       setHasSearched(true);
       setIsLoading(true);
+      setIsLoadingMore(false);
       setError(null);
       setLastQuery(trimmedQuery);
+      setNextCursor(null);
+      setHasMoreResults(false);
 
       try {
         if (looksLikeEinQuery(trimmedQuery)) {
@@ -65,11 +75,15 @@ export function usePortalNonprofitSearch(
 
         const searchResults = await service.searchByName(trimmedQuery);
         setDetail(null);
-        setResults(searchResults);
+        setResults(searchResults.items);
+        setNextCursor(searchResults.nextCursor);
+        setHasMoreResults(Boolean(searchResults.nextCursor));
         setSearchMode("name");
       } catch (caughtError) {
         setDetail(null);
         setResults([]);
+        setNextCursor(null);
+        setHasMoreResults(false);
         setError(normalizeErrorMessage(caughtError));
       } finally {
         setIsLoading(false);
@@ -98,12 +112,40 @@ export function usePortalNonprofitSearch(
     [service],
   );
 
+  const loadMoreResults = useCallback(async () => {
+    if (!lastQuery || !nextCursor || searchMode !== "name") {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setError(null);
+
+    try {
+      const searchResults: PortalNonprofitSearchPage = await service.searchByName(
+        lastQuery,
+        {
+          cursor: nextCursor,
+        },
+      );
+      setResults((current) => [...current, ...searchResults.items]);
+      setNextCursor(searchResults.nextCursor);
+      setHasMoreResults(Boolean(searchResults.nextCursor));
+    } catch (caughtError) {
+      setError(normalizeErrorMessage(caughtError));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [lastQuery, nextCursor, searchMode, service]);
+
   return {
     detail,
     error,
     hasSearched,
+    hasMoreResults,
     isLoading,
+    isLoadingMore,
     lastQuery,
+    loadMoreResults,
     results,
     runSearch,
     searchMode,

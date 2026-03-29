@@ -171,6 +171,111 @@ function buildFetchMock() {
       );
     }
 
+    if (url.includes("/v1/nonprofits/search")) {
+      return new Response(
+        JSON.stringify(
+          buildEnvelope({
+            items: [
+              {
+                active: true,
+                ein: "12-3456789",
+                irs_status: "active",
+                name: "Helping Hands Foundation",
+                state: "IL",
+                subsection: "03",
+                tax_period: "202412",
+              },
+            ],
+            pagination: {
+              next_cursor: null,
+            },
+          }),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        },
+      );
+    }
+
+    if (url.includes("/v1/nonprofit/123456789/filings")) {
+      return new Response(
+        JSON.stringify(
+          buildEnvelope({
+            ein: "123456789",
+            filings: [
+              {
+                filing_date: "2025-05-01",
+                form_type: "990",
+                parse_status: "parsed",
+                tax_year: "2024",
+              },
+            ],
+          }),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        },
+      );
+    }
+
+    if (url.includes("/v1/nonprofit/123456789")) {
+      return new Response(
+        JSON.stringify(
+          buildEnvelope({
+            filing_summary: {
+              filing_date: "2025-05-01",
+              form_type: "990",
+              parse_status: "parsed",
+              tax_year: "2024",
+            },
+            integration_evaluation: {
+              integrations: [
+                {
+                  attempted: false,
+                  availability_status: "tenant_disabled",
+                  integration_id: "candid",
+                  label: "Candid",
+                },
+              ],
+            },
+            model: {
+              source: "irs_eo_bmf_athena",
+              version: "1.0.0",
+            },
+            organization: {
+              ein: "12-3456789",
+              name: "Helping Hands Foundation",
+            },
+            queryExecutionId: "qry_123",
+            source_record: {
+              subsection: "03",
+              tax_period: "202412",
+            },
+            verification: {
+              entity_type: "public_charity",
+              irs_status: "active",
+              ntee_category: "Human services",
+              recent_990_on_file: true,
+              state: "IL",
+              tax_deductible: "yes",
+            },
+          }),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        },
+      );
+    }
+
     if (url.endsWith("/v1/organization/billing/subscription")) {
       return new Response(
         JSON.stringify(
@@ -492,5 +597,45 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Verification dashboard" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
+  });
+
+  it("renders the tenant-aware nonprofit search on the workspace route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/workspace";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Nonprofit search workspace" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Nonprofit verification search" }),
+    ).toBeTruthy();
   });
 });

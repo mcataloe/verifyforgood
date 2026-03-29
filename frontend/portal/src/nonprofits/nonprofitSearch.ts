@@ -20,6 +20,14 @@ interface BackendNonprofitLookupResponse {
     ein?: string | null;
     name?: string | null;
   };
+  integration_evaluation?: {
+    integrations?: Array<{
+      attempted?: boolean | null;
+      availability_status?: string | null;
+      integration_id?: string | null;
+      label?: string | null;
+    }>;
+  };
   queryExecutionId?: string | null;
   source_record?: {
     subsection?: string | null;
@@ -93,11 +101,27 @@ export interface PortalNonprofitDetail {
   subsection: string;
   taxDeductible: string;
   taxPeriod: string;
+  sourceAvailability: PortalNonprofitSourceAvailability[];
+}
+
+export interface PortalNonprofitSourceAvailability {
+  attempted: boolean;
+  integrationId: string;
+  label: string;
+  status: string;
+}
+
+export interface PortalNonprofitSearchPage {
+  items: PortalNonprofitSearchSummary[];
+  nextCursor: string | null;
 }
 
 export interface PortalNonprofitSearchService {
   lookupByEin(ein: string): Promise<PortalNonprofitDetail | null>;
-  searchByName(query: string): Promise<PortalNonprofitSearchSummary[]>;
+  searchByName(
+    query: string,
+    options?: { cursor?: string | null; limit?: number },
+  ): Promise<PortalNonprofitSearchPage>;
 }
 
 export function createPortalNonprofitSearchService(
@@ -148,23 +172,30 @@ export function createPortalNonprofitSearchService(
         throw error;
       }
     },
-    async searchByName(query) {
+    async searchByName(query, options) {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) {
-        return [];
+        return {
+          items: [],
+          nextCursor: null,
+        };
       }
 
       const response = await apiClient.get<BackendNonprofitSearchResponse>(
         apiEndpoints.nonprofits.search,
         {
           query: {
-            limit: 8,
+            ...(options?.cursor ? { cursor: options.cursor } : {}),
+            limit: options?.limit ?? 8,
             q: trimmedQuery,
           },
         },
       );
 
-      return (response.items ?? []).map(mapSearchSummary);
+      return {
+        items: (response.items ?? []).map(mapSearchSummary),
+        nextCursor: normalizeOptionalText(response.pagination?.next_cursor),
+      };
     },
   };
 }
@@ -213,12 +244,40 @@ function mapLookupDetail(
         : "Unknown",
     state: normalizeText(lookup.verification?.state, "Unavailable"),
     subsection: normalizeText(lookup.source_record?.subsection, "Unavailable"),
+    sourceAvailability: mapSourceAvailability(
+      lookup.integration_evaluation?.integrations,
+    ),
     taxDeductible: normalizeText(
       lookup.verification?.tax_deductible,
       "Unavailable",
     ),
     taxPeriod: normalizeText(lookup.source_record?.tax_period, "Unavailable"),
   };
+}
+
+function mapSourceAvailability(
+  integrations: NonNullable<
+    NonNullable<BackendNonprofitLookupResponse["integration_evaluation"]>["integrations"]
+  > = [],
+): PortalNonprofitSourceAvailability[] {
+  return integrations
+    .map((integration) => {
+      const integrationId = normalizeOptionalText(integration.integration_id);
+      if (!integrationId) {
+        return null;
+      }
+
+      return {
+        attempted: integration.attempted === true,
+        integrationId,
+        label: normalizeText(
+          integration.label,
+          humanizeIdentifier(integrationId),
+        ),
+        status: normalizeText(integration.availability_status, "unknown"),
+      };
+    })
+    .filter((item): item is PortalNonprofitSourceAvailability => item !== null);
 }
 
 function mapSearchSummary(
@@ -247,4 +306,20 @@ function normalizeText(value: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return null;
+}
+
+function humanizeIdentifier(value: string): string {
+  return value
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
 }

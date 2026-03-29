@@ -190,6 +190,7 @@ function createRecord(input: {
       nteeCategory: input.nteeCategory,
       queryExecutionId: `mock_${input.ein.replaceAll("-", "")}`,
       recent990OnFile: "true",
+      sourceAvailability: [],
       state,
       subsection: "501(c)(3)",
       taxDeductible: "true",

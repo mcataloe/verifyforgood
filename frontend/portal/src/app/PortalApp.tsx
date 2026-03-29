@@ -8,7 +8,6 @@ import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
 import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomationPage";
 import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
-import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
@@ -327,17 +326,7 @@ function PortalAuthorizedShell({
         <DashboardPage runtimeConfig={runtimeConfig} session={session} />
       ) : null}
       {currentRoute.key === "workspace" ? (
-        audience === "customer_user" && customerUserPane ? (
-          <CustomerUserSearchPage
-            pane={
-              customerUserPane === "search-address"
-                ? "search-address"
-                : "search-ein"
-            }
-          />
-        ) : (
-          <WorkspacePage endpoints={endpoints} session={session} />
-        )
+        <WorkspacePage endpoints={endpoints} session={session} />
       ) : null}
       {currentRoute.key === "api-access" ? (
         audience === "customer_user" && customerUserPane ? (
