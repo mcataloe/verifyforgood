@@ -21,6 +21,9 @@ from charity_status.platform.auth import ApiKeyQuotaMeteringHook
 from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.core.models import AuthContext
 from charity_status_platform.customer_accounts import (
+    AuditEventType,
+    AuditLogService,
+    DynamoAuditLogRepository,
     DynamoFeatureFlagRepository,
     DynamoOrganizationRepository,
     DynamoPlanRepository,
@@ -133,6 +136,19 @@ def _install_tenant_auth(
             )
 
     module.auth_context_provider = _AuthProvider()
+
+
+def _install_audit_store(module):
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    module.portal_audit_log_service = AuditLogService(
+        repository=DynamoAuditLogRepository(dynamodb_resource=identity_resource),
+    )
+    return identity_resource
+
+
+def _audit_by_event_type(audits, event_type):
+    return [item for item in audits if item.event_type is event_type]
 
 
 class _BillingSettingsResolver:
@@ -2028,6 +2044,261 @@ def test_nonprofits_sources_supported_source_lookup():
     assert result["statusCode"] == 200
     assert body["source"]["source_name"] == "state_registry_mock"
     assert body["source"]["normalized_data"]["registration_status"] == "active"
+
+
+def test_successful_nonprofit_routes_create_audit_events_with_sanitized_metadata():
+    module = _load_module()
+    _install_tenant_auth(module)
+    identity_resource = _install_audit_store(module)
+    module.athena_client = _mock_client(
+        record=_sample_record("Audited Org"),
+        search_rows=[
+            {
+                "ein": "123456789",
+                "name": "Audited Org",
+                "state": "IL",
+                "subsection": "03",
+                "status": "1",
+                "tax_period": "202501",
+            }
+        ],
+        filing_rows=[
+            {
+                "tax_year": "2024",
+                "return_type": "990",
+                "filing_date": "2025-01-01",
+                "amended_return": "false",
+                "parse_status": "parsed",
+            }
+        ],
+    )
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [],
+                "failures": [],
+                "integration_evaluation": {
+                    "integrations": [
+                        {
+                            "integration_id": "candid",
+                            "attempted": False,
+                            "availability_status": "tenant_disabled",
+                            "tenant_enabled": False,
+                            "required_for_eligibility": False,
+                        }
+                    ],
+                    "attempted_integrations": [],
+                    "used_integrations": [],
+                    "required_unmet_integrations": [],
+                    "failure_integrations": [],
+                },
+            }
+        )
+    )
+
+    lookup_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": {"subsection": "03", "weighting_profile": "compliance_heavy_v1"},
+        },
+        None,
+    )
+    search_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/search",
+            "path": "/v1/nonprofits/search",
+            "queryStringParameters": {"q": "audited org", "limit": "5", "state": "il", "active_only": "true"},
+        },
+        None,
+    )
+    filings_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}/filings",
+            "path": "/v1/nonprofit/123456789/filings",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    sources_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}/sources",
+            "path": "/v1/nonprofits/123456789/sources",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource).list_for_organization("org_1")
+    lookup_audit = _audit_by_event_type(audits, AuditEventType.NONPROFIT_LOOKUP)[0]
+    search_audit = _audit_by_event_type(audits, AuditEventType.NONPROFIT_SEARCH)[0]
+    filings_audit = _audit_by_event_type(audits, AuditEventType.NONPROFIT_FILINGS_ACCESS)[0]
+    sources_audit = _audit_by_event_type(audits, AuditEventType.NONPROFIT_SOURCE_ACCESS)[0]
+
+    assert lookup_result["statusCode"] == 200
+    assert search_result["statusCode"] == 200
+    assert filings_result["statusCode"] == 200
+    assert sources_result["statusCode"] == 200
+    assert len(audits) == 4
+    assert lookup_audit.actor_user_id is None
+    assert lookup_audit.metadata["endpoint"] == "GET /v1/nonprofit/{ein}"
+    assert lookup_audit.metadata["ein"] == "123456789"
+    assert lookup_audit.metadata["query_subsection"] == "03"
+    assert lookup_audit.metadata["response_sources"] == ["candid"]
+    assert search_audit.metadata["query_text"] == "audited org"
+    assert search_audit.metadata["query_state"] == "il"
+    assert search_audit.metadata["query_active_only"] is True
+    assert search_audit.metadata["result_count"] == 1
+    assert filings_audit.metadata["filing_count"] == 1
+    assert sources_audit.metadata["response_sources"] == []
+
+
+def test_nonprofit_source_detail_audit_event_records_source_name_and_sources():
+    module = _load_module()
+    _install_tenant_auth(module)
+    identity_resource = _install_audit_store(module)
+    module.athena_client = _mock_client(record=_sample_record("Source Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [
+                    {
+                        "name": "state_registry_mock",
+                        "status": "matched",
+                        "fields": {
+                            "registration_status": "active",
+                        },
+                        "source": {"record_id": "sr-1", "fetched_at": "2026-03-12T00:00:00+00:00", "licensed": False},
+                    }
+                ],
+                "failures": [],
+            }
+        )
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
+            "path": "/v1/nonprofits/123456789/sources/state_registry_mock",
+            "pathParameters": {"ein": "123456789", "source_name": "state_registry_mock"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource).list_for_organization("org_1")
+    audit = _audit_by_event_type(audits, AuditEventType.NONPROFIT_SOURCE_ACCESS)[0]
+
+    assert result["statusCode"] == 200
+    assert audit.metadata["source_name"] == "state_registry_mock"
+    assert audit.metadata["response_sources"] == ["state_registry_mock"]
+
+
+def test_portal_session_nonprofit_audit_event_records_actor_user_id():
+    module = _load_module()
+    _install_tenant_auth(
+        module,
+        auth_method="portal_session",
+        credential_id="user_portal_1",
+        scopes=("verify:read", "nonprofits:read"),
+    )
+    identity_resource = _install_audit_store(module)
+    module.athena_client = _mock_client(record=_sample_record("Portal Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource).list_for_organization("org_1")
+
+    assert result["statusCode"] == 200
+    assert audits[0].actor_user_id == "user_portal_1"
+    assert audits[0].metadata["user_id"] == "user_portal_1"
+    assert audits[0].metadata["auth_method"] == "portal_session"
+
+
+def test_nonprofit_audit_logging_failures_are_non_blocking():
+    module = _load_module()
+    _install_tenant_auth(module)
+
+    class _FailingAuditRepository:
+        def create(self, record):
+            raise RuntimeError("audit store unavailable")
+
+        def list_for_organization(self, organization_id):
+            return []
+
+        def list_identity_events(self):
+            return []
+
+    module.portal_audit_log_service = AuditLogService(
+        repository=_FailingAuditRepository(),
+    )
+    module.athena_client = _mock_client(record=_sample_record("Audit Failure Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+
+
+def test_nonprofit_audit_logging_skips_non_successful_responses():
+    module = _load_module()
+    _install_tenant_auth(module)
+    identity_resource = _install_audit_store(module)
+    module.athena_client = _mock_client(record=_sample_record("Audit Skip Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
+
+    invalid_lookup_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/12-34A6789",
+            "pathParameters": {"ein": "12-34A6789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    unsupported_source_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
+            "path": "/v1/nonprofits/123456789/sources/unknown_source",
+            "pathParameters": {"ein": "123456789", "source_name": "unknown_source"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource).list_for_organization("org_1")
+
+    assert invalid_lookup_result["statusCode"] == 400
+    assert unsupported_source_result["statusCode"] == 404
+    assert audits == []
 
 
 def test_lookup_nonprofit_surfaces_disabled_premium_integrations_in_existing_metadata():

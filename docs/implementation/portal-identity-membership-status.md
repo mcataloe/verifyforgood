@@ -2,11 +2,11 @@
 
 ## Status
 
-tenant-aware nonprofit search UI implemented
+nonprofit audit logging complete
 
 ## Next Phase
 
-20F
+TBD
 
 ## Scope
 

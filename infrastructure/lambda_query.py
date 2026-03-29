@@ -91,6 +91,7 @@ from charity_status_platform.customer_accounts import (
     ApiKeyCreateRequest,
     ApiKeyManagementError,
     ApiKeyService,
+    AuditEventType,
     AuditLogService,
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
@@ -1602,6 +1603,13 @@ def handler(event, context):
     try:
         if _is_search_request(event, method):
             status_code, payload = _handle_search_request(event, tenant_context=tenant_context)
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
@@ -1614,6 +1622,13 @@ def handler(event, context):
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
@@ -1625,6 +1640,13 @@ def handler(event, context):
                 source_name=source_name,
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
+            )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
             )
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -1655,6 +1677,13 @@ def handler(event, context):
                 tenant_context=tenant_context,
                 ein=normalized_ein,
             )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
@@ -1671,6 +1700,13 @@ def handler(event, context):
                         ein=normalized_ein,
                     )
                 shaped = _shape_payload_for_response(cached, auth_context)
+                _record_nonprofit_access_audit_event(
+                    event=event,
+                    route_key=route_key,
+                    status_code=200,
+                    payload=cached,
+                    tenant_context=tenant_context,
+                )
                 response = respond(200, shaped)
                 _get_quota_metering_hook().on_response(auth_context, route_key, 200)
                 return response
@@ -1697,6 +1733,13 @@ def handler(event, context):
             )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
+        _record_nonprofit_access_audit_event(
+            event=event,
+            route_key=route_key,
+            status_code=status_code,
+            payload=payload,
+            tenant_context=tenant_context,
+        )
         shaped_payload = _shape_payload_for_response(payload, auth_context) if status_code == 200 else payload
         response = respond(status_code, shaped_payload)
         _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
@@ -2244,6 +2287,155 @@ def _handle_search_request(
         active_only=active_only,
         cursor=cursor,
     )
+
+
+def _record_nonprofit_access_audit_event(
+    *,
+    event: dict[str, Any],
+    route_key: str,
+    status_code: int,
+    payload: dict[str, Any],
+    tenant_context: TenantNonprofitContext | None,
+) -> None:
+    if tenant_context is None or status_code < 200 or status_code >= 300:
+        return
+
+    try:
+        event_type = _nonprofit_audit_event_type(event)
+        if event_type is None:
+            return
+
+        metadata = _build_nonprofit_audit_metadata(
+            event=event,
+            route_key=route_key,
+            payload=payload,
+            tenant_context=tenant_context,
+        )
+        _get_portal_audit_log_service().record_event(
+            event_type=event_type,
+            actor_user_id=tenant_context.authenticated_user_id,
+            organization_id=tenant_context.organization_id,
+            target_user_id=None,
+            metadata=metadata,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "nonprofit_audit_log_failed",
+            extra={
+                "route_key": route_key,
+                "organization_id": tenant_context.organization_id,
+                "status_code": status_code,
+            },
+        )
+
+
+def _nonprofit_audit_event_type(event: dict[str, Any]) -> AuditEventType | None:
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method != "GET":
+        return None
+    if _is_search_request(event, method):
+        return AuditEventType.NONPROFIT_SEARCH
+    if _is_filings_request(event, method):
+        return AuditEventType.NONPROFIT_FILINGS_ACCESS
+    if _is_sources_list_request(event, method) or _is_sources_detail_request(event, method):
+        return AuditEventType.NONPROFIT_SOURCE_ACCESS
+    if _is_lookup_request(event, method):
+        return AuditEventType.NONPROFIT_LOOKUP
+    return None
+
+
+def _build_nonprofit_audit_metadata(
+    *,
+    event: dict[str, Any],
+    route_key: str,
+    payload: dict[str, Any],
+    tenant_context: TenantNonprofitContext,
+) -> dict[str, Any]:
+    query = event.get("queryStringParameters") or {}
+    metadata: dict[str, Any] = {
+        "auth_method": tenant_context.auth_method,
+        "credential_id": tenant_context.credential_id,
+        "endpoint": route_key,
+        "organization_id": tenant_context.organization_id,
+        "response_sources": _extract_nonprofit_response_sources(payload),
+        "user_id": tenant_context.authenticated_user_id,
+    }
+    method = str(event.get("httpMethod") or "GET").upper()
+    if _is_search_request(event, method):
+        metadata.update(
+            {
+                "query_text": _sanitize_audit_text(query.get("q") or query.get("name")),
+                "query_limit": _sanitize_audit_text(query.get("limit")),
+                "query_cursor": _sanitize_audit_text(query.get("cursor")),
+                "query_state": _sanitize_audit_text(query.get("state")),
+                "query_subsection": _sanitize_audit_text(query.get("subsection")),
+                "query_active_only": _sanitize_audit_bool(query.get("active_only")),
+                "result_count": len(payload.get("items") or []),
+            }
+        )
+        return metadata
+
+    path_params = event.get("pathParameters") or {}
+    metadata.update(
+        {
+            "ein": _sanitize_audit_text(
+                (payload.get("ein") if isinstance(payload.get("ein"), str) else None)
+                or path_params.get("ein")
+                or ((payload.get("organization") or {}).get("ein") if isinstance(payload.get("organization"), dict) else None)
+            ),
+            "query_subsection": _sanitize_audit_text(query.get("subsection")),
+        }
+    )
+    if _is_filings_request(event, method):
+        metadata["filing_count"] = len(payload.get("filings") or [])
+        return metadata
+    if _is_sources_detail_request(event, method):
+        metadata["source_name"] = _sanitize_audit_text(_extract_source_name(event))
+    return metadata
+
+
+def _extract_nonprofit_response_sources(payload: dict[str, Any]) -> list[str]:
+    sources: list[str] = []
+    source_entries = payload.get("sources")
+    if isinstance(source_entries, list):
+        for item in source_entries:
+            if isinstance(item, dict):
+                source_name = _sanitize_audit_text(item.get("source_name"))
+                if source_name and source_name not in sources:
+                    sources.append(source_name)
+    single_source = payload.get("source")
+    if isinstance(single_source, dict):
+        source_name = _sanitize_audit_text(single_source.get("source_name"))
+        if source_name and source_name not in sources:
+            sources.append(source_name)
+    integration_evaluation = payload.get("integration_evaluation")
+    if isinstance(integration_evaluation, dict):
+        for item in integration_evaluation.get("integrations") or []:
+            if isinstance(item, dict):
+                integration_id = _sanitize_audit_text(item.get("integration_id"))
+                if integration_id and integration_id not in sources:
+                    sources.append(integration_id)
+    return sources
+
+
+def _sanitize_audit_text(value: Any, *, max_length: int = 200) -> str | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    return candidate[:max_length]
+
+
+def _sanitize_audit_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    candidate = str(value).strip().lower()
+    if candidate in {"true", "1", "yes"}:
+        return True
+    if candidate in {"false", "0", "no"}:
+        return False
+    return None
 
 
 def _handle_batch_verify(

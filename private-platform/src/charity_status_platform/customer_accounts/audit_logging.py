@@ -17,6 +17,10 @@ class AuditEventType(str, Enum):
     INVITATION_ACCEPTANCE = "invitation_acceptance"
     API_KEY_CREATION = "api_key_creation"
     API_KEY_REVOCATION = "api_key_revocation"
+    NONPROFIT_LOOKUP = "nonprofit_lookup"
+    NONPROFIT_SEARCH = "nonprofit_search"
+    NONPROFIT_FILINGS_ACCESS = "nonprofit_filings_access"
+    NONPROFIT_SOURCE_ACCESS = "nonprofit_source_access"
 
 
 @dataclass(frozen=True)

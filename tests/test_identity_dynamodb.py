@@ -358,6 +358,39 @@ def test_audit_record_round_trips_with_metadata_and_scope_partitioning():
     assert identity_items[0].organization_id is None
 
 
+def test_nonprofit_audit_record_round_trips_with_structured_metadata():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    audits = DynamoAuditLogRepository(dynamodb_resource=resource)
+
+    created = audits.create(
+        AuditRecord(
+            audit_id="audit_nonprofit_lookup_1",
+            event_type=AuditEventType.NONPROFIT_LOOKUP,
+            actor_user_id=None,
+            organization_id="org_1",
+            target_user_id=None,
+            timestamp="2026-03-29T12:00:00+00:00",
+            metadata={
+                "endpoint": "GET /v1/nonprofit/{ein}",
+                "ein": "123456789",
+                "organization_id": "org_1",
+                "response_sources": ["candid", "irs"],
+                "user_id": None,
+            },
+        )
+    )
+
+    items = audits.list_for_organization("org_1")
+
+    assert created.event_type is AuditEventType.NONPROFIT_LOOKUP
+    assert items[0].event_type is AuditEventType.NONPROFIT_LOOKUP
+    assert items[0].metadata["endpoint"] == "GET /v1/nonprofit/{ein}"
+    assert items[0].metadata["ein"] == "123456789"
+    assert items[0].metadata["response_sources"] == ["candid", "irs"]
+    assert items[0].metadata["user_id"] is None
+
+
 def test_org_api_key_round_trips_with_lookup_revocation_and_last_used():
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)

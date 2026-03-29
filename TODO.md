@@ -233,3 +233,23 @@ Phase 20E moves the real tenant-aware nonprofit experience onto the portal works
 ### Constraint
 
 Keep the Phase 20E workspace nonprofit-search contract stable so future address or expanded discovery support can plug into the existing portal organization provider and API client without changing tenant header behavior.
+
+## TODO-ARCH-011
+
+### Title
+
+Define a stable export and warehouse shape for nonprofit access audit analytics.
+
+### Rationale
+
+Phase 20F adds structured audit logging for tenant-aware nonprofit reads and stores analytics-oriented fields inside the audit metadata blob. That is sufficient for in-product auditing and incremental reporting, but downstream export and warehouse consumers may eventually need a stricter schema for durable analytics.
+
+### Migration Triggers
+
+- audit log export to a data warehouse or lake
+- BI dashboards built on nonprofit access activity
+- compliance or customer reporting that depends on stable audit dimensions
+
+### Constraint
+
+Keep the Phase 20F nonprofit audit event taxonomy stable and additive so future export shaping can standardize metadata without breaking existing audit records.
