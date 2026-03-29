@@ -18,6 +18,23 @@ from charity_status.billing.trials import TrialConfig, TrialLifecycleService
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
+class _PlanCatalogProvider:
+    class _Mapping:
+        def __init__(self, internal_plan_id: str) -> None:
+            self.internal_plan_id = internal_plan_id
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self.mapping = mapping
+        self.calls: list[str] = []
+
+    def get_mapping_for_price_id(self, stripe_price_id: str):
+        self.calls.append(stripe_price_id)
+        internal_plan_id = self.mapping.get(stripe_price_id)
+        if internal_plan_id is None:
+            raise ValueError("missing mapping")
+        return self._Mapping(internal_plan_id)
+
+
 def test_load_stripe_webhook_config_requires_secret_when_enabled():
     try:
         load_stripe_webhook_config(
@@ -49,9 +66,44 @@ def test_verify_and_parse_stripe_event_rejects_invalid_signature():
         assert False, "Expected invalid signature error"
 
 
+def test_verify_and_parse_stripe_event_rejects_malformed_signature_header():
+    payload = json.dumps({"id": "evt_1", "type": "checkout.session.completed", "data": {"object": {}}})
+
+    try:
+        verify_and_parse_stripe_event(
+            raw_body=payload,
+            signature_header="t=1770000000",
+            webhook_secret="whsec_right",
+            now=datetime.fromtimestamp(1770000000, tz=timezone.utc),
+        )
+    except BillingWebhookSignatureError as exc:
+        assert "malformed" in str(exc)
+    else:
+        assert False, "Expected malformed signature error"
+
+
+def test_verify_and_parse_stripe_event_rejects_signature_outside_tolerance():
+    payload = json.dumps({"id": "evt_1", "type": "checkout.session.completed", "data": {"object": {}}})
+    header = _sign_payload(payload, secret="whsec_right", timestamp=1770000000)
+
+    try:
+        verify_and_parse_stripe_event(
+            raw_body=payload,
+            signature_header=header,
+            webhook_secret="whsec_right",
+            tolerance_seconds=300,
+            now=datetime.fromtimestamp(1770000401, tz=timezone.utc),
+        )
+    except BillingWebhookSignatureError as exc:
+        assert "tolerance" in str(exc)
+    else:
+        assert False, "Expected tolerance error"
+
+
 def test_stripe_webhook_service_syncs_subscription_and_invoice_data():
     control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
     account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    plan_catalog = _PlanCatalogProvider({"price_growth": "growth"})
     service = StripeWebhookService(
         store=control_plane.store,
         config=StripeWebhookConfig(
@@ -59,6 +111,7 @@ def test_stripe_webhook_service_syncs_subscription_and_invoice_data():
             webhook_secret="whsec_test",
             price_ids={"growth": "price_growth"},
         ),
+        plan_catalog_provider=plan_catalog,
     )
 
     checkout_payload = _event_payload(
@@ -112,6 +165,7 @@ def test_stripe_webhook_service_syncs_subscription_and_invoice_data():
     assert after_subscription.billing_status == "active"
     assert after_subscription.billing_period_start == _stripe_epoch_to_iso(1770000000)
     assert after_subscription.billing_period_end == _stripe_epoch_to_iso(1772592000)
+    assert plan_catalog.calls == ["price_growth"]
 
     invoice_payload = _event_payload(
         event_id="evt_invoice_paid",
@@ -141,6 +195,8 @@ def test_stripe_webhook_service_syncs_subscription_and_invoice_data():
     assert billing_event.tax_amount == 800
     assert billing_event.invoice_total == 10800
     assert billing_event.currency == "usd"
+    assert billing_event.processing_outcome == "processed"
+    assert billing_event.payload_fingerprint is not None
 
 
 def test_stripe_webhook_service_ignores_duplicate_events():
@@ -175,6 +231,165 @@ def test_stripe_webhook_service_ignores_duplicate_events():
     assert first["processed"] is True
     assert second["processed"] is False
     assert second["duplicate"] is True
+
+
+def test_stripe_webhook_service_persists_ignored_outcome_for_unsupported_events():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+        ),
+    )
+    payload = _event_payload(
+        event_id="evt_ignored",
+        event_type="customer.created",
+        event_object={"object": "customer", "id": "cus_123"},
+    )
+
+    result = service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+    event = control_plane.store.get_billing_event("evt_ignored")
+
+    assert result == {"received": True, "processed": False, "ignored": True, "event_id": "evt_ignored"}
+    assert event is not None
+    assert event.processing_outcome == "ignored"
+    assert event.payload_fingerprint is not None
+
+
+def test_stripe_webhook_service_clears_failed_payment_state_after_invoice_paid():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        control_plane.store.get_subscription(account["id"]).__class__(
+            account_id=account["id"],
+            plan_code="growth",
+            status="active",
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            billing_status="payment_failed",
+            billing_period_start="2026-02-01T00:00:00+00:00",
+            billing_period_end="2026-03-01T00:00:00+00:00",
+            updated_at="2026-02-01T00:00:00+00:00",
+        )
+    )
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+        ),
+    )
+    payload = _event_payload(
+        event_id="evt_invoice_paid",
+        event_type="invoice.paid",
+        event_object={
+            "object": "invoice",
+            "id": "in_123",
+            "customer": "cus_123",
+            "subscription": "sub_123",
+            "lines": {"data": [{"period": {"start": 1770000000, "end": 1772592000}}]},
+        },
+    )
+
+    service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+
+    updated = control_plane.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.billing_status == "active"
+    assert updated.billing_period_end == _stripe_epoch_to_iso(1772592000)
+
+
+def test_stripe_webhook_service_updates_cancel_at_period_end_and_pending_downgrade():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        control_plane.store.get_subscription(account["id"]).__class__(
+            account_id=account["id"],
+            plan_code="growth",
+            status="active",
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            billing_status="active",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+        ),
+    )
+    payload = _event_payload(
+        event_id="evt_subscription_updated",
+        event_type="customer.subscription.updated",
+        event_object={
+            "object": "subscription",
+            "id": "sub_123",
+            "customer": "cus_123",
+            "status": "active",
+            "current_period_start": 1770000000,
+            "current_period_end": 1772592000,
+            "cancel_at_period_end": True,
+            "items": {"data": [{"price": {"id": "price_growth"}}]},
+        },
+    )
+
+    service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+
+    updated = control_plane.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.cancel_at_period_end is True
+    assert updated.pending_plan_code == "free"
+    assert updated.pending_plan_effective_at == _stripe_epoch_to_iso(1772592000)
+
+
+def test_stripe_webhook_service_marks_deleted_subscription_without_losing_stripe_ids():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        control_plane.store.get_subscription(account["id"]).__class__(
+            account_id=account["id"],
+            plan_code="growth",
+            status="active",
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            billing_status="active",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+        ),
+    )
+    payload = _event_payload(
+        event_id="evt_subscription_deleted",
+        event_type="customer.subscription.deleted",
+        event_object={
+            "object": "subscription",
+            "id": "sub_123",
+            "customer": "cus_123",
+            "status": "canceled",
+            "current_period_end": 1772592000,
+            "canceled_at": 1771000000,
+        },
+    )
+
+    service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+
+    updated = control_plane.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.status == "canceled"
+    assert updated.stripe_customer_id == "cus_123"
+    assert updated.stripe_subscription_id == "sub_123"
 
 
 def test_stripe_webhook_marks_active_trial_as_converted_when_paid_subscription_syncs():

@@ -313,3 +313,23 @@ Phase 21A keeps free-tier billing behavior open. The choice affects onboarding f
 ### Constraint
 
 Keep `organization_id` as the canonical billing scope and treat Stripe identifiers as attached billing state so free-tier onboarding policy can change without redefining organization billing identity.
+
+## TODO-ARCH-015
+
+### Title
+
+Decide whether raw Stripe webhook payloads should be archived outside the control-plane billing event record.
+
+### Rationale
+
+Phase 21E keeps webhook reconciliation replay-safe by persisting structured billing event metadata, outcome, and payload fingerprints in the local billing store. That is sufficient for idempotency and basic auditability, but operational replay or provider-dispute workflows may eventually require durable access to the original webhook payload.
+
+### Migration Triggers
+
+- billing operations needs raw-event replay support
+- support workflows require exact provider payload inspection
+- compliance or finance reporting needs longer-lived webhook evidence
+
+### Constraint
+
+Keep the Phase 21E local billing event model compact and organization-scoped so any future raw-payload archival is additive and does not change the current webhook reconciliation contract.

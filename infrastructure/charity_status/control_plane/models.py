@@ -176,6 +176,7 @@ class ManagedBillingEvent:
     event_type: str
     processed_at: str
     account_id: str | None = None
+    processing_outcome: str | None = None
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
     stripe_invoice_id: str | None = None
@@ -184,6 +185,7 @@ class ManagedBillingEvent:
     invoice_total: int | None = None
     currency: str | None = None
     webhook_created_at: str | None = None
+    payload_fingerprint: str | None = None
 
     def to_dict(self) -> dict[str, str | int | None]:
         return {
@@ -191,6 +193,7 @@ class ManagedBillingEvent:
             "event_type": self.event_type,
             "processed_at": self.processed_at,
             "account_id": self.account_id,
+            "processing_outcome": self.processing_outcome,
             "stripe_customer_id": self.stripe_customer_id,
             "stripe_subscription_id": self.stripe_subscription_id,
             "stripe_invoice_id": self.stripe_invoice_id,
@@ -199,6 +202,7 @@ class ManagedBillingEvent:
             "invoice_total": self.invoice_total,
             "currency": self.currency,
             "webhook_created_at": self.webhook_created_at,
+            "payload_fingerprint": self.payload_fingerprint,
         }
 
 

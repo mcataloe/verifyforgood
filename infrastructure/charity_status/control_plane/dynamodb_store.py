@@ -294,6 +294,7 @@ def _billing_event_item(event: ManagedBillingEvent) -> dict[str, Any]:
         "event_type": event.event_type,
         "processed_at": event.processed_at,
         "account_id": event.account_id,
+        "processing_outcome": event.processing_outcome,
         "stripe_customer_id": event.stripe_customer_id,
         "stripe_subscription_id": event.stripe_subscription_id,
         "stripe_invoice_id": event.stripe_invoice_id,
@@ -302,6 +303,7 @@ def _billing_event_item(event: ManagedBillingEvent) -> dict[str, Any]:
         "invoice_total": event.invoice_total,
         "currency": event.currency,
         "webhook_created_at": event.webhook_created_at,
+        "payload_fingerprint": event.payload_fingerprint,
     }
 
 
@@ -432,6 +434,7 @@ def _billing_event_from_item(item: dict[str, Any]) -> ManagedBillingEvent:
         event_type=str(item.get("event_type") or ""),
         processed_at=str(item.get("processed_at") or ""),
         account_id=_optional_string(item.get("account_id")),
+        processing_outcome=_optional_string(item.get("processing_outcome")),
         stripe_customer_id=_optional_string(item.get("stripe_customer_id")),
         stripe_subscription_id=_optional_string(item.get("stripe_subscription_id")),
         stripe_invoice_id=_optional_string(item.get("stripe_invoice_id")),
@@ -440,6 +443,7 @@ def _billing_event_from_item(item: dict[str, Any]) -> ManagedBillingEvent:
         invoice_total=_optional_int(item.get("invoice_total")),
         currency=_optional_string(item.get("currency")),
         webhook_created_at=_optional_string(item.get("webhook_created_at")),
+        payload_fingerprint=_optional_string(item.get("payload_fingerprint")),
     )
 
 

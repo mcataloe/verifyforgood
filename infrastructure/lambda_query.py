@@ -479,6 +479,7 @@ def _get_stripe_webhook_service() -> StripeWebhookService:
             store=_get_control_plane_service().store,
             config=STRIPE_WEBHOOK_CONFIG,
             trial_lifecycle_service=_get_trial_lifecycle_service(),
+            plan_catalog_provider=_get_billing_service(),
         )
     return stripe_webhook_service
 

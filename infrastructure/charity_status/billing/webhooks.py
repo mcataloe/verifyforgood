@@ -77,6 +77,11 @@ class BillingWebhookStore(Protocol):
         ...
 
 
+class BillingWebhookPlanCatalogProvider(Protocol):
+    def get_mapping_for_price_id(self, stripe_price_id: str):
+        ...
+
+
 def load_stripe_webhook_config(env: Mapping[str, str] | None = None) -> StripeWebhookConfig:
     source = env or {}
     enabled = _mapping_bool(source, "STRIPE_BILLING_ENABLED", False)
@@ -100,14 +105,17 @@ class StripeWebhookService:
         store: BillingWebhookStore,
         config: StripeWebhookConfig,
         trial_lifecycle_service: TrialLifecycleService | None = None,
+        plan_catalog_provider: BillingWebhookPlanCatalogProvider | None = None,
     ) -> None:
         self._store = store
         self._config = config
         self._trial_lifecycle_service = trial_lifecycle_service
+        self._plan_catalog_provider = plan_catalog_provider
 
     def handle(self, *, raw_body: str, signature_header: str | None) -> dict[str, Any]:
         if not self._config.enabled:
             raise BillingWebhookNotEnabledError("Stripe webhook endpoint is not enabled")
+        payload_fingerprint = hashlib.sha256(str(raw_body or "").encode("utf-8")).hexdigest()
         payload = verify_and_parse_stripe_event(
             raw_body=raw_body,
             signature_header=signature_header,
@@ -127,7 +135,9 @@ class StripeWebhookService:
                     event_id=event_id,
                     event_type=event_type,
                     processed_at=_utcnow(),
+                    processing_outcome="ignored",
                     webhook_created_at=_stripe_epoch_to_iso(payload.get("created")),
+                    payload_fingerprint=payload_fingerprint,
                 )
             )
             return {"received": True, "processed": False, "ignored": True, "event_id": event_id}
@@ -148,6 +158,7 @@ class StripeWebhookService:
                 event_type=event_type,
                 processed_at=_utcnow(),
                 account_id=updated_subscription.account_id,
+                processing_outcome="processed",
                 stripe_customer_id=_event_customer_id(data_object) or updated_subscription.stripe_customer_id,
                 stripe_subscription_id=_event_subscription_id(data_object) or updated_subscription.stripe_subscription_id,
                 stripe_invoice_id=_optional_string(data_object.get("id")) if event_type.startswith("invoice.") else None,
@@ -156,6 +167,7 @@ class StripeWebhookService:
                 invoice_total=_event_invoice_total(event_type, data_object),
                 currency=_optional_string(data_object.get("currency")),
                 webhook_created_at=_stripe_epoch_to_iso(payload.get("created")),
+                payload_fingerprint=payload_fingerprint,
             )
         )
         return {"received": True, "processed": True, "event_id": event_id}
@@ -260,7 +272,7 @@ class StripeWebhookService:
         event_object: dict[str, Any],
         subscription: ManagedSubscription,
     ) -> ManagedSubscription:
-        billing_status = "payment_failed" if event_type == "invoice.payment_failed" else (subscription.billing_status or "active")
+        billing_status = "payment_failed" if event_type == "invoice.payment_failed" else "active"
         period = _invoice_period_bounds(event_object)
         return replace(
             subscription,
@@ -278,10 +290,16 @@ class StripeWebhookService:
         metadata = _event_metadata(event_object)
         requested_plan_code = _optional_string(metadata.get("requested_plan_code"))
         if requested_plan_code:
-            return requested_plan_code
+            return requested_plan_code.lower()
         price_id = _event_price_id(event_object)
         if not price_id:
             return None
+        if self._plan_catalog_provider is not None:
+            try:
+                mapping = self._plan_catalog_provider.get_mapping_for_price_id(price_id)
+            except Exception:  # noqa: BLE001
+                return None
+            return _optional_string(getattr(mapping, "internal_plan_id", None))
         return self._config.plan_by_price_id.get(price_id)
 
 
