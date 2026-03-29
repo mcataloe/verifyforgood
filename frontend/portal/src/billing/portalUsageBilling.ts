@@ -9,14 +9,38 @@ import type { PricingPlanMetadata } from "@charity-status/shared-types";
 
 interface BackendBillingSubscriptionResponse {
   billing_status?: string | null;
+  billing_cycle?: {
+    current_period_end?: string | null;
+    current_period_start?: string | null;
+  } | null;
   effective_access_plan?: string | null;
+  enabled_capabilities?: string[] | null;
+  feature_flags?: Array<{
+    enabled?: boolean | null;
+    flag_key?: string | null;
+    label?: string | null;
+    override_enabled?: boolean | null;
+    plan_default?: boolean | null;
+  }> | null;
+  included_limits?: {
+    batch_items?: number | null;
+    monthly_requests?: number | null;
+    requests_per_minute?: number | null;
+  } | null;
   pending_downgrade?: {
     change_type?: string | null;
     effective_at?: string | null;
     plan?: string | null;
   } | null;
   plan?: string | null;
+  plan_display?: {
+    display_name?: string | null;
+    effective_access_display_name?: string | null;
+    effective_access_plan_code?: string | null;
+    plan_code?: string | null;
+  } | null;
   renewal_date?: string | null;
+  subscription_status?: string | null;
   trial?: {
     active?: boolean | null;
     ends_at?: string | null;
@@ -66,6 +90,20 @@ export interface PortalUsageMetricSummary {
   requestCount: number;
 }
 
+export interface PortalBillingFeatureFlagSummary {
+  enabled: boolean;
+  flagKey: string;
+  label: string;
+  overrideEnabled: boolean | null;
+  planDefault: boolean;
+}
+
+export interface PortalBillingIncludedLimits {
+  batchItems: number;
+  monthlyRequests: number;
+  requestsPerMinute: number;
+}
+
 export interface PortalUsageSnapshot {
   limit: number;
   metrics?: PortalUsageMetricSummary[];
@@ -80,15 +118,23 @@ export interface PortalUsageSnapshot {
 
 export interface PortalUsageBillingSnapshot {
   billingStatus: string;
+  billingCycleEnd?: string | null;
+  billingCycleStart?: string | null;
   budgetStatus: PortalBudgetStatus;
+  enabledCapabilities?: string[];
   effectiveAccessPlan: string;
+  effectiveAccessPlanDisplayName?: string;
+  featureFlags?: PortalBillingFeatureFlagSummary[];
+  includedLimits?: PortalBillingIncludedLimits;
   notice: string | null;
   pendingChangeType: string | null;
   pendingDowngradeEffectiveAt: string | null;
   pendingDowngradePlan: string | null;
   plan: string;
+  planDisplayName?: string;
   renewalDate: string | null;
   source: "backend_subscription" | "session_fallback" | "session_mock";
+  subscriptionStatus?: string;
   trialEndsAt: string | null;
   trialStatus: string | null;
   usage: PortalUsageSnapshot;
@@ -177,14 +223,45 @@ function createSnapshotFromSubscription(input: {
   const usage = input.usage
     ? createUsageSnapshotFromBackend(input.usage, input.plans, effectiveAccessPlan)
     : createMockUsageSnapshot(effectiveAccessPlan, input.plans);
+  const includedLimits = {
+    batchItems: normalizeCount(input.subscription.included_limits?.batch_items),
+    monthlyRequests:
+      normalizePositiveInteger(
+        input.subscription.included_limits?.monthly_requests,
+      ) ?? usage.limit,
+    requestsPerMinute: normalizeCount(
+      input.subscription.included_limits?.requests_per_minute,
+    ),
+  };
 
   return {
     billingStatus: normalizeText(
       input.subscription.billing_status,
       input.session.billing_status,
     ),
+    billingCycleEnd: input.subscription.billing_cycle?.current_period_end ?? null,
+    billingCycleStart:
+      input.subscription.billing_cycle?.current_period_start ?? null,
     budgetStatus: resolveBudgetStatus(input.organization, input.usage),
+    enabledCapabilities: normalizeStringList(
+      input.subscription.enabled_capabilities,
+    ),
     effectiveAccessPlan,
+    effectiveAccessPlanDisplayName: normalizeText(
+      input.subscription.plan_display?.effective_access_display_name,
+      toTitleCase(effectiveAccessPlan),
+    ),
+    featureFlags: (input.subscription.feature_flags ?? []).map((item) => ({
+      enabled: Boolean(item.enabled),
+      flagKey: normalizeText(item.flag_key, "unknown"),
+      label: normalizeText(item.label, "Unknown feature"),
+      overrideEnabled:
+        typeof item.override_enabled === "boolean"
+          ? item.override_enabled
+          : null,
+      planDefault: Boolean(item.plan_default),
+    })),
+    includedLimits,
     notice: input.usage
       ? "Usage totals reflect current organization metering for the active tracking period."
       : "Subscription state comes from the backend. Usage summary was unavailable, so the portal is showing a plan-based baseline.",
@@ -193,8 +270,16 @@ function createSnapshotFromSubscription(input: {
       input.subscription.pending_downgrade?.effective_at ?? null,
     pendingDowngradePlan: input.subscription.pending_downgrade?.plan ?? null,
     plan,
+    planDisplayName: normalizeText(
+      input.subscription.plan_display?.display_name,
+      toTitleCase(plan),
+    ),
     renewalDate: input.subscription.renewal_date ?? null,
     source: input.source,
+    subscriptionStatus: normalizeText(
+      input.subscription.subscription_status,
+      "active",
+    ),
     trialEndsAt: input.subscription.trial?.ends_at ?? null,
     trialStatus: input.subscription.trial?.status ?? null,
     usage,
@@ -211,11 +296,22 @@ function createMockSnapshot(input: {
   >;
 }): PortalUsageBillingSnapshot {
   const plan = normalizePlanCode(input.session.plan, "free");
+  const usage = createMockUsageSnapshot(plan, input.plans);
 
   return {
     billingStatus: normalizeText(input.session.billing_status, "active"),
+    billingCycleEnd: null,
+    billingCycleStart: null,
     budgetStatus: resolveBudgetStatus(input.organization),
+    enabledCapabilities: [],
     effectiveAccessPlan: plan,
+    effectiveAccessPlanDisplayName: toTitleCase(plan),
+    featureFlags: [],
+    includedLimits: {
+      batchItems: 0,
+      monthlyRequests: usage.limit,
+      requestsPerMinute: 0,
+    },
     notice:
       input.source === "session_mock"
         ? "Demo portal sessions use a local usage baseline instead of backend metering."
@@ -224,11 +320,13 @@ function createMockSnapshot(input: {
     pendingDowngradeEffectiveAt: null,
     pendingDowngradePlan: null,
     plan,
+    planDisplayName: toTitleCase(plan),
     renewalDate: null,
     source: input.source,
+    subscriptionStatus: "active",
     trialEndsAt: null,
     trialStatus: null,
-    usage: createMockUsageSnapshot(plan, input.plans),
+    usage,
   };
 }
 
@@ -354,10 +452,28 @@ function normalizeCount(value: unknown): number {
   return Math.max(0, Math.round(value));
 }
 
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim());
+}
+
 function normalizeText(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
 
   return fallback;
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .trim()
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
 }

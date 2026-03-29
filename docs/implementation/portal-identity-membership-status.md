@@ -2,11 +2,11 @@
 
 ## Status
 
-usage visibility implemented
+billing and subscription visibility implemented
 
 ## Next Phase
 
-22F
+22G
 
 ## Scope
 

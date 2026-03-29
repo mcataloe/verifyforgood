@@ -40,9 +40,18 @@ class BillingVisibilityService:
             plan_code = "free"
             effective_access_plan = "free"
             billing_status = "not_enrolled"
+            subscription_status = "not_enrolled"
             renewal_date = None
+            billing_cycle = {
+                "current_period_start": None,
+                "current_period_end": None,
+            }
             pending_downgrade = None
             trial = None
+            resolved = self._entitlement_service.resolve(
+                account_id=account_id,
+                fallback_plan_code=plan_code,
+            )
         else:
             plan_code = self._entitlement_service.normalize_plan_code(getattr(subscription, "plan_code", "free"))
             resolved = self._entitlement_service.resolve(
@@ -52,14 +61,34 @@ class BillingVisibilityService:
             )
             effective_access_plan = resolved.entitlements.plan_code
             billing_status = str(getattr(subscription, "billing_status", None) or getattr(subscription, "status", "active") or "active")
+            subscription_status = str(getattr(subscription, "status", None) or "active")
             renewal_date = getattr(subscription, "billing_period_end", None)
+            billing_cycle = {
+                "current_period_start": getattr(subscription, "billing_period_start", None),
+                "current_period_end": getattr(subscription, "billing_period_end", None),
+            }
             pending_downgrade = _pending_downgrade_payload(subscription, current_plan_code=plan_code, normalize=self._entitlement_service.normalize_plan_code)
             trial = self._trial_lifecycle_service.trial_summary(subscription) if self._trial_lifecycle_service is not None else None
+        entitlements = resolved.entitlements
         return {
             "plan": plan_code,
+            "plan_display": {
+                "display_name": _format_plan_display_name(plan_code),
+                "effective_access_display_name": _format_plan_display_name(effective_access_plan),
+                "effective_access_plan_code": effective_access_plan,
+                "plan_code": plan_code,
+            },
             "effective_access_plan": effective_access_plan,
             "billing_status": billing_status,
+            "subscription_status": subscription_status,
             "renewal_date": renewal_date,
+            "billing_cycle": billing_cycle,
+            "included_limits": {
+                "batch_items": entitlements.batch_request_limit,
+                "monthly_requests": entitlements.monthly_request_limit,
+                "requests_per_minute": entitlements.requests_per_minute,
+            },
+            "enabled_capabilities": list(entitlements.allowed_capabilities),
             "pending_downgrade": pending_downgrade,
             "trial": trial,
         }
@@ -98,3 +127,11 @@ def _plan_rank(plan_code: str) -> int:
         return _PLAN_SEQUENCE.index(plan_code)
     except ValueError:
         return 0
+
+
+def _format_plan_display_name(plan_code: str) -> str:
+    return " ".join(
+        segment.capitalize()
+        for segment in str(plan_code or "").strip().replace("-", "_").split("_")
+        if segment
+    ) or "Free"

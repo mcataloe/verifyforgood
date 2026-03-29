@@ -718,13 +718,15 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Current subscription" }),
+      await screen.findByRole("heading", {
+        name: "Billing and subscription visibility",
+      }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Manage plans" }),
+      await screen.findByRole("heading", { name: "Subscription visibility" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Open billing portal" }),
+      await screen.findByRole("heading", { name: "Enabled capabilities" }),
     ).toBeTruthy();
   });
 
@@ -761,7 +763,9 @@ describe("PortalApp", () => {
     const { rerender } = render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Billing management" }),
+      await screen.findByRole("heading", {
+        name: "Billing and subscription visibility",
+      }),
     ).toBeTruthy();
 
     window.location.hash = "#/usage-billing?nav=customer-admin-usage";

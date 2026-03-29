@@ -64,21 +64,21 @@ def _load_module():
     return importlib.import_module("infrastructure.lambda_query")
 
 
-def _resolve_admin_tenant_context(module, *, plan="pro", role="admin"):
+def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organization_id="org_1"):
     def _resolve(event, **kwargs):
         auth_context = SimpleNamespace(
             plan=plan,
             entitlements=DEFAULT_ENTITLEMENTS[plan],
-            metadata={"organization_id": "org_1"},
+            metadata={"organization_id": organization_id},
         )
         tenant_context = module.TenantContext(
-            organization_id="org_1",
+            organization_id=organization_id,
             user_id="user_admin" if role == "admin" else "user_member",
             membership_role=role,
             subscription_plan=plan,
             auth_method="portal_session",
             credential_id="user_admin" if role == "admin" else "user_member",
-            metadata={"organization_id": "org_1", "membership_role": role},
+            metadata={"organization_id": organization_id, "membership_role": role},
         )
         return auth_context, tenant_context
 
@@ -1783,28 +1783,21 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
             updated_at="2026-03-01T00:00:00+00:00",
         )
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:read",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="pro",
-                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+    module.portal_feature_flag_service = SimpleNamespace(
+        list_resolved_flags=lambda organization_id: [
+            SimpleNamespace(
+                flag_key=SimpleNamespace(value="enable_advanced_reporting"),
+                enabled=True,
+                plan_default=True,
+                override_enabled=None,
             )
-
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+        ]
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="pro",
+        organization_id=account["id"],
+    )
 
     result = module.handler(
         {
@@ -1820,9 +1813,44 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
     body = _response_data(result)
     assert body == {
         "plan": "pro",
+        "plan_display": {
+            "display_name": "Pro",
+            "effective_access_display_name": "Pro",
+            "effective_access_plan_code": "pro",
+            "plan_code": "pro",
+        },
         "effective_access_plan": "pro",
         "billing_status": "active",
+        "subscription_status": "active",
         "renewal_date": "2026-04-01T00:00:00+00:00",
+        "billing_cycle": {
+            "current_period_start": "2026-03-01T00:00:00+00:00",
+            "current_period_end": "2026-04-01T00:00:00+00:00",
+        },
+        "included_limits": {
+            "monthly_requests": 100000,
+            "requests_per_minute": 600,
+            "batch_items": 1000,
+        },
+        "enabled_capabilities": [
+            "verification",
+            "risk_flags",
+            "financial_trends",
+            "benchmarking",
+            "state_registry",
+            "monitoring",
+            "batch_verification",
+            "organization_settings",
+        ],
+        "feature_flags": [
+            {
+                "flag_key": "enable_advanced_reporting",
+                "label": "Advanced reporting",
+                "enabled": True,
+                "plan_default": True,
+                "override_enabled": None,
+            }
+        ],
         "pending_downgrade": {
             "plan": "growth",
             "effective_at": "2026-04-01T00:00:00+00:00",
@@ -1832,30 +1860,13 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
     }
 
 
-def test_organization_billing_subscription_requires_account_context():
+def test_organization_billing_subscription_requires_admin_membership():
     module = _load_module()
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:read",),
-                metadata={},
-                workspace_id=None,
-                account_id=None,
-                plan="free",
-                entitlements=DEFAULT_ENTITLEMENTS["free"],
-            )
-
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="free",
+        role="user",
+    )
 
     result = module.handler(
         {
@@ -1868,7 +1879,7 @@ def test_organization_billing_subscription_requires_account_context():
     )
 
     assert result["statusCode"] == 403
-    assert "authenticated workspace or account context" in _response_error_message(result)
+    assert _response_error_message(result) == "Only organization admins may view billing and subscription visibility"
 
 
 def test_get_organization_billing_subscription_includes_trial_status_and_effective_access_plan():
@@ -1893,27 +1904,11 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
     module.billing_visibility_service = None
     module.trial_lifecycle_service = None
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:read",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="free",
-                entitlements=DEFAULT_ENTITLEMENTS["free"],
-            )
-
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="free",
+        organization_id=account["id"],
+    )
 
     result = module.handler(
         {
@@ -1928,9 +1923,33 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
     assert result["statusCode"] == 200
     assert _response_data(result) == {
         "plan": "free",
+        "plan_display": {
+            "display_name": "Free",
+            "effective_access_display_name": "Growth",
+            "effective_access_plan_code": "growth",
+            "plan_code": "free",
+        },
         "effective_access_plan": "growth",
         "billing_status": "active",
+        "subscription_status": "active",
         "renewal_date": None,
+        "billing_cycle": {
+            "current_period_start": None,
+            "current_period_end": None,
+        },
+        "included_limits": {
+            "monthly_requests": 10000,
+            "requests_per_minute": 120,
+            "batch_items": 100,
+        },
+        "enabled_capabilities": [
+            "verification",
+            "risk_flags",
+            "financial_trends",
+            "benchmarking",
+            "batch_verification",
+        ],
+        "feature_flags": [],
         "pending_downgrade": None,
         "trial": {
             "active": True,
@@ -1961,27 +1980,11 @@ def test_get_organization_billing_subscription_surfaces_pending_cancellation():
         )
     )
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:read",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="pro",
-                entitlements=DEFAULT_ENTITLEMENTS["pro"],
-            )
-
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="pro",
+        organization_id=account["id"],
+    )
 
     result = module.handler(
         {

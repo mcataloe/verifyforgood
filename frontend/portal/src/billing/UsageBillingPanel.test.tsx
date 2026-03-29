@@ -35,6 +35,7 @@ function renderWithOrganization(
   options?: {
     billingActionsController?: PortalBillingInteractionsController;
     focus?: "billing" | "usage";
+    managementMode?: "manage" | "visibility";
     membershipRole?: "admin" | "user";
   },
 ) {
@@ -113,6 +114,7 @@ function renderWithOrganization(
           controller={controller}
           endpoints={endpoints}
           focus={options?.focus ?? "billing"}
+          managementMode={options?.managementMode ?? "manage"}
           plansController={plansController}
           session={createMockPortalSession()}
         />
@@ -404,6 +406,86 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Subscription is in good standing" }),
     ).toBeTruthy();
+  });
+
+  it("renders a read-only billing visibility mode without payment actions", () => {
+    const reload = vi.fn(async () => {});
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        billingCycleEnd: "2026-04-01T00:00:00+00:00",
+        billingCycleStart: "2026-03-01T00:00:00+00:00",
+        budgetStatus: {
+          allowOverage: false,
+          label: "Hard stop enabled at the monthly request limit",
+          policySource: "organization_settings",
+        },
+        effectiveAccessPlan: "growth",
+        effectiveAccessPlanDisplayName: "Growth",
+        enabledCapabilities: ["verification", "financial_trends", "risk_flags"],
+        featureFlags: [
+          {
+            enabled: true,
+            flagKey: "enable_advanced_reporting",
+            label: "Advanced reporting",
+            overrideEnabled: null,
+            planDefault: true,
+          },
+        ],
+        includedLimits: {
+          batchItems: 100,
+          monthlyRequests: 10000,
+          requestsPerMinute: 120,
+        },
+        notice: null,
+        pendingChangeType: "downgrade_scheduled",
+        pendingDowngradeEffectiveAt: "2026-04-01T00:00:00+00:00",
+        pendingDowngradePlan: "starter",
+        plan: "growth",
+        planDisplayName: "Growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        subscriptionStatus: "active",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 9200,
+          source: "mock_plan_baseline",
+          used: 800,
+          usagePercent: 8,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [],
+      reload,
+    };
+
+    renderWithOrganization(controller, plansController, {
+      managementMode: "visibility",
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Subscription visibility" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Included limits" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Enabled capabilities" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Manage plans" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Open billing portal" }),
+    ).toBeNull();
+    expect(screen.getByText("Advanced reporting")).toBeTruthy();
   });
 
   it("renders a clean empty state when no usage metrics are available yet", () => {

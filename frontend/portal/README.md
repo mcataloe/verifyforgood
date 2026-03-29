@@ -135,10 +135,17 @@ The usage and billing area now uses a small feature-local billing slice under `s
 - `GET /v1/organization/usage` provides the current organization-scoped tracking period, current-period usage totals, and plan-limit context for customer-admin usage visibility
 - `GET /v1/plans` is the source of truth for plan display metadata such as included usage, overage pricing, and feature availability
 - `billing.allowOverage` comes from organization settings when available and otherwise follows the documented backend default behavior
-- billing actions are abstracted behind a frontend adapter instead of being modeled as Stripe UI flows:
+- backend billing actions remain abstracted behind a frontend adapter instead of being modeled as Stripe UI flows:
   - `createSubscription(...)` calls `POST /v1/organization/billing/checkout-session`
   - `updatePlan(...)` calls `POST /v1/organization/billing/plan-change`
   - `cancelSubscription(...)` stays vendor-agnostic in the UI and can resolve through `POST /v1/organization/billing/plan-change` or `POST /v1/organization/billing/portal-session`
+- the customer-admin `Billing` alias is currently read-only and focused on subscription visibility:
+  - current plan
+  - subscription and billing status
+  - billing-cycle timing
+  - included limits
+  - enabled premium capabilities and feature visibility
+- customer-admin payment-management controls are intentionally hidden from this alias in the current phase so the page language stays accurate to the implemented feature set
 - request usage now comes from backend org-scoped metering when available, with a plan-based fallback reserved for local demo sessions or backend outages
 
 This keeps the page useful without moving billing rules into the frontend. Future historical usage charts can extend the same billing slice without changing the page-level UI contract.

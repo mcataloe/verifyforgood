@@ -1642,6 +1642,7 @@ def handler(event, context):
     tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
     organization_settings_request = _is_organization_settings_request(event or {}, method)
     organization_usage_request = _is_organization_usage_request(event or {}, method)
+    organization_subscription_visibility_request = _is_organization_subscription_visibility_request(event or {}, method)
     try:
         resolved_tenant_context: TenantContext | None = None
         if tenant_nonprofit_request:
@@ -1651,12 +1652,18 @@ def handler(event, context):
                 missing_membership_message="Active membership is required for nonprofit queries",
                 require_user=False,
             )
-        elif organization_settings_request or organization_usage_request:
+        elif (
+            organization_settings_request
+            or organization_usage_request
+            or organization_subscription_visibility_request
+        ):
             auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
                 event or {},
                 missing_context_message=(
                     "Organization-scoped authentication is required for organization usage"
                     if organization_usage_request
+                    else "Organization-scoped authentication is required for billing visibility"
+                    if organization_subscription_visibility_request
                     else "Organization-scoped authentication is required for organization settings"
                 ),
                 missing_membership_message="Active membership is required for this organization",
@@ -1729,7 +1736,12 @@ def handler(event, context):
         return response
     if _is_organization_subscription_visibility_request(event, method):
         try:
-            response = _handle_organization_subscription_visibility_request(auth_context, response_context=api_context)
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for billing visibility")
+            response = _handle_organization_subscription_visibility_request(
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
         except BillingCheckoutError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except AuthorizationError as exc:
@@ -2336,14 +2348,20 @@ def _handle_organization_billing_customer_bootstrap_request(
 
 
 def _handle_organization_subscription_visibility_request(
-    auth_context: Any,
     *,
+    tenant_context: TenantContext,
     response_context: ResponseContext,
 ) -> dict[str, Any]:
-    _workspace_id, account_id = _require_organization_context(auth_context)
-    if not account_id:
-        raise AuthorizationError("Billing visibility requires authenticated account context")
-    summary = _get_billing_visibility_service().get_subscription_summary(account_id=account_id)
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing visibility")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view billing and subscription visibility")
+    summary = _get_billing_visibility_service().get_subscription_summary(
+        account_id=tenant_context.organization_id,
+    )
+    summary["feature_flags"] = _build_billing_feature_flag_summaries(
+        organization_id=tenant_context.organization_id,
+    )
     return json_response(200, summary, response_context=response_context)
 
 
@@ -2423,6 +2441,36 @@ def _build_usage_plan_limit_context(*, tenant_context: TenantContext) -> dict[st
         "allow_overage": allow_overage,
         "policy_source": policy_source,
     }
+
+
+def _build_billing_feature_flag_summaries(*, organization_id: str) -> list[dict[str, Any]]:
+    service = _get_portal_feature_flag_service()
+    if service is None:
+        return []
+    try:
+        resolved_flags = service.list_resolved_flags(organization_id=organization_id)
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        {
+            "flag_key": item.flag_key.value,
+            "label": _feature_flag_label(item.flag_key.value),
+            "enabled": item.enabled,
+            "plan_default": item.plan_default,
+            "override_enabled": item.override_enabled,
+        }
+        for item in resolved_flags
+    ]
+
+
+def _feature_flag_label(flag_key: str) -> str:
+    labels = {
+        "enable_advanced_reporting": "Advanced reporting",
+        "enable_bulk_lookup": "Bulk lookup",
+        "enable_candid": "Candid",
+        "enable_charity_navigator": "Charity Navigator",
+    }
+    return labels.get(flag_key, str(flag_key or "").replace("_", " ").title())
 
 
 def _generate_manual_form990_run_id() -> str:

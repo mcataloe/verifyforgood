@@ -34,15 +34,19 @@ export function SubscriptionSummaryCard({
       <dl className="portal-subscription-summary__grid">
         <div>
           <dt>Current plan</dt>
-          <dd>{currentPlan?.display_name ?? formatPlanLabel(snapshot.plan)}</dd>
+          <dd>
+            {snapshot.planDisplayName ??
+              currentPlan?.display_name ??
+              formatPlanLabel(snapshot.plan)}
+          </dd>
         </div>
         <div>
           <dt>Subscription status</dt>
-          <dd>{presentation.label}</dd>
+          <dd>{formatBillingState(snapshot.subscriptionStatus ?? presentation.label)}</dd>
         </div>
         <div>
-          <dt>Renewal date</dt>
-          <dd>{formatDateLabel(snapshot.renewalDate)}</dd>
+          <dt>Current period end</dt>
+          <dd>{formatDateLabel(snapshot.billingCycleEnd ?? snapshot.renewalDate)}</dd>
         </div>
         <div>
           <dt>Billing state</dt>
