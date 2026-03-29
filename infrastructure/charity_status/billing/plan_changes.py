@@ -338,7 +338,7 @@ class BillingPlanChangeService:
         if current is None:
             from charity_status.control_plane.models import ManagedSubscription
 
-            return ManagedSubscription(account_id=account_id, plan_code="free", status="active")
+            return ManagedSubscription(account_id=account_id, plan_code="free", status="active", created_at=_utcnow())
         return current
 
     def _response_payload(self, subscription: Any, *, change_type: str, reused: bool) -> dict[str, Any]:

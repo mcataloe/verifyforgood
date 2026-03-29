@@ -2,11 +2,11 @@
 
 ## Status
 
-not started
+billing domain model implemented
 
 ## Next Phase
 
-21B
+21C
 
 ## Scope
 

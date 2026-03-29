@@ -245,6 +245,7 @@ class BillingCheckoutService:
             account_id=account_id,
             plan_code="free",
             status="active",
+            created_at=_utcnow(),
         )
 
     def _store_subscription(self, subscription: Any, **changes: Any) -> Any:

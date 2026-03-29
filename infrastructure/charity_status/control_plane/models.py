@@ -73,6 +73,7 @@ class ManagedSubscription:
     account_id: str
     plan_code: str
     status: str
+    created_at: str | None = None
     effective_from: str | None = None
     effective_to: str | None = None
     stripe_customer_id: str | None = None
@@ -88,6 +89,7 @@ class ManagedSubscription:
     trial_termination_reason: str | None = None
     pending_plan_code: str | None = None
     pending_plan_effective_at: str | None = None
+    cancel_at_period_end: bool = False
     stripe_subscription_schedule_id: str | None = None
     pending_checkout_session_id: str | None = None
     pending_checkout_session_url: str | None = None
@@ -99,6 +101,7 @@ class ManagedSubscription:
             "account_id": self.account_id,
             "plan_code": self.plan_code,
             "status": self.status,
+            "created_at": self.created_at,
             "effective_from": self.effective_from,
             "effective_to": self.effective_to,
             "stripe_customer_id": self.stripe_customer_id,
@@ -114,6 +117,7 @@ class ManagedSubscription:
             "trial_termination_reason": self.trial_termination_reason,
             "pending_plan_code": self.pending_plan_code,
             "pending_plan_effective_at": self.pending_plan_effective_at,
+            "cancel_at_period_end": self.cancel_at_period_end,
             "stripe_subscription_schedule_id": self.stripe_subscription_schedule_id,
             "updated_at": self.updated_at,
         }
@@ -123,6 +127,7 @@ class ManagedSubscription:
             account_id=self.account_id,
             plan_code=self.plan_code,
             status=self.status,
+            created_at=self.created_at,
             effective_from=self.effective_from,
             effective_to=self.effective_to,
             stripe_customer_id=self.stripe_customer_id,
@@ -138,12 +143,31 @@ class ManagedSubscription:
             trial_termination_reason=self.trial_termination_reason,
             pending_plan_code=self.pending_plan_code,
             pending_plan_effective_at=self.pending_plan_effective_at,
+            cancel_at_period_end=self.cancel_at_period_end,
             stripe_subscription_schedule_id=self.stripe_subscription_schedule_id,
             pending_checkout_session_id=self.pending_checkout_session_id,
             pending_checkout_session_url=self.pending_checkout_session_url,
             pending_checkout_expires_at=self.pending_checkout_expires_at,
             updated_at=self.updated_at,
         )
+
+
+@dataclass
+class ManagedBillingCustomer:
+    account_id: str
+    organization_id: str
+    stripe_customer_id: str
+    created_at: str
+    updated_at: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "account_id": self.account_id,
+            "organization_id": self.organization_id,
+            "stripe_customer_id": self.stripe_customer_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
 
 
 @dataclass

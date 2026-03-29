@@ -10,7 +10,7 @@ import boto3
 from charity_status.auth.oauth import StoredOAuthClientRecord
 from charity_status.auth.service import StoredApiKeyRecord
 
-from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
+from .models import Account, ManagedApiKey, ManagedBillingCustomer, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
 
 
 class DynamoControlPlaneStore:
@@ -47,6 +47,28 @@ class DynamoControlPlaneStore:
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
         self._table.put_item(Item=_subscription_item(subscription))
+
+    def get_billing_customer(self, account_id: str) -> ManagedBillingCustomer | None:
+        response = self._table.get_item(Key={"pk": _account_pk(account_id), "sk": "BILLING_CUSTOMER"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        return _billing_customer_from_item(item)
+
+    def put_billing_customer(self, customer: ManagedBillingCustomer) -> None:
+        self._table.put_item(Item=_billing_customer_item(customer))
+
+    def get_billing_customer_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedBillingCustomer | None:
+        response = self._table.query(
+            IndexName="entity_listing",
+            KeyConditionExpression="gsi2pk = :gsi2pk",
+            ExpressionAttributeValues={":gsi2pk": f"ENTITY#BILLING_CUSTOMER#{stripe_customer_id}"},
+            Limit=1,
+        )
+        items = response.get("Items") or []
+        if not items:
+            return None
+        return _billing_customer_from_item(items[0])
 
     def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
         response = self._table.query(
@@ -208,6 +230,7 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         "account_id": subscription.account_id,
         "plan_code": subscription.plan_code,
         "status": subscription.status,
+        "created_at": subscription.created_at,
         "effective_from": subscription.effective_from,
         "effective_to": subscription.effective_to,
         "stripe_customer_id": subscription.stripe_customer_id,
@@ -223,6 +246,7 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         "trial_termination_reason": subscription.trial_termination_reason,
         "pending_plan_code": subscription.pending_plan_code,
         "pending_plan_effective_at": subscription.pending_plan_effective_at,
+        "cancel_at_period_end": subscription.cancel_at_period_end,
         "stripe_subscription_schedule_id": subscription.stripe_subscription_schedule_id,
         "pending_checkout_session_id": subscription.pending_checkout_session_id,
         "pending_checkout_session_url": subscription.pending_checkout_session_url,
@@ -236,6 +260,21 @@ def _subscription_item(subscription: ManagedSubscription) -> dict[str, Any]:
         item["gsi2pk"] = f"STRIPE#SUBSCRIPTION#{subscription.stripe_subscription_id}"
         item["gsi2sk"] = _account_pk(subscription.account_id)
     return item
+
+
+def _billing_customer_item(customer: ManagedBillingCustomer) -> dict[str, Any]:
+    return {
+        "pk": _account_pk(customer.account_id),
+        "sk": "BILLING_CUSTOMER",
+        "gsi2pk": f"ENTITY#BILLING_CUSTOMER#{customer.stripe_customer_id}",
+        "gsi2sk": _account_pk(customer.account_id),
+        "type": "BILLING_CUSTOMER",
+        "account_id": customer.account_id,
+        "organization_id": customer.organization_id,
+        "stripe_customer_id": customer.stripe_customer_id,
+        "created_at": customer.created_at,
+        "updated_at": customer.updated_at,
+    }
 
 
 def _billing_event_pk(event_id: str) -> str:
@@ -338,6 +377,7 @@ def _subscription_from_item(item: dict[str, Any]) -> ManagedSubscription:
         account_id=str(item.get("account_id") or ""),
         plan_code=str(item.get("plan_code") or "free"),
         status=str(item.get("status") or "active"),
+        created_at=_optional_string(item.get("created_at")),
         effective_from=_optional_string(item.get("effective_from")),
         effective_to=_optional_string(item.get("effective_to")),
         stripe_customer_id=_optional_string(item.get("stripe_customer_id")),
@@ -353,11 +393,22 @@ def _subscription_from_item(item: dict[str, Any]) -> ManagedSubscription:
         trial_termination_reason=_optional_string(item.get("trial_termination_reason")),
         pending_plan_code=_optional_string(item.get("pending_plan_code")),
         pending_plan_effective_at=_optional_string(item.get("pending_plan_effective_at")),
+        cancel_at_period_end=bool(item.get("cancel_at_period_end", False)),
         stripe_subscription_schedule_id=_optional_string(item.get("stripe_subscription_schedule_id")),
         pending_checkout_session_id=_optional_string(item.get("pending_checkout_session_id")),
         pending_checkout_session_url=_optional_string(item.get("pending_checkout_session_url")),
         pending_checkout_expires_at=_optional_string(item.get("pending_checkout_expires_at")),
         updated_at=_optional_string(item.get("updated_at")),
+    )
+
+
+def _billing_customer_from_item(item: dict[str, Any]) -> ManagedBillingCustomer:
+    return ManagedBillingCustomer(
+        account_id=str(item.get("account_id") or ""),
+        organization_id=str(item.get("organization_id") or item.get("account_id") or ""),
+        stripe_customer_id=str(item.get("stripe_customer_id") or ""),
+        created_at=str(item.get("created_at") or ""),
+        updated_at=str(item.get("updated_at") or ""),
     )
 
 

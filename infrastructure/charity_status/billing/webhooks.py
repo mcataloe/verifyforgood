@@ -244,6 +244,7 @@ class StripeWebhookService:
             billing_status=stripe_status,
             billing_period_start=period_start,
             billing_period_end=period_end,
+            cancel_at_period_end=cancel_at_period_end,
             pending_plan_code=pending_plan_code,
             pending_plan_effective_at=pending_plan_effective_at,
             stripe_subscription_schedule_id=schedule_id,

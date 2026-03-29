@@ -17,6 +17,7 @@ class Subscription:
     account_id: str
     plan_code: str
     status: str
+    created_at: str | None = None
     effective_from: str | None = None
     effective_to: str | None = None
     stripe_customer_id: str | None = None
@@ -32,6 +33,7 @@ class Subscription:
     trial_termination_reason: str | None = None
     pending_plan_code: str | None = None
     pending_plan_effective_at: str | None = None
+    cancel_at_period_end: bool = False
     stripe_subscription_schedule_id: str | None = None
     pending_checkout_session_id: str | None = None
     pending_checkout_session_url: str | None = None

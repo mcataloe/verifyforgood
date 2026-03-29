@@ -10,7 +10,7 @@ from charity_status.auth.oauth import StoredOAuthClientRecord, build_oauth_clien
 from charity_status.auth.service import StoredApiKeyRecord, build_api_key_record
 from charity_status.billing import EntitlementService, Subscription
 
-from .models import Account, ManagedApiKey, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
+from .models import Account, ManagedApiKey, ManagedBillingCustomer, ManagedBillingEvent, ManagedOAuthClient, ManagedSubscription, ManagedTrialHistory
 
 
 class ControlPlaneError(ValueError):
@@ -35,6 +35,15 @@ class ControlPlaneStore(Protocol):
         ...
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
+        ...
+
+    def get_billing_customer(self, account_id: str) -> ManagedBillingCustomer | None:
+        ...
+
+    def put_billing_customer(self, customer: ManagedBillingCustomer) -> None:
+        ...
+
+    def get_billing_customer_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedBillingCustomer | None:
         ...
 
     def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
@@ -90,6 +99,7 @@ class InMemoryControlPlaneStore:
     def __init__(self):
         self.accounts: dict[str, Account] = {}
         self.subscriptions: dict[str, ManagedSubscription] = {}
+        self.billing_customers: dict[str, ManagedBillingCustomer] = {}
         self.api_keys: dict[str, tuple[ManagedApiKey, StoredApiKeyRecord]] = {}
         self.oauth_clients: dict[str, tuple[ManagedOAuthClient, StoredOAuthClientRecord]] = {}
         self.usage: dict[tuple[str, str], int] = {}
@@ -110,6 +120,18 @@ class InMemoryControlPlaneStore:
 
     def put_subscription(self, subscription: ManagedSubscription) -> None:
         self.subscriptions[subscription.account_id] = subscription
+
+    def get_billing_customer(self, account_id: str) -> ManagedBillingCustomer | None:
+        return self.billing_customers.get(account_id)
+
+    def put_billing_customer(self, customer: ManagedBillingCustomer) -> None:
+        self.billing_customers[customer.account_id] = customer
+
+    def get_billing_customer_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedBillingCustomer | None:
+        for customer in self.billing_customers.values():
+            if customer.stripe_customer_id == stripe_customer_id:
+                return customer
+        return None
 
     def get_subscription_by_stripe_customer_id(self, stripe_customer_id: str) -> ManagedSubscription | None:
         for subscription in self.subscriptions.values():
@@ -219,6 +241,7 @@ class ControlPlaneService:
                 account_id=account.id,
                 plan_code="free",
                 status="active",
+                created_at=account.created_at,
                 effective_from=account.created_at,
                 effective_to=None,
                 trial_status="never_started",
@@ -442,6 +465,7 @@ class ControlPlaneService:
             account_id=normalized.account_id,
             plan_code=normalized.plan_code,
             status=normalized.status,
+            created_at=current.created_at if current else normalized.effective_from,
             effective_from=normalized.effective_from,
             effective_to=normalized.effective_to,
             stripe_customer_id=current.stripe_customer_id if current else None,
