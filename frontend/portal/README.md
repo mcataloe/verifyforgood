@@ -30,7 +30,7 @@ These are intentionally placeholder-first, but they align to the customer-facing
 - billing subscription visibility
 - backend-managed checkout, plan change, and billing portal session creation
 - OAuth token exchange
-- admin-managed API key lifecycle, with a portal-local mock standing in until customer self-serve endpoints exist
+- organization-scoped customer API key lifecycle for create, list, and revoke
 
 ## Auth boundary
 
@@ -95,17 +95,15 @@ The current scoped API client adds portal-local workspace/account headers as pla
 
 ## API key management
 
-The portal API access area now includes a minimal API-key management UI.
+The portal API access area now uses the organization-scoped backend API-key lifecycle.
 
-- customers can list keys, create keys, and revoke keys inside the portal
-- plaintext secrets are shown once at creation time and are not persisted in portal storage
-- the current implementation is a local mock service scoped to the active organization
-- this is intentional because the backend currently exposes API-key lifecycle only through admin control-plane routes:
-  - `POST /v1/admin/accounts/{accountId}/api-keys`
-  - `GET /v1/admin/accounts/{accountId}/api-keys`
-  - `DELETE /v1/admin/accounts/{accountId}/api-keys/{keyId}`
-
-When customer-facing API credential endpoints are added, the portal API-key service should swap from the mock implementation to the shared API client without changing the page-level UI contract.
+- customer admins can list keys, create keys, and revoke keys inside the portal
+- plaintext secrets are shown once at creation time and are not persisted in browser storage
+- the portal uses the current organization routes:
+  - `POST /v1/organizations/current/api-keys`
+  - `GET /v1/organizations/current/api-keys`
+  - `DELETE /v1/organizations/current/api-keys/{keyId}`
+- organization-managed API keys themselves cannot access these management routes; portal session auth remains required
 
 ## Nonprofit search
 

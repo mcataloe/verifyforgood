@@ -40,7 +40,7 @@ export function ApiAccessPage({
     >
       <Panel
         title="Credential access"
-        subtitle="API keys now have a minimal self-serve portal surface."
+        subtitle="API keys are managed through the organization-scoped backend lifecycle."
       >
         <PortalSectionHeader
           description="Use the shared account shell to manage customer credentials without mixing OAuth token exchange details into the rest of the portal."
@@ -49,8 +49,8 @@ export function ApiAccessPage({
         />
         <p>
           Customers authenticate through issued API keys or OAuth client
-          credentials. The portal now owns a minimal API-key management flow,
-          while OAuth token exchange continues to anchor at{" "}
+          credentials. API key lifecycle is now backed by the current
+          organization routes, while OAuth token exchange continues to anchor at{" "}
           <code>{endpoints.oauthToken}</code>.
         </p>
         <dl className="portal-shell__details">

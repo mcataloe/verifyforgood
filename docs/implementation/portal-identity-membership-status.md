@@ -2,11 +2,11 @@
 
 ## Status
 
-team management UX hardened
+customer API key UX implemented
 
 ## Next Phase
 
-22D
+22E
 
 ## Scope
 

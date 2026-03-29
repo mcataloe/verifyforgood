@@ -10,26 +10,33 @@ interface ApiKeyManagerProps {
 
 export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   const organization = usePortalOrganization();
-  const defaultController = usePortalApiKeys();
+  const canManageKeys =
+    organization.currentMembership?.role === "admin" &&
+    organization.currentMembership?.status === "active";
+  const defaultController = usePortalApiKeys({
+    enabled: canManageKeys,
+  });
   const apiKeys = controller ?? defaultController;
-  const [label, setLabel] = useState("");
-  const [scopes, setScopes] = useState(apiKeys.scopesPlaceholder);
+  const [displayName, setDisplayName] = useState("");
+  const [pendingRevokeKeyId, setPendingRevokeKeyId] = useState<string | null>(
+    null,
+  );
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  const activeKeys = apiKeys.items.filter((item) => item.status === "active");
-  const revokedKeys = apiKeys.items.filter((item) => item.status === "revoked");
+  const sortedKeys = [...apiKeys.items].sort((left, right) =>
+    right.created_at.localeCompare(left.created_at),
+  );
 
   return (
     <Grid className="portal-page-grid">
       <Panel
         title="API key management"
-        subtitle="This is the portal-owned UI for customer API credentials."
+        subtitle="Create, review, and revoke organization-scoped API credentials."
       >
         <p>
-          The portal now scopes API credential management to{" "}
-          <strong>{organization.activeOrganization.organization_name}</strong>.
-          Backend customer self-serve API-key routes are not available yet, so
-          this page uses a replaceable local mock service with one-time secret
-          visibility.
+          API keys created here belong to{" "}
+          <strong>{organization.activeOrganization.organization_name}</strong>
+          {" "}and can only be shown in plaintext once at creation time.
         </p>
 
         <dl className="portal-shell__details">
@@ -42,73 +49,66 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
             <dd>{organization.activeOrganization.account_id}</dd>
           </div>
           <div>
-            <dt>Credential service</dt>
-            <dd>{apiKeys.implementation ?? "loading"}</dd>
+            <dt>Your role</dt>
+            <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
           </div>
         </dl>
 
-        <form
-          className="portal-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void apiKeys.createKey({
-              label,
-              scopes: scopes
-                .split(",")
-                .map((scope) => scope.trim())
-                .filter(Boolean),
-            });
-            setLabel("");
-          }}
-        >
-          <label className="portal-form__field">
-            <span>Key label</span>
-            <input
-              className="portal-form__input"
-              name="label"
-              onChange={(event) => {
-                setLabel(event.target.value);
-              }}
-              placeholder="Production integration"
-              type="text"
-              value={label}
-            />
-          </label>
+        {!canManageKeys ? (
+          <PortalNotice title="Admin access required" tone="warning">
+            <p>
+              Only organization admins may create or revoke API keys for this
+              organization.
+            </p>
+          </PortalNotice>
+        ) : (
+          <form
+            className="portal-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setCopyFeedback(null);
+              void apiKeys.createKey({
+                display_name: displayName,
+              });
+              setDisplayName("");
+            }}
+          >
+            <label className="portal-form__field">
+              <span>Display name</span>
+              <input
+                className="portal-form__input"
+                name="display-name"
+                onChange={(event) => {
+                  setDisplayName(event.target.value);
+                }}
+                placeholder="Production integration"
+                type="text"
+                value={displayName}
+              />
+            </label>
 
-          <label className="portal-form__field">
-            <span>Scopes</span>
-            <input
-              className="portal-form__input"
-              name="scopes"
-              onChange={(event) => {
-                setScopes(event.target.value);
-              }}
-              placeholder={apiKeys.scopesPlaceholder}
-              type="text"
-              value={scopes}
-            />
-          </label>
-
-          <Inline className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              disabled={apiKeys.isCreating}
-              type="submit"
-            >
-              {apiKeys.isCreating ? "Creating key..." : "Create API key"}
-            </button>
-            <button
-              className="portal-shell__action portal-shell__action--secondary"
-              disabled={apiKeys.isLoading}
-              onClick={() => {
-                void apiKeys.refresh();
-              }}
-              type="button"
-            >
-              Refresh list
-            </button>
-          </Inline>
-        </form>
+            <Inline className="portal-form__actions">
+              <button
+                className="portal-shell__action portal-shell__action--primary"
+                disabled={apiKeys.isCreating}
+                type="submit"
+              >
+                {apiKeys.isCreating ? "Creating key..." : "Create API key"}
+              </button>
+              <button
+                className="portal-shell__action portal-shell__action--secondary"
+                disabled={apiKeys.isLoading}
+                onClick={() => {
+                  setCopyFeedback(null);
+                  void apiKeys.refresh();
+                }}
+                type="button"
+              >
+                Refresh list
+              </button>
+            </Inline>
+          </form>
+        )}
 
         {apiKeys.error ? (
           <PortalNotice tone="error">
@@ -120,21 +120,45 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
       {apiKeys.visibleSecret ? (
         <Panel
           title="Copy this secret now"
-          subtitle="The plaintext API key is shown once and is not persisted in portal storage."
+          subtitle="The plaintext API key is shown once and cannot be recovered later."
         >
           <PortalNotice tone="warning">
-            <p>
-              Store this key in your secrets manager before leaving the page.
-            </p>
+            <p>Store this key in your secrets manager before leaving the page.</p>
           </PortalNotice>
-          <code className="portal-secret">{apiKeys.visibleSecret.secret}</code>
+          {copyFeedback ? (
+            <PortalNotice tone="warning">
+              <p>{copyFeedback}</p>
+            </PortalNotice>
+          ) : null}
+          <textarea
+            aria-label="Plaintext API key"
+            className="portal-form__input"
+            readOnly
+            rows={3}
+            value={apiKeys.visibleSecret.secret}
+          />
           <Inline className="portal-form__actions">
             <span className="portal-key-chip">
-              {apiKeys.visibleSecret.key.label}
+              {apiKeys.visibleSecret.key.display_name}
             </span>
             <button
+              className="portal-shell__action portal-shell__action--primary"
+              onClick={() => {
+                void copySecretToClipboard({
+                  onResult: setCopyFeedback,
+                  secret: apiKeys.visibleSecret?.secret ?? "",
+                });
+              }}
+              type="button"
+            >
+              Copy key
+            </button>
+            <button
               className="portal-shell__action"
-              onClick={apiKeys.dismissSecret}
+              onClick={() => {
+                setCopyFeedback(null);
+                apiKeys.dismissSecret();
+              }}
               type="button"
             >
               Dismiss secret
@@ -144,7 +168,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
       ) : null}
 
       <Panel
-        title="Active API keys"
+        title="Organization API keys"
         subtitle="Secrets are never shown again after creation."
       >
         {apiKeys.isLoading ? (
@@ -152,96 +176,106 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
             <p>Loading API keys for the current organization.</p>
           </PortalNotice>
         ) : null}
-        {!apiKeys.isLoading && activeKeys.length === 0 ? (
+        {!apiKeys.isLoading && sortedKeys.length === 0 ? (
           <PortalNotice title="Nothing to show yet" tone="empty">
             <p>Create a key to start authenticating API traffic.</p>
           </PortalNotice>
         ) : null}
 
-        <div className="portal-key-list">
-          {activeKeys.map((key) => (
-            <article className="portal-key-card" key={key.key_id}>
-              <div className="portal-key-card__header">
-                <div>
-                  <h3>{key.label}</h3>
-                  <p>{key.key_prefix}...</p>
-                </div>
-                <span className="portal-key-chip portal-key-chip--active">
-                  active
-                </span>
-              </div>
-
-              <dl className="portal-shell__details">
-                <div>
-                  <dt>Key ID</dt>
-                  <dd>{key.key_id}</dd>
-                </div>
-                <div>
-                  <dt>Scopes</dt>
-                  <dd>{key.scopes.join(", ")}</dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatDateTime(key.created_at)}</dd>
-                </div>
-              </dl>
-
-              <Inline className="portal-form__actions">
-                <button
-                  className="portal-shell__action portal-shell__action--danger"
-                  disabled={apiKeys.isRevokingKeyId === key.key_id}
-                  onClick={() => {
-                    void apiKeys.revokeKey(key.key_id);
-                  }}
-                  type="button"
-                >
-                  {apiKeys.isRevokingKeyId === key.key_id
-                    ? "Revoking..."
-                    : "Revoke key"}
-                </button>
-              </Inline>
-            </article>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel
-        title="Revoked keys"
-        subtitle="Revoked keys remain visible as audit-friendly metadata only."
-      >
-        {revokedKeys.length === 0 ? (
-          <PortalNotice tone="empty">
-            <p>No revoked keys yet.</p>
-          </PortalNotice>
+        {sortedKeys.length > 0 ? (
+          <table className="portal-table">
+            <thead>
+              <tr>
+                <th>Display name</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Last used</th>
+                <th>Key ID</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedKeys.map((key) => (
+                <tr key={key.key_id}>
+                  <td>{key.display_name}</td>
+                  <td>{key.status}</td>
+                  <td>{formatDateTime(key.created_at)}</td>
+                  <td>
+                    {key.last_used_at
+                      ? formatDateTime(key.last_used_at)
+                      : "Never used"}
+                  </td>
+                  <td>{key.key_id}</td>
+                  <td>
+                    {key.status === "revoked" || !canManageKeys ? (
+                      <span>
+                        {key.status === "revoked" ? "Revoked" : "Read only"}
+                      </span>
+                    ) : pendingRevokeKeyId === key.key_id ? (
+                      <Inline className="portal-form__actions">
+                        <button
+                          className="portal-shell__action portal-shell__action--danger"
+                          disabled={apiKeys.isRevokingKeyId === key.key_id}
+                          onClick={() => {
+                            void apiKeys.revokeKey(key.key_id);
+                            setPendingRevokeKeyId(null);
+                          }}
+                          type="button"
+                        >
+                          {apiKeys.isRevokingKeyId === key.key_id
+                            ? "Revoking..."
+                            : "Confirm revoke"}
+                        </button>
+                        <button
+                          className="portal-shell__action"
+                          disabled={apiKeys.isRevokingKeyId === key.key_id}
+                          onClick={() => {
+                            setPendingRevokeKeyId(null);
+                          }}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </Inline>
+                    ) : (
+                      <button
+                        className="portal-shell__action portal-shell__action--danger"
+                        disabled={apiKeys.isRevokingKeyId === key.key_id}
+                        onClick={() => {
+                          setPendingRevokeKeyId(key.key_id);
+                        }}
+                        type="button"
+                      >
+                        Revoke key
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
-        <div className="portal-key-list">
-          {revokedKeys.map((key) => (
-            <article className="portal-key-card" key={key.key_id}>
-              <div className="portal-key-card__header">
-                <div>
-                  <h3>{key.label}</h3>
-                  <p>{key.key_prefix}...</p>
-                </div>
-                <span className="portal-key-chip portal-key-chip--revoked">
-                  revoked
-                </span>
-              </div>
-              <dl className="portal-shell__details">
-                <div>
-                  <dt>Key ID</dt>
-                  <dd>{key.key_id}</dd>
-                </div>
-                <div>
-                  <dt>Scopes</dt>
-                  <dd>{key.scopes.join(", ")}</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </div>
       </Panel>
     </Grid>
   );
+}
+
+async function copySecretToClipboard({
+  onResult,
+  secret,
+}: {
+  onResult: (value: string | null) => void;
+  secret: string;
+}) {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("clipboard_unavailable");
+    }
+    await navigator.clipboard.writeText(secret);
+    onResult("API key copied to clipboard.");
+  } catch {
+    onResult("Copy failed. Copy the API key manually before dismissing it.");
+  }
 }
 
 function formatDateTime(value: string): string {

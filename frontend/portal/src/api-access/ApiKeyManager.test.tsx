@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSessionPortalOrganization } from "../organization/portalOrganization";
 import {
   PortalOrganizationContext,
@@ -46,42 +46,45 @@ function renderWithOrganization(
 }
 
 describe("ApiKeyManager", () => {
-  it("creates and revokes API keys with one-time secret visibility", async () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async () => {}),
+      },
+    });
+  });
+
+  it("creates, copies, and revokes API keys with one-time secret visibility", async () => {
     const state: PortalApiKeysState = {
       createKey: vi.fn(async () => {}),
       dismissSecret: vi.fn(),
       error: null,
-      implementation: "mock_local_control_plane_gap",
+      implementation: "backend",
       isCreating: false,
       isLoading: false,
       isRevokingKeyId: null,
       items: [
         {
-          account_id: "acct_portal_test",
           created_at: "2026-03-21T00:00:00Z",
+          created_by_user_id: "user_verifyforgood_demo",
+          display_name: "Existing key",
           key_id: "key_existing",
-          key_prefix: "csk_existing",
-          label: "Existing key",
           last_used_at: null,
-          scopes: ["verify:read"],
+          organization_id: "org_123",
           status: "active" as const,
-          workspace_id: "ws_portal_test",
         },
       ],
       refresh: vi.fn(async () => {}),
       revokeKey: vi.fn(async () => {}),
-      scopesPlaceholder: "verify:read",
       visibleSecret: {
         key: {
-          account_id: "acct_portal_test",
           created_at: "2026-03-21T00:00:00Z",
+          created_by_user_id: "user_verifyforgood_demo",
+          display_name: "New key",
           key_id: "key_new",
-          key_prefix: "csk_new",
-          label: "New key",
           last_used_at: null,
-          scopes: ["verify:read"],
+          organization_id: "org_123",
           status: "active" as const,
-          workspace_id: "ws_portal_test",
         },
         secret: "csk_demo.secret",
       },
@@ -90,22 +93,73 @@ describe("ApiKeyManager", () => {
     renderWithOrganization(state);
 
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
-    expect(screen.getByText("csk_demo.secret")).toBeTruthy();
+    expect(screen.getByDisplayValue("csk_demo.secret")).toBeTruthy();
     expect(screen.getByText("Existing key")).toBeTruthy();
+    expect(screen.getByText("Never used")).toBeTruthy();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Key label" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
       target: { value: "New production key" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
     expect(state.createKey).toHaveBeenCalledWith({
-      label: "New production key",
-      scopes: ["verify:read"],
+      display_name: "New production key",
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Copy key" }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "csk_demo.secret",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "Revoke key" }));
+    expect(state.revokeKey).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm revoke" }));
     expect(state.revokeKey).toHaveBeenCalledWith("key_existing");
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss secret" }));
     expect(state.dismissSecret).toHaveBeenCalled();
+  });
+
+  it("shows a manual-copy fallback message when clipboard access fails", async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async () => {
+          throw new Error("denied");
+        }),
+      },
+    });
+
+    const state: PortalApiKeysState = {
+      createKey: vi.fn(async () => {}),
+      dismissSecret: vi.fn(),
+      error: null,
+      implementation: "backend",
+      isCreating: false,
+      isLoading: false,
+      isRevokingKeyId: null,
+      items: [],
+      refresh: vi.fn(async () => {}),
+      revokeKey: vi.fn(async () => {}),
+      visibleSecret: {
+        key: {
+          created_at: "2026-03-21T00:00:00Z",
+          created_by_user_id: "user_verifyforgood_demo",
+          display_name: "New key",
+          key_id: "key_new",
+          last_used_at: null,
+          organization_id: "org_123",
+          status: "active" as const,
+        },
+        secret: "csk_demo.secret",
+      },
+    };
+
+    renderWithOrganization(state);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy key" }));
+    expect(
+      await screen.findByText(
+        "Copy failed. Copy the API key manually before dismissing it.",
+      ),
+    ).toBeTruthy();
   });
 });

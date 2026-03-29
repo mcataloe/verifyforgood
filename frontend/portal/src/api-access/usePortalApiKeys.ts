@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   createPortalApiKeyService,
-  defaultPortalApiKeyScopes,
   type CreatePortalApiKeyInput,
   type PortalApiKeyService,
   type PortalApiKeySummary,
@@ -20,7 +19,6 @@ export interface PortalApiKeysState {
   items: PortalApiKeySummary[];
   refresh: () => Promise<void>;
   revokeKey: (keyId: string) => Promise<void>;
-  scopesPlaceholder: string;
   visibleSecret: {
     key: PortalApiKeySummary;
     secret: string;
@@ -28,15 +26,19 @@ export interface PortalApiKeysState {
 }
 
 export function usePortalApiKeys(
+  options?: {
+    enabled?: boolean;
+  },
   serviceFactory?: (
     service: ReturnType<typeof usePortalOrganization>,
   ) => PortalApiKeyService,
 ): PortalApiKeysState {
   const organization = usePortalOrganization();
+  const enabled = options?.enabled ?? true;
   const [items, setItems] = useState<PortalApiKeySummary[]>([]);
   const [implementation, setImplementation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [isCreating, setIsCreating] = useState(false);
   const [isRevokingKeyId, setIsRevokingKeyId] = useState<string | null>(null);
   const [visibleSecret, setVisibleSecret] =
@@ -47,12 +49,18 @@ export function usePortalApiKeys(
       serviceFactory?.(organization) ??
       createPortalApiKeyService({
         apiClient: organization.apiClient,
-        organization: organization.activeOrganization,
       }),
     [organization, serviceFactory],
   );
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setIsLoading(false);
+      setItems([]);
+      setError(null);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -65,7 +73,7 @@ export function usePortalApiKeys(
     } finally {
       setIsLoading(false);
     }
-  }, [apiKeyService]);
+  }, [apiKeyService, enabled]);
 
   useEffect(() => {
     void refresh();
@@ -119,7 +127,6 @@ export function usePortalApiKeys(
     items,
     refresh,
     revokeKey,
-    scopesPlaceholder: defaultPortalApiKeyScopes().join(", "),
     visibleSecret,
   };
 }
