@@ -62,6 +62,30 @@ class InvitationCreateResponse:
 
 
 @dataclass(frozen=True)
+class InvitationSummary:
+    invitation_id: str
+    email: str
+    role: str
+    status: str
+    created_at: str
+    expires_at: str
+    accepted_at: str | None
+    invited_by_user_id: str | None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "invitation_id": self.invitation_id,
+            "email": self.email,
+            "role": self.role,
+            "status": self.status,
+            "created_at": self.created_at,
+            "expires_at": self.expires_at,
+            "accepted_at": self.accepted_at,
+            "invited_by_user_id": self.invited_by_user_id,
+        }
+
+
+@dataclass(frozen=True)
 class MemberUpdateRequest:
     role: str | None = None
     status: str | None = None
@@ -106,6 +130,23 @@ class MembershipManagementService:
                 )
             )
         return results
+
+    def list_invitations(self, *, organization_id: str) -> list[InvitationSummary]:
+        if self._organizations.get(organization_id) is None:
+            raise MembershipManagementError("Current organization was not found")
+        return [
+            InvitationSummary(
+                invitation_id=invitation.invitation_id,
+                email=invitation.email,
+                role=invitation.role.value,
+                status=_effective_invitation_status(invitation),
+                created_at=invitation.created_at,
+                expires_at=invitation.expires_at,
+                accepted_at=invitation.accepted_at,
+                invited_by_user_id=invitation.invited_by_user_id,
+            )
+            for invitation in self._invitations.list_for_organization(organization_id)
+        ]
 
     def invite_member(
         self,
@@ -317,3 +358,9 @@ def _validate_membership_status(status: str) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _effective_invitation_status(invitation: InvitationRecord) -> str:
+    if invitation.status == InvitationStatus.PENDING and datetime.fromisoformat(invitation.expires_at) <= datetime.now(timezone.utc):
+        return InvitationStatus.EXPIRED.value
+    return invitation.status.value

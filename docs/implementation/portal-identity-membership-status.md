@@ -2,11 +2,11 @@
 
 ## Status
 
-organization settings implemented
+team management UX hardened
 
 ## Next Phase
 
-22C
+22D
 
 ## Scope
 

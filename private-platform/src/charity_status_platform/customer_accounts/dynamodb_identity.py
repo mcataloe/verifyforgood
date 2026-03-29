@@ -237,6 +237,14 @@ class DynamoInvitationRepository:
             return None
         return _invitation_from_item(item)
 
+    def list_for_organization(self, organization_id: str) -> list[InvitationRecord]:
+        response = self._table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _organization_pk(organization_id), ":prefix": "INVITATION#"},
+        )
+        items = response.get("Items") or []
+        return [_invitation_from_item(item) for item in items if item.get("type") == "INVITATION"]
+
     def get_by_token(self, token: str) -> InvitationRecord | None:
         response = self._table.query(
             IndexName=INVITATION_TOKEN_INDEX,

@@ -5,6 +5,7 @@ import { usePortalOrganization } from "./usePortalOrganization";
 import {
   createPortalMembershipClient,
   type PortalInvitationCreateResponse,
+  type PortalOrganizationInvitationSummary,
 } from "./portalMembership";
 
 export function TeamManagementPanel() {
@@ -18,6 +19,9 @@ export function TeamManagementPanel() {
   const [isInviting, setIsInviting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  const [invitations, setInvitations] = useState<PortalOrganizationInvitationSummary[]>([]);
+  const [invitationsStatus, setInvitationsStatus] = useState<"idle" | "loading" | "ready">("idle");
+  const [pendingRemovalMemberId, setPendingRemovalMemberId] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inviteResult, setInviteResult] =
@@ -32,8 +36,19 @@ export function TeamManagementPanel() {
 
     const loadMembers = async () => {
       setIsRefreshing(true);
+      setInvitationsStatus("loading");
       try {
-        await organization.refreshMembers();
+        await Promise.all([
+          organization.refreshMembers(),
+          teamClient.listInvitations().then((items) => {
+            if (!cancelled) {
+              setInvitations(items);
+            }
+          }),
+        ]);
+        if (!cancelled) {
+          setInvitationsStatus("ready");
+        }
       } catch (nextError) {
         if (!cancelled) {
           setError(
@@ -41,6 +56,7 @@ export function TeamManagementPanel() {
               ? nextError.message
               : "Unable to load team members.",
           );
+          setInvitationsStatus("ready");
         }
       } finally {
         if (!cancelled) {
@@ -59,14 +75,21 @@ export function TeamManagementPanel() {
   const handleRefresh = async () => {
     setError(null);
     setIsRefreshing(true);
+    setInvitationsStatus("loading");
     try {
-      await organization.refreshMembers();
+      const [, invitationItems] = await Promise.all([
+        organization.refreshMembers(),
+        teamClient.listInvitations(),
+      ]);
+      setInvitations(invitationItems);
+      setInvitationsStatus("ready");
     } catch (nextError) {
       setError(
         nextError instanceof Error
           ? nextError.message
           : "Unable to load team members.",
       );
+      setInvitationsStatus("ready");
     } finally {
       setIsRefreshing(false);
     }
@@ -144,6 +167,7 @@ export function TeamManagementPanel() {
       );
     } finally {
       setRemovingMemberId(null);
+      setPendingRemovalMemberId(null);
     }
   };
 
@@ -151,7 +175,7 @@ export function TeamManagementPanel() {
     <Grid className="portal-page-grid">
       <Panel
         title="Team management"
-        subtitle="Members and invitations for the current organization."
+        subtitle="Members and invitation lifecycle visibility for the current organization."
       >
         <dl className="portal-shell__details">
           <div>
@@ -180,6 +204,10 @@ export function TeamManagementPanel() {
               Share this token with the invited user now:
               {" "}
               <code>{inviteResult.token}</code>
+            </p>
+            <p>
+              The invitation also appears below in the Invitations table for
+              durable status tracking.
             </p>
           </PortalNotice>
         ) : null}
@@ -244,7 +272,7 @@ export function TeamManagementPanel() {
       </Panel>
 
       <Panel
-        title="Members"
+        title="Active members"
         subtitle="Current organization memberships returned by the backend contract."
       >
         {organization.membersStatus === "loading" ? (
@@ -306,18 +334,43 @@ export function TeamManagementPanel() {
                     <td>{formatDateTime(member.updated_at)}</td>
                     <td>
                       {isEditable ? (
-                        <button
-                          className="portal-shell__action portal-shell__action--danger"
-                          disabled={removingMemberId === member.user_id}
-                          onClick={() => {
-                            void handleRemove(member.user_id);
-                          }}
-                          type="button"
-                        >
-                          {removingMemberId === member.user_id
-                            ? "Removing..."
-                            : "Remove"}
-                        </button>
+                        pendingRemovalMemberId === member.user_id ? (
+                          <Inline className="portal-form__actions">
+                            <button
+                              className="portal-shell__action portal-shell__action--danger"
+                              disabled={removingMemberId === member.user_id}
+                              onClick={() => {
+                                void handleRemove(member.user_id);
+                              }}
+                              type="button"
+                            >
+                              {removingMemberId === member.user_id
+                                ? "Removing..."
+                                : "Confirm remove"}
+                            </button>
+                            <button
+                              className="portal-shell__action"
+                              disabled={removingMemberId === member.user_id}
+                              onClick={() => {
+                                setPendingRemovalMemberId(null);
+                              }}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          </Inline>
+                        ) : (
+                          <button
+                            className="portal-shell__action portal-shell__action--danger"
+                            disabled={removingMemberId === member.user_id}
+                            onClick={() => {
+                              setPendingRemovalMemberId(member.user_id);
+                            }}
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                        )
                       ) : isSelf ? (
                         <span>Current user</span>
                       ) : (
@@ -327,6 +380,56 @@ export function TeamManagementPanel() {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        ) : null}
+      </Panel>
+
+      <Panel
+        title="Invitations"
+        subtitle="Pending, accepted, and expired invitation lifecycle records for the current organization."
+      >
+        {invitationsStatus === "loading" ? (
+          <PortalNotice title="Loading" tone="loading">
+            <p>Loading invitations for the current organization.</p>
+          </PortalNotice>
+        ) : null}
+
+        {invitationsStatus !== "loading" && invitations.length === 0 ? (
+          <PortalNotice title="No invitations yet" tone="empty">
+            <p>The current organization has no invitation activity yet.</p>
+          </PortalNotice>
+        ) : null}
+
+        {invitations.length > 0 ? (
+          <table className="portal-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Invitation status</th>
+                <th>Sent</th>
+                <th>Expires</th>
+                <th>Accepted</th>
+                <th>Invited by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invitations.map((invitation) => (
+                <tr key={invitation.invitation_id}>
+                  <td>{invitation.email}</td>
+                  <td>{invitation.role}</td>
+                  <td>{invitation.status}</td>
+                  <td>{formatDateTime(invitation.created_at)}</td>
+                  <td>{formatDateTime(invitation.expires_at)}</td>
+                  <td>
+                    {invitation.accepted_at
+                      ? formatDateTime(invitation.accepted_at)
+                      : "Not accepted"}
+                  </td>
+                  <td>{invitation.invited_by_user_id ?? "Unknown"}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         ) : null}

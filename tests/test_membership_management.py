@@ -89,6 +89,42 @@ def test_invitation_token_lookup_and_acceptance_round_trip():
     assert membership.role.value == "user"
 
 
+def test_list_invitations_returns_pending_and_accepted_visibility():
+    table = FakeIdentityDynamoTable()
+    _resource, auth_service, admin_session, organization, membership_service = _seed_bootstrapped_org(table)
+    invited_session = auth_service.register_user(
+        UserCreateRequest(
+            email="invitee@example.com",
+            password="top-secret-password",
+            full_name="Invited User",
+        )
+    )
+
+    invitation = membership_service.invite_member(
+        organization_id=organization.organization_id,
+        actor_user_id=admin_session.user.user_id,
+        request=InvitationCreateRequest(email="invitee@example.com", role="user"),
+    )
+    membership_service.accept_invitation(
+        user_id=invited_session.user.user_id,
+        request=type("Accept", (), {"token": invitation.token})(),
+    )
+    second_invitation = membership_service.invite_member(
+        organization_id=organization.organization_id,
+        actor_user_id=admin_session.user.user_id,
+        request=InvitationCreateRequest(email="pending@example.com", role="admin"),
+    )
+
+    invitations = membership_service.list_invitations(organization_id=organization.organization_id)
+
+    by_email = {item.email: item for item in invitations}
+    assert set(by_email) == {"invitee@example.com", "pending@example.com"}
+    assert by_email["invitee@example.com"].status == "accepted"
+    assert by_email["pending@example.com"].status == "pending"
+    assert by_email["pending@example.com"].role == "admin"
+    assert second_invitation.status == "pending"
+
+
 def test_admin_only_modification_rules():
     table = FakeIdentityDynamoTable()
     resource, auth_service, admin_session, organization, membership_service = _seed_bootstrapped_org(table)

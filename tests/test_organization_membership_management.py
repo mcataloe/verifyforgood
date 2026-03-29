@@ -143,6 +143,51 @@ def test_get_current_members_lists_bootstrap_admin(monkeypatch):
     assert payload["data"]["items"][0]["email"] == "creator@example.com"
 
 
+def test_get_current_invitations_lists_pending_and_accepted_records(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator_user = _register_user(module, email="creator@example.com", full_name="Creator User")
+    _, organization = _create_organization(module, access_token=creator_token)
+
+    invite_response, invite_payload = _invite_member(
+        module,
+        access_token=creator_token,
+        organization_id=organization["organization_id"],
+        email="invitee@example.com",
+        role="user",
+    )
+    assert invite_response["statusCode"] == 201
+    _, invitee_token, _invitee_user = _register_user(module, email="invitee@example.com")
+    accept_response, _accept_payload = _accept_invitation(
+        module,
+        access_token=invitee_token,
+        token=invite_payload["data"]["token"],
+    )
+    assert accept_response["statusCode"] == 200
+    _invite_member(
+        module,
+        access_token=creator_token,
+        organization_id=organization["organization_id"],
+        email="pending@example.com",
+        role="admin",
+    )
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organizations/current/invitations",
+            "path": "/v1/organizations/current/invitations",
+            "headers": _current_org_headers(creator_token, organization["organization_id"]),
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 200
+    statuses = {item["email"]: item["status"] for item in payload["data"]["items"]}
+    assert statuses["invitee@example.com"] == "accepted"
+    assert statuses["pending@example.com"] == "pending"
+
+
 def test_non_admin_cannot_modify_membership_state(monkeypatch):
     module, _resource = _load_module_with_identity_store(monkeypatch)
     _, creator_token, _creator = _register_user(module, email="creator@example.com")

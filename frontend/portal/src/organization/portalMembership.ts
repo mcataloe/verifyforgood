@@ -17,6 +17,17 @@ export interface PortalInvitationCreateResponse {
   token: string;
 }
 
+export interface PortalOrganizationInvitationSummary {
+  accepted_at: string | null;
+  created_at: string;
+  email: string;
+  expires_at: string;
+  invitation_id: string;
+  invited_by_user_id: string | null;
+  role: string;
+  status: "accepted" | "expired" | "pending";
+}
+
 export interface PortalMemberUpdateRequest {
   role?: "admin" | "user";
   status?: "active" | "invited" | "suspended";
@@ -31,6 +42,7 @@ export interface PortalMembershipClient {
   inviteMember(
     request: PortalInvitationCreateRequest,
   ): Promise<PortalInvitationCreateResponse>;
+  listInvitations(): Promise<PortalOrganizationInvitationSummary[]>;
   listMembers(): Promise<PortalOrganizationMemberSummary[]>;
   removeMember(memberId: string): Promise<PortalMemberRemovalResponse>;
   updateMember(
@@ -50,6 +62,12 @@ export function createPortalMembershipClient(
       >(apiEndpoints.organization.currentInvitations, {
         body: request,
       });
+    },
+    async listInvitations() {
+      const payload = await apiClient.get<{ items: PortalOrganizationInvitationSummary[] }>(
+        apiEndpoints.organization.currentInvitations,
+      );
+      return payload.items;
     },
     async listMembers() {
       const payload = await apiClient.get<{ items: PortalOrganizationMemberSummary[] }>(

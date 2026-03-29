@@ -95,6 +95,9 @@ class InvitationRepository(Protocol):
     def get(self, organization_id: str, invitation_id: str) -> InvitationRecord | None:
         ...
 
+    def list_for_organization(self, organization_id: str) -> list[InvitationRecord]:
+        ...
+
     def get_by_token(self, token: str) -> InvitationRecord | None:
         ...
 

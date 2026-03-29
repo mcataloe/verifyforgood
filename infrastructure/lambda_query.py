@@ -1242,6 +1242,10 @@ def _handle_portal_membership_request(
         items = [item.to_dict() for item in service.list_members(organization_id=account_id)]
         return json_response(200, {"items": items}, response_context=response_context)
 
+    if resource == "/organizations/current/invitations" and method == "GET":
+        items = [item.to_dict() for item in service.list_invitations(organization_id=account_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
     if resource == "/organizations/current/invitations" and method == "POST":
         payload = _parse_json_body(event)
         invitation = service.invite_member(
