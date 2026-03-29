@@ -9,6 +9,7 @@ export interface PricingPlanCardProps extends PropsWithChildren {
   isCurrent?: boolean;
   isEffective?: boolean;
   isPending?: boolean;
+  pendingLabel?: string;
   plan: PricingPlanMetadata;
 }
 
@@ -20,12 +21,13 @@ export function PricingPlanCard({
   isCurrent = false,
   isEffective = false,
   isPending = false,
+  pendingLabel = "Pending change",
   plan,
 }: PricingPlanCardProps) {
   const badges = [
     isCurrent ? "Current billing plan" : null,
     isEffective ? "Effective access" : null,
-    isPending ? "Pending downgrade" : null,
+    isPending ? pendingLabel : null,
   ].filter(Boolean);
 
   return (

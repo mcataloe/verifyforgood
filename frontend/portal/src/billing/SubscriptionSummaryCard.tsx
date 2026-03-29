@@ -67,6 +67,17 @@ function getSubscriptionStatusPresentation(
 ): SubscriptionPresentation {
   const trialState = normalizeStatusToken(snapshot.trialStatus);
   const billingState = normalizeStatusToken(snapshot.billingStatus);
+  const pendingChangeType = normalizeStatusToken(snapshot.pendingChangeType);
+
+  if (pendingChangeType === "cancellation_scheduled") {
+    return {
+      description:
+        "Cancellation is scheduled for the current billing period end. Access remains available until that effective date unless the plan is resumed earlier.",
+      label: "Cancels soon",
+      title: "Cancellation is scheduled",
+      tone: "warning",
+    };
+  }
 
   if (trialState === "active" || billingState === "trialing") {
     return {
@@ -121,10 +132,14 @@ function formatBillingState(value: string): string {
   switch (normalized) {
     case "past_due":
       return "Past due";
+    case "payment_failed":
+      return "Payment failed";
     case "trialing":
       return "Trialing";
     case "expired":
       return "Expired";
+    case "not_enrolled":
+      return "Not enrolled";
     case "active":
       return "Active";
     default:

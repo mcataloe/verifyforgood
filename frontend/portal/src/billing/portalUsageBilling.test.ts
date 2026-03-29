@@ -198,6 +198,7 @@ describe("portal usage billing service", () => {
         billing_status: "active",
         effective_access_plan: "growth",
         pending_downgrade: {
+          change_type: "downgrade_scheduled",
           effective_at: "2026-04-01T00:00:00+00:00",
           plan: "starter",
         },
@@ -231,6 +232,7 @@ describe("portal usage billing service", () => {
     expect(snapshot.source).toBe("backend_subscription");
     expect(snapshot.plan).toBe("pro");
     expect(snapshot.effectiveAccessPlan).toBe("growth");
+    expect(snapshot.pendingChangeType).toBe("downgrade_scheduled");
     expect(snapshot.pendingDowngradePlan).toBe("starter");
     expect(snapshot.usage.limit).toBe(10000);
     expect(snapshot.budgetStatus.allowOverage).toBe(false);

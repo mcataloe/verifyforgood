@@ -41,6 +41,7 @@ function createSnapshot(
     },
     effectiveAccessPlan: "free",
     notice: null,
+    pendingChangeType: null,
     pendingDowngradeEffectiveAt: null,
     pendingDowngradePlan: null,
     plan: "free",
@@ -92,6 +93,25 @@ describe("SubscriptionSummaryCard", () => {
     ).toBeTruthy();
     expect(screen.getAllByText("Trial").length).toBeGreaterThan(0);
     expect(screen.getByText(/no surprises/i)).toBeTruthy();
+  });
+
+  it("displays scheduled cancellation clearly", () => {
+    render(
+      <SubscriptionSummaryCard
+        currentPlan={freePlan}
+        snapshot={createSnapshot({
+          pendingChangeType: "cancellation_scheduled",
+          pendingDowngradeEffectiveAt: "2026-04-01T00:00:00+00:00",
+          pendingDowngradePlan: "free",
+          plan: "growth",
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Cancellation is scheduled" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Cancels soon").length).toBeGreaterThan(0);
   });
 
   it("displays past-due subscriptions clearly", () => {

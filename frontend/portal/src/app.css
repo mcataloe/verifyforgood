@@ -1093,6 +1093,31 @@ code {
   color: #8d2e2e;
 }
 
+.portal-billing-tools {
+  margin-top: var(--vf-space-4);
+  padding: 1rem 1.1rem;
+  border-radius: var(--vf-radius-sm);
+  border: 1px solid rgba(15, 42, 33, 0.08);
+  background: rgba(255, 255, 255, 0.52);
+  display: grid;
+  gap: var(--vf-space-4);
+}
+
+.portal-billing-tools__copy {
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.portal-billing-tools__title,
+.portal-billing-tools__description {
+  margin: 0;
+}
+
+.portal-billing-tools__description {
+  color: var(--vf-color-sage-700);
+  line-height: 1.6;
+}
+
 .portal-dashboard {
   min-width: 0;
 }

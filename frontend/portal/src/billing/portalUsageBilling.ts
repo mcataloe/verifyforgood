@@ -11,6 +11,7 @@ interface BackendBillingSubscriptionResponse {
   billing_status?: string | null;
   effective_access_plan?: string | null;
   pending_downgrade?: {
+    change_type?: string | null;
     effective_at?: string | null;
     plan?: string | null;
   } | null;
@@ -43,6 +44,7 @@ export interface PortalUsageBillingSnapshot {
   budgetStatus: PortalBudgetStatus;
   effectiveAccessPlan: string;
   notice: string | null;
+  pendingChangeType: string | null;
   pendingDowngradeEffectiveAt: string | null;
   pendingDowngradePlan: string | null;
   plan: string;
@@ -134,6 +136,7 @@ function createSnapshotFromSubscription(input: {
       input.source === "backend_subscription"
         ? "Subscription state comes from the backend. Request usage remains a portal-local baseline until a customer usage endpoint exists."
         : "Backend billing visibility was unavailable, so the portal is showing a session-based baseline.",
+    pendingChangeType: input.subscription.pending_downgrade?.change_type ?? null,
     pendingDowngradeEffectiveAt:
       input.subscription.pending_downgrade?.effective_at ?? null,
     pendingDowngradePlan: input.subscription.pending_downgrade?.plan ?? null,
@@ -165,6 +168,7 @@ function createMockSnapshot(input: {
       input.source === "session_mock"
         ? "Demo portal sessions use a local usage baseline until browser identity and customer usage endpoints are available."
         : "Backend billing visibility was unavailable, so the portal is showing a session-based baseline.",
+    pendingChangeType: null,
     pendingDowngradeEffectiveAt: null,
     pendingDowngradePlan: null,
     plan,

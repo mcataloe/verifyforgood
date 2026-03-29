@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { Grid, Panel, PricingPlanGrid } from "@charity-status/shared-ui";
+import { Button, Group, Text } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -21,6 +23,10 @@ import {
   type PortalBillingInteractionsController,
 } from "./usePortalBillingInteractions";
 import { UsageContextPanel } from "./UsageContextPanel";
+import type { PortalUsageBillingSnapshot } from "./portalUsageBilling";
+import type { PortalPricingPlanItem } from "./usePortalPricingPlans";
+import type { BillingInteractionResult } from "./billingInteractions";
+import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface UsageBillingPanelProps {
   billingActionsController?: PortalBillingInteractionsController;
@@ -44,6 +50,14 @@ export function UsageBillingPanel({
   const defaultBillingActionsController = usePortalBillingInteractions();
   const billingActions =
     billingActionsController ?? defaultBillingActionsController;
+  const organization = usePortalOrganization();
+  const [liveSnapshot, setLiveSnapshot] =
+    useState<PortalUsageBillingSnapshot | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLiveSnapshot(billing.snapshot);
+  }, [billing.snapshot]);
 
   if (billing.isLoading || pricingPlans.isLoading) {
     return (
@@ -75,7 +89,12 @@ export function UsageBillingPanel({
     );
   }
 
-  const { snapshot } = billing;
+  const snapshot = liveSnapshot ?? billing.snapshot;
+  if (!snapshot) {
+    return null;
+  }
+
+  const isAdmin = organization.currentMembership?.role === "admin";
   const effectivePlan =
     pricingPlans.plans.find(
       (item) => item.plan.plan_code === snapshot.effectiveAccessPlan,
@@ -86,12 +105,34 @@ export function UsageBillingPanel({
   const currentPlan =
     pricingPlans.plans.find((item) => item.plan.plan_code === snapshot.plan)
       ?.plan ?? null;
+  const pendingSummary = describePendingChange(snapshot);
+  const planItems = pricingPlans.plans.map((item) =>
+    createPlanGridItem({
+      isAdmin,
+      item,
+      onPlanAction: async (planCode) => {
+        setStatusMessage(null);
+        const result = await runPlanAction({
+          billing,
+          billingActions,
+          currentSnapshot: snapshot,
+          planCode,
+          setLiveSnapshot,
+          setStatusMessage,
+        });
+        if (result?.kind === "redirect") {
+          redirectToDestination(result.destinationUrl);
+        }
+      },
+      snapshot,
+    }),
+  );
 
   return (
     <Grid className="portal-page-grid">
       <Panel
-        title="Usage and billing state"
-        subtitle="Simple customer-facing visibility into plan, request usage, and budget enforcement."
+        title="Current subscription"
+        subtitle="Authoritative backend subscription state, billing cycle visibility, and pending billing changes."
       >
         <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
         <SubscriptionSummaryCard
@@ -99,9 +140,24 @@ export function UsageBillingPanel({
           snapshot={snapshot}
         />
 
+        {statusMessage ? (
+          <PortalNotice tone="warning">
+            <p>{statusMessage}</p>
+          </PortalNotice>
+        ) : null}
+
         {snapshot.notice ? (
           <PortalNotice tone="warning">
             <p>{snapshot.notice}</p>
+          </PortalNotice>
+        ) : null}
+
+        {!isAdmin ? (
+          <PortalNotice tone="warning">
+            <p>
+              Billing controls are limited to organization admins. Subscription
+              state remains visible here for shared operator context.
+            </p>
           </PortalNotice>
         ) : null}
 
@@ -134,11 +190,11 @@ export function UsageBillingPanel({
           budgetStatus={snapshot.budgetStatus}
           plan={effectivePlan}
           usage={snapshot.usage}
-        />
+          />
 
         <dl className="portal-shell__details">
           <div>
-            <dt>Effective access</dt>
+          <dt>Effective access</dt>
             <dd>{snapshot.effectiveAccessPlan}</dd>
           </div>
           <div>
@@ -171,19 +227,23 @@ export function UsageBillingPanel({
             <dt>Data source</dt>
             <dd>{snapshot.source}</dd>
           </div>
+          <div>
+            <dt>Pending change</dt>
+            <dd>{pendingSummary.label}</dd>
+          </div>
         </dl>
       </Panel>
 
       <Panel
-        title="Plan catalog"
-        subtitle="Backend-authored pricing metadata with current, effective, and pending plan markers."
+        title="Manage plans"
+        subtitle="Compare backend-seeded plans and take the next valid billing action for the current subscription state."
       >
-        <PricingPlanGrid items={pricingPlans.plans} />
+        <PricingPlanGrid items={planItems} />
       </Panel>
 
       <Panel
-        title="Renewal and billing actions"
-        subtitle="Backend-managed billing interactions stay abstracted away from provider-specific UI details."
+        title="Billing tools"
+        subtitle="Manage invoices and provider billing tools through backend-managed portal sessions."
       >
         {billingActions.error ? (
           <PortalNotice tone="error">
@@ -197,12 +257,16 @@ export function UsageBillingPanel({
             <dd>{snapshot.renewalDate ?? "Not scheduled"}</dd>
           </div>
           <div>
-            <dt>Pending downgrade</dt>
+            <dt>Pending plan</dt>
             <dd>{snapshot.pendingDowngradePlan ?? "None"}</dd>
           </div>
           <div>
-            <dt>Pending downgrade effective at</dt>
+            <dt>Pending change effective at</dt>
             <dd>{snapshot.pendingDowngradeEffectiveAt ?? "Not scheduled"}</dd>
+          </div>
+          <div>
+            <dt>Pending change type</dt>
+            <dd>{pendingSummary.typeLabel}</dd>
           </div>
           <div>
             <dt>Trial status</dt>
@@ -214,31 +278,51 @@ export function UsageBillingPanel({
           </div>
         </dl>
 
-        <ul className="portal-list">
-          <li>
-            `createSubscription(...)` calls the backend checkout endpoint and
-            returns a backend-managed redirect.
-          </li>
-          <li>
-            `updatePlan(...)` calls the backend plan-change endpoint for
-            upgrades and scheduled downgrades.
-          </li>
-          <li>
-            `cancelSubscription(...)` remains vendor-agnostic in the UI and can
-            resolve through backend plan change or backend-managed billing
-            portal routing.
-          </li>
-          <li>
-            Backend routes stay explicit:
-            <code>{endpoints.billingCheckout}</code>,{" "}
-            <code>{endpoints.billingPlanChange}</code>,{" "}
-            <code>{endpoints.billingPortal}</code>.
-          </li>
-        </ul>
+        <div className="portal-billing-tools">
+          <div className="portal-billing-tools__copy">
+            <p className="portal-shell__eyebrow">Invoices & payment methods</p>
+            <h4 className="portal-billing-tools__title">
+              Open the billing portal
+            </h4>
+            <p className="portal-billing-tools__description">
+              Invoice history and payment-method management stay inside the
+              backend-managed provider portal in this phase.
+            </p>
+          </div>
+          <Group gap="sm" wrap="wrap">
+            <Button
+              disabled={!isAdmin}
+              loading={billingActions.isPending}
+              onClick={() => {
+                setStatusMessage(
+                  "Opening the backend-managed billing portal for invoices and payment details.",
+                );
+                void billingActions
+                  .cancelSubscription({
+                    returnUrl: defaultReturnUrl(),
+                    strategy: "backend_billing_portal",
+                  })
+                  .then((result) => {
+                    if (result.kind === "redirect") {
+                      redirectToDestination(result.destinationUrl);
+                    }
+                  })
+                  .catch(() => {});
+              }}
+              variant="filled"
+            >
+              Open billing portal
+            </Button>
+          </Group>
+        </div>
 
-        <p>
-          Signed in plan baseline: <strong>{session.plan}</strong>
-        </p>
+        <Text c="dimmed" fz="sm" mt="md">
+          Signed in plan baseline: <strong>{session.plan}</strong>. Backend
+          routes remain explicit at <code>{endpoints.billingSubscription}</code>
+          , <code>{endpoints.billingCheckout}</code>,{" "}
+          <code>{endpoints.billingPlanChange}</code>, and{" "}
+          <code>{endpoints.billingPortal}</code>.
+        </Text>
       </Panel>
     </Grid>
   );
@@ -251,4 +335,255 @@ function formatUsdMicros(amountUsdMicros: number): string {
     minimumFractionDigits: 3,
     style: "currency",
   }).format(amountUsdMicros / 1_000_000);
+}
+
+function createPlanGridItem(input: {
+  isAdmin: boolean;
+  item: PortalPricingPlanItem;
+  onPlanAction: (planCode: string) => Promise<void>;
+  snapshot: PortalUsageBillingSnapshot;
+}) {
+  const action = resolvePlanAction({
+    item: input.item,
+    snapshot: input.snapshot,
+  });
+
+  return {
+    ...input.item,
+    cta: input.isAdmin ? (
+      <Button
+        disabled={action.disabled}
+        fullWidth
+        onClick={() => {
+          void input.onPlanAction(input.item.plan.plan_code);
+        }}
+        size="sm"
+        variant={action.variant}
+      >
+        {action.label}
+      </Button>
+    ) : undefined,
+    footnote: action.footnote ? (
+      <Text c="dimmed" fz="sm">
+        {action.footnote}
+      </Text>
+    ) : undefined,
+  };
+}
+
+function resolvePlanAction(input: {
+  item: PortalPricingPlanItem;
+  snapshot: PortalUsageBillingSnapshot;
+}) {
+  const targetPlanCode = input.item.plan.plan_code;
+  const currentPlanCode = input.snapshot.plan;
+  const pendingPlanCode = input.snapshot.pendingDowngradePlan;
+  const pendingChangeType = input.snapshot.pendingChangeType;
+
+  if (targetPlanCode === currentPlanCode) {
+    if (pendingPlanCode) {
+      return {
+        disabled: false,
+        footnote:
+          pendingChangeType === "cancellation_scheduled"
+            ? "Clears the scheduled cancellation and keeps the current paid plan."
+            : "Clears the scheduled downgrade and keeps the current plan.",
+        label: "Keep this plan",
+        variant: "default" as const,
+      };
+    }
+
+    return {
+      disabled: true,
+      footnote: "This is the current billing plan.",
+      label: "Current plan",
+      variant: "default" as const,
+    };
+  }
+
+  if (targetPlanCode === pendingPlanCode) {
+    return {
+      disabled: true,
+      footnote:
+        pendingChangeType === "cancellation_scheduled"
+          ? "Cancellation is already scheduled for the current billing period end."
+          : "This downgrade is already scheduled for the next billing cycle.",
+      label:
+        pendingChangeType === "cancellation_scheduled"
+          ? "Cancellation scheduled"
+          : "Downgrade scheduled",
+      variant: "default" as const,
+    };
+  }
+
+  if (currentPlanCode === "free") {
+    return {
+      disabled: false,
+      footnote: "Starts a backend-managed checkout flow for the selected paid plan.",
+      label: "Start checkout",
+      variant: "filled" as const,
+    };
+  }
+
+  if (targetPlanCode === "free") {
+    return {
+      disabled: false,
+      footnote: "Schedules cancellation at the current billing period end.",
+      label: "Cancel at period end",
+      variant: "outline" as const,
+    };
+  }
+
+  if (planRank(targetPlanCode) > planRank(currentPlanCode)) {
+    return {
+      disabled: false,
+      footnote:
+        pendingChangeType === "cancellation_scheduled"
+          ? "Clears the scheduled cancellation and applies the upgrade immediately."
+          : "Upgrades take effect immediately.",
+      label:
+        pendingChangeType === "cancellation_scheduled"
+          ? "Resume and upgrade"
+          : "Upgrade now",
+      variant: "filled" as const,
+    };
+  }
+
+  return {
+    disabled: false,
+    footnote:
+      pendingChangeType === "cancellation_scheduled"
+        ? "Clears the scheduled cancellation and keeps a lower paid plan for the next cycle."
+        : "Schedules the lower paid plan for the next billing cycle.",
+    label:
+      pendingChangeType === "cancellation_scheduled"
+        ? "Resume with scheduled downgrade"
+        : "Schedule downgrade",
+    variant: "default" as const,
+  };
+}
+
+async function runPlanAction(input: {
+  billing: PortalUsageBillingController;
+  billingActions: PortalBillingInteractionsController;
+  currentSnapshot: PortalUsageBillingSnapshot;
+  planCode: string;
+  setLiveSnapshot: (snapshot: PortalUsageBillingSnapshot | null) => void;
+  setStatusMessage: (message: string | null) => void;
+}): Promise<BillingInteractionResult | null> {
+  const result =
+    input.currentSnapshot.plan === "free" && input.planCode !== "free"
+      ? await input.billingActions.createSubscription({
+          cancelUrl: defaultReturnUrl(),
+          planCode: input.planCode,
+          successUrl: defaultReturnUrl(),
+        })
+      : input.planCode === "free"
+        ? await input.billingActions.cancelSubscription()
+        : await input.billingActions.updatePlan({
+            planCode: input.planCode,
+          });
+
+  if (result.kind === "redirect") {
+    input.setStatusMessage(
+      result.action === "manage_billing_portal"
+        ? "Opening the backend-managed billing portal."
+        : "Opening the backend-managed checkout experience.",
+    );
+    return result;
+  }
+
+  input.setLiveSnapshot(applyMutationResult(input.currentSnapshot, result));
+  input.setStatusMessage(describeMutationResult(result));
+  await input.billing.reload();
+  return result;
+}
+
+function applyMutationResult(
+  snapshot: PortalUsageBillingSnapshot,
+  result: Extract<BillingInteractionResult, { kind: "subscription_updated" }>,
+): PortalUsageBillingSnapshot {
+  const pendingChangeType =
+    result.pendingPlanCode === "free"
+      ? "cancellation_scheduled"
+      : result.changeType === "downgrade_scheduled"
+        ? "downgrade_scheduled"
+        : null;
+
+  return {
+    ...snapshot,
+    billingStatus: result.billingStatus ?? snapshot.billingStatus,
+    pendingChangeType,
+    pendingDowngradeEffectiveAt:
+      result.pendingPlanEffectiveAt ?? result.effectiveTo ?? null,
+    pendingDowngradePlan: result.pendingPlanCode,
+    plan: result.currentPlanCode || snapshot.plan,
+    renewalDate: result.billingPeriodEnd ?? snapshot.renewalDate,
+  };
+}
+
+function describeMutationResult(
+  result: Extract<BillingInteractionResult, { kind: "subscription_updated" }>,
+) {
+  switch (result.changeType) {
+    case "upgrade":
+      return result.reused
+        ? "The requested upgrade is already reflected in the current billing state."
+        : "The plan upgrade was applied immediately.";
+    case "downgrade_scheduled":
+      return result.reused
+        ? "That downgrade is already scheduled for the next billing cycle."
+        : "The downgrade is scheduled for the next billing cycle.";
+    case "cancellation_scheduled":
+      return result.reused
+        ? "Cancellation is already scheduled for the end of the current billing period."
+        : "Cancellation is scheduled for the end of the current billing period.";
+    case "pending_change_cleared":
+      return "The pending billing change was cleared and the current plan will continue.";
+    default:
+      return "The subscription state was updated.";
+  }
+}
+
+function describePendingChange(snapshot: PortalUsageBillingSnapshot) {
+  if (!snapshot.pendingDowngradePlan) {
+    return {
+      label: "None",
+      typeLabel: "None",
+    };
+  }
+
+  if (snapshot.pendingChangeType === "cancellation_scheduled") {
+    return {
+      label: `Cancellation to ${snapshot.pendingDowngradePlan} on ${snapshot.pendingDowngradeEffectiveAt ?? "the current period end"}`,
+      typeLabel: "Cancellation at period end",
+    };
+  }
+
+  return {
+    label: `Downgrade to ${snapshot.pendingDowngradePlan} on ${snapshot.pendingDowngradeEffectiveAt ?? "the next billing cycle"}`,
+    typeLabel: "Scheduled downgrade",
+  };
+}
+
+function planRank(planCode: string): number {
+  return ["free", "starter", "growth", "pro", "enterprise"].indexOf(
+    planCode,
+  );
+}
+
+function defaultReturnUrl(): string {
+  if (typeof window === "undefined") {
+    return "https://example.com/billing";
+  }
+
+  return window.location.href;
+}
+
+function redirectToDestination(url: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.location.assign(url);
 }

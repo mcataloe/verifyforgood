@@ -101,7 +101,7 @@ describe("billingInteractions", () => {
         return {
           billing_period_end: "2026-04-01T00:00:00+00:00",
           billing_status: "active",
-          change_type: "downgrade_scheduled",
+          change_type: "cancellation_scheduled",
           current_plan_code: "growth",
           effective_from: "2026-03-01T00:00:00+00:00",
           effective_to: null,
@@ -121,7 +121,7 @@ describe("billingInteractions", () => {
       action: "cancel_subscription",
       billingPeriodEnd: "2026-04-01T00:00:00+00:00",
       billingStatus: "active",
-      changeType: "downgrade_scheduled",
+      changeType: "cancellation_scheduled",
       currentPlanCode: "growth",
       effectiveFrom: "2026-03-01T00:00:00+00:00",
       effectiveTo: null,

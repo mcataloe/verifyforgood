@@ -339,3 +339,23 @@ Phase 21E keeps webhook reconciliation replay-safe by persisting structured bill
 ### Constraint
 
 Keep the Phase 21E local billing event model compact and organization-scoped so any future raw-payload archival is additive and does not change the current webhook reconciliation contract.
+
+## TODO-ARCH-016
+
+### Title
+
+Decide when the portal should expose direct invoice history instead of routing invoice access through the billing portal.
+
+### Rationale
+
+Phase 21G completes the frontend billing management experience using the existing backend-managed billing portal session as the invoice access path. That keeps the customer experience unblocked, but it leaves open whether the product should eventually show invoice rows, download links, and payment history directly inside the portal once the backend exposes a first-class invoice endpoint.
+
+### Migration Triggers
+
+- finance or support workflows require in-portal invoice visibility
+- customers expect downloadable invoices without leaving the portal
+- backend billing APIs add invoice listing or invoice-detail endpoints
+
+### Constraint
+
+Keep the Phase 21 billing UI and backend billing-session abstractions stable so future direct invoice history support is additive and does not replace the current provider-portal entry point.

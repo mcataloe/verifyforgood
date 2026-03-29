@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it, vi } from "vitest";
 import {
   PortalOrganizationContext,
@@ -31,13 +32,18 @@ const endpoints: PortalEndpoints = {
 function renderWithOrganization(
   controller: PortalUsageBillingController,
   plansController: PortalPricingPlansController,
+  options?: {
+    billingActionsController?: PortalBillingInteractionsController;
+    membershipRole?: "admin" | "user";
+  },
 ) {
-  const billingActionsController: PortalBillingInteractionsController = {
+  const billingActionsController: PortalBillingInteractionsController =
+    options?.billingActionsController ?? {
     cancelSubscription: vi.fn(async () => ({
       action: "cancel_subscription" as const,
       billingPeriodEnd: null,
       billingStatus: "active",
-      changeType: "updated",
+      changeType: "cancellation_scheduled",
       currentPlanCode: "free",
       effectiveFrom: null,
       effectiveTo: null,
@@ -83,7 +89,7 @@ function renderWithOrganization(
     }),
     apiClient: {} as PortalOrganizationContextValue["apiClient"],
     currentMembership: {
-      role: "admin",
+      role: options?.membershipRole ?? "admin",
       status: "active",
       user_id: "user_verifyforgood_demo",
     },
@@ -99,15 +105,17 @@ function renderWithOrganization(
   };
 
   render(
-    <PortalOrganizationContext.Provider value={value}>
-      <UsageBillingPanel
-        billingActionsController={billingActionsController}
-        controller={controller}
-        endpoints={endpoints}
-        plansController={plansController}
-        session={createMockPortalSession()}
-      />
-    </PortalOrganizationContext.Provider>,
+    <VerifyForGoodMantineProvider defaultColorScheme="light">
+      <PortalOrganizationContext.Provider value={value}>
+        <UsageBillingPanel
+          billingActionsController={billingActionsController}
+          controller={controller}
+          endpoints={endpoints}
+          plansController={plansController}
+          session={createMockPortalSession()}
+        />
+      </PortalOrganizationContext.Provider>
+    </VerifyForGoodMantineProvider>,
   );
 }
 
@@ -130,6 +138,7 @@ describe("UsageBillingPanel", () => {
         },
         effectiveAccessPlan: "growth",
         notice: "Subscription state comes from the backend.",
+        pendingChangeType: "downgrade_scheduled",
         pendingDowngradeEffectiveAt: "2026-04-01T00:00:00+00:00",
         pendingDowngradePlan: "starter",
         plan: "pro",
@@ -278,7 +287,10 @@ describe("UsageBillingPanel", () => {
     renderWithOrganization(controller, plansController);
 
     expect(
-      screen.getByRole("heading", { name: "Usage and billing state" }),
+      screen.queryByRole("heading", { name: "Usage and billing state" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Current subscription" }),
     ).toBeTruthy();
     expect(screen.getByText("19,000 / 100,000")).toBeTruthy();
     expect(
@@ -302,12 +314,19 @@ describe("UsageBillingPanel", () => {
       screen.getByText("/v1/organization/billing/checkout-session"),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Plan catalog" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Manage plans" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
     expect(screen.getAllByText("Effective access").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Pending downgrade").length).toBeGreaterThan(0);
-    expect(screen.getByText(/createSubscription/i)).toBeTruthy();
-    expect(screen.getByText(/cancelSubscription/i)).toBeTruthy();
+    expect(screen.getByText("Scheduled downgrade")).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Schedule downgrade" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Keep this plan" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Cancel at period end" }),
+    ).toBeTruthy();
 
     vi.useRealTimers();
   });
@@ -355,6 +374,7 @@ describe("UsageBillingPanel", () => {
         },
         effectiveAccessPlan: "growth",
         notice: null,
+        pendingChangeType: null,
         pendingDowngradeEffectiveAt: null,
         pendingDowngradePlan: null,
         plan: "free",
@@ -454,5 +474,449 @@ describe("UsageBillingPanel", () => {
     ).toBeTruthy();
 
     vi.useRealTimers();
+  });
+
+  it("hides billing mutation controls for non-admin membership", () => {
+    const reload = vi.fn(async () => {});
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: true,
+          label: "Overage allowed beyond included usage",
+          policySource: "backend_default",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: null,
+        pendingDowngradeEffectiveAt: null,
+        pendingDowngradePlan: null,
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 6900,
+          source: "mock_plan_baseline",
+          used: 3100,
+          usagePercent: 31,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [
+        {
+          highlighted: true,
+          isCurrent: true,
+          isEffective: true,
+          isPending: false,
+          pendingLabel: "Pending downgrade",
+          plan: {
+            display_name: "Growth",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 100,
+              monthly_requests: 10000,
+              requests_per_minute: 120,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 3000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "growth",
+          },
+        },
+      ],
+      reload,
+    };
+
+    renderWithOrganization(controller, plansController, {
+      membershipRole: "user",
+    });
+
+    expect(
+      screen.getByText(/Billing controls are limited to organization admins/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Current plan" })).toBeNull();
+    expect(
+      (
+        screen.getByRole("button", { name: "Open billing portal" }) as
+          | HTMLButtonElement
+          | null
+      )?.disabled,
+    ).toBe(true);
+  });
+
+  it("supports scheduling cancellation and refreshing visible subscription state", async () => {
+    const reload = vi.fn(async () => {});
+    const cancelSubscription = vi.fn(async () => ({
+      action: "cancel_subscription" as const,
+      billingPeriodEnd: "2026-04-01T00:00:00+00:00",
+      billingStatus: "active",
+      changeType: "cancellation_scheduled",
+      currentPlanCode: "growth",
+      effectiveFrom: "2026-03-01T00:00:00+00:00",
+      effectiveTo: null,
+      kind: "subscription_updated" as const,
+      pendingPlanCode: "free",
+      pendingPlanEffectiveAt: "2026-04-01T00:00:00+00:00",
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    }));
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: true,
+          label: "Overage allowed beyond included usage",
+          policySource: "backend_default",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: null,
+        pendingDowngradeEffectiveAt: null,
+        pendingDowngradePlan: null,
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 6900,
+          source: "mock_plan_baseline",
+          used: 3100,
+          usagePercent: 31,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [
+        {
+          highlighted: true,
+          isCurrent: true,
+          isEffective: true,
+          isPending: false,
+          pendingLabel: "Pending downgrade",
+          plan: {
+            display_name: "Growth",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 100,
+              monthly_requests: 10000,
+              requests_per_minute: 120,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 3000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "growth",
+          },
+        },
+        {
+          highlighted: false,
+          isCurrent: false,
+          isEffective: false,
+          isPending: false,
+          pendingLabel: "Pending downgrade",
+          plan: {
+            display_name: "Free",
+            feature_availability: {
+              batch_verification: false,
+              benchmarking: false,
+              financial_trends: false,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: false,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 0,
+              monthly_requests: 250,
+              requests_per_minute: 10,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 5000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "free",
+          },
+        },
+      ],
+      reload,
+    };
+    const billingActionsController: PortalBillingInteractionsController = {
+      cancelSubscription,
+      clearError: vi.fn(),
+      createSubscription: vi.fn(),
+      error: null,
+      isPending: false,
+      updatePlan: vi.fn(),
+    };
+
+    renderWithOrganization(controller, plansController, {
+      billingActionsController,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel at period end" }));
+
+    await waitFor(() => {
+      expect(cancelSubscription).toHaveBeenCalled();
+    });
+    expect(
+      screen.getByText(/Cancellation is scheduled for the end of the current billing period/i),
+    ).toBeTruthy();
+    expect(screen.getByText("Cancellation at period end")).toBeTruthy();
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("supports resuming from a pending cancellation", async () => {
+    const reload = vi.fn(async () => {});
+    const updatePlan = vi.fn(async () => ({
+      action: "update_plan" as const,
+      billingPeriodEnd: "2026-04-01T00:00:00+00:00",
+      billingStatus: "active",
+      changeType: "pending_change_cleared",
+      currentPlanCode: "growth",
+      effectiveFrom: "2026-03-01T00:00:00+00:00",
+      effectiveTo: null,
+      kind: "subscription_updated" as const,
+      pendingPlanCode: null,
+      pendingPlanEffectiveAt: null,
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    }));
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: true,
+          label: "Overage allowed beyond included usage",
+          policySource: "backend_default",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: "cancellation_scheduled",
+        pendingDowngradeEffectiveAt: "2026-04-01T00:00:00+00:00",
+        pendingDowngradePlan: "free",
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 6900,
+          source: "mock_plan_baseline",
+          used: 3100,
+          usagePercent: 31,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [
+        {
+          highlighted: true,
+          isCurrent: true,
+          isEffective: true,
+          isPending: false,
+          pendingLabel: "Pending cancellation",
+          plan: {
+            display_name: "Growth",
+            feature_availability: {
+              batch_verification: true,
+              benchmarking: true,
+              financial_trends: true,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: true,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 100,
+              monthly_requests: 10000,
+              requests_per_minute: 120,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 3000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "growth",
+          },
+        },
+        {
+          highlighted: true,
+          isCurrent: false,
+          isEffective: false,
+          isPending: true,
+          pendingLabel: "Pending cancellation",
+          plan: {
+            display_name: "Free",
+            feature_availability: {
+              batch_verification: false,
+              benchmarking: false,
+              financial_trends: false,
+              monitoring: false,
+              organization_settings: false,
+              risk_flags: false,
+              state_registry: false,
+              verification: true,
+            },
+            included_usage: {
+              batch_items: 0,
+              monthly_requests: 250,
+              requests_per_minute: 10,
+            },
+            per_request_pricing: {
+              amount_usd_micros: 5000,
+              currency_code: "USD",
+              unit: "request",
+            },
+            plan_code: "free",
+          },
+        },
+      ],
+      reload,
+    };
+    const billingActionsController: PortalBillingInteractionsController = {
+      cancelSubscription: vi.fn(),
+      clearError: vi.fn(),
+      createSubscription: vi.fn(),
+      error: null,
+      isPending: false,
+      updatePlan,
+    };
+
+    renderWithOrganization(controller, plansController, {
+      billingActionsController,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep this plan" }));
+
+    await waitFor(() => {
+      expect(updatePlan).toHaveBeenCalledWith({ planCode: "growth" });
+    });
+    expect(
+      screen.getByText(/The pending billing change was cleared/i),
+    ).toBeTruthy();
+  });
+
+  it("opens the backend billing portal for invoices and provider tools", async () => {
+    const reload = vi.fn(async () => {});
+    const cancelSubscription = vi.fn(async () => ({
+      action: "cancel_subscription" as const,
+      destinationUrl: "https://billing.example.test/portal",
+      kind: "redirect" as const,
+      providerBoundary: "backend_managed" as const,
+      reused: false,
+    }));
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign, href: "https://example.com/billing" },
+    });
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: true,
+          label: "Overage allowed beyond included usage",
+          policySource: "backend_default",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: null,
+        pendingDowngradeEffectiveAt: null,
+        pendingDowngradePlan: null,
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 6900,
+          source: "mock_plan_baseline",
+          used: 3100,
+          usagePercent: 31,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [],
+      reload,
+    };
+    const billingActionsController: PortalBillingInteractionsController = {
+      cancelSubscription,
+      clearError: vi.fn(),
+      createSubscription: vi.fn(),
+      error: null,
+      isPending: false,
+      updatePlan: vi.fn(),
+    };
+
+    renderWithOrganization(controller, plansController, {
+      billingActionsController,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open billing portal" }));
+
+    await waitFor(() => {
+      expect(cancelSubscription).toHaveBeenCalledWith({
+        returnUrl: "https://example.com/billing",
+        strategy: "backend_billing_portal",
+      });
+    });
+    expect(assign).toHaveBeenCalledWith("https://billing.example.test/portal");
   });
 });

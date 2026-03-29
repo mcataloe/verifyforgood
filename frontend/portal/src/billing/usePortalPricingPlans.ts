@@ -12,6 +12,7 @@ export interface PortalPricingPlanItem {
   isCurrent: boolean;
   isEffective: boolean;
   isPending: boolean;
+  pendingLabel?: string;
   plan: PricingPlanMetadata;
 }
 
@@ -93,6 +94,10 @@ export function usePortalPricingPlans(
       isCurrent: snapshot?.plan === plan.plan_code,
       isEffective: snapshot?.effectiveAccessPlan === plan.plan_code,
       isPending: snapshot?.pendingDowngradePlan === plan.plan_code,
+      pendingLabel:
+        snapshot?.pendingChangeType === "cancellation_scheduled"
+          ? "Pending cancellation"
+          : "Pending downgrade",
       plan,
     })),
     reload,

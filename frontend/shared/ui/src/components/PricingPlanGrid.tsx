@@ -9,6 +9,7 @@ export interface PricingPlanGridItem {
   isCurrent?: boolean;
   isEffective?: boolean;
   isPending?: boolean;
+  pendingLabel?: string;
   plan: PricingPlanMetadata;
 }
 
@@ -28,6 +29,7 @@ export function PricingPlanGrid({ items }: PricingPlanGridProps) {
           isCurrent={item.isCurrent}
           isEffective={item.isEffective}
           isPending={item.isPending}
+          pendingLabel={item.pendingLabel}
           plan={item.plan}
         />
       ))}

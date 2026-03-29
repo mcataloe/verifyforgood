@@ -2,11 +2,11 @@
 
 ## Status
 
-plan lifecycle management complete
+frontend billing experience complete
 
 ## Next Phase
 
-21G
+21H
 
 ## Scope
 
