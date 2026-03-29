@@ -1240,6 +1240,63 @@ def test_post_organization_billing_plan_change_returns_plan_payload():
     assert body["change_type"] == "downgrade_scheduled"
 
 
+def test_post_organization_billing_plan_change_returns_cancellation_payload():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Plan Change Account", "ein": "123456789"})
+
+    class _PlanChangeService:
+        def change_plan(self, *, account_id: str, payload: dict[str, object]) -> dict[str, object]:
+            assert account_id == account["id"]
+            assert payload == {"plan_code": "free"}
+            return {
+                "account_id": account_id,
+                "current_plan_code": "pro",
+                "pending_plan_code": "free",
+                "effective_from": "2026-03-01T00:00:00+00:00",
+                "effective_to": None,
+                "billing_period_start": "2026-03-01T00:00:00+00:00",
+                "billing_period_end": "2026-04-01T00:00:00+00:00",
+                "pending_plan_effective_at": "2026-04-01T00:00:00+00:00",
+                "billing_status": "active",
+                "change_type": "cancellation_scheduled",
+                "reused": False,
+            }
+
+    module.billing_plan_change_service = _PlanChangeService()
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/plan-change",
+            "path": "/v1/organization/billing/plan-change",
+            "headers": {},
+            "body": json.dumps({"plan_code": "free"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["pending_plan_code"] == "free"
+    assert body["change_type"] == "cancellation_scheduled"
+
+
 def test_post_organization_billing_plan_change_requires_admin_membership():
     module = _load_module()
     module.billing_plan_change_service = SimpleNamespace(
@@ -1400,6 +1457,7 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
         "pending_downgrade": {
             "plan": "growth",
             "effective_at": "2026-04-01T00:00:00+00:00",
+            "change_type": "downgrade_scheduled",
         },
         "trial": None,
     }
@@ -1510,6 +1568,67 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
             "status": "active",
             "ends_at": "2026-04-02T00:00:00+00:00",
         },
+    }
+
+
+def test_get_organization_billing_subscription_surfaces_pending_cancellation():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Cancel Visibility Account", "ein": "123456789"})
+    module.control_plane_service.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="pro",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            billing_period_start="2026-03-01T00:00:00+00:00",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            pending_plan_code="free",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            cancel_at_period_end=True,
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=("verify:read",),
+                metadata={},
+                workspace_id=account["id"],
+                account_id=account["id"],
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
+
+    class _QuotaHook:
+        def on_request(self, auth_context, route_key):
+            return None
+
+        def on_response(self, auth_context, route_key, status_code):
+            return None
+
+    module.auth_context_provider = _AuthProvider()
+    module.quota_metering_hook = _QuotaHook()
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/billing/subscription",
+            "path": "/v1/organization/billing/subscription",
+            "headers": {},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    assert _response_data(result)["pending_downgrade"] == {
+        "plan": "free",
+        "effective_at": "2026-04-01T00:00:00+00:00",
+        "change_type": "cancellation_scheduled",
     }
 
 

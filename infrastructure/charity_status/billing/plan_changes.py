@@ -146,7 +146,7 @@ class BillingPlanChangeService:
         if request.plan_code == current_plan_code and not pending_plan_is_set:
             raise BillingConflictError("Organization is already enrolled in the requested plan")
         if request.plan_code == pending_plan_code and pending_plan_is_set:
-            return self._response_payload(subscription, change_type="downgrade_scheduled", reused=True)
+            return self._response_payload(subscription, change_type=_scheduled_change_type(request.plan_code), reused=True)
 
         stripe_subscription_id = _clean_text(getattr(subscription, "stripe_subscription_id", None))
         if not stripe_subscription_id:
@@ -207,7 +207,7 @@ class BillingPlanChangeService:
             account_id=str(subscription.account_id),
             plan_code=requested_plan_code,
             price_id=price_id,
-            idempotency_key=f"plan-change:{subscription.account_id}:upgrade:{requested_plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+            idempotency_key=f"plan-change:{subscription.account_id}:upgrade:{requested_plan_code}",
         )
         updated = replace(
             subscription,
@@ -221,6 +221,7 @@ class BillingPlanChangeService:
             billing_status=updated_remote.status,
             billing_period_start=updated_remote.current_period_start or getattr(subscription, "billing_period_start", None),
             billing_period_end=updated_remote.current_period_end or getattr(subscription, "billing_period_end", None),
+            cancel_at_period_end=False,
             pending_plan_code=None,
             pending_plan_effective_at=None,
             pending_checkout_session_id=None,
@@ -242,11 +243,18 @@ class BillingPlanChangeService:
         if not current_period_end:
             raise BillingConflictError("Stripe subscription is missing a current billing period end")
         if requested_plan_code == "free":
+            existing_schedule_id = stripe_subscription.schedule_id or _clean_text(getattr(subscription, "stripe_subscription_schedule_id", None))
+            if existing_schedule_id:
+                self._stripe_client.release_schedule(
+                    schedule_id=existing_schedule_id,
+                    idempotency_key=f"plan-change:{subscription.account_id}:release:{existing_schedule_id}",
+                )
+                stripe_subscription = self._stripe_client.retrieve_subscription(subscription_id=stripe_subscription.subscription_id)
             if not stripe_subscription.cancel_at_period_end:
                 updated_remote = self._stripe_client.set_cancel_at_period_end(
                     subscription_id=stripe_subscription.subscription_id,
                     cancel_at_period_end=True,
-                    idempotency_key=f"plan-change:{subscription.account_id}:cancel:{requested_plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+                    idempotency_key=f"plan-change:{subscription.account_id}:cancel",
                 )
             else:
                 updated_remote = stripe_subscription
@@ -259,19 +267,19 @@ class BillingPlanChangeService:
                 stripe_subscription = self._stripe_client.set_cancel_at_period_end(
                     subscription_id=stripe_subscription.subscription_id,
                     cancel_at_period_end=False,
-                    idempotency_key=f"plan-change:{subscription.account_id}:uncancel:{requested_plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+                    idempotency_key=f"plan-change:{subscription.account_id}:uncancel:{requested_plan_code}",
                 )
             schedule_id = stripe_subscription.schedule_id or _clean_text(getattr(subscription, "stripe_subscription_schedule_id", None))
             if schedule_id:
                 self._stripe_client.release_schedule(
                     schedule_id=schedule_id,
-                    idempotency_key=f"plan-change:{subscription.account_id}:release:{schedule_id}:{int(datetime.now(timezone.utc).timestamp())}",
+                    idempotency_key=f"plan-change:{subscription.account_id}:release:{schedule_id}",
                 )
                 stripe_subscription = self._stripe_client.retrieve_subscription(subscription_id=stripe_subscription.subscription_id)
             requested_price = self._stripe_client.retrieve_price(price_id=price_id)
             schedule_id = self._stripe_client.create_schedule_from_subscription(
                 subscription_id=stripe_subscription.subscription_id,
-                idempotency_key=f"plan-change:{subscription.account_id}:schedule:{requested_plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"plan-change:{subscription.account_id}:schedule:{requested_plan_code}",
             )
             schedule_id = self._stripe_client.update_schedule_for_downgrade(
                 schedule_id=schedule_id,
@@ -279,7 +287,7 @@ class BillingPlanChangeService:
                 requested_price=requested_price,
                 account_id=str(subscription.account_id),
                 requested_plan_code=requested_plan_code,
-                idempotency_key=f"plan-change:{subscription.account_id}:schedule-update:{requested_plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"plan-change:{subscription.account_id}:schedule-update:{requested_plan_code}",
             )
             updated_remote = self._stripe_client.retrieve_subscription(subscription_id=stripe_subscription.subscription_id)
 
@@ -291,12 +299,13 @@ class BillingPlanChangeService:
             billing_status=updated_remote.status,
             billing_period_start=updated_remote.current_period_start or getattr(subscription, "billing_period_start", None),
             billing_period_end=updated_remote.current_period_end or current_period_end,
+            cancel_at_period_end=(requested_plan_code == "free"),
             pending_plan_code=requested_plan_code,
             pending_plan_effective_at=current_period_end,
             updated_at=_utcnow(),
         )
         self._store.put_subscription(updated)
-        return self._response_payload(updated, change_type="downgrade_scheduled", reused=False)
+        return self._response_payload(updated, change_type=_scheduled_change_type(requested_plan_code), reused=False)
 
     def _clear_pending_change(
         self,
@@ -312,13 +321,13 @@ class BillingPlanChangeService:
         if schedule_id:
             self._stripe_client.release_schedule(
                 schedule_id=schedule_id,
-                idempotency_key=f"plan-change:{subscription.account_id}:release:{schedule_id}:{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"plan-change:{subscription.account_id}:release:{schedule_id}",
             )
         if current_remote is not None and current_remote.cancel_at_period_end:
             current_remote = self._stripe_client.set_cancel_at_period_end(
                 subscription_id=current_remote.subscription_id,
                 cancel_at_period_end=False,
-                idempotency_key=f"plan-change:{subscription.account_id}:uncancel:{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"plan-change:{subscription.account_id}:uncancel",
             )
         updated = replace(
             subscription,
@@ -326,6 +335,7 @@ class BillingPlanChangeService:
             billing_status=(current_remote.status if current_remote is not None else getattr(subscription, "billing_status", None)),
             billing_period_start=(current_remote.current_period_start if current_remote is not None else getattr(subscription, "billing_period_start", None)),
             billing_period_end=(current_remote.current_period_end if current_remote is not None else getattr(subscription, "billing_period_end", None)),
+            cancel_at_period_end=False,
             pending_plan_code=None,
             pending_plan_effective_at=None,
             updated_at=_utcnow(),
@@ -516,6 +526,10 @@ def _plan_rank(plan_code: str) -> int:
         return PLAN_CHANGE_SEQUENCE.index(plan_code)
     except ValueError:
         return 0
+
+
+def _scheduled_change_type(plan_code: str) -> str:
+    return "cancellation_scheduled" if plan_code == "free" else "downgrade_scheduled"
 
 
 def _subscription_snapshot_from_response(payload: dict[str, Any]) -> StripeSubscriptionSnapshot:

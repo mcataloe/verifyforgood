@@ -60,7 +60,10 @@ Phase 21D implementation decision:
 ### Upgrade and Downgrade Handling
 
 - Support explicit upgrade and downgrade flows through backend billing services.
-- Keep downgrade timing semantics documented as an open decision until the policy is finalized.
+- Upgrades take effect immediately.
+- Downgrades to lower paid plans take effect at the next billing cycle.
+- `plan_code=free` is the cancellation request and uses `cancel_at_period_end=true`.
+- Resume and uncancel remain implicit through the existing `POST /v1/organization/billing/plan-change` endpoint: a later paid-plan request clears a pending cancellation or replaces it with a scheduled downgrade.
 - Preserve backend control over when entitlements and feature access change.
 
 ### Graceful Failure and Reconciliation Strategy

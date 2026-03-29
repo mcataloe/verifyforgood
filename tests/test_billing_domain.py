@@ -92,6 +92,27 @@ def test_entitlement_service_keeps_current_plan_during_pending_downgrade():
     assert resolved.entitlements.monthly_request_limit == 100000
 
 
+def test_entitlement_service_keeps_current_plan_during_pending_cancellation():
+    service = EntitlementService(
+        subscriptions={
+            "acct_1": Subscription(
+                account_id="acct_1",
+                plan_code="pro",
+                status="active",
+                billing_status="active",
+                pending_plan_code="free",
+                pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+                cancel_at_period_end=True,
+            )
+        }
+    )
+
+    resolved = service.resolve(account_id="acct_1", now=datetime(2026, 3, 15, tzinfo=timezone.utc))
+
+    assert resolved.subscription.plan_code == "pro"
+    assert resolved.entitlements.monthly_request_limit == 100000
+
+
 def test_entitlement_service_grants_trial_entitlements_while_billing_plan_stays_free():
     service = EntitlementService(
         subscriptions={

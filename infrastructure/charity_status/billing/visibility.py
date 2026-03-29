@@ -78,11 +78,18 @@ def _pending_downgrade_payload(subscription: object, *, current_plan_code: str, 
     effective_at = getattr(subscription, "pending_plan_effective_at", None)
     if not effective_at or pending_plan_code == current_plan_code:
         return None
+    if pending_plan_code == "free":
+        return {
+            "plan": pending_plan_code,
+            "effective_at": effective_at,
+            "change_type": "cancellation_scheduled",
+        }
     if _plan_rank(pending_plan_code) >= _plan_rank(current_plan_code):
         return None
     return {
         "plan": pending_plan_code,
         "effective_at": effective_at,
+        "change_type": "downgrade_scheduled",
     }
 
 

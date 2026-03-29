@@ -22,7 +22,7 @@ class _StripePlanChangeClient:
     def apply_immediate_plan_change(self, *, subscription: StripeSubscriptionSnapshot, account_id: str, plan_code: str, price_id: str, idempotency_key: str) -> StripeSubscriptionSnapshot:
         assert account_id.startswith("acct_")
         assert plan_code
-        assert idempotency_key.startswith(f"plan-change:{account_id}:upgrade:")
+        assert idempotency_key == f"plan-change:{account_id}:upgrade:{plan_code}"
         self.applied_price_ids.append(price_id)
         self.snapshot = StripeSubscriptionSnapshot(
             subscription_id=subscription.subscription_id,
@@ -230,6 +230,7 @@ def test_billing_plan_change_schedules_downgrade_for_next_billing_cycle():
     assert updated.pending_plan_effective_at == "2026-04-01T00:00:00+00:00"
     assert updated.stripe_subscription_schedule_id == "sub_sched_test_123"
     assert stripe.scheduled_plan_price_ids == ["price_growth"]
+    assert updated.cancel_at_period_end is False
 
 
 def test_billing_plan_change_upgrade_overrides_pending_downgrade():
@@ -289,6 +290,173 @@ def test_billing_plan_change_upgrade_overrides_pending_downgrade():
     assert updated.pending_plan_code is None
     assert stripe.released_schedules == ["sub_sched_test_123"]
     assert stripe.applied_price_ids == ["price_enterprise"]
+    assert updated.cancel_at_period_end is False
+
+
+def test_billing_plan_change_schedules_cancellation_at_period_end():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Cancel Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="pro",
+            status="active",
+            effective_from="2026-03-01T00:00:00+00:00",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            stripe_subscription_schedule_id="sub_sched_test_123",
+            billing_status="active",
+            billing_period_start="2026-03-01T00:00:00+00:00",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            pending_plan_code="growth",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    stripe = _StripePlanChangeClient(
+        StripeSubscriptionSnapshot(
+            subscription_id="sub_test_123",
+            customer_id="cus_test_123",
+            item_id="si_test_123",
+            price_id="price_pro",
+            status="active",
+            current_period_start="2026-03-01T00:00:00+00:00",
+            current_period_end="2026-04-01T00:00:00+00:00",
+            current_period_start_epoch=1772323200,
+            current_period_end_epoch=1775001600,
+            quantity=1,
+            cancel_at_period_end=False,
+            schedule_id="sub_sched_test_123",
+        )
+    )
+    service = BillingPlanChangeService(
+        store=control_plane.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth", "pro": "price_pro"},
+        ),
+        stripe_client=stripe,
+    )
+
+    result = service.change_plan(account_id=account["id"], payload={"plan_code": "free"})
+    updated = control_plane.store.get_subscription(account["id"])
+
+    assert result["change_type"] == "cancellation_scheduled"
+    assert result["current_plan_code"] == "pro"
+    assert result["pending_plan_code"] == "free"
+    assert updated is not None
+    assert updated.plan_code == "pro"
+    assert updated.pending_plan_code == "free"
+    assert updated.pending_plan_effective_at == "2026-04-01T00:00:00+00:00"
+    assert updated.cancel_at_period_end is True
+    assert updated.stripe_subscription_schedule_id is None
+    assert stripe.released_schedules == ["sub_sched_test_123"]
+
+
+def test_billing_plan_change_reuses_matching_pending_cancellation():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Cancel Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="pro",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            pending_plan_code="free",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            cancel_at_period_end=True,
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    service = BillingPlanChangeService(
+        store=control_plane.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth", "pro": "price_pro"},
+        ),
+        stripe_client=_StripePlanChangeClient(
+            StripeSubscriptionSnapshot(
+                subscription_id="sub_test_123",
+                customer_id="cus_test_123",
+                item_id="si_test_123",
+                price_id="price_pro",
+                status="active",
+                current_period_start="2026-03-01T00:00:00+00:00",
+                current_period_end="2026-04-01T00:00:00+00:00",
+                current_period_start_epoch=1772323200,
+                current_period_end_epoch=1775001600,
+                quantity=1,
+                cancel_at_period_end=True,
+                schedule_id=None,
+            )
+        ),
+    )
+
+    result = service.change_plan(account_id=account["id"], payload={"plan_code": "free"})
+
+    assert result["change_type"] == "cancellation_scheduled"
+    assert result["reused"] is True
+
+
+def test_billing_plan_change_paid_request_clears_pending_cancellation_and_schedules_lower_paid_plan():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Resume Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        ManagedSubscription(
+            account_id=account["id"],
+            plan_code="pro",
+            status="active",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            billing_status="active",
+            billing_period_start="2026-03-01T00:00:00+00:00",
+            billing_period_end="2026-04-01T00:00:00+00:00",
+            pending_plan_code="free",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            cancel_at_period_end=True,
+            updated_at="2026-03-19T00:00:00+00:00",
+        )
+    )
+    stripe = _StripePlanChangeClient(
+        StripeSubscriptionSnapshot(
+            subscription_id="sub_test_123",
+            customer_id="cus_test_123",
+            item_id="si_test_123",
+            price_id="price_pro",
+            status="active",
+            current_period_start="2026-03-01T00:00:00+00:00",
+            current_period_end="2026-04-01T00:00:00+00:00",
+            current_period_start_epoch=1772323200,
+            current_period_end_epoch=1775001600,
+            quantity=1,
+            cancel_at_period_end=True,
+            schedule_id=None,
+        )
+    )
+    service = BillingPlanChangeService(
+        store=control_plane.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth", "pro": "price_pro"},
+        ),
+        stripe_client=stripe,
+    )
+
+    result = service.change_plan(account_id=account["id"], payload={"plan_code": "growth"})
+    updated = control_plane.store.get_subscription(account["id"])
+
+    assert result["change_type"] == "downgrade_scheduled"
+    assert result["pending_plan_code"] == "growth"
+    assert updated is not None
+    assert updated.pending_plan_code == "growth"
+    assert updated.cancel_at_period_end is False
+    assert updated.stripe_subscription_schedule_id == "sub_sched_test_123"
 
 
 def test_billing_plan_change_surfaces_stripe_failures():

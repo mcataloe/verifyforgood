@@ -278,21 +278,27 @@ Keep the organization-scoped billing model and backend billing abstractions stab
 
 ### Title
 
-Confirm downgrade semantics for paid subscriptions: immediate restriction or next-cycle effective change.
+Define remaining edge-policy semantics for Stripe-backed plan lifecycle management.
 
 ### Rationale
 
-Stripe-backed plan changes need a durable downgrade policy so entitlement enforcement, billing communication, and webhook-driven synchronization remain consistent. Customer expectations and support workflows will differ depending on whether access changes immediately or at the next renewal boundary.
+Phase 21F locks the core policy:
+
+- upgrades are immediate
+- downgrades are next-cycle
+- cancellation uses `cancel_at_period_end`
+
+What remains open are edge-policy details such as customer messaging, support-led exceptions, and any future need for explicit resume/cancel endpoints beyond the current single `plan-change` contract.
 
 ### Migration Triggers
 
-- paid plan downgrade implementation
+- customer-facing billing policy publication
 - billing policy publication
 - support and retention workflow definition
 
 ### Constraint
 
-Preserve the Phase 21 organization-scoped subscription model and local pending-plan fields so the final downgrade policy can be applied without changing the core billing abstractions.
+Preserve the Phase 21 organization-scoped subscription model and local pending-plan fields so any future policy refinement remains additive and does not change the current plan-change contract.
 
 ## TODO-ARCH-014
 
