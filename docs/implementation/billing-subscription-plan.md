@@ -72,6 +72,24 @@ Phase 21D implementation decision:
 - Preserve local subscription integrity when Stripe interactions fail or webhook delivery is delayed.
 - Favor reconciliation and retry-safe backend workflows over frontend-owned assumptions.
 
+## Implemented Through Phase 21H
+
+- Shared Stripe billing environment validation runs at Lambda startup when billing is enabled.
+- Idempotent Stripe provider calls now use bounded retry behavior for transient network and provider-side `5xx` / `429` failures.
+- Structured billing logs exist around customer bootstrap, checkout creation and reuse, billing portal sessions, plan changes, webhook receipt, duplicate suppression, ignored events, and successful reconciliation.
+- Webhooks remain authoritative, but a backend-only reconciliation utility now exists for support use when webhook delivery is delayed or a Stripe-backed subscription needs to be resynced into local state.
+- Local subscription state remains the entitlement source of truth between provider events, including existing `payment_failed` access restrictions.
+
+## Deferred Production Decisions
+
+- Stripe Tax rollout timing and whether tax calculation should be enabled for all public billing surfaces.
+- Public pricing presentation policy, including tax-inclusive versus tax-exclusive display defaults.
+- Refund handling policy. Current default is conservative: refunds are manual and support-led rather than automated in-product.
+- Failed payment grace-period policy. Current default is conservative: no new grace automation is added beyond the existing `payment_failed` / past-due restriction flow.
+- Support runbook material for reconciliation, Stripe dispute handling, refund exceptions, and webhook-incident triage.
+- Whether raw Stripe webhook payloads should be archived outside the current compact billing event record.
+- Whether the portal should expose direct invoice history instead of routing invoice access through the billing portal.
+
 ## Implementation Constraints
 
 - Organization scope is canonical even if current control-plane services still speak `account_id`.

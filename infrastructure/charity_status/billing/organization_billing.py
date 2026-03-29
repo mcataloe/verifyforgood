@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+import logging
 from typing import Any, Protocol
 
 from charity_status.billing.checkout import BillingEligibilityError, BillingNotEnabledError, BillingProviderError, StripeCheckoutConfig
 from charity_status.billing.service import PLAN_CODES
 from charity_status.control_plane.models import ManagedBillingCustomer, ManagedBillingEvent, ManagedSubscription
 from charity_status.control_plane.service import ControlPlaneStore
+
+logger = logging.getLogger(__name__)
 
 
 BILLING_CUSTOMER_ENTITY = "BILLING_CUSTOMER"
@@ -341,6 +344,10 @@ class BillingCustomerBootstrapService:
 
         existing = self._billing_service.get_customer(organization_id)
         if existing is not None:
+            logger.info(
+                "billing_customer_bootstrap_reused",
+                extra={"organization_id": organization_id, "stripe_customer_id": existing.stripe_customer_id},
+            )
             return BillingCustomerBootstrapResult(
                 organization_id=existing.organization_id,
                 stripe_customer_id=existing.stripe_customer_id,
@@ -369,6 +376,10 @@ class BillingCustomerBootstrapService:
             organization_id=organization_id,
             stripe_customer_id=stripe_customer_id,
             updated_at=timestamp,
+        )
+        logger.info(
+            "billing_customer_bootstrap_created",
+            extra={"organization_id": organization_id, "stripe_customer_id": persisted.stripe_customer_id},
         )
         return BillingCustomerBootstrapResult(
             organization_id=persisted.organization_id,

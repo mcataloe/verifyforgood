@@ -359,3 +359,63 @@ Phase 21G completes the frontend billing management experience using the existin
 ### Constraint
 
 Keep the Phase 21 billing UI and backend billing-session abstractions stable so future direct invoice history support is additive and does not replace the current provider-portal entry point.
+
+## TODO-ARCH-017
+
+### Title
+
+Define the durable refund handling policy for Stripe-backed subscriptions.
+
+### Rationale
+
+Phase 21H keeps billing hardening conservative and explicitly avoids automated refund logic. Support still needs a durable policy for when refunds are allowed, who can authorize them, and whether partial, prorated, or exception-based refunds should be reflected in local billing operations guidance.
+
+### Migration Triggers
+
+- finance or support teams begin processing subscription refunds regularly
+- the product publishes external billing terms
+- webhook or reconciliation flows need to reflect refund-side accounting events
+
+### Constraint
+
+Keep the organization-scoped billing state model and current Stripe service seams stable so refund policy can be formalized without redesigning subscription identity or plan-change orchestration.
+
+## TODO-ARCH-018
+
+### Title
+
+Define the failed payment grace-period and recovery policy for subscription access.
+
+### Rationale
+
+Phase 21H preserves the current conservative default: `payment_failed` and other past-due states restrict product access without introducing a new automated grace-period workflow. A production rollout still needs an explicit policy for timing, messaging, recovery expectations, and any exceptions for enterprise support handling.
+
+### Migration Triggers
+
+- customer-facing billing policy publication
+- support playbook for past-due recovery
+- retention or dunning workflow implementation
+
+### Constraint
+
+Keep local subscription state as the entitlement source of truth so any future grace-period policy remains additive and does not bypass the existing billing-status enforcement path.
+
+## TODO-ARCH-019
+
+### Title
+
+Document the billing support runbook for reconciliation, webhook incidents, and manual exceptions.
+
+### Rationale
+
+Phase 21H adds backend reconciliation tooling and stronger billing observability, but production operations still need a support-facing runbook that covers delayed webhooks, reconciliation steps, refund escalation, customer communication, and Stripe-side incident triage.
+
+### Migration Triggers
+
+- controlled production rollout of Stripe billing
+- support team onboarding for billing incidents
+- finance or ops review of reconciliation workflows
+
+### Constraint
+
+Keep the current admin/support tooling and compact billing event model intact so support-runbook documentation can evolve without requiring a new customer-facing billing API.

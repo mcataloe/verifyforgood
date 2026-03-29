@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
@@ -76,6 +77,8 @@ class BillingWebhookStore(Protocol):
     def put_billing_event(self, event: ManagedBillingEvent) -> None:
         ...
 
+logger = logging.getLogger(__name__)
+
 
 class BillingWebhookPlanCatalogProvider(Protocol):
     def get_mapping_for_price_id(self, stripe_price_id: str):
@@ -126,8 +129,10 @@ class StripeWebhookService:
         event_type = str(payload.get("type") or "").strip()
         if not event_id or not event_type:
             raise BillingWebhookSignatureError("Stripe webhook payload is missing required event fields")
+        logger.info("stripe_webhook_received", extra={"event_id": event_id, "event_type": event_type})
         existing = self._store.get_billing_event(event_id)
         if existing is not None:
+            logger.info("stripe_webhook_duplicate", extra={"event_id": event_id, "event_type": event_type})
             return {"received": True, "processed": False, "duplicate": True, "event_id": event_id}
         if event_type not in SUPPORTED_STRIPE_EVENTS:
             self._store.put_billing_event(
@@ -140,6 +145,7 @@ class StripeWebhookService:
                     payload_fingerprint=payload_fingerprint,
                 )
             )
+            logger.info("stripe_webhook_ignored", extra={"event_id": event_id, "event_type": event_type})
             return {"received": True, "processed": False, "ignored": True, "event_id": event_id}
 
         data_object = ((payload.get("data") or {}).get("object") or {})
@@ -169,6 +175,17 @@ class StripeWebhookService:
                 webhook_created_at=_stripe_epoch_to_iso(payload.get("created")),
                 payload_fingerprint=payload_fingerprint,
             )
+        )
+        logger.info(
+            "stripe_webhook_reconciled",
+            extra={
+                "event_id": event_id,
+                "event_type": event_type,
+                "account_id": updated_subscription.account_id,
+                "stripe_subscription_id": updated_subscription.stripe_subscription_id,
+                "billing_status": updated_subscription.billing_status,
+                "plan_code": updated_subscription.plan_code,
+            },
         )
         return {"received": True, "processed": True, "event_id": event_id}
 

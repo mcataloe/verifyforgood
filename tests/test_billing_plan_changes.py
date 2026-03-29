@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from urllib.error import URLError
+
 from charity_status.billing.checkout import BillingProviderError, StripeCheckoutConfig
-from charity_status.billing.plan_changes import BillingPlanChangeService, StripePriceSnapshot, StripeSubscriptionSnapshot
+from charity_status.billing.plan_changes import BillingPlanChangeService, HttpStripePlanChangeClient, StripePriceSnapshot, StripeSubscriptionSnapshot
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
@@ -507,3 +509,35 @@ def test_billing_plan_change_surfaces_stripe_failures():
         assert "Stripe rejected the request" in str(exc)
     else:
         assert False, "Expected Stripe provider error"
+
+
+def test_http_stripe_plan_change_client_retries_transient_url_errors(monkeypatch):
+    attempts = {"count": 0}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return (
+                b'{"id":"sub_test_123","customer":"cus_test_123","status":"active",'
+                b'"current_period_start":1772323200,"current_period_end":1775001600,'
+                b'"items":{"data":[{"id":"si_test_123","quantity":1,"price":{"id":"price_growth"}}]}}'
+            )
+
+    def _fake_urlopen(request, timeout=15):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise URLError("temporary outage")
+        return _Response()
+
+    monkeypatch.setattr("charity_status.billing.plan_changes.urlopen", _fake_urlopen)
+    client = HttpStripePlanChangeClient(secret_key="sk_test_123")
+
+    snapshot = client.retrieve_subscription(subscription_id="sub_test_123")
+
+    assert snapshot.subscription_id == "sub_test_123"
+    assert attempts["count"] == 2

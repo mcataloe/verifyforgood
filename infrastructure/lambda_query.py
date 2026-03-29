@@ -41,6 +41,8 @@ from charity_status.billing import (
 from charity_status.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
 from charity_status.billing.plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from charity_status.billing.portal import BillingPortalError, BillingPortalService
+from charity_status.billing.reconciliation import BillingReconciliationError, BillingReconciliationService
+from charity_status.billing.runtime import validate_stripe_billing_environment
 from charity_status.billing.visibility import BillingVisibilityService
 from charity_status.billing.webhooks import BillingWebhookError, StripeWebhookService, load_stripe_webhook_config
 from charity_status.billing.service import DEFAULT_PLANS
@@ -184,6 +186,7 @@ ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
 )
+validate_stripe_billing_environment(os.environ)
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 TRIAL_CONFIG = load_trial_config(os.environ)
@@ -209,6 +212,7 @@ billing_plan_change_service: BillingPlanChangeService | None = None
 billing_portal_service: BillingPortalService | None = None
 billing_visibility_service: BillingVisibilityService | None = None
 billing_customer_bootstrap_service: BillingCustomerBootstrapService | None = None
+billing_reconciliation_service: BillingReconciliationService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
@@ -470,6 +474,18 @@ def _get_billing_customer_bootstrap_service() -> BillingCustomerBootstrapService
             ),
         )
     return billing_customer_bootstrap_service
+
+
+def _get_billing_reconciliation_service() -> BillingReconciliationService:
+    global billing_reconciliation_service
+    if billing_reconciliation_service is None:
+        billing_reconciliation_service = BillingReconciliationService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+            plan_catalog_provider=_get_billing_service(),
+            trial_lifecycle_service=_get_trial_lifecycle_service(),
+        )
+    return billing_reconciliation_service
 
 
 def _get_stripe_webhook_service() -> StripeWebhookService:
@@ -1330,6 +1346,12 @@ def _handle_admin_request(event: dict[str, Any], response_context: ResponseConte
             return json_response(200, service.get_subscription(account_id), response_context=response_context)
         if method == "PUT":
             return json_response(200, service.update_subscription(account_id, _parse_json_body(event)), response_context=response_context)
+    if resource == "/admin/accounts/{accountId}/billing/reconcile" and method == "POST":
+        return json_response(
+            200,
+            _get_billing_reconciliation_service().reconcile_account(account_id=account_id),
+            response_context=response_context,
+        )
 
     if resource == "/admin/accounts/{accountId}/suspend" and method == "POST":
         return json_response(200, service.suspend_account(account_id), response_context=response_context)
@@ -2105,6 +2127,15 @@ def _handle_stripe_webhook_request(event: dict[str, Any], response_context: Resp
     result = _get_stripe_webhook_service().handle(
         raw_body=_raw_request_body(event),
         signature_header=signature,
+    )
+    logger.info(
+        "stripe_webhook_processed",
+        extra={
+            "event_id": result.get("event_id"),
+            "processed": result.get("processed", False),
+            "duplicate": result.get("duplicate", False),
+            "ignored": result.get("ignored", False),
+        },
     )
     return json_response(200, result, response_context=response_context)
 

@@ -121,6 +121,18 @@ resource "aws_api_gateway_resource" "admin_account_subscription" {
   path_part   = "subscription"
 }
 
+resource "aws_api_gateway_resource" "admin_account_billing" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_id.id
+  path_part   = "billing"
+}
+
+resource "aws_api_gateway_resource" "admin_account_billing_reconcile" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.admin_account_billing.id
+  path_part   = "reconcile"
+}
+
 resource "aws_api_gateway_resource" "admin_account_api_keys" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.admin_account_id.id
@@ -524,6 +536,13 @@ resource "aws_api_gateway_method" "put_admin_account_subscription" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.admin_account_subscription.id
   http_method   = "PUT"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "post_admin_account_billing_reconcile" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.admin_account_billing_reconcile.id
+  http_method   = "POST"
   authorization = "NONE"
 }
 
@@ -1201,6 +1220,15 @@ resource "aws_api_gateway_integration" "lambda_post_organization_billing_custome
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "lambda_post_admin_account_billing_reconcile_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.admin_account_billing_reconcile.id
+  http_method             = aws_api_gateway_method.post_admin_account_billing_reconcile.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
 resource "aws_api_gateway_integration" "lambda_post_organization_billing_plan_change_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.organization_billing_plan_change.id
@@ -1361,6 +1389,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_patch_admin_account_id_integration,
     aws_api_gateway_integration.lambda_get_admin_account_subscription_integration,
     aws_api_gateway_integration.lambda_put_admin_account_subscription_integration,
+    aws_api_gateway_integration.lambda_post_admin_account_billing_reconcile_integration,
     aws_api_gateway_integration.lambda_post_admin_account_suspend_integration,
     aws_api_gateway_integration.lambda_post_admin_account_activate_integration,
     aws_api_gateway_integration.lambda_post_admin_account_api_keys_integration,

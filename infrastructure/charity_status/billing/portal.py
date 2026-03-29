@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
@@ -18,6 +19,9 @@ from charity_status.billing.checkout import (
     _stripe_error_message,
     _validated_redirect_url,
 )
+from charity_status.billing.runtime import call_with_retries
+
+logger = logging.getLogger(__name__)
 
 
 class BillingPortalError(BillingCheckoutError):
@@ -84,6 +88,10 @@ class BillingPortalService:
             return_url=request.return_url,
             idempotency_key=f"portal:{account_id}:{customer_id}",
         )
+        logger.info(
+            "billing_portal_created",
+            extra={"account_id": account_id, "stripe_customer_id": customer_id, "portal_session_id": session.session_id},
+        )
         return {"portal_url": session.url}
 
     def _parse_request(self, payload: dict[str, Any]) -> BillingPortalRequest:
@@ -106,30 +114,42 @@ class HttpStripePortalClient:
         return_url: str,
         idempotency_key: str,
     ) -> PortalSessionResult:
-        request = Request(
-            url=f"{self._base_url}/billing_portal/sessions",
-            data=urlencode(
-                {
-                    "customer": customer_id,
-                    "return_url": return_url,
-                }
-            ).encode("utf-8"),
-            method="POST",
-            headers={
-                "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Idempotency-Key": idempotency_key,
-            },
+        def _request() -> dict[str, Any]:
+            request = Request(
+                url=f"{self._base_url}/billing_portal/sessions",
+                data=urlencode(
+                    {
+                        "customer": customer_id,
+                        "return_url": return_url,
+                    }
+                ).encode("utf-8"),
+                method="POST",
+                headers={
+                    "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Idempotency-Key": idempotency_key,
+                },
+            )
+            try:
+                with urlopen(request, timeout=15) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                raise BillingProviderError(
+                    _stripe_error_message(exc, "portal session creation"),
+                    retryable=exc.code >= 500 or exc.code == 429,
+                ) from exc
+            except URLError as exc:
+                raise BillingProviderError("Unable to reach Stripe during portal session creation", retryable=True) from exc
+            except json.JSONDecodeError as exc:
+                raise BillingProviderError("Stripe returned an invalid response during portal session creation") from exc
+
+        payload = call_with_retries(
+            "portal session creation",
+            _request,
+            should_retry=lambda exc: isinstance(exc, BillingProviderError) and bool(getattr(exc, "retryable", False)),
+            logger=logger,
+            extra={"account_id": account_id, "stripe_customer_id": customer_id, "idempotency_key": idempotency_key},
         )
-        try:
-            with urlopen(request, timeout=15) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise BillingProviderError(_stripe_error_message(exc, "portal session creation")) from exc
-        except URLError as exc:
-            raise BillingProviderError("Unable to reach Stripe during portal session creation") from exc
-        except json.JSONDecodeError as exc:
-            raise BillingProviderError("Stripe returned an invalid response during portal session creation") from exc
         session_id = str(payload.get("id") or "").strip()
         url = str(payload.get("url") or "").strip()
         if not session_id or not url:

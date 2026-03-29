@@ -1182,6 +1182,45 @@ def test_post_stripe_webhook_route_processes_valid_signed_event(monkeypatch):
     assert module.control_plane_service.store.get_subscription(account["id"]).stripe_customer_id == "cus_123"
 
 
+def test_post_admin_account_billing_reconcile_returns_reconciliation_payload(monkeypatch):
+    module, admin_key = _load_admin_module(monkeypatch)
+
+    class _BillingReconciliationService:
+        def reconcile_account(self, *, account_id: str) -> dict[str, object]:
+            assert account_id == "acct_1"
+            return {
+                "account_id": account_id,
+                "source": "stripe_subscription",
+                "current_plan_code": "growth",
+                "pending_plan_code": None,
+                "billing_status": "active",
+                "billing_period_start": "2026-03-01T00:00:00+00:00",
+                "billing_period_end": "2026-04-01T00:00:00+00:00",
+                "cancel_at_period_end": False,
+                "stripe_customer_id": "cus_123",
+                "stripe_subscription_id": "sub_123",
+                "reconciled_at": "2026-03-29T00:00:00+00:00",
+            }
+
+    module.billing_reconciliation_service = _BillingReconciliationService()
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/admin/accounts/{accountId}/billing/reconcile",
+            "path": "/v1/admin/accounts/acct_1/billing/reconcile",
+            "pathParameters": {"accountId": "acct_1"},
+            "headers": {"x-admin-key": admin_key},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["source"] == "stripe_subscription"
+    assert body["current_plan_code"] == "growth"
+
+
 def test_post_organization_billing_plan_change_returns_plan_payload():
     module = _load_module()
     module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())

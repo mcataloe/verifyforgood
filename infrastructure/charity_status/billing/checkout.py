@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
@@ -9,8 +10,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from charity_status.billing.runtime import call_with_retries
 from charity_status.billing.service import DEFAULT_PLANS, EntitlementService, PLAN_CODE_ALIASES, PLAN_CODES
 from charity_status.branding import DEFAULT_PUBLIC_BRAND_NAME, load_branding_config
+
+logger = logging.getLogger(__name__)
 
 
 class BillingCheckoutError(ValueError):
@@ -36,6 +40,10 @@ class BillingConflictError(BillingCheckoutError):
 class BillingProviderError(BillingCheckoutError):
     status_code = 502
     code = "billing_provider_error"
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 @dataclass(frozen=True)
@@ -174,6 +182,10 @@ class BillingCheckoutService:
             raise BillingConflictError("Organization is already enrolled in the requested plan")
         pending = self._pending_session_for_plan(subscription, request.plan_code)
         if pending is not None:
+            logger.info(
+                "billing_checkout_reused",
+                extra={"account_id": account_id, "plan_code": request.plan_code},
+            )
             return pending
 
         customer_id = str(getattr(subscription, "stripe_customer_id", "") or "").strip()
@@ -210,6 +222,15 @@ class BillingCheckoutService:
             pending_checkout_session_url=session.url,
             pending_checkout_expires_at=session.expires_at,
             updated_at=_utcnow(),
+        )
+        logger.info(
+            "billing_checkout_created",
+            extra={
+                "account_id": account_id,
+                "plan_code": request.plan_code,
+                "stripe_customer_id": customer_id,
+                "checkout_session_id": session.session_id,
+            },
         )
         return {
             "plan_code": request.plan_code,
@@ -301,13 +322,22 @@ class BillingCheckoutService:
             )
             customer_id = str(getattr(bootstrap, "stripe_customer_id", "") or "").strip()
             if customer_id:
+                logger.info(
+                    "billing_customer_bootstrap_reused_for_checkout",
+                    extra={"account_id": account_id, "stripe_customer_id": customer_id},
+                )
                 return customer_id
             raise BillingProviderError("Billing customer bootstrap did not return a Stripe customer id")
-        return self._stripe_client.create_customer(
+        customer_id = self._stripe_client.create_customer(
             account_id=account_id,
             account_name=account_name,
             ein=ein,
         )
+        logger.info(
+            "billing_customer_created_for_checkout",
+            extra={"account_id": account_id, "stripe_customer_id": customer_id},
+        )
+        return customer_id
 
 
 class HttpStripeCheckoutClient:
@@ -396,26 +426,38 @@ class HttpStripeCheckoutClient:
         idempotency_key: str,
         operation_name: str,
     ) -> dict[str, Any]:
-        body = urlencode(payload).encode("utf-8")
-        request = Request(
-            url=f"{self._base_url}{path}",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Idempotency-Key": idempotency_key,
-            },
+        def _request() -> dict[str, Any]:
+            body = urlencode(payload).encode("utf-8")
+            request = Request(
+                url=f"{self._base_url}{path}",
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Idempotency-Key": idempotency_key,
+                },
+            )
+            try:
+                with urlopen(request, timeout=15) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                raise BillingProviderError(
+                    _stripe_error_message(exc, operation_name),
+                    retryable=exc.code >= 500 or exc.code == 429,
+                ) from exc
+            except URLError as exc:
+                raise BillingProviderError(f"Unable to reach Stripe during {operation_name}", retryable=True) from exc
+            except json.JSONDecodeError as exc:
+                raise BillingProviderError(f"Stripe returned an invalid response during {operation_name}") from exc
+
+        return call_with_retries(
+            operation_name,
+            _request,
+            should_retry=lambda exc: isinstance(exc, BillingProviderError) and bool(getattr(exc, "retryable", False)),
+            logger=logger,
+            extra={"stripe_path": path, "idempotency_key": idempotency_key},
         )
-        try:
-            with urlopen(request, timeout=15) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise BillingProviderError(_stripe_error_message(exc, operation_name)) from exc
-        except URLError as exc:
-            raise BillingProviderError(f"Unable to reach Stripe during {operation_name}") from exc
-        except json.JSONDecodeError as exc:
-            raise BillingProviderError(f"Stripe returned an invalid response during {operation_name}") from exc
 
 
 def _parse_price_ids(raw: str | None) -> dict[str, str]:

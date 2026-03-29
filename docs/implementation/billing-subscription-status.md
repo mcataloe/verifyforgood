@@ -2,11 +2,11 @@
 
 ## Status
 
-frontend billing experience complete
+billing track complete
 
 ## Next Phase
 
-21H
+TBD
 
 ## Scope
 

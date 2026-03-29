@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from urllib.error import URLError
+
 from charity_status.billing.checkout import (
     BillingCheckoutError,
     BillingCheckoutService,
     BillingProviderError,
+    HttpStripeCheckoutClient,
     StripeCheckoutConfig,
     CheckoutSessionResult,
     load_stripe_checkout_config,
 )
+from charity_status.billing.runtime import validate_stripe_billing_environment
 from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
@@ -115,6 +119,21 @@ def test_load_stripe_checkout_config_requires_key_when_enabled():
         assert str(exc) == "STRIPE_SECRET_KEY is required when STRIPE_BILLING_ENABLED=true"
     else:
         assert False, "Expected Stripe secret key validation error"
+
+
+def test_validate_stripe_billing_environment_requires_webhook_secret_when_enabled():
+    try:
+        validate_stripe_billing_environment(
+            {
+                "STRIPE_BILLING_ENABLED": "true",
+                "STRIPE_SECRET_KEY": "sk_test_123",
+                "STRIPE_PRICE_IDS": '{"growth":"price_growth"}',
+            }
+        )
+    except ValueError as exc:
+        assert str(exc) == "STRIPE_WEBHOOK_SECRET is required when STRIPE_BILLING_ENABLED=true"
+    else:
+        assert False, "Expected Stripe webhook secret validation error"
 
 
 def test_billing_checkout_creates_customer_and_session_and_persists_linkage():
@@ -307,3 +326,39 @@ def test_billing_checkout_surfaces_stripe_provider_failures():
         assert "Stripe rejected the request" in str(exc)
     else:
         assert False, "Expected Stripe provider error"
+
+
+def test_http_stripe_checkout_client_retries_transient_url_errors(monkeypatch):
+    attempts = {"count": 0}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"id":"cs_test_123","url":"https://checkout.stripe.com/c/pay/cs_test_123"}'
+
+    def _fake_urlopen(request, timeout=15):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise URLError("temporary outage")
+        return _Response()
+
+    monkeypatch.setattr("charity_status.billing.checkout.urlopen", _fake_urlopen)
+    client = HttpStripeCheckoutClient(secret_key="sk_test_123")
+
+    session = client.create_checkout_session(
+        customer_id="cus_test_123",
+        account_id="acct_1",
+        plan_code="growth",
+        price_id="price_growth",
+        success_url="https://example.com/success",
+        cancel_url="https://example.com/cancel",
+        idempotency_key="checkout:acct_1:growth",
+    )
+
+    assert session.session_id == "cs_test_123"
+    assert attempts["count"] == 2

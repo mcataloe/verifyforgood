@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -20,7 +21,10 @@ from charity_status.billing.checkout import (
     _stripe_epoch_to_iso,
     _stripe_error_message,
 )
+from charity_status.billing.runtime import call_with_retries
 from charity_status.billing.service import EntitlementService, PLAN_CODE_ALIASES, PLAN_CODES
+
+logger = logging.getLogger(__name__)
 
 
 PLAN_CHANGE_SEQUENCE: tuple[str, ...] = ("free", "starter", "growth", "pro", "enterprise")
@@ -230,6 +234,16 @@ class BillingPlanChangeService:
             updated_at=_utcnow(),
         )
         self._store.put_subscription(updated)
+        logger.info(
+            "billing_plan_change_applied",
+            extra={
+                "account_id": subscription.account_id,
+                "change_type": "upgrade",
+                "current_plan_code": getattr(subscription, "plan_code", None),
+                "requested_plan_code": requested_plan_code,
+                "stripe_subscription_id": updated_remote.subscription_id,
+            },
+        )
         return self._response_payload(updated, change_type="upgrade", reused=False)
 
     def _schedule_downgrade(
@@ -305,6 +319,18 @@ class BillingPlanChangeService:
             updated_at=_utcnow(),
         )
         self._store.put_subscription(updated)
+        logger.info(
+            "billing_plan_change_applied",
+            extra={
+                "account_id": subscription.account_id,
+                "change_type": _scheduled_change_type(requested_plan_code),
+                "current_plan_code": getattr(subscription, "plan_code", None),
+                "requested_plan_code": requested_plan_code,
+                "stripe_subscription_id": updated_remote.subscription_id,
+                "schedule_id": schedule_id,
+                "cancel_at_period_end": requested_plan_code == "free",
+            },
+        )
         return self._response_payload(updated, change_type=_scheduled_change_type(requested_plan_code), reused=False)
 
     def _clear_pending_change(
@@ -341,6 +367,13 @@ class BillingPlanChangeService:
             updated_at=_utcnow(),
         )
         self._store.put_subscription(updated)
+        logger.info(
+            "billing_plan_change_cleared",
+            extra={
+                "account_id": subscription.account_id,
+                "stripe_subscription_id": getattr(subscription, "stripe_subscription_id", None),
+            },
+        )
         return updated
 
     def _get_subscription(self, account_id: str) -> Any:
@@ -501,24 +534,36 @@ class HttpStripePlanChangeClient:
         idempotency_key: str | None = None,
         operation_name: str,
     ) -> dict[str, Any]:
-        data = urlencode(payload or {}).encode("utf-8") if payload is not None else None
-        headers = {
-            "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
-        }
-        if data is not None:
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
-        if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
-        request = Request(url=f"{self._base_url}{path}", data=data, method=method, headers=headers)
-        try:
-            with urlopen(request, timeout=15) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise BillingProviderError(_stripe_error_message(exc, operation_name)) from exc
-        except URLError as exc:
-            raise BillingProviderError(f"Unable to reach Stripe during {operation_name}") from exc
-        except json.JSONDecodeError as exc:
-            raise BillingProviderError(f"Stripe returned an invalid response during {operation_name}") from exc
+        def _request() -> dict[str, Any]:
+            data = urlencode(payload or {}).encode("utf-8") if payload is not None else None
+            headers = {
+                "Authorization": f"Basic {_basic_auth_token(self._secret_key)}",
+            }
+            if data is not None:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+            if idempotency_key:
+                headers["Idempotency-Key"] = idempotency_key
+            request = Request(url=f"{self._base_url}{path}", data=data, method=method, headers=headers)
+            try:
+                with urlopen(request, timeout=15) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                raise BillingProviderError(
+                    _stripe_error_message(exc, operation_name),
+                    retryable=exc.code >= 500 or exc.code == 429,
+                ) from exc
+            except URLError as exc:
+                raise BillingProviderError(f"Unable to reach Stripe during {operation_name}", retryable=True) from exc
+            except json.JSONDecodeError as exc:
+                raise BillingProviderError(f"Stripe returned an invalid response during {operation_name}") from exc
+
+        return call_with_retries(
+            operation_name,
+            _request,
+            should_retry=lambda exc: isinstance(exc, BillingProviderError) and bool(getattr(exc, "retryable", False)),
+            logger=logger,
+            extra={"stripe_path": path, "idempotency_key": idempotency_key or ""},
+        )
 
 
 def _plan_rank(plan_code: str) -> int:
