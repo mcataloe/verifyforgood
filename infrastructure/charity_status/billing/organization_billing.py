@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import Any, Protocol
 
+from charity_status.billing.checkout import BillingEligibilityError, BillingNotEnabledError, BillingProviderError, StripeCheckoutConfig
 from charity_status.billing.service import PLAN_CODES
 from charity_status.control_plane.models import ManagedBillingCustomer, ManagedBillingEvent, ManagedSubscription
 from charity_status.control_plane.service import ControlPlaneStore
@@ -99,6 +100,29 @@ class StripeBillingProvider(Protocol):
 
     def get_mapping_for_price_id(self, stripe_price_id: str) -> PlanCatalogMapping:
         ...
+
+
+class StripeCustomerBootstrapProvider(Protocol):
+    def create_customer(
+        self,
+        *,
+        account_id: str,
+        account_name: str,
+        ein: str | None,
+        metadata: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> str:
+        ...
+
+
+@dataclass(frozen=True)
+class BillingCustomerBootstrapResult:
+    organization_id: str
+    stripe_customer_id: str
+    created_at: str
+    updated_at: str
+    account_id: str
+    reused: bool
 
 
 class InMemoryBillingCustomerRepository:
@@ -287,6 +311,73 @@ class BillingService:
 
     def get_mapping_for_price_id(self, stripe_price_id: str) -> PlanCatalogMapping:
         return self._provider.get_mapping_for_price_id(stripe_price_id)
+
+
+class BillingCustomerBootstrapService:
+    def __init__(
+        self,
+        *,
+        store: ControlPlaneStore,
+        billing_service: BillingService,
+        config: StripeCheckoutConfig,
+        stripe_provider: StripeCustomerBootstrapProvider,
+    ) -> None:
+        self._store = store
+        self._billing_service = billing_service
+        self._config = config
+        self._stripe_provider = stripe_provider
+
+    def bootstrap_customer(
+        self,
+        *,
+        organization_id: str,
+        created_by_user_id: str | None,
+    ) -> BillingCustomerBootstrapResult:
+        if not self._config.enabled:
+            raise BillingNotEnabledError("Billing customer bootstrap is not enabled")
+        account = self._store.get_account(organization_id)
+        if account is None or str(getattr(account, "status", "active") or "active").strip().lower() != "active":
+            raise BillingEligibilityError("Organization is not eligible for billing customer bootstrap")
+
+        existing = self._billing_service.get_customer(organization_id)
+        if existing is not None:
+            return BillingCustomerBootstrapResult(
+                organization_id=existing.organization_id,
+                stripe_customer_id=existing.stripe_customer_id,
+                created_at=existing.created_at,
+                updated_at=existing.updated_at,
+                account_id=str(existing.account_id or organization_id),
+                reused=True,
+            )
+
+        metadata = {
+            "organization_id": organization_id,
+            "organization_name": str(getattr(account, "name", "") or organization_id),
+        }
+        if created_by_user_id:
+            metadata["created_by_user_id"] = created_by_user_id
+
+        stripe_customer_id = self._stripe_provider.create_customer(
+            account_id=organization_id,
+            account_name=str(getattr(account, "name", "") or organization_id),
+            ein=getattr(account, "ein", None),
+            metadata=metadata,
+            idempotency_key=f"billing-customer-bootstrap:{organization_id}",
+        )
+        timestamp = _utcnow()
+        persisted = self._billing_service.create_or_update_customer(
+            organization_id=organization_id,
+            stripe_customer_id=stripe_customer_id,
+            updated_at=timestamp,
+        )
+        return BillingCustomerBootstrapResult(
+            organization_id=persisted.organization_id,
+            stripe_customer_id=persisted.stripe_customer_id,
+            created_at=persisted.created_at,
+            updated_at=persisted.updated_at,
+            account_id=str(persisted.account_id or organization_id),
+            reused=False,
+        )
 
 
 def _managed_billing_customer(customer: BillingCustomer) -> ManagedBillingCustomer:

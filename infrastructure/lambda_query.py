@@ -24,7 +24,15 @@ from charity_status.auth import (
     load_admin_key_store,
 )
 from charity_status.billing import (
+    BillingCustomerBootstrapService,
+    BillingService,
+    ConfiguredStripeBillingProvider,
+    ControlPlaneBillingCustomerRepository,
+    ControlPlaneBillingEventRepository,
+    ControlPlaneBillingSubscriptionRepository,
     EntitlementService,
+    HttpStripeCheckoutClient,
+    PlanCatalogMapping,
     ResponseShapingService,
     TrialLifecycleService,
     build_plan_catalog_payload,
@@ -199,6 +207,7 @@ billing_checkout_service: BillingCheckoutService | None = None
 billing_plan_change_service: BillingPlanChangeService | None = None
 billing_portal_service: BillingPortalService | None = None
 billing_visibility_service: BillingVisibilityService | None = None
+billing_customer_bootstrap_service: BillingCustomerBootstrapService | None = None
 stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
@@ -424,6 +433,33 @@ def _get_billing_visibility_service() -> BillingVisibilityService:
             trial_lifecycle_service=_get_trial_lifecycle_service(),
         )
     return billing_visibility_service
+
+
+def _get_billing_customer_bootstrap_service() -> BillingCustomerBootstrapService:
+    global billing_customer_bootstrap_service
+    if billing_customer_bootstrap_service is None:
+        store = _get_control_plane_service().store
+        provider = ConfiguredStripeBillingProvider(
+            [
+                PlanCatalogMapping(internal_plan_id=plan_code, stripe_price_id=price_id)
+                for plan_code, price_id in STRIPE_CHECKOUT_CONFIG.price_ids.items()
+            ]
+        )
+        billing_customer_bootstrap_service = BillingCustomerBootstrapService(
+            store=store,
+            billing_service=BillingService(
+                customers=ControlPlaneBillingCustomerRepository(store),
+                subscriptions=ControlPlaneBillingSubscriptionRepository(store),
+                events=ControlPlaneBillingEventRepository(store),
+                provider=provider,
+            ),
+            config=STRIPE_CHECKOUT_CONFIG,
+            stripe_provider=HttpStripeCheckoutClient(
+                secret_key=STRIPE_CHECKOUT_CONFIG.secret_key or "",
+                public_brand_name=STRIPE_CHECKOUT_CONFIG.public_brand_name,
+            ),
+        )
+    return billing_customer_bootstrap_service
 
 
 def _get_stripe_webhook_service() -> StripeWebhookService:
@@ -1462,6 +1498,33 @@ def handler(event, context):
         except ValueError as exc:
             return error_response(400, str(exc), response_context=api_context, code="bad_request")
 
+    if _is_organization_billing_customer_bootstrap_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing bootstrap",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_billing_customer_bootstrap_request(
+                response_context=portal_context,
+                tenant_context=tenant_context,
+            )
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingCheckoutError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
     if _is_invitation_accept_request(event, method):
         portal_context = ResponseContext(
             request_id=api_context.request_id,
@@ -1944,6 +2007,13 @@ def _is_organization_portal_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/billing/portal-session") or path.endswith("/organization/billing/portal-session")
 
 
+def _is_organization_billing_customer_bootstrap_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/customer-bootstrap") or path.endswith("/organization/billing/customer-bootstrap")
+
+
 def _is_organization_subscription_visibility_request(event: dict, method: str) -> bool:
     if method != "GET":
         return False
@@ -2054,6 +2124,32 @@ def _handle_organization_portal_request(
         payload=payload,
     )
     return json_response(200, portal, response_context=response_context)
+
+
+def _handle_organization_billing_customer_bootstrap_request(
+    *,
+    response_context: ResponseContext,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing bootstrap")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may bootstrap billing customers")
+    result = _get_billing_customer_bootstrap_service().bootstrap_customer(
+        organization_id=tenant_context.organization_id,
+        created_by_user_id=tenant_context.user_id,
+    )
+    return json_response(
+        200,
+        {
+            "organization_id": result.organization_id,
+            "stripe_customer_id": result.stripe_customer_id,
+            "created_at": result.created_at,
+            "updated_at": result.updated_at,
+            "reused": result.reused,
+        },
+        response_context=response_context,
+    )
 
 
 def _handle_organization_subscription_visibility_request(

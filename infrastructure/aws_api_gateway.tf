@@ -271,6 +271,12 @@ resource "aws_api_gateway_resource" "organization_billing" {
   path_part   = "billing"
 }
 
+resource "aws_api_gateway_resource" "organization_billing_customer_bootstrap" {
+  rest_api_id = aws_api_gateway_rest_api.irs_api.id
+  parent_id   = aws_api_gateway_resource.organization_billing.id
+  path_part   = "customer-bootstrap"
+}
+
 resource "aws_api_gateway_resource" "organization_billing_checkout_session" {
   rest_api_id = aws_api_gateway_rest_api.irs_api.id
   parent_id   = aws_api_gateway_resource.organization_billing.id
@@ -395,6 +401,7 @@ locals {
     portal_organizations_current_api_key_id  = aws_api_gateway_resource.portal_organizations_current_api_key_id.id
     organizations_integrations               = aws_api_gateway_resource.organizations_integrations.id
     organization_billing_checkout_session    = aws_api_gateway_resource.organization_billing_checkout_session.id
+    organization_billing_customer_bootstrap  = aws_api_gateway_resource.organization_billing_customer_bootstrap.id
     organization_billing_plan_change         = aws_api_gateway_resource.organization_billing_plan_change.id
     organization_billing_portal_session      = aws_api_gateway_resource.organization_billing_portal_session.id
     organization_billing_subscription        = aws_api_gateway_resource.organization_billing_subscription.id
@@ -975,6 +982,13 @@ resource "aws_api_gateway_method" "post_organization_billing_checkout_session" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "post_organization_billing_customer_bootstrap" {
+  rest_api_id   = aws_api_gateway_rest_api.irs_api.id
+  resource_id   = aws_api_gateway_resource.organization_billing_customer_bootstrap.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "post_organization_billing_plan_change" {
   rest_api_id   = aws_api_gateway_rest_api.irs_api.id
   resource_id   = aws_api_gateway_resource.organization_billing_plan_change.id
@@ -1178,6 +1192,15 @@ resource "aws_api_gateway_integration" "lambda_post_organization_billing_checkou
   uri                     = aws_lambda_function.query.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "lambda_post_organization_billing_customer_bootstrap_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.irs_api.id
+  resource_id             = aws_api_gateway_resource.organization_billing_customer_bootstrap.id
+  http_method             = aws_api_gateway_method.post_organization_billing_customer_bootstrap.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.query.invoke_arn
+}
+
 resource "aws_api_gateway_integration" "lambda_post_organization_billing_plan_change_integration" {
   rest_api_id             = aws_api_gateway_rest_api.irs_api.id
   resource_id             = aws_api_gateway_resource.organization_billing_plan_change.id
@@ -1350,6 +1373,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     aws_api_gateway_integration.lambda_verify_batch_integration,
     aws_api_gateway_integration.lambda_get_organizations_integrations_integration,
     aws_api_gateway_integration.lambda_put_organizations_integrations_integration,
+    aws_api_gateway_integration.lambda_post_organization_billing_customer_bootstrap_integration,
     aws_api_gateway_integration.lambda_post_organization_billing_checkout_session_integration,
     aws_api_gateway_integration.lambda_post_organization_billing_plan_change_integration,
     aws_api_gateway_integration.lambda_post_organization_billing_portal_session_integration,

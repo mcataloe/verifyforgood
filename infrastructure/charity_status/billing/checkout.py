@@ -64,7 +64,15 @@ class CheckoutSessionResult:
 
 
 class StripeCheckoutClient(Protocol):
-    def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
+    def create_customer(
+        self,
+        *,
+        account_id: str,
+        account_name: str,
+        ein: str | None,
+        metadata: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> str:
         ...
 
     def create_checkout_session(
@@ -261,7 +269,15 @@ class HttpStripeCheckoutClient:
         self._secret_key = secret_key.strip()
         self._public_brand_name = str(public_brand_name or DEFAULT_PUBLIC_BRAND_NAME).strip() or DEFAULT_PUBLIC_BRAND_NAME
 
-    def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
+    def create_customer(
+        self,
+        *,
+        account_id: str,
+        account_name: str,
+        ein: str | None,
+        metadata: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> str:
         payload = {
             "name": account_name,
             "description": f"{self._public_brand_name} account {account_id}",
@@ -269,10 +285,15 @@ class HttpStripeCheckoutClient:
         }
         if ein:
             payload["metadata[ein]"] = str(ein)
+        for key, value in (metadata or {}).items():
+            normalized_key = str(key or "").strip()
+            normalized_value = _clean_text(value)
+            if normalized_key and normalized_value:
+                payload[f"metadata[{normalized_key}]"] = normalized_value
         response = self._post_form(
             "/customers",
             payload,
-            idempotency_key=f"customer:{account_id}",
+            idempotency_key=idempotency_key or f"customer:{account_id}",
             operation_name="customer creation",
         )
         customer_id = str(response.get("id") or "").strip()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from charity_status.billing import (
+    BillingCustomerBootstrapService,
     BillingEvent,
     BillingMappingError,
     BillingService,
@@ -13,6 +14,7 @@ from charity_status.billing import (
     ControlPlaneBillingSubscriptionRepository,
     PlanCatalogMapping,
 )
+from charity_status.billing.checkout import BillingProviderError, StripeCheckoutConfig
 from charity_status.control_plane import ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, InMemoryControlPlaneStore
 
 
@@ -32,6 +34,31 @@ def _service_with_store(store) -> BillingService:
         events=ControlPlaneBillingEventRepository(store),
         provider=_provider(),
     )
+
+
+class _StripeBootstrapProvider:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def create_customer(
+        self,
+        *,
+        account_id: str,
+        account_name: str,
+        ein: str | None,
+        metadata: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> str:
+        self.calls.append(
+            {
+                "account_id": account_id,
+                "account_name": account_name,
+                "ein": ein,
+                "metadata": metadata,
+                "idempotency_key": idempotency_key,
+            }
+        )
+        return "cus_bootstrap_123"
 
 
 def test_billing_service_persists_organization_billing_customer():
@@ -163,3 +190,83 @@ def test_control_plane_billing_domain_repositories_round_trip_through_dynamo_sto
     assert reloaded_service.get_subscription(account_id) == subscription
     assert reloaded_service.get_mapping_for_price_id("price_growth").internal_plan_id == "growth"
     assert reloaded_events.get(event.event_id) == event
+
+
+def test_billing_customer_bootstrap_creates_and_persists_first_time_customer():
+    store = InMemoryControlPlaneStore()
+    account = ControlPlaneService(store=store).create_account({"name": "Bootstrap Org", "ein": "123456789"})
+    provider = _StripeBootstrapProvider()
+    service = BillingCustomerBootstrapService(
+        store=store,
+        billing_service=_service_with_store(store),
+        config=StripeCheckoutConfig(enabled=True, secret_key="sk_test", price_ids={"growth": "price_growth"}),
+        stripe_provider=provider,
+    )
+
+    result = service.bootstrap_customer(
+        organization_id=account["id"],
+        created_by_user_id="user_admin",
+    )
+
+    persisted = _service_with_store(store).get_customer(account["id"])
+    assert result.organization_id == account["id"]
+    assert result.stripe_customer_id == "cus_bootstrap_123"
+    assert result.reused is False
+    assert persisted is not None
+    assert persisted.stripe_customer_id == "cus_bootstrap_123"
+    assert provider.calls[0]["metadata"] == {
+        "organization_id": account["id"],
+        "organization_name": "Bootstrap Org",
+        "created_by_user_id": "user_admin",
+    }
+    assert provider.calls[0]["idempotency_key"] == f"billing-customer-bootstrap:{account['id']}"
+
+
+def test_billing_customer_bootstrap_reuses_existing_customer_without_provider_call():
+    store = InMemoryControlPlaneStore()
+    account = ControlPlaneService(store=store).create_account({"name": "Bootstrap Org", "ein": "123456789"})
+    billing_service = _service_with_store(store)
+    billing_service.create_or_update_customer(
+        organization_id=account["id"],
+        stripe_customer_id="cus_existing_123",
+        updated_at="2026-03-29T00:00:00+00:00",
+    )
+    provider = _StripeBootstrapProvider()
+    service = BillingCustomerBootstrapService(
+        store=store,
+        billing_service=billing_service,
+        config=StripeCheckoutConfig(enabled=True, secret_key="sk_test", price_ids={"growth": "price_growth"}),
+        stripe_provider=provider,
+    )
+
+    result = service.bootstrap_customer(
+        organization_id=account["id"],
+        created_by_user_id="user_admin",
+    )
+
+    assert result.stripe_customer_id == "cus_existing_123"
+    assert result.reused is True
+    assert provider.calls == []
+
+
+def test_billing_customer_bootstrap_provider_failure_does_not_corrupt_local_state():
+    class _FailingStripeBootstrapProvider:
+        def create_customer(self, **kwargs) -> str:
+            raise BillingProviderError("Stripe rejected bootstrap")
+
+    store = InMemoryControlPlaneStore()
+    account = ControlPlaneService(store=store).create_account({"name": "Bootstrap Org", "ein": "123456789"})
+    service = BillingCustomerBootstrapService(
+        store=store,
+        billing_service=_service_with_store(store),
+        config=StripeCheckoutConfig(enabled=True, secret_key="sk_test", price_ids={"growth": "price_growth"}),
+        stripe_provider=_FailingStripeBootstrapProvider(),
+    )
+
+    with pytest.raises(BillingProviderError, match="Stripe rejected bootstrap"):
+        service.bootstrap_customer(
+            organization_id=account["id"],
+            created_by_user_id="user_admin",
+        )
+
+    assert _service_with_store(store).get_customer(account["id"]) is None

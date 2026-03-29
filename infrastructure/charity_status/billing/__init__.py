@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from .models import (
     Account,
     Entitlement,
@@ -27,29 +29,6 @@ from .feature_gating import build_upgrade_hint, build_upgrade_hints, missing_rou
 from .plan_changes import BillingPlanChangeError, BillingPlanChangeService
 from .response_shaping import ResponseShapingService
 from .trials import TrialConfig, TrialLifecycleService, load_trial_config
-from .organization_billing import (
-    BILLING_CUSTOMER_ENTITY,
-    BILLING_EVENT_ENTITY,
-    BILLING_SUBSCRIPTION_ENTITY,
-    PLAN_CATALOG_MAPPING_ENTITY,
-    BillingCustomer,
-    BillingCustomerRepository,
-    BillingEvent,
-    BillingEventRepository,
-    BillingMappingError,
-    BillingService,
-    BillingSubscription,
-    BillingSubscriptionRepository,
-    ConfiguredStripeBillingProvider,
-    ControlPlaneBillingCustomerRepository,
-    ControlPlaneBillingEventRepository,
-    ControlPlaneBillingSubscriptionRepository,
-    InMemoryBillingCustomerRepository,
-    InMemoryBillingEventRepository,
-    InMemoryBillingSubscriptionRepository,
-    PlanCatalogMapping,
-    StripeBillingProvider,
-)
 
 __all__ = [
     "Account",
@@ -78,6 +57,7 @@ __all__ = [
     "recommended_upgrade_plan",
     "BillingPlanChangeError",
     "BillingPlanChangeService",
+    "HttpStripeCheckoutClient",
     "TrialConfig",
     "TrialLifecycleService",
     "load_trial_config",
@@ -86,6 +66,8 @@ __all__ = [
     "BILLING_SUBSCRIPTION_ENTITY",
     "BILLING_EVENT_ENTITY",
     "PLAN_CATALOG_MAPPING_ENTITY",
+    "BillingCustomerBootstrapResult",
+    "BillingCustomerBootstrapService",
     "BillingCustomer",
     "BillingSubscription",
     "BillingEvent",
@@ -95,6 +77,7 @@ __all__ = [
     "BillingEventRepository",
     "BillingService",
     "StripeBillingProvider",
+    "StripeCustomerBootstrapProvider",
     "ConfiguredStripeBillingProvider",
     "BillingMappingError",
     "InMemoryBillingCustomerRepository",
@@ -108,3 +91,38 @@ __all__ = [
     "check_feature_entitlement",
     "check_quota_and_calculate",
 ]
+
+_ORGANIZATION_BILLING_EXPORTS = {
+    "BILLING_CUSTOMER_ENTITY",
+    "BILLING_SUBSCRIPTION_ENTITY",
+    "BILLING_EVENT_ENTITY",
+    "PLAN_CATALOG_MAPPING_ENTITY",
+    "BillingCustomerBootstrapResult",
+    "BillingCustomerBootstrapService",
+    "BillingCustomer",
+    "BillingSubscription",
+    "BillingEvent",
+    "PlanCatalogMapping",
+    "BillingCustomerRepository",
+    "BillingSubscriptionRepository",
+    "BillingEventRepository",
+    "BillingService",
+    "StripeBillingProvider",
+    "StripeCustomerBootstrapProvider",
+    "ConfiguredStripeBillingProvider",
+    "BillingMappingError",
+    "InMemoryBillingCustomerRepository",
+    "InMemoryBillingSubscriptionRepository",
+    "InMemoryBillingEventRepository",
+    "ControlPlaneBillingCustomerRepository",
+    "ControlPlaneBillingSubscriptionRepository",
+    "ControlPlaneBillingEventRepository",
+}
+
+
+def __getattr__(name: str):
+    if name == "HttpStripeCheckoutClient":
+        return getattr(import_module(".checkout", __name__), name)
+    if name in _ORGANIZATION_BILLING_EXPORTS:
+        return getattr(import_module(".organization_billing", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

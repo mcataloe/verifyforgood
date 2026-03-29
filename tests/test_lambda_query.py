@@ -222,6 +222,24 @@ class _StripePortalClient:
         )
 
 
+class _BillingCustomerBootstrapService:
+    def __init__(self, *, result=None, error: Exception | None = None) -> None:
+        self.result = result
+        self.error = error
+        self.calls: list[dict[str, str | None]] = []
+
+    def bootstrap_customer(self, *, organization_id: str, created_by_user_id: str | None):
+        self.calls.append(
+            {
+                "organization_id": organization_id,
+                "created_by_user_id": created_by_user_id,
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
 def test_invalid_ein_still_returns_400():
     module = _load_module()
     _install_tenant_auth(module)
@@ -886,6 +904,200 @@ def test_post_organization_billing_checkout_session_returns_checkout_url():
     assert body["checkout_url"] == "https://checkout.stripe.com/c/pay/cs_test_123"
     assert body["reused"] is False
     assert stripe_client.session_calls == 1
+
+
+def test_post_organization_billing_customer_bootstrap_creates_customer_for_admin():
+    module = _load_module()
+    service = _BillingCustomerBootstrapService(
+        result=SimpleNamespace(
+            organization_id="org_1",
+            stripe_customer_id="cus_bootstrap_123",
+            created_at="2026-03-29T00:00:00+00:00",
+            updated_at="2026-03-29T00:00:00+00:00",
+            reused=False,
+        )
+    )
+    module.billing_customer_bootstrap_service = service
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": "org_1"},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/customer-bootstrap",
+            "path": "/v1/organization/billing/customer-bootstrap",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    assert _response_data(result) == {
+        "organization_id": "org_1",
+        "stripe_customer_id": "cus_bootstrap_123",
+        "created_at": "2026-03-29T00:00:00+00:00",
+        "updated_at": "2026-03-29T00:00:00+00:00",
+        "reused": False,
+    }
+    assert service.calls == [{"organization_id": "org_1", "created_by_user_id": "user_admin"}]
+
+
+def test_post_organization_billing_customer_bootstrap_requires_admin_membership():
+    module = _load_module()
+    module.billing_customer_bootstrap_service = _BillingCustomerBootstrapService(
+        result=SimpleNamespace(
+            organization_id="org_1",
+            stripe_customer_id="cus_bootstrap_123",
+            created_at="2026-03-29T00:00:00+00:00",
+            updated_at="2026-03-29T00:00:00+00:00",
+            reused=False,
+        )
+    )
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_member",
+            membership_role="member",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_member",
+            metadata={"organization_id": "org_1"},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/customer-bootstrap",
+            "path": "/v1/organization/billing/customer-bootstrap",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may bootstrap billing customers"
+
+
+def test_post_organization_billing_customer_bootstrap_reuses_existing_customer():
+    module = _load_module()
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = module.control_plane_service.create_account({"name": "Billing Account", "ein": "123456789"})
+    module.billing_customer_bootstrap_service = None
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="growth")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="growth",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
+
+    class _BootstrapStripeClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create_customer(
+            self,
+            *,
+            account_id: str,
+            account_name: str,
+            ein: str | None,
+            metadata: dict[str, str] | None = None,
+            idempotency_key: str | None = None,
+        ) -> str:
+            self.calls += 1
+            return "cus_reused_123"
+
+    stripe_client = _BootstrapStripeClient()
+    module._resolve_organization_tenant_context = _resolve
+    module.billing_customer_bootstrap_service = module.BillingCustomerBootstrapService(
+        store=module.control_plane_service.store,
+        billing_service=module.BillingService(
+            customers=module.ControlPlaneBillingCustomerRepository(module.control_plane_service.store),
+            subscriptions=module.ControlPlaneBillingSubscriptionRepository(module.control_plane_service.store),
+            events=module.ControlPlaneBillingEventRepository(module.control_plane_service.store),
+            provider=module.ConfiguredStripeBillingProvider(
+                [module.PlanCatalogMapping(internal_plan_id="growth", stripe_price_id="price_growth")]
+            ),
+        ),
+        config=StripeCheckoutConfig(enabled=True, secret_key="sk_test", price_ids={"growth": "price_growth"}),
+        stripe_provider=stripe_client,
+    )
+
+    event = {
+        "httpMethod": "POST",
+        "resource": "/v1/organization/billing/customer-bootstrap",
+        "path": "/v1/organization/billing/customer-bootstrap",
+        "headers": {"Authorization": "Bearer test"},
+    }
+
+    first = module.handler(event, None)
+    second = module.handler(event, None)
+
+    assert first["statusCode"] == 200
+    assert second["statusCode"] == 200
+    assert _response_data(first)["stripe_customer_id"] == "cus_reused_123"
+    assert _response_data(second)["stripe_customer_id"] == "cus_reused_123"
+    assert _response_data(first)["reused"] is False
+    assert _response_data(second)["reused"] is True
+    assert stripe_client.calls == 1
+
+
+def test_post_organization_billing_customer_bootstrap_returns_provider_error_without_corrupting_state():
+    module = _load_module()
+    service = _BillingCustomerBootstrapService(error=BillingProviderError("Stripe rejected bootstrap"))
+    module.billing_customer_bootstrap_service = service
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": "org_1"},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/customer-bootstrap",
+            "path": "/v1/organization/billing/customer-bootstrap",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 502
+    assert _response_error_message(result) == "Stripe rejected bootstrap"
 
 
 def test_post_stripe_webhook_route_processes_valid_signed_event(monkeypatch):

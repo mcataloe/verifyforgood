@@ -32,6 +32,7 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
     "GET /v1/organization/settings": "verify:read",
     "PUT /v1/organization/settings": "verify:write",
     "GET /v1/organization/billing/subscription": "verify:read",
+    "POST /v1/organization/billing/customer-bootstrap": "verify:write",
     "POST /v1/organization/billing/checkout-session": "verify:write",
     "POST /v1/organization/billing/plan-change": "verify:write",
     "POST /v1/organization/billing/portal-session": "verify:write",
@@ -39,6 +40,7 @@ ROUTE_SCOPE_REQUIREMENTS: dict[str, str] = {
 
 NON_BLOCKING_BILLING_ROUTE_KEYS: set[str] = {
     "GET /v1/organization/billing/subscription",
+    "POST /v1/organization/billing/customer-bootstrap",
     "POST /v1/organization/billing/checkout-session",
     "POST /v1/organization/billing/plan-change",
     "POST /v1/organization/billing/portal-session",

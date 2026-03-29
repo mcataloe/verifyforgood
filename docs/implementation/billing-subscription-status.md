@@ -2,11 +2,11 @@
 
 ## Status
 
-billing domain model implemented
+organization billing customer bootstrap complete
 
 ## Next Phase
 
-21C
+21D
 
 ## Scope
 
