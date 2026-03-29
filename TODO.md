@@ -253,3 +253,63 @@ Phase 20F adds structured audit logging for tenant-aware nonprofit reads and sto
 ### Constraint
 
 Keep the Phase 20F nonprofit audit event taxonomy stable and additive so future export shaping can standardize metadata without breaking existing audit records.
+
+## TODO-ARCH-012
+
+### Title
+
+Decide whether public Stripe pricing should default to tax-inclusive or tax-exclusive presentation.
+
+### Rationale
+
+Phase 21A establishes Stripe as the provisional billing provider, but the customer-facing pricing model still needs a durable default. Tax presentation affects checkout clarity, invoice expectations, and how the product markets plan pricing across regions.
+
+### Migration Triggers
+
+- Stripe Tax rollout
+- public pricing page refresh
+- multi-region billing launch
+
+### Constraint
+
+Keep the organization-scoped billing model and backend billing abstractions stable so tax presentation can be finalized without changing the Phase 21 subscription service boundaries.
+
+## TODO-ARCH-013
+
+### Title
+
+Confirm downgrade semantics for paid subscriptions: immediate restriction or next-cycle effective change.
+
+### Rationale
+
+Stripe-backed plan changes need a durable downgrade policy so entitlement enforcement, billing communication, and webhook-driven synchronization remain consistent. Customer expectations and support workflows will differ depending on whether access changes immediately or at the next renewal boundary.
+
+### Migration Triggers
+
+- paid plan downgrade implementation
+- billing policy publication
+- support and retention workflow definition
+
+### Constraint
+
+Preserve the Phase 21 organization-scoped subscription model and local pending-plan fields so the final downgrade policy can be applied without changing the core billing abstractions.
+
+## TODO-ARCH-014
+
+### Title
+
+Confirm whether the free tier stays Stripe-less or every organization receives a Stripe customer object.
+
+### Rationale
+
+Phase 21A keeps free-tier billing behavior open. The choice affects onboarding flow complexity, reconciliation expectations, billing data completeness, and when Stripe becomes part of the lifecycle for organizations that never upgrade.
+
+### Migration Triggers
+
+- free-to-paid conversion funnel optimization
+- invoice and tax requirements for all organizations
+- desire for uniform billing identity across tiers
+
+### Constraint
+
+Keep `organization_id` as the canonical billing scope and treat Stripe identifiers as attached billing state so free-tier onboarding policy can change without redefining organization billing identity.
