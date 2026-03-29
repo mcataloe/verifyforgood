@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import json
 import logging
 import os
@@ -210,6 +211,17 @@ portal_audit_log_service: AuditLogService | None = None
 nonprofit_service: NonprofitService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+@dataclass(frozen=True)
+class TenantContext:
+    organization_id: str
+    user_id: str | None
+    membership_role: str | None
+    subscription_plan: str
+    auth_method: str
+    credential_id: str | None
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 def _get_athena_client() -> QueryRepository:
@@ -789,15 +801,19 @@ def _is_lookup_request(event: dict[str, Any], method: str) -> bool:
     return bool(path_params.get("ein"))
 
 
-def _build_portal_session_auth_context(*, organization_id: str, user_id: str) -> AuthContext:
-    plan_code = "free"
+def _resolve_organization_subscription_plan(organization_id: str, fallback_plan: str = "free") -> str:
+    plan_code = str(fallback_plan or "free")
     subscription_service = _get_portal_subscription_service()
-    if subscription_service is not None:
-        try:
-            resolved = subscription_service.get_subscription_for_organization(organization_id)
-            plan_code = str(resolved.subscription.plan.plan_id)
-        except Exception:  # noqa: BLE001
-            plan_code = "free"
+    if subscription_service is None:
+        return plan_code
+    try:
+        resolved = subscription_service.get_subscription_for_organization(organization_id)
+        return str(resolved.subscription.plan.plan_id)
+    except Exception:  # noqa: BLE001
+        return plan_code
+
+
+def _build_portal_session_auth_context(*, organization_id: str, user_id: str, membership_role: str | None, plan_code: str) -> AuthContext:
     entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
     return AuthContext(
         account_id=organization_id,
@@ -813,55 +829,135 @@ def _build_portal_session_auth_context(*, organization_id: str, user_id: str) ->
             "organization_id": organization_id,
             "portal_session": "true",
             "tenant_scoped_request": "true",
+            "tenant_user_id": user_id,
+            "subscription_plan": plan_code,
+            **({"membership_role": membership_role} if membership_role else {}),
         },
     )
 
 
-def _build_tenant_nonprofit_context(auth_context: Any) -> TenantNonprofitContext:
+def _build_tenant_context(auth_context: Any) -> TenantContext:
     metadata = getattr(auth_context, "metadata", {}) or {}
     organization_id = str(metadata.get("organization_id") or "").strip()
     if not organization_id:
-        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
-    return TenantNonprofitContext(
+        raise AuthorizationError("Organization-scoped authentication is required")
+    auth_method = str(getattr(auth_context, "auth_method", "") or "")
+    credential_id = str(getattr(auth_context, "credential_id", "") or "") or None
+    user_id = str(metadata.get("tenant_user_id") or "").strip() or None
+    if user_id is None and auth_method == "portal_session":
+        user_id = credential_id
+    subscription_plan = (
+        str(metadata.get("subscription_plan") or "").strip()
+        or str(getattr(auth_context, "plan", "") or "").strip()
+        or _resolve_organization_subscription_plan(organization_id)
+    )
+    return TenantContext(
         organization_id=organization_id,
-        authenticated_subject=str(getattr(auth_context, "subject", "") or ""),
-        authenticated_user_id=(str(getattr(auth_context, "credential_id", "") or "") if getattr(auth_context, "auth_method", "") == "portal_session" else None),
-        auth_method=str(getattr(auth_context, "auth_method", "") or ""),
-        credential_id=(str(getattr(auth_context, "credential_id", "") or "") or None),
+        user_id=user_id,
+        membership_role=(str(metadata.get("membership_role") or "").strip() or None),
+        subscription_plan=subscription_plan,
+        auth_method=auth_method,
+        credential_id=credential_id,
         metadata=dict(metadata),
     )
 
 
-def _resolve_tenant_nonprofit_auth_context(event: dict[str, Any]) -> AuthContext:
+def _build_tenant_nonprofit_context(*, auth_context: Any, tenant_context: TenantContext) -> TenantNonprofitContext:
+    return TenantNonprofitContext(
+        organization_id=tenant_context.organization_id,
+        authenticated_subject=str(getattr(auth_context, "subject", "") or ""),
+        authenticated_user_id=tenant_context.user_id,
+        auth_method=tenant_context.auth_method,
+        credential_id=tenant_context.credential_id,
+        metadata=dict(tenant_context.metadata),
+    )
+
+
+def _attach_tenant_context(event: dict[str, Any], auth_context: AuthContext, tenant_context: TenantContext) -> None:
+    if isinstance(event, dict):
+        event["_auth_context"] = auth_context
+        event["_tenant_context"] = tenant_context
+    metadata = getattr(auth_context, "metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    metadata["organization_id"] = tenant_context.organization_id
+    metadata["tenant_scoped_request"] = "true"
+    metadata["subscription_plan"] = tenant_context.subscription_plan
+    if tenant_context.user_id:
+        metadata["tenant_user_id"] = tenant_context.user_id
+    if tenant_context.membership_role:
+        metadata["membership_role"] = tenant_context.membership_role
+
+
+def _resolve_portal_session_tenant_context(
+    event: dict[str, Any],
+    *,
+    missing_membership_message: str,
+) -> tuple[AuthContext, TenantContext]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "").strip()
+    if not authorization.lower().startswith("bearer "):
+        raise AuthenticationError("Authentication required")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    try:
+        organization_id, workspace_id = _resolve_current_portal_context(event)
+    except MembershipManagementError as exc:
+        raise AuthorizationError(str(exc)) from exc
+    if organization_id != workspace_id:
+        raise AuthorizationError("Current organization headers must identify the same scope")
+    membership = DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME).get(organization_id, current_user.user_id)
+    if membership is None or membership.status != MembershipStatus.ACTIVE:
+        raise AuthorizationError(missing_membership_message)
+    plan_code = _resolve_organization_subscription_plan(organization_id)
+    auth_context = _build_portal_session_auth_context(
+        organization_id=organization_id,
+        user_id=current_user.user_id,
+        membership_role=membership.role.value,
+        plan_code=plan_code,
+    )
+    tenant_context = TenantContext(
+        organization_id=organization_id,
+        user_id=current_user.user_id,
+        membership_role=membership.role.value,
+        subscription_plan=plan_code,
+        auth_method="portal_session",
+        credential_id=current_user.user_id,
+        metadata=dict(auth_context.metadata),
+    )
+    _attach_tenant_context(event, auth_context, tenant_context)
+    return auth_context, tenant_context
+
+
+def _resolve_organization_tenant_context(
+    event: dict[str, Any],
+    *,
+    missing_context_message: str,
+    missing_membership_message: str,
+    require_user: bool,
+) -> tuple[AuthContext, TenantContext]:
     headers = event.get("headers") or {}
     authorization = str(_get_header(headers, "authorization") or "").strip()
     has_current_org_headers = bool(_get_header(headers, "x-portal-account-id") or _get_header(headers, "x-portal-workspace-id"))
-    if authorization.lower().startswith("bearer ") and has_current_org_headers:
-        try:
-            current_user = _get_portal_auth_service().get_current_user(authorization)
-            try:
-                organization_id, workspace_id = _resolve_current_portal_context(event)
-            except MembershipManagementError as exc:
-                raise AuthorizationError(str(exc)) from exc
-            if organization_id != workspace_id:
-                raise AuthorizationError("Current organization headers must identify the same scope")
-            membership = DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME).get(organization_id, current_user.user_id)
-            if membership is None or membership.status != MembershipStatus.ACTIVE:
-                raise AuthorizationError("Active membership is required for nonprofit queries")
-            return _build_portal_session_auth_context(organization_id=organization_id, user_id=current_user.user_id)
-        except AuthenticationError:
-            pass
+    if authorization.lower().startswith("bearer "):
+        if not has_current_org_headers:
+            _get_portal_auth_service().get_current_user(authorization)
+            raise AuthorizationError("Current organization headers are required")
+        return _resolve_portal_session_tenant_context(
+            event,
+            missing_membership_message=missing_membership_message,
+        )
 
     auth_context = _get_auth_context_provider().extract_context(event or {})
     if str(getattr(auth_context, "auth_method", "") or "") == "anonymous":
-        if authorization.lower().startswith("bearer "):
-            raise AuthorizationError("Current organization headers are required")
         raise AuthenticationError("Authentication required")
-    metadata = getattr(auth_context, "metadata", None)
-    if not isinstance(metadata, dict) or not str(metadata.get("organization_id") or "").strip():
-        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
-    metadata["tenant_scoped_request"] = "true"
-    return auth_context
+    try:
+        tenant_context = _build_tenant_context(auth_context)
+    except AuthorizationError as exc:
+        raise AuthorizationError(missing_context_message) from exc
+    if require_user and not tenant_context.user_id:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
+    _attach_tenant_context(event, auth_context, tenant_context)
+    return auth_context, tenant_context
 
 
 def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -1052,15 +1148,17 @@ def _resolve_current_portal_context(event: dict[str, Any]) -> tuple[str, str]:
         raise MembershipManagementError("Current organization headers must identify the same scope")
     return account_id, workspace_id
 
-
-def _handle_portal_membership_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+def _handle_portal_membership_request(
+    event: dict[str, Any],
+    response_context: ResponseContext,
+    *,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = _route_template(event)
-    headers = event.get("headers") or {}
-    authorization = str(_get_header(headers, "authorization") or "")
-    current_user = _get_portal_auth_service().get_current_user(authorization)
-    account_id, workspace_id = _resolve_current_portal_context(event)
-    del workspace_id
+    account_id = tenant_context.organization_id
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
     service = _get_portal_membership_service()
 
     if resource == "/organizations/current/members" and method == "GET":
@@ -1071,7 +1169,7 @@ def _handle_portal_membership_request(event: dict[str, Any], response_context: R
         payload = _parse_json_body(event)
         invitation = service.invite_member(
             organization_id=account_id,
-            actor_user_id=current_user.user_id,
+            actor_user_id=tenant_context.user_id,
             request=InvitationCreateRequest(
                 email=str(payload.get("email") or ""),
                 role=str(payload.get("role") or ""),
@@ -1085,7 +1183,7 @@ def _handle_portal_membership_request(event: dict[str, Any], response_context: R
         payload = _parse_json_body(event)
         member = service.update_member(
             organization_id=account_id,
-            actor_user_id=current_user.user_id,
+            actor_user_id=tenant_context.user_id,
             member_user_id=member_id,
             request=MemberUpdateRequest(
                 role=(str(payload.get("role")) if payload.get("role") is not None else None),
@@ -1099,7 +1197,7 @@ def _handle_portal_membership_request(event: dict[str, Any], response_context: R
         member_id = str(path_params.get("memberId") or "")
         payload = service.remove_member(
             organization_id=account_id,
-            actor_user_id=current_user.user_id,
+            actor_user_id=tenant_context.user_id,
             member_user_id=member_id,
         )
         return json_response(200, payload, response_context=response_context)
@@ -1119,25 +1217,28 @@ def _handle_invitation_accept_request(event: dict[str, Any], response_context: R
     return json_response(200, accepted, response_context=response_context)
 
 
-def _handle_portal_api_key_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+def _handle_portal_api_key_request(
+    event: dict[str, Any],
+    response_context: ResponseContext,
+    *,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     resource = _route_template(event)
-    headers = event.get("headers") or {}
-    authorization = str(_get_header(headers, "authorization") or "")
-    current_user = _get_portal_auth_service().get_current_user(authorization)
-    account_id, workspace_id = _resolve_current_portal_context(event)
-    del workspace_id
+    account_id = tenant_context.organization_id
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
     service = _get_portal_api_key_service()
 
     if resource == "/organizations/current/api-keys" and method == "GET":
-        items = [item.to_dict() for item in service.list_keys(organization_id=account_id, actor_user_id=current_user.user_id)]
+        items = [item.to_dict() for item in service.list_keys(organization_id=account_id, actor_user_id=tenant_context.user_id)]
         return json_response(200, {"items": items}, response_context=response_context)
 
     if resource == "/organizations/current/api-keys" and method == "POST":
         payload = _parse_json_body(event)
         created = service.create_key(
             organization_id=account_id,
-            actor_user_id=current_user.user_id,
+            actor_user_id=tenant_context.user_id,
             request=ApiKeyCreateRequest(display_name=str(payload.get("display_name") or "")),
         )
         return json_response(201, created.to_dict(), response_context=response_context)
@@ -1147,7 +1248,7 @@ def _handle_portal_api_key_request(event: dict[str, Any], response_context: Resp
         key_id = str(path_params.get("keyId") or "")
         revoked = service.revoke_key(
             organization_id=account_id,
-            actor_user_id=current_user.user_id,
+            actor_user_id=tenant_context.user_id,
             key_id=key_id,
         )
         return json_response(200, revoked.to_dict(), response_context=response_context)
@@ -1313,36 +1414,52 @@ def handler(event, context):
             return error_response(400, str(exc), response_context=portal_context, code="bad_request")
 
     if _is_portal_membership_request(event, method):
-        portal_context = ResponseContext(
-            request_id=api_context.request_id,
-            plan="portal",
-            deprecation=api_context.deprecation,
-            cors_origin=api_context.cors_origin,
-        )
         try:
-            return _handle_portal_membership_request(event, portal_context)
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for this organization route",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_portal_membership_request(event, portal_context, tenant_context=tenant_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
         except MembershipManagementError as exc:
-            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="bad_request")
         except AuthenticationError as exc:
-            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
         except ValueError as exc:
-            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
 
     if _is_portal_api_key_request(event, method):
-        portal_context = ResponseContext(
-            request_id=api_context.request_id,
-            plan="portal",
-            deprecation=api_context.deprecation,
-            cors_origin=api_context.cors_origin,
-        )
         try:
-            return _handle_portal_api_key_request(event, portal_context)
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for this organization route",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_portal_api_key_request(event, portal_context, tenant_context=tenant_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
         except ApiKeyManagementError as exc:
-            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="bad_request")
         except AuthenticationError as exc:
-            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
         except ValueError as exc:
-            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
 
     if _is_invitation_accept_request(event, method):
         portal_context = ResponseContext(
@@ -1362,8 +1479,14 @@ def handler(event, context):
 
     tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
     try:
+        tenant_context: TenantContext | None = None
         if tenant_nonprofit_request:
-            auth_context = _resolve_tenant_nonprofit_auth_context(event or {})
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for nonprofit queries",
+                missing_membership_message="Active membership is required for nonprofit queries",
+                require_user=False,
+            )
         else:
             auth_context = _get_auth_context_provider().extract_context(event or {})
         _prepare_quota_request_metadata(event or {}, auth_context)
@@ -1399,7 +1522,11 @@ def handler(event, context):
     except QuotaExceededError as exc:
         return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
-    tenant_context = _build_tenant_nonprofit_context(auth_context) if tenant_nonprofit_request else None
+    tenant_context = (
+        _build_tenant_nonprofit_context(auth_context=auth_context, tenant_context=tenant_context)
+        if tenant_nonprofit_request and tenant_context is not None
+        else None
+    )
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(
             event,

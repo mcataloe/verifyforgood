@@ -219,6 +219,38 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
     assert {item.metric_type.value: item.request_count for item in usage} == {}
 
 
+def test_org_api_key_cannot_access_org_api_key_management_routes(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch, api_auth_enabled=True)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+
+    create_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organizations/current/api-keys",
+            "path": "/v1/organizations/current/api-keys",
+            "headers": _current_org_headers(creator_token, organization["organization_id"]),
+            "body": json.dumps({"display_name": "CLI Key"}),
+        },
+        None,
+    )
+    api_key = _response_body(create_response)["data"]["secret"]
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organizations/current/api-keys",
+            "path": "/v1/organizations/current/api-keys",
+            "headers": {"x-api-key": api_key},
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 403
+    assert payload["errors"][0]["message"] == "Portal session authentication is required for this organization route"
+
+
 def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
     module, _resource = _load_module_with_identity_store(monkeypatch, api_auth_enabled=True)
     _, creator_token, _creator = _register_user(module, email="creator@example.com")

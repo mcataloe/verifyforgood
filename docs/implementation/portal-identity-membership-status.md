@@ -2,11 +2,11 @@
 
 ## Status
 
-feature flags integrated into enrichment pipeline
+centralized tenant authorization implemented
 
 ## Next Phase
 
-20D
+20E
 
 ## Scope
 

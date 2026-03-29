@@ -363,8 +363,53 @@ def test_current_organization_headers_are_required(monkeypatch):
     )
     payload = _response_body(response)
 
-    assert response["statusCode"] == 400
+    assert response["statusCode"] == 403
     assert payload["errors"][0]["message"] == "Current organization headers are required"
+
+
+def test_current_members_requires_active_membership(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+    _, outsider_token, _outsider = _register_user(module, email="outsider@example.com")
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organizations/current/members",
+            "path": "/v1/organizations/current/members",
+            "headers": _current_org_headers(outsider_token, organization["organization_id"]),
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 403
+    assert payload["errors"][0]["message"] == "Active membership is required for this organization"
+
+
+def test_current_members_rejects_cross_org_header_scope(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organizations/current/members",
+            "path": "/v1/organizations/current/members",
+            "headers": {
+                "Authorization": f"Bearer {creator_token}",
+                "X-Portal-Account-Id": organization["organization_id"],
+                "X-Portal-Workspace-Id": "org_other",
+            },
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 403
+    assert payload["errors"][0]["message"] == "Current organization headers must identify the same scope"
 
 
 def test_accept_invitation_rejects_duplicate_existing_membership(monkeypatch):

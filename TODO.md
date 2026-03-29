@@ -193,3 +193,23 @@ Phase 20C enforces feature flags for current premium integrations through the ex
 ### Constraint
 
 Keep the Phase 20C nonprofit-service enforcement seam stable so future premium integrations can plug in by extending registry metadata and flag mappings instead of changing nonprofit route contracts.
+
+## TODO-ARCH-009
+
+### Title
+
+Evaluate migrating billing and organization-settings routes onto the centralized tenant authorization middleware.
+
+### Rationale
+
+Phase 20D centralizes tenant authorization for nonprofit, membership, and organization API-key routes. Billing and settings endpoints still need a final decision on how portal organizations, account linkage, and tenant scope should align before they fully share the same middleware contract.
+
+### Migration Triggers
+
+- portal and billing account linkage finalized
+- organization settings expanded beyond nonprofit integrations
+- need for one consistent org-scope authorization model across all portal routes
+
+### Constraint
+
+Keep the Phase 20D `TenantContext` contract stable so additional organization-scoped routes can adopt the middleware without changing existing nonprofit, membership, or API-key handler contracts.
