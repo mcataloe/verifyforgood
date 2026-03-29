@@ -32,6 +32,7 @@ interface UsageBillingPanelProps {
   billingActionsController?: PortalBillingInteractionsController;
   controller?: PortalUsageBillingController;
   endpoints: PortalEndpoints;
+  focus?: "billing" | "usage";
   plansController?: PortalPricingPlansController;
   session: PortalAuthenticatedSession;
 }
@@ -40,6 +41,7 @@ export function UsageBillingPanel({
   billingActionsController,
   controller,
   endpoints,
+  focus = "billing",
   plansController,
   session,
 }: UsageBillingPanelProps) {
@@ -127,18 +129,58 @@ export function UsageBillingPanel({
       snapshot,
     }),
   );
+  const subscriptionPanelTitle =
+    focus === "usage" ? "Usage overview" : "Current subscription";
+  const subscriptionPanelSubtitle =
+    focus === "usage"
+      ? "Usage, budget posture, and effective access stay visible without leaving the shared billing route."
+      : "Authoritative backend subscription state, billing cycle visibility, and pending billing changes.";
+  const subscriptionSummary = (
+    <SubscriptionSummaryCard currentPlan={currentPlan} snapshot={snapshot} />
+  );
+  const usageSummary = (
+    <>
+      <div className="portal-usage-meter" aria-label="Request usage meter">
+        <div className="portal-usage-meter__header">
+          <div>
+            <p className="portal-shell__eyebrow">Request usage</p>
+            <h3>
+              {snapshot.usage.used.toLocaleString()} /{" "}
+              {snapshot.usage.limit.toLocaleString()}
+            </h3>
+            <p>
+              {snapshot.usage.remaining.toLocaleString()} requests remaining
+              in {snapshot.usage.periodLabel.toLowerCase()}.
+            </p>
+          </div>
+          <span className="portal-key-chip">
+            {snapshot.usage.usagePercent}%
+          </span>
+        </div>
+        <div className="portal-usage-meter__track" aria-hidden="true">
+          <div
+            className="portal-usage-meter__fill"
+            style={{ width: `${snapshot.usage.usagePercent}%` }}
+          />
+        </div>
+      </div>
+
+      <UsageContextPanel
+        budgetStatus={snapshot.budgetStatus}
+        plan={effectivePlan}
+        usage={snapshot.usage}
+      />
+    </>
+  );
 
   return (
     <Grid className="portal-page-grid">
       <Panel
-        title="Current subscription"
-        subtitle="Authoritative backend subscription state, billing cycle visibility, and pending billing changes."
+        title={subscriptionPanelTitle}
+        subtitle={subscriptionPanelSubtitle}
       >
         <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
-        <SubscriptionSummaryCard
-          currentPlan={currentPlan}
-          snapshot={snapshot}
-        />
+        {focus === "usage" ? usageSummary : subscriptionSummary}
 
         {statusMessage ? (
           <PortalNotice tone="warning">
@@ -161,36 +203,7 @@ export function UsageBillingPanel({
           </PortalNotice>
         ) : null}
 
-        <div className="portal-usage-meter" aria-label="Request usage meter">
-          <div className="portal-usage-meter__header">
-            <div>
-              <p className="portal-shell__eyebrow">Request usage</p>
-              <h3>
-                {snapshot.usage.used.toLocaleString()} /{" "}
-                {snapshot.usage.limit.toLocaleString()}
-              </h3>
-              <p>
-                {snapshot.usage.remaining.toLocaleString()} requests remaining
-                in {snapshot.usage.periodLabel.toLowerCase()}.
-              </p>
-            </div>
-            <span className="portal-key-chip">
-              {snapshot.usage.usagePercent}%
-            </span>
-          </div>
-          <div className="portal-usage-meter__track" aria-hidden="true">
-            <div
-              className="portal-usage-meter__fill"
-              style={{ width: `${snapshot.usage.usagePercent}%` }}
-            />
-          </div>
-        </div>
-
-        <UsageContextPanel
-          budgetStatus={snapshot.budgetStatus}
-          plan={effectivePlan}
-          usage={snapshot.usage}
-          />
+        {focus === "usage" ? subscriptionSummary : usageSummary}
 
         <dl className="portal-shell__details">
           <div>

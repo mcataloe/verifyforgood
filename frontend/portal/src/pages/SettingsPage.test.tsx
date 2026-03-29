@@ -96,6 +96,9 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Usage budget controls" }),
     ).toBeTruthy();
     expect(
+      screen.getByRole("heading", { name: "Workspace settings" }),
+    ).toBeTruthy();
+    expect(
       screen.getByRole("heading", { name: "Profile & preferences" }),
     ).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
@@ -205,6 +208,26 @@ describe("SettingsPage", () => {
     expect(
       screen.getByText(/Current selection:/i).textContent,
     ).toContain("Dark");
+  });
+
+  it("uses the standardized error state when limit visualization cannot load", () => {
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+        usageController={{
+          error: "Visualization failed.",
+          isLoading: false,
+          reload: vi.fn(async () => {}),
+          snapshot: null,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Limit visualization unavailable" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Visualization failed.")).toBeTruthy();
   });
 });
 

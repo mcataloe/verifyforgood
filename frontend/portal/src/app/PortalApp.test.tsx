@@ -681,4 +681,49 @@ describe("PortalApp", () => {
       screen.getByRole("button", { name: "Open billing portal" }),
     ).toBeTruthy();
   });
+
+  it("keeps billing and usage as distinct aliases on the same route surface", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/usage-billing?nav=customer-admin-billing";
+
+    const { rerender } = render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Billing management" }),
+    ).toBeTruthy();
+
+    window.location.hash = "#/usage-billing?nav=customer-admin-usage";
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    rerender(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Usage visibility" }),
+    ).toBeTruthy();
+  });
 });

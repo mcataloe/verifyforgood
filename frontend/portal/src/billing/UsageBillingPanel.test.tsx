@@ -34,6 +34,7 @@ function renderWithOrganization(
   plansController: PortalPricingPlansController,
   options?: {
     billingActionsController?: PortalBillingInteractionsController;
+    focus?: "billing" | "usage";
     membershipRole?: "admin" | "user";
   },
 ) {
@@ -111,6 +112,7 @@ function renderWithOrganization(
           billingActionsController={billingActionsController}
           controller={controller}
           endpoints={endpoints}
+          focus={options?.focus ?? "billing"}
           plansController={plansController}
           session={createMockPortalSession()}
         />
@@ -329,6 +331,57 @@ describe("UsageBillingPanel", () => {
     ).toBeTruthy();
 
     vi.useRealTimers();
+  });
+
+  it("supports a usage-first emphasis on the shared usage-billing route", () => {
+    const reload = vi.fn(async () => {});
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: false,
+          label: "Hard stop enabled at the monthly request limit",
+          policySource: "organization_settings",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: null,
+        pendingDowngradeEffectiveAt: null,
+        pendingDowngradePlan: null,
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          periodLabel: "Current month",
+          remaining: 9200,
+          source: "mock_plan_baseline",
+          used: 800,
+          usagePercent: 8,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [],
+      reload,
+    };
+
+    renderWithOrganization(controller, plansController, {
+      focus: "usage",
+    });
+
+    expect(screen.getByRole("heading", { name: "Usage overview" })).toBeTruthy();
+    expect(screen.getByText("800 / 10,000")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Subscription is in good standing" }),
+    ).toBeTruthy();
   });
 
   it("renders an error state and supports retry", () => {

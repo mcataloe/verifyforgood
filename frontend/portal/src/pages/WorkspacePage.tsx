@@ -1,32 +1,57 @@
-import { Grid, PageHeader, Panel } from "@charity-status/shared-ui";
+import { Grid, Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import type { CustomerAdminPortalPane } from "../app/portalNavigation";
+import {
+  PortalActionToolbar,
+  PortalPageShell,
+} from "../components/shell";
 import { NonprofitSearchPanel } from "../nonprofits/NonprofitSearchPanel";
 import { TeamManagementPanel } from "../organization/TeamManagementPanel";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 
 interface WorkspacePageProps {
   endpoints: PortalEndpoints;
+  pane?: CustomerAdminPortalPane | null;
   session: PortalAuthenticatedSession;
 }
 
-export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
+export function WorkspacePage({
+  endpoints,
+  pane,
+  session,
+}: WorkspacePageProps) {
   const organization = usePortalOrganization();
+  const workspaceLabel =
+    pane === "team" ? "Customer admin team" : "Tenant-aware workspace";
 
   return (
-    <div className="portal-dashboard">
-      <PageHeader
-        eyebrow="Tenant-aware workspace"
-        title="Nonprofit search workspace"
-        description={`Search, review, and inspect nonprofit records for ${organization.activeOrganization.organization_name}. Requests use the current portal session plus organization scope automatically.`}
-      />
-
+    <PortalPageShell
+      description={`Search, review, and inspect nonprofit records for ${organization.activeOrganization.organization_name}. Requests use the current portal session plus organization scope automatically.`}
+      eyebrow={workspaceLabel}
+      title="Nonprofit search workspace"
+      toolbar={
+        <PortalActionToolbar>
+          <div className="portal-action-toolbar__group">
+            <span className="portal-shell__summary-pill">
+              Team role {organization.currentMembership?.role ?? "unknown"}
+            </span>
+            <span className="portal-shell__summary-pill">
+              Status {organization.currentMembership?.status ?? "unknown"}
+            </span>
+          </div>
+          <div className="portal-action-toolbar__group">
+            <span className="portal-shell__summary-pill">
+              Workspace {organization.activeOrganization.workspace_id}
+            </span>
+          </div>
+        </PortalActionToolbar>
+      }
+    >
       <Grid className="portal-page-grid">
-        <NonprofitSearchPanel />
-
         <Panel
-          title="Workspace context"
-          subtitle="The nonprofit search flow runs through the shared organization-aware API client."
+          title="Team operations"
+          subtitle="Search, review, and inspect nonprofit records without leaving the shared team workspace."
         >
           <dl className="portal-shell__details">
             <div>
@@ -40,14 +65,6 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
             <div>
               <dt>Account ID</dt>
               <dd>{organization.activeOrganization.account_id}</dd>
-            </div>
-            <div>
-              <dt>Membership role</dt>
-              <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
-            </div>
-            <div>
-              <dt>Membership status</dt>
-              <dd>{organization.currentMembership?.status ?? "unknown"}</dd>
             </div>
             <div>
               <dt>Settings endpoint</dt>
@@ -82,8 +99,10 @@ export function WorkspacePage({ endpoints, session }: WorkspacePageProps) {
           </dl>
         </Panel>
 
+        <NonprofitSearchPanel />
+
         <TeamManagementPanel />
       </Grid>
-    </div>
+    </PortalPageShell>
   );
 }

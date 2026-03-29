@@ -39,6 +39,14 @@ export type CustomerUserPortalPane =
   | "automation-oauth"
   | "profile";
 
+export type CustomerAdminPortalPane =
+  | "home"
+  | "team"
+  | "billing"
+  | "usage"
+  | "api"
+  | "settings";
+
 const customerUserPaneByAlias: Record<string, CustomerUserPortalPane> = {
   "customer-user-automation-api": "automation-api",
   "customer-user-automation-general": "automation-general",
@@ -47,6 +55,15 @@ const customerUserPaneByAlias: Record<string, CustomerUserPortalPane> = {
   "customer-user-profile": "profile",
   "customer-user-search-address": "search-address",
   "customer-user-search-ein": "search-ein",
+};
+
+const customerAdminPaneByAlias: Record<string, CustomerAdminPortalPane> = {
+  "customer-admin-api": "api",
+  "customer-admin-billing": "billing",
+  "customer-admin-home": "home",
+  "customer-admin-settings": "settings",
+  "customer-admin-team": "team",
+  "customer-admin-usage": "usage",
 };
 
 export function buildPortalNavigationSections(
@@ -138,6 +155,32 @@ export function resolveCustomerUserPortalPane(params: {
       return "profile";
     default:
       return "dashboard";
+  }
+}
+
+export function resolveCustomerAdminPortalPane(params: {
+  currentHash: string;
+  currentRoute: PortalRouteDefinition;
+}): CustomerAdminPortalPane {
+  const navAlias = resolvePortalNavigationAlias(params.currentHash);
+
+  if (navAlias && customerAdminPaneByAlias[navAlias]) {
+    return customerAdminPaneByAlias[navAlias];
+  }
+
+  switch (params.currentRoute.key) {
+    case "dashboard":
+      return "home";
+    case "workspace":
+      return "team";
+    case "usage-billing":
+      return "billing";
+    case "api-access":
+      return "api";
+    case "settings":
+      return "settings";
+    default:
+      return "home";
   }
 }
 

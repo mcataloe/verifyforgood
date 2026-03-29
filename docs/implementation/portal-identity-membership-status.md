@@ -2,11 +2,11 @@
 
 ## Status
 
-nonprofit audit logging complete
+customer admin shell refined
 
 ## Next Phase
 
-TBD
+22B
 
 ## Scope
 

@@ -95,6 +95,10 @@ describe("WorkspacePage", () => {
     expect(
       screen.getByRole("heading", { name: "Nonprofit verification search" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Nonprofit search workspace" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Team role admin")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite user" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Role for member@example.org"), {
       target: { value: "admin" },
@@ -133,6 +137,7 @@ describe("WorkspacePage", () => {
     expect(
       screen.getByRole("heading", { name: "Nonprofit verification search" }),
     ).toBeTruthy();
+    expect(screen.getByText("Team role user")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
     expect(screen.getByText("Read-only team view")).toBeTruthy();
     expect(screen.getByText("Current user")).toBeTruthy();

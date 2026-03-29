@@ -27,6 +27,7 @@ import {
   resolveRouteAuthorization,
 } from "./portalAuthorization";
 import {
+  resolveCustomerAdminPortalPane,
   resolveCustomerUserPortalPane,
   resolvePortalNavigationAudience,
 } from "./portalNavigation";
@@ -227,6 +228,13 @@ function PortalAppShell({
           currentRoute,
         })
       : null;
+  const customerAdminPane =
+    audience === "customer_admin"
+      ? resolveCustomerAdminPortalPane({
+          currentHash,
+          currentRoute,
+        })
+      : null;
 
   return (
     <PortalOrganizationProvider
@@ -236,6 +244,7 @@ function PortalAppShell({
     >
       <PortalAuthorizedShell
         appInfo={appInfo}
+        customerAdminPane={customerAdminPane}
         currentRoute={currentRoute}
         customerUserPane={customerUserPane}
         endpoints={endpoints}
@@ -249,6 +258,7 @@ function PortalAppShell({
 
 function PortalAuthorizedShell({
   appInfo,
+  customerAdminPane,
   currentRoute,
   customerUserPane,
   endpoints,
@@ -257,6 +267,7 @@ function PortalAuthorizedShell({
   session,
 }: {
   appInfo: FrontendAppInfo;
+  customerAdminPane: ReturnType<typeof resolveCustomerAdminPortalPane> | null;
   currentRoute: ReturnType<typeof usePortalRoute>;
   customerUserPane: ReturnType<typeof resolveCustomerUserPortalPane> | null;
   endpoints: ReturnType<typeof portalEndpoints>;
@@ -326,7 +337,11 @@ function PortalAuthorizedShell({
         <DashboardPage runtimeConfig={runtimeConfig} session={session} />
       ) : null}
       {currentRoute.key === "workspace" ? (
-        <WorkspacePage endpoints={endpoints} session={session} />
+        <WorkspacePage
+          endpoints={endpoints}
+          pane={customerAdminPane}
+          session={session}
+        />
       ) : null}
       {currentRoute.key === "api-access" ? (
         audience === "customer_user" && customerUserPane ? (
@@ -341,11 +356,19 @@ function PortalAuthorizedShell({
             session={session}
           />
         ) : (
-          <ApiAccessPage endpoints={endpoints} session={session} />
+          <ApiAccessPage
+            endpoints={endpoints}
+            pane={customerAdminPane}
+            session={session}
+          />
         )
       ) : null}
       {currentRoute.key === "usage-billing" ? (
-        <BillingPage endpoints={endpoints} session={session} />
+        <BillingPage
+          endpoints={endpoints}
+          pane={customerAdminPane}
+          session={session}
+        />
       ) : null}
       {currentRoute.key === "settings" ? (
         audience === "customer_user" && customerUserPane === "profile" ? (
@@ -354,7 +377,11 @@ function PortalAuthorizedShell({
             session={session}
           />
         ) : (
-          <SettingsPage endpoints={endpoints} session={session} />
+          <SettingsPage
+            endpoints={endpoints}
+            pane={customerAdminPane}
+            session={session}
+          />
         )
       ) : null}
     </PortalLayout>
