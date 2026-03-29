@@ -147,3 +147,29 @@ Generic control-plane API keys and OAuth client-credentials tokens remain unsupp
 ### Constraint
 
 Keep the new tenant nonprofit service contract stable so future non-portal machine-auth support can plug in by adding tenant resolution, not by changing nonprofit lookup callers.
+
+## TODO-ARCH-007
+
+### Title
+
+Decide whether nonprofit source, compliance, and federal-awards routes need dedicated organization usage metrics.
+
+### Rationale
+
+Phase 20B adds dedicated usage counters for:
+
+- nonprofit lookup requests
+- nonprofit search requests
+- nonprofit filing lookup requests
+
+Other tenant-scoped nonprofit read routes still rely on broader request metering and do not yet have dedicated per-route usage categories.
+
+### Migration Triggers
+
+- subscription packaging for source/compliance data
+- per-feature usage reporting requirements
+- differentiated billing for supplemental nonprofit data routes
+
+### Constraint
+
+Preserve the Phase 20B metric names and route-to-metric mapping for lookup, search, and filings so any future expansion is additive.

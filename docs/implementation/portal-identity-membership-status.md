@@ -2,11 +2,11 @@
 
 ## Status
 
-tenant-aware nonprofit service enabled
+usage tracking integrated into nonprofit queries
 
 ## Next Phase
 
-20B
+20C
 
 ## Scope
 

@@ -375,17 +375,50 @@ class DynamoUsageRepository:
         units: int,
         last_updated: str,
     ) -> UsageRecord:
-        existing = self.get(organization_id, metric_type, period_month)
-        request_count = (existing.request_count if existing is not None else 0) + max(0, int(units))
-        record = UsageRecord(
-            organization_id=organization_id,
-            metric_type=UsageMetricType(metric_type),
-            period_month=period_month,
-            request_count=request_count,
-            last_updated=last_updated,
+        normalized_units = max(0, int(units))
+        if normalized_units <= 0:
+            existing = self.get(organization_id, metric_type, period_month)
+            if existing is not None:
+                return existing
+            record = UsageRecord(
+                organization_id=organization_id,
+                metric_type=UsageMetricType(metric_type),
+                period_month=period_month,
+                request_count=0,
+                last_updated=last_updated,
+            )
+            self._table.put_item(Item=_usage_item(record))
+            return record
+        response = self._table.update_item(
+            Key={"pk": _organization_pk(organization_id), "sk": _usage_sk(period_month, metric_type)},
+            UpdateExpression=(
+                "SET #type = if_not_exists(#type, :type), "
+                "#organization_id = if_not_exists(#organization_id, :organization_id), "
+                "#metric_type = if_not_exists(#metric_type, :metric_type), "
+                "#period_month = if_not_exists(#period_month, :period_month), "
+                "#request_count = if_not_exists(#request_count, :zero) + :units, "
+                "#last_updated = :last_updated"
+            ),
+            ExpressionAttributeNames={
+                "#type": "type",
+                "#organization_id": "organization_id",
+                "#metric_type": "metric_type",
+                "#period_month": "period_month",
+                "#request_count": "request_count",
+                "#last_updated": "last_updated",
+            },
+            ExpressionAttributeValues={
+                ":type": "USAGE_RECORD",
+                ":organization_id": organization_id,
+                ":metric_type": UsageMetricType(metric_type).value,
+                ":period_month": period_month,
+                ":zero": 0,
+                ":units": normalized_units,
+                ":last_updated": last_updated,
+            },
+            ReturnValues="ALL_NEW",
         )
-        self._table.put_item(Item=_usage_item(record))
-        return record
+        return _usage_from_item(response["Attributes"])
 
     def get(self, organization_id: str, metric_type: str, period_month: str) -> UsageRecord | None:
         response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": _usage_sk(period_month, metric_type)})
@@ -738,6 +771,30 @@ class FakeIdentityDynamoTable:
     def get_item(self, Key):  # noqa: N803
         item = self._items.get((Key["pk"], Key["sk"]))
         return {"Item": deepcopy(item)} if item is not None else {}
+
+    def update_item(  # noqa: N803
+        self,
+        Key,
+        UpdateExpression=None,
+        ExpressionAttributeNames=None,
+        ExpressionAttributeValues=None,
+        ReturnValues=None,
+    ):
+        key = (Key["pk"], Key["sk"])
+        item = deepcopy(self._items.get(key) or {"pk": Key["pk"], "sk": Key["sk"]})
+        if UpdateExpression and "#request_count = if_not_exists(#request_count, :zero) + :units" in UpdateExpression:
+            values = ExpressionAttributeValues or {}
+            item["type"] = values[":type"]
+            item["organization_id"] = values[":organization_id"]
+            item["metric_type"] = values[":metric_type"]
+            item["period_month"] = values[":period_month"]
+            item["request_count"] = int(item.get("request_count") or values[":zero"]) + int(values[":units"])
+            item["last_updated"] = values[":last_updated"]
+            self._items[key] = deepcopy(item)
+            if ReturnValues == "ALL_NEW":
+                return {"Attributes": deepcopy(item)}
+            return {}
+        raise NotImplementedError("FakeIdentityDynamoTable.update_item only supports usage counter updates")
 
     def delete_item(self, Key):  # noqa: N803
         self._items.pop((Key["pk"], Key["sk"]), None)

@@ -216,10 +216,7 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
     assert "invalid characters" in auth_payload["errors"][0]["message"]
     assert persisted is not None
     assert persisted.last_used_at is not None
-    assert {item.metric_type.value: item.request_count for item in usage} == {
-        "api_requests": 1,
-        "nonprofit_lookups": 1,
-    }
+    assert {item.metric_type.value: item.request_count for item in usage} == {}
 
 
 def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):

@@ -111,6 +111,7 @@ def _install_tenant_auth(
     credential_id: str = "key_1",
     auth_method: str = "api_key",
     plan: str = "pro",
+    scopes: tuple[str, ...] = ("verify:read",),
 ):
     class _AuthProvider:
         def extract_context(self, event):
@@ -119,7 +120,7 @@ def _install_tenant_auth(
                 credential_id=credential_id,
                 auth_method=auth_method,
                 plan=plan,
-                scopes=("verify:read",),
+                scopes=scopes,
                 rate_limit_profile=plan,
                 workspace_id=organization_id,
                 subject=f"{auth_method}:{credential_id}",
@@ -1858,6 +1859,136 @@ def test_nonprofits_search_rejects_authenticated_non_tenant_context():
     result = module.handler(event, None)
 
     assert result["statusCode"] == 403
+
+
+def test_tenant_lookup_tracks_org_usage_only_on_success():
+    module = _load_module()
+    _install_tenant_auth(module)
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    usage_service = module.UsageService(
+        organizations=organizations,
+        usage=module.DynamoUsageRepository(dynamodb_resource=identity_resource),
+    )
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        billing_settings_resolver=_BillingSettingsResolver(True),
+        organization_usage_tracker=module._PortalOrganizationUsageTracker(usage_service),
+    )
+    module.athena_client = _mock_client(record=_sample_record("Metered Org"))
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    ok_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    month_key = monthly_period_for()
+    usage = module.DynamoUsageRepository(dynamodb_resource=identity_resource).list_for_period("org_1", month_key)
+
+    assert ok_result["statusCode"] == 200
+    assert {item.metric_type.value: item.request_count for item in usage} == {
+        "api_requests": 1,
+        "nonprofit_lookups": 1,
+        "nonprofit_lookup_requests": 1,
+    }
+
+    bad_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/12-34A6789",
+            "pathParameters": {"ein": "12-34A6789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    usage_after_bad = module.DynamoUsageRepository(dynamodb_resource=identity_resource).list_for_period("org_1", month_key)
+
+    assert bad_result["statusCode"] == 400
+    assert {item.metric_type.value: item.request_count for item in usage_after_bad} == {
+        "api_requests": 1,
+        "nonprofit_lookups": 1,
+        "nonprofit_lookup_requests": 1,
+    }
+
+
+def test_tenant_search_and_filings_track_route_specific_usage():
+    module = _load_module()
+    _install_tenant_auth(module, scopes=("verify:read", "nonprofits:read"))
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    usage_service = module.UsageService(
+        organizations=organizations,
+        usage=module.DynamoUsageRepository(dynamodb_resource=identity_resource),
+    )
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        billing_settings_resolver=_BillingSettingsResolver(True),
+        organization_usage_tracker=module._PortalOrganizationUsageTracker(usage_service),
+    )
+    module.athena_client = _mock_client(
+        record=_sample_record("Metered Org"),
+        search_rows=[{"ein": "123456789", "name": "Metered Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"}],
+        filing_rows=[],
+    )
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
+
+    search_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/search",
+            "path": "/v1/nonprofits/search",
+            "queryStringParameters": {"q": "metered"},
+        },
+        None,
+    )
+    filings_result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}/filings",
+            "path": "/v1/nonprofit/123456789/filings",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    month_key = monthly_period_for()
+    usage = module.DynamoUsageRepository(dynamodb_resource=identity_resource).list_for_period("org_1", month_key)
+
+    assert search_result["statusCode"] == 200
+    assert filings_result["statusCode"] == 200
+    assert {item.metric_type.value: item.request_count for item in usage} == {
+        "api_requests": 2,
+        "nonprofit_lookups": 2,
+        "search_requests": 1,
+        "filing_lookup_requests": 1,
+    }
 
 
 def test_nonprofits_sources_supported_source_lookup():

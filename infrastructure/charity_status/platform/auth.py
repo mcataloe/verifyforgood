@@ -21,6 +21,7 @@ from charity_status.auth.models import AuthenticatedPrincipal
 from charity_status.billing import EntitlementService
 from charity_status.billing.service import DEFAULT_PLANS, check_quota_and_calculate, monthly_period_for
 from charity_status.core.models import AuthContext
+from charity_status_platform.customer_accounts import usage_metrics_for_route
 
 
 class ApiKeyAuthContextProvider:
@@ -220,10 +221,20 @@ class ApiKeyQuotaMeteringHook:
         else:
             for _ in range(billable_units):
                 self._usage_store.increment(str(auth_context.account_id), month_key)
-        self._track_organization_usage(auth_context, route_key, billable_units, month_key)
+        self._track_organization_usage(auth_context, route_key, billable_units, month_key, status_code)
 
-    def _track_organization_usage(self, auth_context: AuthContext, route_key: str, billable_units: int, month_key: str) -> None:
+    def _track_organization_usage(
+        self,
+        auth_context: AuthContext,
+        route_key: str,
+        billable_units: int,
+        month_key: str,
+        status_code: int,
+    ) -> None:
         if self._organization_usage_tracker is None or billable_units <= 0:
+            return
+        normalized_route_key = normalize_route_key(route_key)
+        if _is_success_only_organization_usage_route(normalized_route_key) and not (200 <= status_code < 300):
             return
         organization_id = auth_context.metadata.get("organization_id")
         if not organization_id or auth_context.metadata.get("tenant_scoped_request") != "true":
@@ -234,7 +245,7 @@ class ApiKeyQuotaMeteringHook:
         try:
             record_usage(
                 organization_id=str(organization_id),
-                route_key=normalize_route_key(route_key),
+                route_key=normalized_route_key,
                 billable_units=billable_units,
                 period_month=month_key,
             )
@@ -423,6 +434,18 @@ def _billable_units(route_key: str, metadata: dict[str, str]) -> int:
     if route_key.startswith("GET /v1/nonprofits/{ein}/sources"):
         return 2
     return 1
+
+
+def _is_success_only_organization_usage_route(route_key: str) -> bool:
+    return any(
+        metric.value in {
+            "nonprofit_lookups",
+            "nonprofit_lookup_requests",
+            "filing_lookup_requests",
+            "search_requests",
+        }
+        for metric in usage_metrics_for_route(route_key)
+    )
 
 
 def _get_header(headers: dict[str, Any], name: str) -> str | None:

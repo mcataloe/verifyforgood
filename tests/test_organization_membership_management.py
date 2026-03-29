@@ -4,8 +4,13 @@ import importlib
 import json
 import sys
 
+from charity_status.auth import InMemoryUsageStore
+from charity_status.platform.auth import ApiKeyQuotaMeteringHook
+from charity_status_platform.billing_usage import monthly_period_for
 from charity_status_platform.customer_accounts import (
+    DynamoOrganizationRepository,
     DynamoInvitationRepository,
+    DynamoUsageRepository,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
     InvitationRecord,
@@ -453,6 +458,14 @@ def test_portal_session_can_query_nonprofit_when_membership_is_active(monkeypatc
     )()
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
+    usage_service = module.UsageService(
+        organizations=DynamoOrganizationRepository(dynamodb_resource=_resource),
+        usage=DynamoUsageRepository(dynamodb_resource=_resource),
+    )
+    module.quota_metering_hook = ApiKeyQuotaMeteringHook(
+        InMemoryUsageStore(),
+        organization_usage_tracker=module._PortalOrganizationUsageTracker(usage_service),
+    )
 
     response = module.handler(
         {
@@ -465,9 +478,15 @@ def test_portal_session_can_query_nonprofit_when_membership_is_active(monkeypatc
         None,
     )
     payload = _response_body(response)
+    usage = DynamoUsageRepository(dynamodb_resource=_resource).list_for_period(organization["organization_id"], monthly_period_for())
 
     assert response["statusCode"] == 200
     assert payload["data"]["organization"]["name"] == "Tenant Query Org"
+    assert {item.metric_type.value: item.request_count for item in usage} == {
+        "api_requests": 1,
+        "nonprofit_lookups": 1,
+        "nonprofit_lookup_requests": 1,
+    }
 
 
 def test_portal_session_nonprofit_query_requires_current_org_headers(monkeypatch):

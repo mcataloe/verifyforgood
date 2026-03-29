@@ -527,6 +527,12 @@ def test_usage_service_tracks_monthly_metrics_and_supports_reset():
         period_month="2026-03",
         units=1,
     )
+    search = service.increment_metric(
+        organization_id="org_1",
+        metric_type=UsageMetricType.SEARCH_REQUESTS.value,
+        period_month="2026-03",
+        units=2,
+    )
     april = service.increment_metric(
         organization_id="org_1",
         metric_type=UsageMetricType.API_REQUESTS.value,
@@ -543,11 +549,13 @@ def test_usage_service_tracks_monthly_metrics_and_supports_reset():
     assert first.request_count == 1
     assert second.request_count == 3
     assert lookups.request_count == 1
+    assert search.request_count == 2
     assert april.request_count == 1
     assert reset.request_count == 0
     assert {(item.metric_type.value, item.request_count) for item in march_usage} == {
         ("api_requests", 3),
         ("nonprofit_lookups", 1),
+        ("search_requests", 2),
     }
 
 

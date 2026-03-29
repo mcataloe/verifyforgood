@@ -406,6 +406,17 @@ def test_usage_metric_mapping_covers_lookup_and_enrichment_routes():
     assert tuple(metric.value for metric in usage_metrics_for_route("GET /v1/nonprofit/{ein}")) == (
         "api_requests",
         "nonprofit_lookups",
+        "nonprofit_lookup_requests",
+    )
+    assert tuple(metric.value for metric in usage_metrics_for_route("GET /v1/nonprofits/search")) == (
+        "api_requests",
+        "nonprofit_lookups",
+        "search_requests",
+    )
+    assert tuple(metric.value for metric in usage_metrics_for_route("GET /v1/nonprofit/{ein}/filings")) == (
+        "api_requests",
+        "nonprofit_lookups",
+        "filing_lookup_requests",
     )
     assert tuple(metric.value for metric in usage_metrics_for_route("POST /v1/verify")) == (
         "api_requests",
@@ -472,6 +483,7 @@ def test_org_managed_api_key_tracks_parallel_usage_records():
     usage_records = {item.metric_type.value: item.request_count for item in usage_service.get_monthly_usage(organization_id="org_1", period_month=month_key)}
     assert usage_records["api_requests"] == 1
     assert usage_records["nonprofit_lookups"] == 1
+    assert usage_records["nonprofit_lookup_requests"] == 1
     assert "enrichment_requests" not in usage_records
 
 

@@ -35,6 +35,9 @@ class SubscriptionStatus(str, Enum):
 class UsageMetricType(str, Enum):
     API_REQUESTS = "api_requests"
     NONPROFIT_LOOKUPS = "nonprofit_lookups"
+    NONPROFIT_LOOKUP_REQUESTS = "nonprofit_lookup_requests"
+    FILING_LOOKUP_REQUESTS = "filing_lookup_requests"
+    SEARCH_REQUESTS = "search_requests"
     ENRICHMENT_REQUESTS = "enrichment_requests"
 
 

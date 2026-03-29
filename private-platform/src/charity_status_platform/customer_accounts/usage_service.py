@@ -79,19 +79,15 @@ class UsageService:
 def usage_metrics_for_route(route_key: str) -> tuple[UsageMetricType, ...]:
     normalized = str(route_key or "").strip().upper()
     metrics: list[UsageMetricType] = [UsageMetricType.API_REQUESTS]
-    if any(
-        marker in normalized
-        for marker in (
-            "GET /V1/NONPROFIT/",
-            "GET /V1/NONPROFITS/SEARCH",
-            "GET /V1/NONPROFITS/{EIN}",
-            "GET /V1/NONPROFIT/{EIN}/FILINGS",
-            "/SOURCES",
-            "/COMPLIANCE",
-            "/FEDERAL-AWARDS",
-        )
-    ):
+    if normalized == "GET /V1/NONPROFIT/{EIN}":
         metrics.append(UsageMetricType.NONPROFIT_LOOKUPS)
+        metrics.append(UsageMetricType.NONPROFIT_LOOKUP_REQUESTS)
+    elif normalized == "GET /V1/NONPROFITS/SEARCH":
+        metrics.append(UsageMetricType.NONPROFIT_LOOKUPS)
+        metrics.append(UsageMetricType.SEARCH_REQUESTS)
+    elif normalized == "GET /V1/NONPROFIT/{EIN}/FILINGS":
+        metrics.append(UsageMetricType.NONPROFIT_LOOKUPS)
+        metrics.append(UsageMetricType.FILING_LOOKUP_REQUESTS)
     if normalized in {"POST /V1/VERIFY", "POST /V1/VERIFY/BATCH", "POST /V1/NONPROFITS/VERIFY"}:
         metrics.append(UsageMetricType.ENRICHMENT_REQUESTS)
     return tuple(metrics)
@@ -101,7 +97,11 @@ def _validate_metric_type(metric_type: str) -> UsageMetricType:
     try:
         return UsageMetricType(str(metric_type or "").strip().lower())
     except Exception as exc:  # noqa: BLE001
-        raise UsageTrackingError("metric_type must be one of: api_requests, nonprofit_lookups, enrichment_requests") from exc
+        raise UsageTrackingError(
+            "metric_type must be one of: "
+            "api_requests, nonprofit_lookups, nonprofit_lookup_requests, "
+            "filing_lookup_requests, search_requests, enrichment_requests"
+        ) from exc
 
 
 def _resolve_period_month(period_month: str | None) -> str:
