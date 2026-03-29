@@ -46,6 +46,16 @@ class OrganizationRepository(Protocol):
     def get_by_slug(self, slug: str) -> OrganizationRecord | None:
         ...
 
+    def update_profile(
+        self,
+        organization_id: str,
+        *,
+        name: str,
+        contact_email: str | None,
+        updated_at: str,
+    ) -> OrganizationRecord | None:
+        ...
+
 
 class MembershipRepository(Protocol):
     def create(self, membership: MembershipRecord) -> MembershipRecord:

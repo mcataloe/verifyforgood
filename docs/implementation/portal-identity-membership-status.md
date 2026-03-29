@@ -2,11 +2,11 @@
 
 ## Status
 
-customer admin shell refined
+organization settings implemented
 
 ## Next Phase
 
-22B
+22C
 
 ## Scope
 

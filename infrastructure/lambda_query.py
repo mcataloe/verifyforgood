@@ -122,6 +122,8 @@ from charity_status_platform.customer_accounts import (
     MembershipStatus,
     OrganizationBootstrapValidationError,
     OrganizationCreateRequest,
+    OrganizationSettingsNotFoundError,
+    OrganizationSettingsService,
     OrganizationService,
     SubscriptionService,
     UsageService,
@@ -202,6 +204,7 @@ lambda_invoke_client: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
+organization_settings_service: OrganizationSettingsService | None = None
 oauth_client_credentials_service: OAuthClientCredentialsService | None = None
 control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
@@ -816,6 +819,16 @@ def _get_organization_integration_settings_service() -> OrganizationIntegrationS
             store=_get_organization_integration_settings_store(),
         )
     return organization_integration_settings_service
+
+
+def _get_organization_settings_service() -> OrganizationSettingsService:
+    global organization_settings_service
+    if organization_settings_service is None:
+        organization_settings_service = OrganizationSettingsService(
+            integration_settings=_get_organization_integration_settings_service(),
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return organization_settings_service
 
 
 def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
@@ -1623,14 +1636,22 @@ def handler(event, context):
             return error_response(400, str(exc), response_context=portal_context, code="bad_request")
 
     tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
+    organization_settings_request = _is_organization_settings_request(event or {}, method)
     try:
-        tenant_context: TenantContext | None = None
+        resolved_tenant_context: TenantContext | None = None
         if tenant_nonprofit_request:
-            auth_context, tenant_context = _resolve_organization_tenant_context(
+            auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
                 event or {},
                 missing_context_message="Organization-scoped authentication is required for nonprofit queries",
                 missing_membership_message="Active membership is required for nonprofit queries",
                 require_user=False,
+            )
+        elif organization_settings_request:
+            auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for organization settings",
+                missing_membership_message="Active membership is required for organization settings",
+                require_user=True,
             )
         else:
             auth_context = _get_auth_context_provider().extract_context(event or {})
@@ -1668,8 +1689,8 @@ def handler(event, context):
         return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
     tenant_context = (
-        _build_tenant_nonprofit_context(auth_context=auth_context, tenant_context=tenant_context)
-        if tenant_nonprofit_request and tenant_context is not None
+        _build_tenant_nonprofit_context(auth_context=auth_context, tenant_context=resolved_tenant_context)
+        if tenant_nonprofit_request and resolved_tenant_context is not None
         else None
     )
     if method == "POST" and _is_batch_verify_request(event):
@@ -1708,9 +1729,18 @@ def handler(event, context):
         return response
     if _is_organization_settings_request(event, method):
         try:
-            response = _handle_organization_settings_request(event, auth_context, response_context=api_context)
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization settings")
+            response = _handle_organization_settings_request(
+                event,
+                auth_context=auth_context,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
         except OrganizationIntegrationSettingsValidationError as exc:
             response = fail(400, str(exc))
+        except OrganizationSettingsNotFoundError as exc:
+            response = fail(exc.status_code, str(exc), code="not_found")
         except AuthorizationError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
@@ -2088,13 +2118,23 @@ def _handle_organization_settings_request(
     event: dict,
     auth_context: Any,
     *,
+    tenant_context: TenantContext,
     response_context: ResponseContext,
 ) -> dict[str, Any]:
-    workspace_id, account_id = _require_organization_context(auth_context)
-    service = _get_organization_integration_settings_service()
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization settings")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may manage organization settings")
+    workspace_id = tenant_context.organization_id
+    account_id = tenant_context.organization_id
+    service = _get_organization_settings_service()
     method = str(event.get("httpMethod") or "GET").upper()
     if method == "GET":
-        document = service.get_settings(workspace_id=workspace_id, account_id=account_id)
+        document = service.get_settings(
+            organization_id=tenant_context.organization_id,
+            workspace_id=workspace_id,
+            account_id=account_id,
+        )
         return json_response(200, document.to_dict(), response_context=response_context)
 
     body = event.get("body")
@@ -2114,6 +2154,7 @@ def _handle_organization_settings_request(
             code="forbidden",
         )
     document = service.update_settings(
+        organization_id=tenant_context.organization_id,
         workspace_id=workspace_id,
         account_id=account_id,
         payload=payload,

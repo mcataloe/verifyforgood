@@ -74,6 +74,7 @@ class OrganizationRecord:
     slug: str
     created_at: str
     updated_at: str
+    contact_email: str | None = None
 
 
 @dataclass(frozen=True)

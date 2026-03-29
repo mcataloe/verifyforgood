@@ -19,6 +19,14 @@ export interface PortalOrganizationSettingsDocument {
     allowOverage?: boolean;
     monthlyRequestCap?: number | null;
   };
+  organization?: {
+    contactEmail?: string | null;
+    createdAt?: string | null;
+    displayName?: string | null;
+    organizationId?: string | null;
+    slug?: string | null;
+    updatedAt?: string | null;
+  };
   source?: "default" | "stored";
   updated_at?: string | null;
   workspace_id?: string | null;
@@ -28,13 +36,18 @@ export interface PortalOrganization {
   account_id: string;
   billing_allow_overage: boolean | null;
   billing_monthly_request_cap: number | null;
+  contact_email?: string | null;
+  created_at?: string | null;
+  organization_id?: string | null;
   organization_name: string;
+  organization_updated_at?: string | null;
   scope_source:
     | "active_organization"
     | "backend_settings"
     | "session_fallback"
     | "session_mock";
   settings_source: "default" | "mock" | "stored";
+  slug?: string | null;
   updated_at: string | null;
   workspace_id: string;
 }
@@ -90,11 +103,50 @@ export function createSessionPortalOrganization(
     account_id: session.account_id,
     billing_allow_overage: null,
     billing_monthly_request_cap: null,
+    contact_email: null,
+    created_at: null,
+    organization_id: session.workspace_id,
     organization_name: session.organization_name,
+    organization_updated_at: null,
     scope_source: scopeSource,
     settings_source: "mock",
+    slug: null,
     updated_at: null,
     workspace_id: session.workspace_id,
+  };
+}
+
+export function mapSettingsToPortalOrganization({
+  session,
+  settings,
+}: {
+  session: PortalOrganizationSessionScope;
+  settings: PortalOrganizationSettingsDocument;
+}): PortalOrganization {
+  const organization = settings.organization;
+  return {
+    account_id: settings.account_id ?? session.account_id,
+    billing_allow_overage:
+      typeof settings.billing?.allowOverage === "boolean"
+        ? settings.billing.allowOverage
+        : null,
+    billing_monthly_request_cap:
+      typeof settings.billing?.monthlyRequestCap === "number" &&
+      Number.isInteger(settings.billing.monthlyRequestCap) &&
+      settings.billing.monthlyRequestCap > 0
+        ? settings.billing.monthlyRequestCap
+        : null,
+    contact_email: organization?.contactEmail ?? null,
+    created_at: organization?.createdAt ?? null,
+    organization_id: organization?.organizationId ?? settings.workspace_id ?? session.workspace_id,
+    organization_name:
+      organization?.displayName?.trim() || session.organization_name,
+    organization_updated_at: organization?.updatedAt ?? null,
+    scope_source: "backend_settings",
+    settings_source: settings.source ?? "default",
+    slug: organization?.slug ?? null,
+    updated_at: settings.updated_at ?? null,
+    workspace_id: settings.workspace_id ?? session.workspace_id,
   };
 }
 
@@ -110,25 +162,7 @@ export async function loadActivePortalOrganization({
     const settings = await apiClient.get<PortalOrganizationSettingsDocument>(
       apiEndpoints.organization.settings,
     );
-
-    return {
-      account_id: settings.account_id ?? session.account_id,
-      billing_allow_overage:
-        typeof settings.billing?.allowOverage === "boolean"
-          ? settings.billing.allowOverage
-          : null,
-      billing_monthly_request_cap:
-        typeof settings.billing?.monthlyRequestCap === "number" &&
-        Number.isInteger(settings.billing.monthlyRequestCap) &&
-        settings.billing.monthlyRequestCap > 0
-          ? settings.billing.monthlyRequestCap
-          : null,
-      organization_name: session.organization_name,
-      scope_source: "backend_settings",
-      settings_source: settings.source ?? "default",
-      updated_at: settings.updated_at ?? null,
-      workspace_id: settings.workspace_id ?? session.workspace_id,
-    };
+    return mapSettingsToPortalOrganization({ session, settings });
   } catch {
     return createSessionPortalOrganization(session, "session_fallback");
   }

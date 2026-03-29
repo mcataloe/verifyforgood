@@ -1,0 +1,240 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
+
+from charity_status.enrichments.organization_settings_service import (
+    AccountBillingSettings,
+    OrganizationIntegrationSettings,
+    OrganizationIntegrationSettingsDocument,
+    OrganizationIntegrationSettingsService,
+    OrganizationIntegrationSettingsValidationError,
+)
+
+from .identity_models import OrganizationRecord
+from .identity_repositories import OrganizationRepository
+
+
+class OrganizationSettingsNotFoundError(LookupError):
+    status_code = 404
+
+
+@dataclass(frozen=True)
+class OrganizationProfileSettings:
+    organization_id: str
+    display_name: str
+    slug: str
+    contact_email: str | None
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_record(cls, organization: OrganizationRecord) -> "OrganizationProfileSettings":
+        return cls(
+            organization_id=organization.organization_id,
+            display_name=organization.name,
+            slug=organization.slug,
+            contact_email=organization.contact_email,
+            created_at=organization.created_at,
+            updated_at=organization.updated_at,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "organizationId": self.organization_id,
+            "displayName": self.display_name,
+            "slug": self.slug,
+            "contactEmail": self.contact_email,
+            "createdAt": self.created_at,
+            "updatedAt": self.updated_at,
+        }
+
+
+@dataclass(frozen=True)
+class OrganizationSettingsDocument:
+    workspace_id: str | None
+    account_id: str | None
+    organization: OrganizationProfileSettings
+    integration_settings: OrganizationIntegrationSettings
+    billing_settings: AccountBillingSettings
+    source: str
+    updated_at: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workspace_id": self.workspace_id,
+            "account_id": self.account_id,
+            "organization": self.organization.to_dict(),
+            "integrations": self.integration_settings.to_dict(),
+            "billing": self.billing_settings.to_dict(),
+            "source": self.source,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass(frozen=True)
+class OrganizationProfileUpdate:
+    display_name: str
+    contact_email: str | None
+
+
+class OrganizationSettingsService:
+    def __init__(
+        self,
+        *,
+        integration_settings: OrganizationIntegrationSettingsService,
+        organizations: OrganizationRepository,
+    ) -> None:
+        self._integration_settings = integration_settings
+        self._organizations = organizations
+
+    def get_settings(
+        self,
+        *,
+        organization_id: str,
+        workspace_id: str | None,
+        account_id: str | None,
+    ) -> OrganizationSettingsDocument:
+        organization = self._require_organization(organization_id)
+        settings_document = self._integration_settings.get_settings(
+            workspace_id=workspace_id,
+            account_id=account_id,
+        )
+        return self._compose_document(
+            organization=organization,
+            settings_document=settings_document,
+        )
+
+    def update_settings(
+        self,
+        *,
+        organization_id: str,
+        workspace_id: str | None,
+        account_id: str | None,
+        payload: dict[str, Any],
+    ) -> OrganizationSettingsDocument:
+        organization = self._require_organization(organization_id)
+        has_organization_payload = "organization" in payload
+        has_settings_payload = "integrations" in payload or "billing" in payload
+        if not has_organization_payload and not has_settings_payload:
+            raise OrganizationIntegrationSettingsValidationError(
+                "Request body must include organization, integrations, or billing object"
+            )
+
+        updated_at = _utc_now()
+        if has_organization_payload:
+            profile_update = self._parse_profile_payload(payload.get("organization"), current=organization)
+            persisted = self._organizations.update_profile(
+                organization_id,
+                name=profile_update.display_name,
+                contact_email=profile_update.contact_email,
+                updated_at=updated_at,
+            )
+            if persisted is None:
+                raise OrganizationSettingsNotFoundError("Organization was not found")
+            organization = persisted
+
+        settings_document = self._integration_settings.get_settings(
+            workspace_id=workspace_id,
+            account_id=account_id,
+        )
+        if has_settings_payload:
+            settings_document = self._integration_settings.update_settings(
+                workspace_id=workspace_id,
+                account_id=account_id,
+                payload={key: value for key, value in payload.items() if key in {"integrations", "billing"}},
+            )
+
+        return self._compose_document(
+            organization=organization,
+            settings_document=settings_document,
+        )
+
+    def _compose_document(
+        self,
+        *,
+        organization: OrganizationRecord,
+        settings_document: OrganizationIntegrationSettingsDocument,
+    ) -> OrganizationSettingsDocument:
+        return OrganizationSettingsDocument(
+            workspace_id=settings_document.workspace_id or organization.organization_id,
+            account_id=settings_document.account_id or organization.organization_id,
+            organization=OrganizationProfileSettings.from_record(organization),
+            integration_settings=settings_document.integration_settings,
+            billing_settings=settings_document.billing_settings,
+            source=settings_document.source,
+            updated_at=_latest_updated_at(settings_document.updated_at, organization.updated_at),
+        )
+
+    def _parse_profile_payload(
+        self,
+        payload: Any,
+        *,
+        current: OrganizationRecord,
+    ) -> OrganizationProfileUpdate:
+        if not isinstance(payload, dict):
+            raise OrganizationIntegrationSettingsValidationError("organization must be an object")
+        allowed_fields = {"displayName", "display_name", "contactEmail", "contact_email"}
+        unknown_fields = sorted(str(key) for key in payload.keys() if key not in allowed_fields and str(key) != "slug")
+        if "slug" in payload:
+            raise OrganizationIntegrationSettingsValidationError("organization.slug is read-only")
+        if unknown_fields:
+            raise OrganizationIntegrationSettingsValidationError(
+                f"Unsupported organization field(s): {', '.join(unknown_fields)}"
+            )
+        display_name = current.name
+        if "displayName" in payload or "display_name" in payload:
+            display_name = _validate_display_name(
+                payload.get("displayName", payload.get("display_name"))
+            )
+        contact_email = current.contact_email
+        if "contactEmail" in payload or "contact_email" in payload:
+            contact_email = _validate_contact_email(
+                payload.get("contactEmail", payload.get("contact_email"))
+            )
+        return OrganizationProfileUpdate(
+            display_name=display_name,
+            contact_email=contact_email,
+        )
+
+    def _require_organization(self, organization_id: str) -> OrganizationRecord:
+        organization = self._organizations.get(organization_id)
+        if organization is None:
+            raise OrganizationSettingsNotFoundError("Organization was not found")
+        return organization
+
+
+def _validate_display_name(value: Any) -> str:
+    candidate = str(value or "").strip()
+    if len(candidate) < 2:
+        raise OrganizationIntegrationSettingsValidationError(
+            "organization.displayName must be at least 2 characters"
+        )
+    return candidate
+
+
+def _validate_contact_email(value: Any) -> str | None:
+    if value is None:
+        return None
+    candidate = str(value).strip()
+    if not candidate:
+        return None
+    if not _EMAIL_PATTERN.fullmatch(candidate):
+        raise OrganizationIntegrationSettingsValidationError("organization.contactEmail must be a valid email address")
+    return candidate
+
+
+def _latest_updated_at(*values: str | None) -> str | None:
+    candidates = [str(value).strip() for value in values if str(value or "").strip()]
+    if not candidates:
+        return None
+    return max(candidates)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

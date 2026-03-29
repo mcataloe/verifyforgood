@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPortalActiveOrganizationRecord,
   createPortalOrganizationClient,
+  loadActivePortalOrganization,
+  mapSettingsToPortalOrganization,
   readStoredActiveOrganization,
   writeStoredActiveOrganization,
 } from "./portalOrganization";
@@ -130,5 +132,74 @@ describe("portal organization client", () => {
       organization_name: "Verify For Good Org",
       workspace_id: "org_123",
     });
+  });
+
+  it("prefers backend organization profile metadata when loading active organization scope", async () => {
+    const apiClient = {
+      get: vi.fn(async () => ({
+        account_id: "org_123",
+        billing: {
+          allowOverage: false,
+          monthlyRequestCap: 900,
+        },
+        organization: {
+          contactEmail: "ops@example.org",
+          createdAt: "2026-03-20T00:00:00Z",
+          displayName: "Backend Display Name",
+          organizationId: "org_123",
+          slug: "backend-display-name",
+          updatedAt: "2026-03-21T00:00:00Z",
+        },
+        source: "stored",
+        updated_at: "2026-03-21T00:00:00Z",
+        workspace_id: "org_123",
+      })),
+    } as const;
+
+    const organization = await loadActivePortalOrganization({
+      apiClient: apiClient as never,
+      session: {
+        account_id: "org_123",
+        auth_method: "portal_browser_session",
+        organization_context_status: "active",
+        organization_name: "Session Fallback Name",
+        workspace_id: "org_123",
+      },
+    });
+
+    expect(organization.organization_name).toBe("Backend Display Name");
+    expect(organization.contact_email).toBe("ops@example.org");
+    expect(organization.slug).toBe("backend-display-name");
+    expect(organization.organization_id).toBe("org_123");
+  });
+
+  it("maps additive organization settings payloads into the shared portal organization model", () => {
+    const organization = mapSettingsToPortalOrganization({
+      session: {
+        account_id: "org_123",
+        auth_method: "portal_browser_session",
+        organization_context_status: "active",
+        organization_name: "Session Name",
+        workspace_id: "org_123",
+      },
+      settings: {
+        account_id: "org_123",
+        organization: {
+          contactEmail: "ops@example.org",
+          createdAt: "2026-03-20T00:00:00Z",
+          displayName: "Org Profile Name",
+          organizationId: "org_123",
+          slug: "org-profile-name",
+          updatedAt: "2026-03-21T00:00:00Z",
+        },
+        source: "stored",
+        updated_at: "2026-03-22T00:00:00Z",
+        workspace_id: "org_123",
+      },
+    });
+
+    expect(organization.organization_name).toBe("Org Profile Name");
+    expect(organization.contact_email).toBe("ops@example.org");
+    expect(organization.created_at).toBe("2026-03-20T00:00:00Z");
   });
 });

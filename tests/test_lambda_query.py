@@ -33,6 +33,7 @@ from charity_status_platform.customer_accounts import (
     FeatureFlagKey,
     FeatureFlagService,
     OrganizationRecord,
+    OrganizationSettingsService,
     SubscriptionService,
 )
 
@@ -59,6 +60,27 @@ def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None
 def _load_module():
     sys.modules.pop("infrastructure.lambda_query", None)
     return importlib.import_module("infrastructure.lambda_query")
+
+
+def _resolve_admin_tenant_context(module, *, plan="pro", role="admin"):
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(
+            plan=plan,
+            entitlements=DEFAULT_ENTITLEMENTS[plan],
+            metadata={"organization_id": "org_1"},
+        )
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_admin" if role == "admin" else "user_member",
+            membership_role=role,
+            subscription_plan=plan,
+            auth_method="portal_session",
+            credential_id="user_admin" if role == "admin" else "user_member",
+            metadata={"organization_id": "org_1", "membership_role": role},
+        )
+        return auth_context, tenant_context
+
+    return _resolve
 
 
 def _load_admin_module(monkeypatch):
@@ -550,11 +572,24 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
 
 def test_get_organization_integrations_returns_current_settings():
     module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+            contact_email="ops@orgone.example",
+        )
+    )
     module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore(
         [
             {
-                "workspace_id": "ws_1",
-                "account_id": "acct_1",
+                "workspace_id": "org_1",
+                "account_id": "org_1",
                 "integrations": {
                     "candid": {"enabled": True, "requiredForEvaluation": False},
                 },
@@ -565,18 +600,10 @@ def test_get_organization_integrations_returns_current_settings():
         fallback_resolver=load_organization_integration_settings("[]"),
         store=module.organization_integration_settings_store,
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:read",),
-                metadata={},
-                workspace_id="ws_1",
-                account_id="acct_1",
-                plan="growth",
-                entitlements=DEFAULT_ENTITLEMENTS["growth"],
-            )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -585,15 +612,22 @@ def test_get_organization_integrations_returns_current_settings():
         def on_response(self, auth_context, route_key, status_code):
             return None
 
-    module.auth_context_provider = _AuthProvider()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
     module.quota_metering_hook = _QuotaHook()
 
-    event = {"httpMethod": "GET", "resource": "/v1/organization/settings", "path": "/v1/organization/settings", "headers": {}}
+    event = {
+        "httpMethod": "GET",
+        "resource": "/v1/organization/settings",
+        "path": "/v1/organization/settings",
+        "headers": {"Authorization": "Bearer test"},
+    }
     result = module.handler(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
-    assert body["workspace_id"] == "ws_1"
+    assert body["workspace_id"] == "org_1"
+    assert body["organization"]["displayName"] == "Org One"
+    assert body["organization"]["contactEmail"] == "ops@orgone.example"
     assert body["integrations"]["candid"]["enabled"] is True
     assert body["integrations"]["charityNavigator"]["enabled"] is False
     assert body["billing"]["allowOverage"] is True
@@ -660,23 +694,27 @@ def test_resolve_evaluation_context_applies_org_feature_flag_overrides():
 
 def test_put_organization_integrations_updates_settings():
     module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
     module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
     module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
         fallback_resolver=load_organization_integration_settings("[]"),
         store=module.organization_integration_settings_store,
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id="ws_1",
-                account_id="acct_1",
-                plan="pro",
-                entitlements=DEFAULT_ENTITLEMENTS["pro"],
-            )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -685,14 +723,14 @@ def test_put_organization_integrations_updates_settings():
         def on_response(self, auth_context, route_key, status_code):
             return None
 
-    module.auth_context_provider = _AuthProvider()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="pro")
     module.quota_metering_hook = _QuotaHook()
 
     event = {
         "httpMethod": "PUT",
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
-        "headers": {},
+        "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": True}}}),
     }
     result = module.handler(event, None)
@@ -704,29 +742,33 @@ def test_put_organization_integrations_updates_settings():
     assert body["billing"]["allowOverage"] is True
     assert body["billing"]["monthlyRequestCap"] is None
 
-    fetched = module.organization_integration_settings_store.get_settings(workspace_id="ws_1", account_id="acct_1")
+    fetched = module.organization_integration_settings_store.get_settings(workspace_id="org_1", account_id="org_1")
     assert fetched["integrations"]["candid"]["enabled"] is True
 
 
 def test_put_organization_integrations_allows_billing_update_for_growth_plan():
     module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
     module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
     module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
         fallback_resolver=load_organization_integration_settings("[]"),
         store=module.organization_integration_settings_store,
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id="ws_1",
-                account_id="acct_1",
-                plan="growth",
-                entitlements=DEFAULT_ENTITLEMENTS["growth"],
-            )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -735,14 +777,14 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
         def on_response(self, auth_context, route_key, status_code):
             return None
 
-    module.auth_context_provider = _AuthProvider()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
     module.quota_metering_hook = _QuotaHook()
 
     event = {
         "httpMethod": "PUT",
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
-        "headers": {},
+        "headers": {"Authorization": "Bearer test"},
         "body": json.dumps(
             {"billing": {"allowOverage": False, "monthlyRequestCap": 750}}
         ),
@@ -753,30 +795,34 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
     assert result["statusCode"] == 200
     assert body["billing"]["allowOverage"] is False
     assert body["billing"]["monthlyRequestCap"] == 750
-    fetched = module.organization_integration_settings_store.get_billing_settings(account_id="acct_1")
+    fetched = module.organization_integration_settings_store.get_billing_settings(account_id="org_1")
     assert fetched["billing"]["allowOverage"] is False
     assert fetched["billing"]["monthlyRequestCap"] == 750
 
 
 def test_put_organization_integrations_rejects_integration_update_for_growth_plan():
     module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
     module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
     module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
         fallback_resolver=load_organization_integration_settings("[]"),
         store=module.organization_integration_settings_store,
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id="ws_1",
-                account_id="acct_1",
-                plan="growth",
-                entitlements=DEFAULT_ENTITLEMENTS["growth"],
-            )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -785,14 +831,14 @@ def test_put_organization_integrations_rejects_integration_update_for_growth_pla
         def on_response(self, auth_context, route_key, status_code):
             return None
 
-    module.auth_context_provider = _AuthProvider()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
     module.quota_metering_hook = _QuotaHook()
 
     event = {
         "httpMethod": "PUT",
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
-        "headers": {},
+        "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": False}}}),
     }
     result = module.handler(event, None)
@@ -804,23 +850,27 @@ def test_put_organization_integrations_rejects_integration_update_for_growth_pla
 
 def test_put_organization_integrations_rejects_required_disabled():
     module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
     module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
     module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
         fallback_resolver=load_organization_integration_settings("[]"),
         store=module.organization_integration_settings_store,
     )
-
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id="ws_1",
-                account_id="acct_1",
-                plan="pro",
-                entitlements=DEFAULT_ENTITLEMENTS["pro"],
-            )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -829,14 +879,14 @@ def test_put_organization_integrations_rejects_required_disabled():
         def on_response(self, auth_context, route_key, status_code):
             return None
 
-    module.auth_context_provider = _AuthProvider()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="pro")
     module.quota_metering_hook = _QuotaHook()
 
     event = {
         "httpMethod": "PUT",
         "resource": "/v1/organization/settings",
         "path": "/v1/organization/settings",
-        "headers": {},
+        "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": False, "requiredForEvaluation": True}}}),
     }
     result = module.handler(event, None)
@@ -844,6 +894,125 @@ def test_put_organization_integrations_rejects_required_disabled():
 
     assert result["statusCode"] == 400
     assert "requiredForEvaluation" in message
+
+
+def test_put_organization_settings_updates_profile_for_admin():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+            contact_email="ops@orgone.example",
+        )
+    )
+    module.organization_integration_settings_store = InMemoryOrganizationIntegrationSettingsStore()
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=module.organization_integration_settings_store,
+    )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "PUT",
+            "resource": "/v1/organization/settings",
+            "path": "/v1/organization/settings",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps(
+                {
+                    "organization": {
+                        "displayName": "Org One Updated",
+                        "contactEmail": "support@orgone.example",
+                    }
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["organization"]["displayName"] == "Org One Updated"
+    assert body["organization"]["contactEmail"] == "support@orgone.example"
+    assert organizations.get("org_1").name == "Org One Updated"
+
+
+def test_put_organization_settings_rejects_slug_update():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=InMemoryOrganizationIntegrationSettingsStore(),
+    )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "PUT",
+            "resource": "/v1/organization/settings",
+            "path": "/v1/organization/settings",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps(
+                {
+                    "organization": {
+                        "displayName": "Org One Updated",
+                        "slug": "renamed-org",
+                    }
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "organization.slug is read-only"
+
+
+def test_get_organization_settings_requires_admin_membership():
+    module = _load_module()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="growth",
+        role="user",
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/settings",
+            "path": "/v1/organization/settings",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may manage organization settings"
 
 
 def test_post_organization_billing_checkout_session_returns_checkout_url():

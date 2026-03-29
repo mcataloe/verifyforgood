@@ -10,6 +10,7 @@ import {
   type PortalOrganizationContextValue,
 } from "../organization/usePortalOrganization";
 import type { PortalBudgetSettingsController } from "../settings/usePortalBudgetSettings";
+import type { PortalOrganizationProfileSettingsController } from "../settings/usePortalOrganizationProfileSettings";
 import { SettingsPage } from "./SettingsPage";
 
 const endpoints: PortalEndpoints = {
@@ -38,6 +39,20 @@ describe("SettingsPage", () => {
 
   it("renders budget controls and persists the configured state", () => {
     const save = vi.fn(async () => {});
+    const organizationProfileController: PortalOrganizationProfileSettingsController = {
+      clearNotice: vi.fn(),
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      notice: "Organization profile saved.",
+      save: vi.fn(async () => {}),
+      settings: {
+        contactEmail: "ops@example.org",
+        displayName: "Portal Test Org",
+        slug: "portal-test-org",
+        updatedAt: "2026-03-21T00:00:00Z",
+      },
+    };
     const budgetController: PortalBudgetSettingsController = {
       clearNotice: vi.fn(),
       error: null,
@@ -87,6 +102,7 @@ describe("SettingsPage", () => {
       <SettingsPage
         budgetController={budgetController}
         endpoints={endpoints}
+        organizationProfileController={organizationProfileController}
         session={createMockPortalSession()}
         usageController={usageController}
       />,
@@ -99,18 +115,28 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Workspace settings" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Profile & preferences" }),
+      screen.getByRole("heading", { name: "Organization Profile" }),
     ).toBeTruthy();
-    expect(screen.getByText("Portal Test Org")).toBeTruthy();
-    expect(screen.getByText("acct_portal_test")).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Organization Details" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Administrative Metadata" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Portal Test Org").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("acct_portal_test").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/admin/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByText("alex.operator@example.org")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    expect(screen.getByDisplayValue("Portal Test Org")).toBeTruthy();
+    expect(screen.getByDisplayValue("ops@example.org")).toBeTruthy();
+    expect(screen.getByText("portal-test-org")).toBeTruthy();
     expect(screen.getByDisplayValue("800")).toBeTruthy();
     expect(screen.getByText("Budget controls saved.")).toBeTruthy();
+    expect(screen.getByText("Organization profile saved.")).toBeTruthy();
     expect(screen.getByText("240 / 800")).toBeTruthy();
     expect(
       screen.getByText(/560 requests remain before the hard stop is reached./i),
@@ -210,6 +236,47 @@ describe("SettingsPage", () => {
     ).toContain("Dark");
   });
 
+  it("submits organization profile updates through the shared settings surface", () => {
+    const save = vi.fn(async () => {});
+    const organizationProfileController: PortalOrganizationProfileSettingsController = {
+      clearNotice: vi.fn(),
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      notice: null,
+      save,
+      settings: {
+        contactEmail: "ops@example.org",
+        displayName: "Portal Test Org",
+        slug: "portal-test-org",
+        updatedAt: "2026-03-21T00:00:00Z",
+      },
+    };
+
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        organizationProfileController={organizationProfileController}
+        session={createMockPortalSession()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Display name"), {
+      target: { value: "Updated Portal Org" },
+    });
+    fireEvent.change(screen.getByLabelText("Contact email"), {
+      target: { value: "support@example.org" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save organization profile" }),
+    );
+
+    expect(save).toHaveBeenCalledWith({
+      contactEmail: "support@example.org",
+      displayName: "Updated Portal Org",
+    });
+  });
+
   it("uses the standardized error state when limit visualization cannot load", () => {
     renderWithOrganization(
       <SettingsPage
@@ -262,9 +329,14 @@ function renderWithOrganization(element: ReactNode) {
       account_id: "acct_portal_test",
       billing_allow_overage: false,
       billing_monthly_request_cap: 800,
+      contact_email: "ops@example.org",
+      created_at: "2026-03-20T00:00:00Z",
+      organization_id: "org_portal_test",
       organization_name: "Portal Test Org",
+      organization_updated_at: "2026-03-21T00:00:00Z",
       scope_source: "backend_settings",
       settings_source: "stored",
+      slug: "portal-test-org",
       updated_at: "2026-03-21T00:00:00Z",
       workspace_id: "ws_portal_test",
     },

@@ -109,6 +109,28 @@ class DynamoOrganizationRepository:
             return None
         return _organization_from_item(items[0])
 
+    def update_profile(
+        self,
+        organization_id: str,
+        *,
+        name: str,
+        contact_email: str | None,
+        updated_at: str,
+    ) -> OrganizationRecord | None:
+        existing = self.get(organization_id)
+        if existing is None:
+            return None
+        updated = OrganizationRecord(
+            organization_id=existing.organization_id,
+            name=name,
+            slug=existing.slug,
+            created_at=existing.created_at,
+            updated_at=updated_at,
+            contact_email=contact_email,
+        )
+        self._table.put_item(Item=_organization_item(updated))
+        return updated
+
 
 class DynamoMembershipRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
@@ -521,6 +543,7 @@ def _organization_item(organization: OrganizationRecord) -> dict[str, Any]:
         "slug": organization.slug,
         "created_at": organization.created_at,
         "updated_at": organization.updated_at,
+        "contact_email": organization.contact_email,
         "gsi4pk": f"ORGSLUG#{organization.slug}",
         "gsi4sk": _organization_pk(organization.organization_id),
     }
@@ -661,6 +684,7 @@ def _organization_from_item(item: dict[str, Any]) -> OrganizationRecord:
         slug=str(item.get("slug") or ""),
         created_at=str(item.get("created_at") or ""),
         updated_at=str(item.get("updated_at") or ""),
+        contact_email=_optional_string(item.get("contact_email")),
     )
 
 

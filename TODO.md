@@ -419,3 +419,23 @@ Phase 21H adds backend reconciliation tooling and stronger billing observability
 ### Constraint
 
 Keep the current admin/support tooling and compact billing event model intact so support-runbook documentation can evolve without requiring a new customer-facing billing API.
+
+## TODO-ARCH-020
+
+### Title
+
+Define the future organization slug-rename workflow and redirect semantics.
+
+### Rationale
+
+Phase 22B adds organization profile management through the existing `/v1/organization/settings` contract but intentionally keeps `slug` read-only. Product and support still need a durable policy for when slug changes are allowed, how collisions are prevented, and whether old slugs should redirect for links, API clients, or customer-facing references.
+
+### Migration Triggers
+
+- customers need self-service workspace or tenant renaming
+- slug values become part of durable URLs or external-facing links
+- support requests begin requiring manual slug correction or recovery
+
+### Constraint
+
+Keep `organization_id` as the canonical tenant identifier and treat `slug` as mutable presentation metadata so any future rename workflow remains additive and does not redefine organization identity or current organization settings contracts.
