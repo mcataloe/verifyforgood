@@ -89,6 +89,21 @@ class StripeCheckoutClient(Protocol):
         ...
 
 
+class BillingPlanCatalogProvider(Protocol):
+    def get_mapping_for_plan(self, internal_plan_id: str):
+        ...
+
+
+class BillingCustomerBootstrapper(Protocol):
+    def bootstrap_customer(
+        self,
+        *,
+        organization_id: str,
+        created_by_user_id: str | None,
+    ):
+        ...
+
+
 class ControlPlaneBillingStore(Protocol):
     def get_account(self, account_id: str):
         ...
@@ -132,6 +147,8 @@ class BillingCheckoutService:
         store: ControlPlaneBillingStore,
         config: StripeCheckoutConfig,
         stripe_client: StripeCheckoutClient | None = None,
+        plan_catalog_provider: BillingPlanCatalogProvider | None = None,
+        customer_bootstrapper: BillingCustomerBootstrapper | None = None,
     ) -> None:
         self._store = store
         self._config = config
@@ -140,6 +157,8 @@ class BillingCheckoutService:
             public_brand_name=config.public_brand_name,
         )
         self._entitlement_service = EntitlementService()
+        self._plan_catalog_provider = plan_catalog_provider
+        self._customer_bootstrapper = customer_bootstrapper
 
     def create_checkout_session(self, *, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not self._config.enabled:
@@ -159,7 +178,7 @@ class BillingCheckoutService:
 
         customer_id = str(getattr(subscription, "stripe_customer_id", "") or "").strip()
         if not customer_id:
-            customer_id = self._stripe_client.create_customer(
+            customer_id = self._ensure_customer_id(
                 account_id=account_id,
                 account_name=str(getattr(account, "name", "") or account_id),
                 ein=getattr(account, "ein", None),
@@ -170,7 +189,7 @@ class BillingCheckoutService:
                 updated_at=_utcnow(),
             )
 
-        price_id = self._config.price_id_for_plan(request.plan_code)
+        price_id = self._resolve_price_id(request.plan_code)
         if not price_id:
             raise BillingCheckoutError("Checkout is not available for the requested plan")
         session = self._stripe_client.create_checkout_session(
@@ -180,7 +199,7 @@ class BillingCheckoutService:
             price_id=price_id,
             success_url=request.success_url,
             cancel_url=request.cancel_url,
-            idempotency_key=f"checkout:{account_id}:{request.plan_code}:{int(datetime.now(timezone.utc).timestamp())}",
+            idempotency_key=f"checkout:{account_id}:{request.plan_code}",
         )
         self._store_subscription(
             subscription,
@@ -195,6 +214,7 @@ class BillingCheckoutService:
         return {
             "plan_code": request.plan_code,
             "checkout_url": session.url,
+            "checkout_session_id": session.session_id,
             "expires_at": session.expires_at,
             "reused": False,
         }
@@ -260,6 +280,34 @@ class BillingCheckoutService:
         updated = replace(subscription, **changes)
         self._store.put_subscription(updated)
         return updated
+
+    def _resolve_price_id(self, plan_code: str) -> str | None:
+        if self._plan_catalog_provider is not None:
+            mapping = self._plan_catalog_provider.get_mapping_for_plan(plan_code)
+            return str(getattr(mapping, "stripe_price_id", "") or "").strip() or None
+        return self._config.price_id_for_plan(plan_code)
+
+    def _ensure_customer_id(
+        self,
+        *,
+        account_id: str,
+        account_name: str,
+        ein: str | None,
+    ) -> str:
+        if self._customer_bootstrapper is not None:
+            bootstrap = self._customer_bootstrapper.bootstrap_customer(
+                organization_id=account_id,
+                created_by_user_id=None,
+            )
+            customer_id = str(getattr(bootstrap, "stripe_customer_id", "") or "").strip()
+            if customer_id:
+                return customer_id
+            raise BillingProviderError("Billing customer bootstrap did not return a Stripe customer id")
+        return self._stripe_client.create_customer(
+            account_id=account_id,
+            account_name=account_name,
+            ein=ein,
+        )
 
 
 class HttpStripeCheckoutClient:

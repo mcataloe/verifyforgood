@@ -12,9 +12,11 @@ from charity_status.control_plane import ControlPlaneService, InMemoryControlPla
 
 
 class _StripeClient:
-    def __init__(self) -> None:
+    def __init__(self, *, expected_price_id: str = "price_growth", expected_customer_id: str = "cus_test_123") -> None:
         self.customer_calls = 0
         self.session_calls = 0
+        self.expected_price_id = expected_price_id
+        self.expected_customer_id = expected_customer_id
 
     def create_customer(self, *, account_id: str, account_name: str, ein: str | None) -> str:
         self.customer_calls += 1
@@ -34,13 +36,13 @@ class _StripeClient:
         idempotency_key: str,
     ) -> CheckoutSessionResult:
         self.session_calls += 1
-        assert customer_id == "cus_test_123"
+        assert customer_id == self.expected_customer_id
         assert account_id.startswith("acct_")
         assert plan_code == "growth"
-        assert price_id == "price_growth"
+        assert price_id == self.expected_price_id
         assert success_url == "https://example.com/success"
         assert cancel_url == "https://example.com/cancel"
-        assert idempotency_key.startswith(f"checkout:{account_id}:growth:")
+        assert idempotency_key == f"checkout:{account_id}:growth"
         return CheckoutSessionResult(
             session_id="cs_test_123",
             url="https://checkout.stripe.com/c/pay/cs_test_123",
@@ -64,6 +66,34 @@ class _FailingStripeClient:
         idempotency_key: str,
     ) -> CheckoutSessionResult:
         raise BillingProviderError("Stripe rejected the request during checkout session creation")
+
+
+class _PlanCatalogProvider:
+    class _Mapping:
+        def __init__(self, stripe_price_id: str) -> None:
+            self.stripe_price_id = stripe_price_id
+
+    def __init__(self, stripe_price_id: str) -> None:
+        self.calls: list[str] = []
+        self._stripe_price_id = stripe_price_id
+
+    def get_mapping_for_plan(self, internal_plan_id: str):
+        self.calls.append(internal_plan_id)
+        return self._Mapping(self._stripe_price_id)
+
+
+class _Bootstrapper:
+    class _Result:
+        def __init__(self, stripe_customer_id: str) -> None:
+            self.stripe_customer_id = stripe_customer_id
+
+    def __init__(self, stripe_customer_id: str = "cus_bootstrap_123") -> None:
+        self.calls: list[tuple[str, str | None]] = []
+        self._stripe_customer_id = stripe_customer_id
+
+    def bootstrap_customer(self, *, organization_id: str, created_by_user_id: str | None):
+        self.calls.append((organization_id, created_by_user_id))
+        return self._Result(self._stripe_customer_id)
 
 
 def test_load_stripe_checkout_config_defaults_disabled():
@@ -151,6 +181,47 @@ def test_billing_checkout_reuses_pending_session_for_duplicate_request():
     assert stripe.session_calls == 1
 
 
+def test_billing_checkout_uses_authoritative_plan_mapping_and_customer_bootstrap():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Checkout Account", "ein": "123456789"})
+    stripe = _StripeClient(
+        expected_price_id="price_growth_authoritative",
+        expected_customer_id="cus_bootstrap_123",
+    )
+    plan_catalog = _PlanCatalogProvider("price_growth_authoritative")
+    bootstrapper = _Bootstrapper("cus_bootstrap_123")
+    service = BillingCheckoutService(
+        store=control_plane.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth_config"},
+        ),
+        stripe_client=stripe,
+        plan_catalog_provider=plan_catalog,
+        customer_bootstrapper=bootstrapper,
+    )
+
+    payload = service.create_checkout_session(
+        account_id=account["id"],
+        payload={
+            "plan_code": "growth",
+            "success_url": "https://example.com/success",
+            "cancel_url": "https://example.com/cancel",
+        },
+    )
+
+    subscription = control_plane.store.get_subscription(account["id"])
+    assert payload["checkout_url"] == "https://checkout.stripe.com/c/pay/cs_test_123"
+    assert payload["checkout_session_id"] == "cs_test_123"
+    assert plan_catalog.calls == ["growth"]
+    assert bootstrapper.calls == [(account["id"], None)]
+    assert stripe.customer_calls == 0
+    assert stripe.session_calls == 1
+    assert subscription is not None
+    assert subscription.stripe_customer_id == "cus_bootstrap_123"
+
+
 def test_billing_checkout_rejects_invalid_plan():
     control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
     account = control_plane.create_account({"name": "Checkout Account", "ein": "123456789"})
@@ -178,6 +249,35 @@ def test_billing_checkout_rejects_invalid_plan():
         assert str(exc) == "plan_code is invalid"
     else:
         assert False, "Expected invalid plan error"
+
+
+def test_billing_checkout_rejects_free_plan_cleanly():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Checkout Account", "ein": "123456789"})
+    service = BillingCheckoutService(
+        store=control_plane.store,
+        config=StripeCheckoutConfig(
+            enabled=True,
+            secret_key="sk_test_123",
+            price_ids={"growth": "price_growth"},
+        ),
+        stripe_client=_StripeClient(),
+    )
+
+    try:
+        service.create_checkout_session(
+            account_id=account["id"],
+            payload={
+                "plan_code": "free",
+                "success_url": "https://example.com/success",
+                "cancel_url": "https://example.com/cancel",
+            },
+        )
+    except BillingCheckoutError as exc:
+        assert exc.status_code == 400
+        assert str(exc) == "Checkout is only available for paid plans"
+    else:
+        assert False, "Expected free-plan rejection"
 
 
 def test_billing_checkout_surfaces_stripe_provider_failures():

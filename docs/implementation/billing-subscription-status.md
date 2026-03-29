@@ -2,11 +2,11 @@
 
 ## Status
 
-organization billing customer bootstrap complete
+subscription creation flow complete
 
 ## Next Phase
 
-21D
+21E
 
 ## Scope
 

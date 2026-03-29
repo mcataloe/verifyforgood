@@ -861,27 +861,20 @@ def test_post_organization_billing_checkout_session_returns_checkout_url():
         stripe_client=stripe_client,
     )
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="free",
-                entitlements=DEFAULT_ENTITLEMENTS["free"],
-            )
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="growth")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="growth",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
 
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve
 
     event = {
         "httpMethod": "POST",
@@ -902,8 +895,51 @@ def test_post_organization_billing_checkout_session_returns_checkout_url():
     assert result["statusCode"] == 200
     assert body["plan_code"] == "growth"
     assert body["checkout_url"] == "https://checkout.stripe.com/c/pay/cs_test_123"
+    assert body["checkout_session_id"] == "cs_test_123"
     assert body["reused"] is False
     assert stripe_client.session_calls == 1
+
+
+def test_post_organization_billing_checkout_session_requires_admin_membership():
+    module = _load_module()
+    module.billing_checkout_service = SimpleNamespace(
+        create_checkout_session=lambda **kwargs: {"checkout_url": "https://example.com"}
+    )
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="growth")
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_member",
+            membership_role="member",
+            subscription_plan="growth",
+            auth_method="portal_session",
+            credential_id="user_member",
+            metadata={"organization_id": "org_1"},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/checkout-session",
+            "path": "/v1/organization/billing/checkout-session",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps(
+                {
+                    "plan_code": "growth",
+                    "success_url": "https://example.com/success",
+                    "cancel_url": "https://example.com/cancel",
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may initiate billing checkout"
 
 
 def test_post_organization_billing_customer_bootstrap_creates_customer_for_admin():
@@ -1171,27 +1207,20 @@ def test_post_organization_billing_plan_change_returns_plan_payload():
 
     module.billing_plan_change_service = _PlanChangeService()
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="pro",
-                entitlements=DEFAULT_ENTITLEMENTS["pro"],
-            )
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
 
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve
 
     result = module.handler(
         {
@@ -1209,6 +1238,42 @@ def test_post_organization_billing_plan_change_returns_plan_payload():
     assert body["current_plan_code"] == "pro"
     assert body["pending_plan_code"] == "growth"
     assert body["change_type"] == "downgrade_scheduled"
+
+
+def test_post_organization_billing_plan_change_requires_admin_membership():
+    module = _load_module()
+    module.billing_plan_change_service = SimpleNamespace(
+        change_plan=lambda **kwargs: {"pending_plan_code": "growth"}
+    )
+
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="pro")
+        tenant_context = module.TenantContext(
+            organization_id="org_1",
+            user_id="user_member",
+            membership_role="member",
+            subscription_plan="pro",
+            auth_method="portal_session",
+            credential_id="user_member",
+            metadata={"organization_id": "org_1"},
+        )
+        return auth_context, tenant_context
+
+    module._resolve_organization_tenant_context = _resolve
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/billing/plan-change",
+            "path": "/v1/organization/billing/plan-change",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps({"plan_code": "growth"}),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may initiate billing plan changes"
 
 
 def test_post_organization_billing_portal_session_returns_portal_url():
@@ -1571,27 +1636,20 @@ def test_post_organization_billing_checkout_session_rejects_invalid_plan():
         stripe_client=_StripeCheckoutClient(),
     )
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="free",
-                entitlements=DEFAULT_ENTITLEMENTS["free"],
-            )
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="free")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="free",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
 
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve
 
     result = module.handler(
         {
@@ -1628,27 +1686,20 @@ def test_post_organization_billing_checkout_session_returns_provider_error():
         stripe_client=_FailingStripeCheckoutClient(),
     )
 
-    class _AuthProvider:
-        def extract_context(self, event):
-            return SimpleNamespace(
-                subject="tenant",
-                scopes=("verify:write",),
-                metadata={},
-                workspace_id=account["id"],
-                account_id=account["id"],
-                plan="free",
-                entitlements=DEFAULT_ENTITLEMENTS["free"],
-            )
+    def _resolve(event, **kwargs):
+        auth_context = SimpleNamespace(plan="free")
+        tenant_context = module.TenantContext(
+            organization_id=account["id"],
+            user_id="user_admin",
+            membership_role="admin",
+            subscription_plan="free",
+            auth_method="portal_session",
+            credential_id="user_admin",
+            metadata={"organization_id": account["id"]},
+        )
+        return auth_context, tenant_context
 
-    class _QuotaHook:
-        def on_request(self, auth_context, route_key):
-            return None
-
-        def on_response(self, auth_context, route_key, status_code):
-            return None
-
-    module.auth_context_provider = _AuthProvider()
-    module.quota_metering_hook = _QuotaHook()
+    module._resolve_organization_tenant_context = _resolve
 
     result = module.handler(
         {

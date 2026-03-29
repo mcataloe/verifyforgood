@@ -204,6 +204,7 @@ control_plane_service: ControlPlaneService | None = None
 entitlement_service: EntitlementService | None = None
 response_shaping_service: ResponseShapingService | None = None
 billing_checkout_service: BillingCheckoutService | None = None
+billing_service: BillingService | None = None
 billing_plan_change_service: BillingPlanChangeService | None = None
 billing_portal_service: BillingPortalService | None = None
 billing_visibility_service: BillingVisibilityService | None = None
@@ -400,8 +401,28 @@ def _get_billing_checkout_service() -> BillingCheckoutService:
         billing_checkout_service = BillingCheckoutService(
             store=_get_control_plane_service().store,
             config=STRIPE_CHECKOUT_CONFIG,
+            plan_catalog_provider=_get_billing_service(),
+            customer_bootstrapper=_get_billing_customer_bootstrap_service(),
         )
     return billing_checkout_service
+
+
+def _get_billing_service() -> BillingService:
+    global billing_service
+    if billing_service is None:
+        store = _get_control_plane_service().store
+        billing_service = BillingService(
+            customers=ControlPlaneBillingCustomerRepository(store),
+            subscriptions=ControlPlaneBillingSubscriptionRepository(store),
+            events=ControlPlaneBillingEventRepository(store),
+            provider=ConfiguredStripeBillingProvider(
+                [
+                    PlanCatalogMapping(internal_plan_id=plan_code, stripe_price_id=price_id)
+                    for plan_code, price_id in STRIPE_CHECKOUT_CONFIG.price_ids.items()
+                ]
+            ),
+        )
+    return billing_service
 
 
 def _get_billing_plan_change_service() -> BillingPlanChangeService:
@@ -439,20 +460,9 @@ def _get_billing_customer_bootstrap_service() -> BillingCustomerBootstrapService
     global billing_customer_bootstrap_service
     if billing_customer_bootstrap_service is None:
         store = _get_control_plane_service().store
-        provider = ConfiguredStripeBillingProvider(
-            [
-                PlanCatalogMapping(internal_plan_id=plan_code, stripe_price_id=price_id)
-                for plan_code, price_id in STRIPE_CHECKOUT_CONFIG.price_ids.items()
-            ]
-        )
         billing_customer_bootstrap_service = BillingCustomerBootstrapService(
             store=store,
-            billing_service=BillingService(
-                customers=ControlPlaneBillingCustomerRepository(store),
-                subscriptions=ControlPlaneBillingSubscriptionRepository(store),
-                events=ControlPlaneBillingEventRepository(store),
-                provider=provider,
-            ),
+            billing_service=_get_billing_service(),
             config=STRIPE_CHECKOUT_CONFIG,
             stripe_provider=HttpStripeCheckoutClient(
                 secret_key=STRIPE_CHECKOUT_CONFIG.secret_key or "",
@@ -1525,6 +1535,54 @@ def handler(event, context):
         except ValueError as exc:
             return error_response(400, str(exc), response_context=api_context, code="bad_request")
 
+    if _is_organization_checkout_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing checkout",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_checkout_request(event, tenant_context=tenant_context, response_context=portal_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingCheckoutError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_organization_plan_change_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing plan changes",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_plan_change_request(event, tenant_context=tenant_context, response_context=portal_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingPlanChangeError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
     if _is_invitation_accept_request(event, method):
         portal_context = ResponseContext(
             request_id=api_context.request_id,
@@ -1605,24 +1663,6 @@ def handler(event, context):
                 auth_context.metadata["batch_items_count"] = str(total)
         except Exception:
             pass
-        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
-        return response
-    if _is_organization_checkout_request(event, method):
-        try:
-            response = _handle_organization_checkout_request(event, auth_context, response_context=api_context)
-        except BillingCheckoutError as exc:
-            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
-        except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc))
-        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
-        return response
-    if _is_organization_plan_change_request(event, method):
-        try:
-            response = _handle_organization_plan_change_request(event, auth_context, response_context=api_context)
-        except BillingPlanChangeError as exc:
-            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
-        except AuthorizationError as exc:
-            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
     if _is_organization_portal_request(event, method):
@@ -2077,16 +2117,17 @@ def _handle_public_plan_catalog_request(
 
 def _handle_organization_checkout_request(
     event: dict,
-    auth_context: Any,
     *,
+    tenant_context: TenantContext,
     response_context: ResponseContext,
 ) -> dict[str, Any]:
-    _workspace_id, account_id = _require_organization_context(auth_context)
-    if not account_id:
-        raise AuthorizationError("Billing checkout requires authenticated account context")
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing checkout")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may initiate billing checkout")
     payload = _parse_json_body(event)
     checkout = _get_billing_checkout_service().create_checkout_session(
-        account_id=account_id,
+        account_id=tenant_context.organization_id,
         payload=payload,
     )
     return json_response(200, checkout, response_context=response_context)
@@ -2094,16 +2135,17 @@ def _handle_organization_checkout_request(
 
 def _handle_organization_plan_change_request(
     event: dict,
-    auth_context: Any,
     *,
+    tenant_context: TenantContext,
     response_context: ResponseContext,
 ) -> dict[str, Any]:
-    _workspace_id, account_id = _require_organization_context(auth_context)
-    if not account_id:
-        raise AuthorizationError("Billing plan changes require authenticated account context")
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing plan changes")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may initiate billing plan changes")
     payload = _parse_json_body(event)
     plan_change = _get_billing_plan_change_service().change_plan(
-        account_id=account_id,
+        account_id=tenant_context.organization_id,
         payload=payload,
     )
     return json_response(200, plan_change, response_context=response_context)

@@ -9,6 +9,11 @@ The core planning default is:
 - `organization_id` is the canonical billing scope.
 - Any current `account_id`-based billing persistence is a compatibility bridge until organization-to-control-plane linkage is fully reconciled.
 
+Phase 21D implementation decision:
+
+- Use Stripe Checkout Sessions as the paid subscription initiation flow.
+- Keep subscription confirmation webhook-driven rather than treating checkout redirect success as authoritative.
+
 ## Implementation Scope
 
 ### Organization Billing Identity
