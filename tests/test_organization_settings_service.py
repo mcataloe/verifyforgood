@@ -5,6 +5,9 @@ from charity_status.enrichments import (
     load_organization_integration_settings,
 )
 from charity_status_platform.customer_accounts import (
+    AuditEventType,
+    AuditLogService,
+    DynamoAuditLogRepository,
     DynamoOrganizationRepository,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
@@ -31,12 +34,18 @@ def _service(*, settings_store=None):
         fallback_resolver=load_organization_integration_settings("[]"),
         store=settings_store,
     )
+    audit_repository = DynamoAuditLogRepository(dynamodb_resource=identity_resource)
+    audit_log_service = AuditLogService(
+        repository=audit_repository,
+    )
     return (
         OrganizationSettingsService(
             integration_settings=integration_settings,
             organizations=organizations,
+            audit_log_service=audit_log_service,
         ),
         organizations,
+        audit_repository,
     )
 
 
@@ -52,7 +61,7 @@ def test_get_organization_settings_returns_composite_document():
             }
         ]
     )
-    service, _organizations = _service(settings_store=settings_store)
+    service, _organizations, _audit_log_service = _service(settings_store=settings_store)
 
     document = service.get_settings(
         organization_id="org_1",
@@ -69,7 +78,7 @@ def test_get_organization_settings_returns_composite_document():
 
 
 def test_update_organization_settings_persists_profile_changes():
-    service, organizations = _service(
+    service, organizations, _audit_log_service = _service(
         settings_store=InMemoryOrganizationIntegrationSettingsStore()
     )
 
@@ -94,7 +103,7 @@ def test_update_organization_settings_persists_profile_changes():
 
 
 def test_update_organization_settings_rejects_slug_mutation():
-    service, _organizations = _service(
+    service, _organizations, _audit_log_service = _service(
         settings_store=InMemoryOrganizationIntegrationSettingsStore()
     )
 
@@ -109,3 +118,35 @@ def test_update_organization_settings_rejects_slug_mutation():
         assert str(exc) == "organization.slug is read-only"
     else:
         assert False, "Expected validation error"
+
+
+def test_update_organization_settings_records_sanitized_audit_event():
+    service, _organizations, audit_repository = _service(
+        settings_store=InMemoryOrganizationIntegrationSettingsStore()
+    )
+
+    service.update_settings(
+        organization_id="org_1",
+        workspace_id="org_1",
+        account_id="org_1",
+        actor_user_id="user_admin",
+        payload={
+            "organization": {
+                "displayName": "Org One Updated",
+                "contactEmail": "support@orgone.example",
+            },
+            "billing": {
+                "allowOverage": False,
+                "monthlyRequestCap": 750,
+            },
+        },
+    )
+
+    audit_items = audit_repository.list_for_organization("org_1")
+
+    assert len(audit_items) == 1
+    assert audit_items[0].event_type is AuditEventType.ORGANIZATION_SETTINGS_UPDATE
+    assert audit_items[0].actor_user_id == "user_admin"
+    assert audit_items[0].metadata["changed_fields"] == ["display_name", "contact_email"]
+    assert audit_items[0].metadata["changed_sections"] == ["billing"]
+    assert "support@orgone.example" not in str(audit_items[0].metadata)

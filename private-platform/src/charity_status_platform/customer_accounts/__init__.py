@@ -102,6 +102,12 @@ from .organization_settings_service import (
     OrganizationSettingsNotFoundError,
     OrganizationSettingsService,
 )
+from .organization_activity_service import (
+    OrganizationActivityError,
+    OrganizationActivityItem,
+    OrganizationActivityPage,
+    OrganizationActivityService,
+)
 from .membership_service import (
     InvitationAcceptRequest,
     InvitationCreateRequest,
@@ -197,6 +203,10 @@ __all__ = [
     "OrganizationSettingsDocument",
     "OrganizationSettingsNotFoundError",
     "OrganizationSettingsService",
+    "OrganizationActivityError",
+    "OrganizationActivityItem",
+    "OrganizationActivityPage",
+    "OrganizationActivityService",
     "MembershipManagementError",
     "MemberSummary",
     "InvitationSummary",

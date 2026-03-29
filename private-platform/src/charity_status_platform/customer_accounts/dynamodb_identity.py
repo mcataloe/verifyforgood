@@ -832,7 +832,15 @@ class FakeIdentityDynamoTable:
         self._items.pop((Key["pk"], Key["sk"]), None)
         return {}
 
-    def query(self, IndexName=None, KeyConditionExpression=None, ExpressionAttributeValues=None, Limit=None):  # noqa: N803
+    def query(  # noqa: N803
+        self,
+        IndexName=None,
+        KeyConditionExpression=None,
+        ExpressionAttributeValues=None,
+        Limit=None,
+        ExclusiveStartKey=None,
+        ScanIndexForward=True,
+    ):
         values = ExpressionAttributeValues or {}
         items = list(self._items.values())
         if IndexName == EMAIL_LOOKUP_INDEX:
@@ -863,8 +871,25 @@ class FakeIdentityDynamoTable:
         else:
             matches = [item for item in items if item.get("pk") == values.get(":pk")]
             matches.sort(key=lambda item: str(item.get("sk") or ""))
+        if not ScanIndexForward:
+            matches.reverse()
+        if ExclusiveStartKey is not None:
+            start_pk = ExclusiveStartKey.get("pk")
+            start_sk = ExclusiveStartKey.get("sk")
+            for index, item in enumerate(matches):
+                if item.get("pk") == start_pk and item.get("sk") == start_sk:
+                    matches = matches[index + 1 :]
+                    break
         if Limit is not None:
-            matches = matches[:Limit]
+            page = matches[:Limit]
+            last_evaluated_key = None
+            if len(matches) > Limit and page:
+                last = page[-1]
+                last_evaluated_key = {"pk": last["pk"], "sk": last["sk"]}
+            return {
+                "Items": [deepcopy(item) for item in page],
+                **({"LastEvaluatedKey": last_evaluated_key} if last_evaluated_key is not None else {}),
+            }
         return {"Items": [deepcopy(item) for item in matches]}
 
 

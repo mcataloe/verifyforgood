@@ -11,6 +11,7 @@ from typing import Any, Protocol
 class AuditEventType(str, Enum):
     USER_REGISTRATION = "user_registration"
     ORGANIZATION_CREATION = "organization_creation"
+    ORGANIZATION_SETTINGS_UPDATE = "organization_settings_update"
     MEMBERSHIP_ROLE_CHANGE = "membership_role_change"
     MEMBER_REMOVAL = "member_removal"
     INVITATION_CREATION = "invitation_creation"
@@ -39,6 +40,15 @@ class AuditLogRepository(Protocol):
         ...
 
     def list_for_organization(self, organization_id: str) -> list[AuditRecord]:
+        ...
+
+    def list_for_organization_page(
+        self,
+        organization_id: str,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> tuple[list[AuditRecord], str | None]:
         ...
 
     def list_identity_events(self) -> list[AuditRecord]:

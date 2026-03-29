@@ -11,9 +11,12 @@ import {
 } from "@charity-status/shared-ui";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { CSSProperties } from "react";
+import type { CustomerAdminPortalPane } from "../app/portalNavigation";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { CustomerAdminHomePanel } from "../dashboard/CustomerAdminHomePanel";
 
 interface DashboardPageProps {
+  pane?: CustomerAdminPortalPane | null;
   runtimeConfig: FrontendRuntimeConfig;
   session: PortalAuthenticatedSession;
 }
@@ -184,9 +187,25 @@ const alertItemStyle: CSSProperties = {
  * VerifyForGood application design system.
  */
 export function DashboardPage({
+  pane,
   runtimeConfig,
   session,
 }: DashboardPageProps) {
+  if (pane === "home") {
+    return (
+      <VerifyForGoodMantineProvider>
+        <div className="portal-dashboard" style={pageStyle}>
+          <PageHeader
+            eyebrow="Customer admin home"
+            title="Organization activity"
+            description={`Recent organization activity, audit visibility, and operator context for ${session.organization_name} in the ${runtimeConfig.environment} environment.`}
+          />
+          <CustomerAdminHomePanel />
+        </div>
+      </VerifyForGoodMantineProvider>
+    );
+  }
+
   return (
     <VerifyForGoodMantineProvider>
       <div className="portal-dashboard" style={pageStyle}>

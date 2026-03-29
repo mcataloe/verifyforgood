@@ -2,11 +2,11 @@
 
 ## Status
 
-billing and subscription visibility implemented
+customer activity visibility implemented
 
 ## Next Phase
 
-22G
+22H
 
 ## Scope
 

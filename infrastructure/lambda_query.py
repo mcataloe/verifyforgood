@@ -121,6 +121,8 @@ from charity_status_platform.customer_accounts import (
     MembershipManagementService,
     MembershipStatus,
     OrganizationBootstrapValidationError,
+    OrganizationActivityError,
+    OrganizationActivityService,
     OrganizationCreateRequest,
     OrganizationSettingsNotFoundError,
     OrganizationSettingsService,
@@ -226,6 +228,7 @@ portal_usage_service: UsageService | None = None
 portal_subscription_service: SubscriptionService | None = None
 portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
+portal_activity_service: OrganizationActivityService | None = None
 nonprofit_service: NonprofitService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -521,6 +524,16 @@ def _get_portal_audit_log_service() -> AuditLogService:
             logger=logger,
         )
     return portal_audit_log_service
+
+
+def _get_portal_activity_service() -> OrganizationActivityService:
+    global portal_activity_service
+    if portal_activity_service is None:
+        portal_activity_service = OrganizationActivityService(
+            audits=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
+            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return portal_activity_service
 
 
 def _get_portal_auth_service() -> AuthService:
@@ -827,6 +840,7 @@ def _get_organization_settings_service() -> OrganizationSettingsService:
         organization_settings_service = OrganizationSettingsService(
             integration_settings=_get_organization_integration_settings_service(),
             organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            audit_log_service=_get_portal_audit_log_service(),
         )
     return organization_settings_service
 
@@ -1642,6 +1656,7 @@ def handler(event, context):
     tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
     organization_settings_request = _is_organization_settings_request(event or {}, method)
     organization_usage_request = _is_organization_usage_request(event or {}, method)
+    organization_activity_request = _is_organization_activity_request(event or {}, method)
     organization_subscription_visibility_request = _is_organization_subscription_visibility_request(event or {}, method)
     try:
         resolved_tenant_context: TenantContext | None = None
@@ -1655,6 +1670,7 @@ def handler(event, context):
         elif (
             organization_settings_request
             or organization_usage_request
+            or organization_activity_request
             or organization_subscription_visibility_request
         ):
             auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
@@ -1662,6 +1678,8 @@ def handler(event, context):
                 missing_context_message=(
                     "Organization-scoped authentication is required for organization usage"
                     if organization_usage_request
+                    else "Organization-scoped authentication is required for organization activity"
+                    if organization_activity_request
                     else "Organization-scoped authentication is required for billing visibility"
                     if organization_subscription_visibility_request
                     else "Organization-scoped authentication is required for organization settings"
@@ -1758,6 +1776,23 @@ def handler(event, context):
             )
         except AuthorizationError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_activity_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization activity")
+            response = _handle_organization_activity_request(
+                event,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except OrganizationActivityError as exc:
+            response = fail(exc.status_code, str(exc), code="bad_request")
         except ValueError as exc:
             response = fail(400, str(exc), code="bad_request")
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
@@ -2121,6 +2156,13 @@ def _is_organization_usage_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/usage") or path.endswith("/organization/usage")
 
 
+def _is_organization_activity_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/activity") or path.endswith("/organization/activity")
+
+
 def _is_organization_checkout_request(event: dict, method: str) -> bool:
     if method != "POST":
         return False
@@ -2200,8 +2242,35 @@ def _handle_organization_settings_request(
         workspace_id=workspace_id,
         account_id=account_id,
         payload=payload,
+        actor_user_id=tenant_context.user_id,
     )
     return json_response(200, document.to_dict(), response_context=response_context)
+
+
+def _handle_organization_activity_request(
+    event: dict[str, Any],
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization activity")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization activity")
+    query = event.get("queryStringParameters") or {}
+    limit = 20
+    if query.get("limit") is not None:
+        try:
+            limit = int(str(query.get("limit")))
+        except ValueError as exc:
+            raise OrganizationActivityError("limit must be an integer") from exc
+    cursor = str(query.get("cursor") or "").strip() or None
+    page = _get_portal_activity_service().list_activity(
+        organization_id=tenant_context.organization_id,
+        limit=limit,
+        cursor=cursor,
+    )
+    return json_response(200, page.to_dict(), response_context=response_context)
 
 
 def _handle_organization_usage_request(

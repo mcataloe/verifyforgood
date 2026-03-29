@@ -61,6 +61,9 @@ export const organizationEndpoints = {
   settings: defineEndpoint("GET", "/organization/settings", {
     name: "organizationSettings",
   }),
+  activity: defineEndpoint("GET", "/organization/activity", {
+    name: "organizationActivity",
+  }),
   usage: defineEndpoint("GET", "/organization/usage", {
     name: "organizationUsage",
   }),

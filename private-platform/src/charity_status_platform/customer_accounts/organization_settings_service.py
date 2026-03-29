@@ -13,6 +13,7 @@ from charity_status.enrichments.organization_settings_service import (
     OrganizationIntegrationSettingsValidationError,
 )
 
+from .audit_logging import AuditEventType, AuditLogService
 from .identity_models import OrganizationRecord
 from .identity_repositories import OrganizationRepository
 
@@ -86,9 +87,11 @@ class OrganizationSettingsService:
         *,
         integration_settings: OrganizationIntegrationSettingsService,
         organizations: OrganizationRepository,
+        audit_log_service: AuditLogService | None = None,
     ) -> None:
         self._integration_settings = integration_settings
         self._organizations = organizations
+        self._audit_log_service = audit_log_service
 
     def get_settings(
         self,
@@ -114,6 +117,7 @@ class OrganizationSettingsService:
         workspace_id: str | None,
         account_id: str | None,
         payload: dict[str, Any],
+        actor_user_id: str | None = None,
     ) -> OrganizationSettingsDocument:
         organization = self._require_organization(organization_id)
         has_organization_payload = "organization" in payload
@@ -124,8 +128,11 @@ class OrganizationSettingsService:
             )
 
         updated_at = _utc_now()
+        changed_fields: list[str] = []
+        changed_sections: list[str] = []
         if has_organization_payload:
             profile_update = self._parse_profile_payload(payload.get("organization"), current=organization)
+            changed_fields = _profile_changed_fields(current=organization, update=profile_update)
             persisted = self._organizations.update_profile(
                 organization_id,
                 name=profile_update.display_name,
@@ -141,16 +148,31 @@ class OrganizationSettingsService:
             account_id=account_id,
         )
         if has_settings_payload:
+            if "billing" in payload:
+                changed_sections.append("billing")
+            if "integrations" in payload:
+                changed_sections.append("integrations")
             settings_document = self._integration_settings.update_settings(
                 workspace_id=workspace_id,
                 account_id=account_id,
                 payload={key: value for key, value in payload.items() if key in {"integrations", "billing"}},
             )
-
-        return self._compose_document(
+        document = self._compose_document(
             organization=organization,
             settings_document=settings_document,
         )
+        if self._audit_log_service is not None and (changed_fields or changed_sections):
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.ORGANIZATION_SETTINGS_UPDATE,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=None,
+                metadata={
+                    "changed_fields": changed_fields,
+                    "changed_sections": changed_sections,
+                },
+            )
+        return document
 
     def _compose_document(
         self,
@@ -235,6 +257,19 @@ def _latest_updated_at(*values: str | None) -> str | None:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _profile_changed_fields(
+    *,
+    current: OrganizationRecord,
+    update: OrganizationProfileUpdate,
+) -> list[str]:
+    changed: list[str] = []
+    if current.name != update.display_name:
+        changed.append("display_name")
+    if current.contact_email != update.contact_email:
+        changed.append("contact_email")
+    return changed
 
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

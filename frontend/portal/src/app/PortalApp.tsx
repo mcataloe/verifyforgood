@@ -334,7 +334,11 @@ function PortalAuthorizedShell({
       session={session}
     >
       {currentRoute.key === "dashboard" ? (
-        <DashboardPage runtimeConfig={runtimeConfig} session={session} />
+        <DashboardPage
+          pane={customerAdminPane}
+          runtimeConfig={runtimeConfig}
+          session={session}
+        />
       ) : null}
       {currentRoute.key === "workspace" ? (
         <WorkspacePage

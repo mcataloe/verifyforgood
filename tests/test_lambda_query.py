@@ -23,20 +23,24 @@ from charity_status.core.models import AuthContext
 from charity_status_platform.customer_accounts import (
     AuditEventType,
     AuditLogService,
+    AuditRecord,
     DynamoAuditLogRepository,
     DynamoFeatureFlagRepository,
     DynamoOrganizationRepository,
     DynamoPlanRepository,
     DynamoSubscriptionRepository,
+    DynamoUserRepository,
     DynamoUsageRepository,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
     FeatureFlagKey,
     FeatureFlagService,
+    OrganizationActivityService,
     OrganizationRecord,
     OrganizationSettingsService,
     SubscriptionService,
     UsageService,
+    UserRecord,
 )
 
 
@@ -1174,6 +1178,156 @@ def test_get_organization_usage_requires_admin_membership():
 
     assert result["statusCode"] == 403
     assert _response_error_message(result) == "Only organization admins may view organization usage"
+
+
+def test_get_organization_activity_returns_sanitized_paginated_activity():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource)
+    users = DynamoUserRepository(dynamodb_resource=identity_resource)
+    users.create(
+        UserRecord(
+            user_id="user_admin",
+            email="jamie.admin@example.org",
+            normalized_email="jamie.admin@example.org",
+            full_name="Jamie Admin",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    audits.create(
+        AuditRecord(
+            audit_id="audit_api_key",
+            event_type=AuditEventType.API_KEY_CREATION,
+            actor_user_id="user_admin",
+            organization_id="org_1",
+            target_user_id=None,
+            timestamp="2026-03-29T10:00:00+00:00",
+            metadata={
+                "display_name": "Primary Key",
+                "hashed_key_value": "hash_hidden",
+                "key_id": "key_123",
+                "secret": "csk_secret_hidden",
+                "status": "active",
+            },
+        )
+    )
+    audits.create(
+        AuditRecord(
+            audit_id="audit_search",
+            event_type=AuditEventType.NONPROFIT_SEARCH,
+            actor_user_id="user_admin",
+            organization_id="org_1",
+            target_user_id=None,
+            timestamp="2026-03-29T11:00:00+00:00",
+            metadata={
+                "query_state": "IL",
+                "query_subsection": "03",
+                "query_text": "helping hands",
+                "result_count": 4,
+            },
+        )
+    )
+    audits.create(
+        AuditRecord(
+            audit_id="audit_invitation",
+            event_type=AuditEventType.INVITATION_CREATION,
+            actor_user_id="user_admin",
+            organization_id="org_1",
+            target_user_id=None,
+            timestamp="2026-03-29T12:00:00+00:00",
+            metadata={
+                "email": "invitee@example.org",
+                "role": "user",
+                "token": "invtok_hidden",
+            },
+        )
+    )
+    audits.create(
+        AuditRecord(
+            audit_id="audit_other_org",
+            event_type=AuditEventType.API_KEY_CREATION,
+            actor_user_id="user_admin",
+            organization_id="org_2",
+            target_user_id=None,
+            timestamp="2026-03-29T12:30:00+00:00",
+            metadata={"display_name": "Other Org Key", "key_id": "key_other", "status": "active"},
+        )
+    )
+    module.portal_activity_service = OrganizationActivityService(audits=audits, users=users)
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    first = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/activity",
+            "path": "/v1/organization/activity",
+            "headers": {"Authorization": "Bearer test"},
+            "queryStringParameters": {"limit": "2"},
+        },
+        None,
+    )
+
+    assert first["statusCode"] == 200
+    first_body = _response_data(first)
+    assert [item["activity_id"] for item in first_body["items"]] == [
+        "audit_invitation",
+        "audit_search",
+    ]
+    assert first_body["has_more"] is True
+    assert first_body["next_cursor"]
+    assert first_body["items"][0]["metadata"]["email"] == "i***e@example.org"
+    assert "token" not in first_body["items"][0]["metadata"]
+    assert "query_text" not in first_body["items"][1]["metadata"]
+
+    second = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/activity",
+            "path": "/v1/organization/activity",
+            "headers": {"Authorization": "Bearer test"},
+            "queryStringParameters": {
+                "cursor": first_body["next_cursor"],
+                "limit": "2",
+            },
+        },
+        None,
+    )
+
+    assert second["statusCode"] == 200
+    second_body = _response_data(second)
+    assert [item["activity_id"] for item in second_body["items"]] == ["audit_api_key"]
+    assert second_body["has_more"] is False
+    assert second_body["next_cursor"] is None
+    assert second_body["items"][0]["actor"]["display_name"] == "Jamie Admin"
+    assert second_body["items"][0]["metadata"] == {
+        "display_name": "Primary Key",
+        "key_id": "key_123",
+        "status": "active",
+    }
+
+
+def test_get_organization_activity_requires_admin_membership():
+    module = _load_module()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="growth",
+        role="user",
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/activity",
+            "path": "/v1/organization/activity",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may view organization activity"
 
 
 def test_post_organization_billing_checkout_session_returns_checkout_url():

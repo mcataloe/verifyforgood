@@ -348,6 +348,82 @@ function buildFetchMock() {
       );
     }
 
+    if (url.includes("/v1/organization/activity")) {
+      const parsed = new URL(url, "https://portal.test");
+      const cursor = parsed.searchParams.get("cursor");
+      return new Response(
+        JSON.stringify(
+          buildEnvelope(
+            cursor
+              ? {
+                  has_more: false,
+                  items: [
+                    {
+                      activity_id: "activity_older",
+                      actor: {
+                        display_name: "Jamie Admin",
+                        email: "j***@example.org",
+                        user_id: "user_jamie_admin",
+                      },
+                      category: "api_keys",
+                      description: "Created API key Older Key.",
+                      event_type: "api_key_creation",
+                      metadata: {
+                        display_name: "Older Key",
+                        key_id: "key_older",
+                        status: "active",
+                      },
+                      occurred_at: "2026-03-27T12:00:00Z",
+                      target: {
+                        display_name: null,
+                        email: null,
+                        user_id: null,
+                      },
+                      title: "API key created",
+                    },
+                  ],
+                  next_cursor: null,
+                }
+              : {
+                  has_more: true,
+                  items: [
+                    {
+                      activity_id: "activity_1",
+                      actor: {
+                        display_name: "Jamie Admin",
+                        email: "j***@example.org",
+                        user_id: "user_jamie_admin",
+                      },
+                      category: "organization_settings",
+                      description:
+                        "Updated organization settings: display_name, contact_email.",
+                      event_type: "organization_settings_update",
+                      metadata: {
+                        changed_fields: ["display_name", "contact_email"],
+                        changed_sections: [],
+                      },
+                      occurred_at: "2026-03-28T12:00:00Z",
+                      target: {
+                        display_name: "Verify For Good Org",
+                        email: null,
+                        user_id: null,
+                      },
+                      title: "Organization settings updated",
+                    },
+                  ],
+                  next_cursor: "cursor_activity_2",
+                },
+          ),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        },
+      );
+    }
+
     if (url.endsWith("/v1/plans")) {
       return new Response(
         JSON.stringify({
@@ -536,13 +612,13 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Verification dashboard",
+        name: "Organization activity",
       }),
     ).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Recent verifications" }),
+      await screen.findByRole("heading", { name: "Recent organization activity" }),
     ).toBeTruthy();
-    expect(screen.getByText("Verifications this month")).toBeTruthy();
+    expect(screen.getByText("Organization settings updated")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
 
@@ -579,7 +655,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Verification dashboard" }),
+      await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
@@ -640,7 +716,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Verification dashboard" }),
+      await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
   });
@@ -727,6 +803,55 @@ describe("PortalApp", () => {
     ).toBeTruthy();
     expect(
       await screen.findByRole("heading", { name: "Enabled capabilities" }),
+    ).toBeTruthy();
+  });
+
+  it("renders customer-admin home as an activity-first surface", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/dashboard?nav=customer-admin-home";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Recent organization activity",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Organization settings updated"),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Load more activity" }),
     ).toBeTruthy();
   });
 
