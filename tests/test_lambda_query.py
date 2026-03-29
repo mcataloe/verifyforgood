@@ -28,6 +28,7 @@ from charity_status_platform.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoPlanRepository,
     DynamoSubscriptionRepository,
+    DynamoUsageRepository,
     FakeIdentityDynamoResource,
     FakeIdentityDynamoTable,
     FeatureFlagKey,
@@ -35,6 +36,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationRecord,
     OrganizationSettingsService,
     SubscriptionService,
+    UsageService,
 )
 
 
@@ -1013,6 +1015,165 @@ def test_get_organization_settings_requires_admin_membership():
 
     assert result["statusCode"] == 403
     assert _response_error_message(result) == "Only organization admins may manage organization settings"
+
+
+def test_get_organization_usage_returns_zero_filled_summary_for_new_org():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=InMemoryOrganizationIntegrationSettingsStore(),
+    )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
+    module.portal_usage_service = UsageService(
+        organizations=organizations,
+        usage=DynamoUsageRepository(dynamodb_resource=identity_resource),
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/usage",
+            "path": "/v1/organization/usage",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["period_month"] == monthly_period_for()
+    assert body["totals"] == {
+        "api_requests": 0,
+        "nonprofit_lookup_requests": 0,
+        "search_requests": 0,
+        "enrichment_requests": 0,
+        "filing_lookup_requests": 0,
+    }
+    assert body["metrics"] == []
+    assert body["plan_limit_context"] == {
+        "monthly_requests_limit": 10000,
+        "allow_overage": True,
+        "policy_source": "backend_default",
+    }
+
+
+def test_get_organization_usage_is_org_scoped_and_returns_known_totals():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    usage_repository = DynamoUsageRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_2",
+            name="Org Two",
+            slug="org-two",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=load_organization_integration_settings("[]"),
+        store=InMemoryOrganizationIntegrationSettingsStore(),
+    )
+    module.organization_settings_service = OrganizationSettingsService(
+        integration_settings=module.organization_integration_settings_service,
+        organizations=organizations,
+    )
+    module.portal_usage_service = UsageService(
+        organizations=organizations,
+        usage=usage_repository,
+    )
+    module.portal_usage_service.increment_metric(
+        organization_id="org_1",
+        metric_type="api_requests",
+        units=9,
+    )
+    module.portal_usage_service.increment_metric(
+        organization_id="org_1",
+        metric_type="nonprofit_lookup_requests",
+        units=4,
+    )
+    module.portal_usage_service.increment_metric(
+        organization_id="org_1",
+        metric_type="search_requests",
+        units=3,
+    )
+    module.portal_usage_service.increment_metric(
+        organization_id="org_2",
+        metric_type="api_requests",
+        units=99,
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="pro")
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/usage",
+            "path": "/v1/organization/usage",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["totals"]["api_requests"] == 9
+    assert body["totals"]["nonprofit_lookup_requests"] == 4
+    assert body["totals"]["search_requests"] == 3
+    assert body["totals"]["enrichment_requests"] == 0
+    assert {item["metric_type"] for item in body["metrics"]} == {
+        "api_requests",
+        "nonprofit_lookup_requests",
+        "search_requests",
+    }
+
+
+def test_get_organization_usage_requires_admin_membership():
+    module = _load_module()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="growth",
+        role="user",
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/usage",
+            "path": "/v1/organization/usage",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may view organization usage"
 
 
 def test_post_organization_billing_checkout_session_returns_checkout_url():

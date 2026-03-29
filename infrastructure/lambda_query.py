@@ -1641,6 +1641,7 @@ def handler(event, context):
 
     tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
     organization_settings_request = _is_organization_settings_request(event or {}, method)
+    organization_usage_request = _is_organization_usage_request(event or {}, method)
     try:
         resolved_tenant_context: TenantContext | None = None
         if tenant_nonprofit_request:
@@ -1650,11 +1651,15 @@ def handler(event, context):
                 missing_membership_message="Active membership is required for nonprofit queries",
                 require_user=False,
             )
-        elif organization_settings_request:
+        elif organization_settings_request or organization_usage_request:
             auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
                 event or {},
-                missing_context_message="Organization-scoped authentication is required for organization settings",
-                missing_membership_message="Active membership is required for organization settings",
+                missing_context_message=(
+                    "Organization-scoped authentication is required for organization usage"
+                    if organization_usage_request
+                    else "Organization-scoped authentication is required for organization settings"
+                ),
+                missing_membership_message="Active membership is required for this organization",
                 require_user=True,
             )
         else:
@@ -1729,6 +1734,20 @@ def handler(event, context):
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except AuthorizationError as exc:
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_usage_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization usage")
+            response = _handle_organization_usage_request(
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
         return response
     if _is_organization_settings_request(event, method):
@@ -2083,6 +2102,13 @@ def _is_organization_settings_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/settings") or path.endswith("/organization/settings")
 
 
+def _is_organization_usage_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/usage") or path.endswith("/organization/usage")
+
+
 def _is_organization_checkout_request(event: dict, method: str) -> bool:
     if method != "POST":
         return False
@@ -2164,6 +2190,44 @@ def _handle_organization_settings_request(
         payload=payload,
     )
     return json_response(200, document.to_dict(), response_context=response_context)
+
+
+def _handle_organization_usage_request(
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization usage")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization usage")
+    usage_records = _get_portal_usage_service().get_monthly_usage(
+        organization_id=tenant_context.organization_id,
+    )
+    period_month = _resolve_usage_period_month(usage_records)
+    return json_response(
+        200,
+        {
+            "period_month": period_month,
+            "period_label": _format_usage_period_label(period_month),
+            "totals": _build_usage_totals(usage_records),
+            "metrics": [
+                {
+                    "metric_type": _usage_metric_key(record),
+                    "request_count": max(0, int(record.request_count or 0)),
+                    "last_updated": record.last_updated,
+                }
+                for record in sorted(
+                    usage_records,
+                    key=lambda item: (_usage_metric_key(item), str(item.last_updated or "")),
+                )
+            ],
+            "plan_limit_context": _build_usage_plan_limit_context(
+                tenant_context=tenant_context,
+            ),
+        },
+        response_context=response_context,
+    )
 
 
 def _handle_stripe_webhook_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -2289,6 +2353,76 @@ def _allows_organization_settings_management(auth_context: Any) -> bool:
         plan_code = str(getattr(auth_context, "plan", getattr(auth_context, "plan_id", "free")) or "free")
         entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
     return entitlements.allows_capability("organization_settings")
+
+
+def _usage_metric_key(record: Any) -> str:
+    metric_type = getattr(record, "metric_type", None)
+    if hasattr(metric_type, "value"):
+        return str(metric_type.value)
+    return str(metric_type or "").strip().lower()
+
+
+def _resolve_usage_period_month(usage_records: list[Any]) -> str:
+    if usage_records:
+        candidate = str(getattr(usage_records[0], "period_month", "") or "").strip()
+        if candidate:
+            return candidate
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _build_usage_totals(usage_records: list[Any]) -> dict[str, int]:
+    totals = {
+        "api_requests": 0,
+        "nonprofit_lookup_requests": 0,
+        "search_requests": 0,
+        "enrichment_requests": 0,
+        "filing_lookup_requests": 0,
+    }
+    for record in usage_records:
+        metric_key = _usage_metric_key(record)
+        if metric_key in totals:
+            totals[metric_key] = max(0, int(getattr(record, "request_count", 0) or 0))
+    return totals
+
+
+def _format_usage_period_label(period_month: str) -> str:
+    try:
+        return datetime.strptime(period_month, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        return "Current month"
+
+
+def _build_usage_plan_limit_context(*, tenant_context: TenantContext) -> dict[str, Any] | None:
+    try:
+        settings = _get_organization_settings_service().get_settings(
+            organization_id=tenant_context.organization_id,
+            workspace_id=tenant_context.organization_id,
+            account_id=tenant_context.organization_id,
+        )
+    except Exception:
+        settings = None
+
+    plan = DEFAULT_PLANS.get(str(tenant_context.subscription_plan or "free").strip().lower())
+    monthly_requests_limit: int | None = None
+    allow_overage = True
+    policy_source = "backend_default"
+    if settings is not None:
+        allow_overage = bool(settings.billing_settings.allow_overage)
+        if settings.source == "stored":
+            policy_source = "organization_settings"
+        monthly_request_cap = settings.billing_settings.monthly_request_cap
+        if isinstance(monthly_request_cap, int) and monthly_request_cap > 0:
+            monthly_requests_limit = monthly_request_cap
+            policy_source = "organization_settings"
+    if monthly_requests_limit is None and plan is not None:
+        monthly_requests_limit = int(plan.monthly_request_limit)
+    if monthly_requests_limit is None:
+        return None
+    return {
+        "monthly_requests_limit": monthly_requests_limit,
+        "allow_overage": allow_overage,
+        "policy_source": policy_source,
+    }
 
 
 def _generate_manual_form990_run_id() -> str:

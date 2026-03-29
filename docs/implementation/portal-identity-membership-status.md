@@ -2,11 +2,11 @@
 
 ## Status
 
-customer API key UX implemented
+usage visibility implemented
 
 ## Next Phase
 
-22E
+22F
 
 ## Scope
 

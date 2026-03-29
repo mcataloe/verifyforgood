@@ -132,15 +132,16 @@ The current detail experience also establishes the reusable entity-review layout
 The usage and billing area now uses a small feature-local billing slice under `src/billing/`.
 
 - `GET /v1/organization/billing/subscription` is the source of truth for current plan, effective access, billing status, renewal timing, pending downgrades, and trial state
+- `GET /v1/organization/usage` provides the current organization-scoped tracking period, current-period usage totals, and plan-limit context for customer-admin usage visibility
 - `GET /v1/plans` is the source of truth for plan display metadata such as included usage, overage pricing, and feature availability
 - `billing.allowOverage` comes from organization settings when available and otherwise follows the documented backend default behavior
 - billing actions are abstracted behind a frontend adapter instead of being modeled as Stripe UI flows:
   - `createSubscription(...)` calls `POST /v1/organization/billing/checkout-session`
   - `updatePlan(...)` calls `POST /v1/organization/billing/plan-change`
   - `cancelSubscription(...)` stays vendor-agnostic in the UI and can resolve through `POST /v1/organization/billing/plan-change` or `POST /v1/organization/billing/portal-session`
-- request usage is still a portal-local baseline because the backend does not yet expose a customer-facing usage visibility endpoint
+- request usage now comes from backend org-scoped metering when available, with a plan-based fallback reserved for local demo sessions or backend outages
 
-This keeps the page useful now without moving billing rules into the frontend. When a real usage endpoint exists, the billing slice should swap its usage source without changing the page-level UI contract.
+This keeps the page useful without moving billing rules into the frontend. Future historical usage charts can extend the same billing slice without changing the page-level UI contract.
 
 ## Feedback patterns
 

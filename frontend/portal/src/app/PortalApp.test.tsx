@@ -302,6 +302,52 @@ function buildFetchMock() {
       );
     }
 
+    if (url.endsWith("/v1/organization/usage")) {
+      return new Response(
+        JSON.stringify(
+          buildEnvelope({
+            metrics: [
+              {
+                last_updated: "2026-03-28T00:00:00Z",
+                metric_type: "api_requests",
+                request_count: 84,
+              },
+              {
+                last_updated: "2026-03-28T00:00:00Z",
+                metric_type: "nonprofit_lookup_requests",
+                request_count: 42,
+              },
+              {
+                last_updated: "2026-03-28T00:00:00Z",
+                metric_type: "search_requests",
+                request_count: 19,
+              },
+            ],
+            period_label: "March 2026",
+            period_month: "2026-03",
+            plan_limit_context: {
+              allow_overage: false,
+              monthly_requests_limit: 10000,
+              policy_source: "organization_settings",
+            },
+            totals: {
+              api_requests: 84,
+              enrichment_requests: 0,
+              filing_lookup_requests: 0,
+              nonprofit_lookup_requests: 42,
+              search_requests: 19,
+            },
+          }),
+        ),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        },
+      );
+    }
+
     if (url.endsWith("/v1/plans")) {
       return new Response(
         JSON.stringify({

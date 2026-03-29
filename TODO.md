@@ -439,3 +439,23 @@ Phase 22B adds organization profile management through the existing `/v1/organiz
 ### Constraint
 
 Keep `organization_id` as the canonical tenant identifier and treat `slug` as mutable presentation metadata so any future rename workflow remains additive and does not redefine organization identity or current organization settings contracts.
+
+## TODO-ARCH-021
+
+### Title
+
+Add historical usage buckets for customer-admin trend views and prior-period comparisons.
+
+### Rationale
+
+Phase 22E exposes current-period org-scoped usage totals through `GET /v1/organization/usage`, but the backend still stores monthly aggregates rather than historical buckets suitable for charts, trend lines, or prior-period comparisons in the customer admin portal.
+
+### Migration Triggers
+
+- the portal adds usage trend charts or month-over-month comparisons
+- product needs proactive limit-warning analytics based on prior periods
+- customer admins request exportable usage history rather than current-period summaries
+
+### Constraint
+
+Keep organization-scoped usage aggregation authoritative in the backend and extend the existing usage repository/service model instead of inventing frontend-maintained trend history.

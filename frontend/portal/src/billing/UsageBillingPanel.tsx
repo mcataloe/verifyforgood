@@ -23,7 +23,11 @@ import {
   type PortalBillingInteractionsController,
 } from "./usePortalBillingInteractions";
 import { UsageContextPanel } from "./UsageContextPanel";
-import type { PortalUsageBillingSnapshot } from "./portalUsageBilling";
+import type {
+  PortalUsageBillingSnapshot,
+  PortalUsageMetricSummary,
+  PortalUsageTotals,
+} from "./portalUsageBilling";
 import type { PortalPricingPlanItem } from "./usePortalPricingPlans";
 import type { BillingInteractionResult } from "./billingInteractions";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
@@ -170,6 +174,13 @@ export function UsageBillingPanel({
         plan={effectivePlan}
         usage={snapshot.usage}
       />
+      <UsageSummaryGrid
+        limit={
+          effectivePlan?.included_usage.monthly_requests ?? snapshot.usage.limit
+        }
+        totals={resolveUsageTotals(snapshot)}
+      />
+      <UsageMetricBreakdown metrics={resolveUsageMetrics(snapshot)} />
     </>
   );
 
@@ -332,13 +343,130 @@ export function UsageBillingPanel({
         <Text c="dimmed" fz="sm" mt="md">
           Signed in plan baseline: <strong>{session.plan}</strong>. Backend
           routes remain explicit at <code>{endpoints.billingSubscription}</code>
-          , <code>{endpoints.billingCheckout}</code>,{" "}
+          , <code>{endpoints.organizationUsage ?? "/v1/organization/usage"}</code>,{" "}
+          <code>{endpoints.billingCheckout}</code>,{" "}
           <code>{endpoints.billingPlanChange}</code>, and{" "}
           <code>{endpoints.billingPortal}</code>.
         </Text>
       </Panel>
     </Grid>
   );
+}
+
+function resolveUsageTotals(snapshot: PortalUsageBillingSnapshot): PortalUsageTotals {
+  return (
+    snapshot.usage.totals ?? {
+      apiRequests: snapshot.usage.used,
+      enrichmentRequests: 0,
+      filingLookupRequests: 0,
+      nonprofitLookupRequests: snapshot.usage.used,
+      searchRequests: 0,
+    }
+  );
+}
+
+function resolveUsageMetrics(
+  snapshot: PortalUsageBillingSnapshot,
+): PortalUsageMetricSummary[] {
+  return snapshot.usage.metrics ?? [];
+}
+
+function UsageSummaryGrid(input: {
+  limit: number;
+  totals: PortalUsageTotals;
+}) {
+  return (
+    <section className="portal-usage-summary-grid" aria-label="Usage totals">
+      <UsageSummaryCard
+        label="API requests"
+        value={input.totals.apiRequests.toLocaleString()}
+      />
+      <UsageSummaryCard
+        label="Nonprofit lookups"
+        value={input.totals.nonprofitLookupRequests.toLocaleString()}
+      />
+      <UsageSummaryCard
+        label="Search requests"
+        value={input.totals.searchRequests.toLocaleString()}
+      />
+      <UsageSummaryCard
+        label="Enrichment requests"
+        value={input.totals.enrichmentRequests.toLocaleString()}
+      />
+      <UsageSummaryCard
+        label="Filing lookups"
+        value={input.totals.filingLookupRequests.toLocaleString()}
+      />
+      <UsageSummaryCard
+        label="Included monthly requests"
+        value={input.limit.toLocaleString()}
+      />
+    </section>
+  );
+}
+
+function UsageSummaryCard(input: { label: string; value: string }) {
+  return (
+    <div className="portal-usage-summary-card">
+      <span>{input.label}</span>
+      <strong>{input.value}</strong>
+    </div>
+  );
+}
+
+function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
+  if (input.metrics.length === 0) {
+    return (
+      <PortalNotice tone="warning">
+        <p>
+          No tracked usage has been recorded for this organization in the current
+          period yet.
+        </p>
+      </PortalNotice>
+    );
+  }
+
+  return (
+    <section
+      className="portal-usage-breakdown"
+      aria-label="Usage metric breakdown"
+    >
+      <div className="portal-usage-breakdown__header">
+        <div>
+          <p className="portal-shell__eyebrow">Current period breakdown</p>
+          <h3>Usage metrics recorded this month</h3>
+        </div>
+      </div>
+      <div className="portal-usage-breakdown__table" role="table">
+        <div
+          className="portal-usage-breakdown__row portal-usage-breakdown__row--header"
+          role="row"
+        >
+          <span role="columnheader">Metric</span>
+          <span role="columnheader">Requests</span>
+          <span role="columnheader">Last updated</span>
+        </div>
+        {input.metrics.map((metric) => (
+          <div
+            className="portal-usage-breakdown__row"
+            key={metric.metricType}
+            role="row"
+          >
+            <span role="cell">{formatUsageMetricLabel(metric.metricType)}</span>
+            <span role="cell">{metric.requestCount.toLocaleString()}</span>
+            <span role="cell">{metric.lastUpdated ?? "Not yet updated"}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatUsageMetricLabel(metricType: string): string {
+  return metricType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatUsdMicros(amountUsdMicros: number): string {

@@ -14,6 +14,7 @@ export interface PortalEndpoints {
   nonprofitSearch: string;
   organizationCreate: string;
   organizationSettings: string;
+  organizationUsage?: string;
   oauthToken: string;
 }
 
@@ -52,6 +53,10 @@ export function portalEndpoints(
     ),
     organizationSettings: buildApiUrl(
       apiEndpoints.organization.settings,
+      runtimeConfig,
+    ),
+    organizationUsage: buildApiUrl(
+      apiEndpoints.organization.usage,
       runtimeConfig,
     ),
     oauthToken: buildApiUrl(apiEndpoints.auth.oauthToken, runtimeConfig),

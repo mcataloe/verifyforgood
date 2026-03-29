@@ -358,9 +358,28 @@ describe("UsageBillingPanel", () => {
         trialStatus: null,
         usage: {
           limit: 10000,
+          metrics: [
+            {
+              lastUpdated: "2026-03-28T00:00:00Z",
+              metricType: "api_requests",
+              requestCount: 800,
+            },
+            {
+              lastUpdated: "2026-03-28T00:00:00Z",
+              metricType: "search_requests",
+              requestCount: 120,
+            },
+          ],
           periodLabel: "Current month",
           remaining: 9200,
-          source: "mock_plan_baseline",
+          source: "backend_usage_summary",
+          totals: {
+            apiRequests: 800,
+            enrichmentRequests: 0,
+            filingLookupRequests: 0,
+            nonprofitLookupRequests: 400,
+            searchRequests: 120,
+          },
           used: 800,
           usagePercent: 8,
         },
@@ -379,8 +398,70 @@ describe("UsageBillingPanel", () => {
 
     expect(screen.getByRole("heading", { name: "Usage overview" })).toBeTruthy();
     expect(screen.getByText("800 / 10,000")).toBeTruthy();
+    expect(screen.getByText("API requests")).toBeTruthy();
+    expect(screen.getByText("Nonprofit lookups")).toBeTruthy();
+    expect(screen.getByText("Usage metrics recorded this month")).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Subscription is in good standing" }),
+    ).toBeTruthy();
+  });
+
+  it("renders a clean empty state when no usage metrics are available yet", () => {
+    const reload = vi.fn(async () => {});
+    const controller: PortalUsageBillingController = {
+      error: null,
+      isLoading: false,
+      reload,
+      snapshot: {
+        billingStatus: "active",
+        budgetStatus: {
+          allowOverage: false,
+          label: "Hard stop enabled at the monthly request limit",
+          policySource: "organization_settings",
+        },
+        effectiveAccessPlan: "growth",
+        notice: null,
+        pendingChangeType: null,
+        pendingDowngradeEffectiveAt: null,
+        pendingDowngradePlan: null,
+        plan: "growth",
+        renewalDate: "2026-04-01T00:00:00+00:00",
+        source: "backend_subscription",
+        trialEndsAt: null,
+        trialStatus: null,
+        usage: {
+          limit: 10000,
+          metrics: [],
+          periodLabel: "March 2026",
+          remaining: 10000,
+          source: "backend_usage_summary",
+          totals: {
+            apiRequests: 0,
+            enrichmentRequests: 0,
+            filingLookupRequests: 0,
+            nonprofitLookupRequests: 0,
+            searchRequests: 0,
+          },
+          used: 0,
+          usagePercent: 0,
+        },
+      },
+    };
+    const plansController: PortalPricingPlansController = {
+      error: null,
+      isLoading: false,
+      plans: [],
+      reload,
+    };
+
+    renderWithOrganization(controller, plansController, {
+      focus: "usage",
+    });
+
+    expect(
+      screen.getByText(
+        /No tracked usage has been recorded for this organization in the current period yet./i,
+      ),
     ).toBeTruthy();
   });
 

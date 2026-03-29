@@ -81,9 +81,10 @@ describe("portal usage billing service", () => {
     expect(snapshot.plan).toBe("growth");
     expect(snapshot.usage.limit).toBe(10000);
     expect(snapshot.budgetStatus.allowOverage).toBe(true);
+    expect(snapshot.usage.source).toBe("mock_plan_baseline");
   });
 
-  it("loads backend subscription visibility for browser sessions", async () => {
+  it("loads backend subscription visibility and usage summaries for browser sessions", async () => {
     const session = {
       ...createMockPortalSession(),
       auth_method: "portal_browser_session" as const,
@@ -193,6 +194,41 @@ describe("portal usage billing service", () => {
           ],
         };
       }
+      if (target === apiEndpoints.organization.usage) {
+        return {
+          metrics: [
+            {
+              last_updated: "2026-03-27T00:00:00Z",
+              metric_type: "api_requests",
+              request_count: 840,
+            },
+            {
+              last_updated: "2026-03-27T00:00:00Z",
+              metric_type: "nonprofit_lookup_requests",
+              request_count: 420,
+            },
+            {
+              last_updated: "2026-03-27T00:00:00Z",
+              metric_type: "search_requests",
+              request_count: 120,
+            },
+          ],
+          period_label: "March 2026",
+          period_month: "2026-03",
+          plan_limit_context: {
+            allow_overage: false,
+            monthly_requests_limit: 7500,
+            policy_source: "organization_settings",
+          },
+          totals: {
+            api_requests: 840,
+            enrichment_requests: 0,
+            filing_lookup_requests: 0,
+            nonprofit_lookup_requests: 420,
+            search_requests: 120,
+          },
+        };
+      }
       expect(target).toBe(apiEndpoints.billing.subscription);
       return {
         billing_status: "active",
@@ -234,7 +270,10 @@ describe("portal usage billing service", () => {
     expect(snapshot.effectiveAccessPlan).toBe("growth");
     expect(snapshot.pendingChangeType).toBe("downgrade_scheduled");
     expect(snapshot.pendingDowngradePlan).toBe("starter");
-    expect(snapshot.usage.limit).toBe(10000);
+    expect(snapshot.usage.limit).toBe(7500);
+    expect(snapshot.usage.source).toBe("backend_usage_summary");
+    expect(snapshot.usage.used).toBe(840);
+    expect(snapshot.usage.totals?.nonprofitLookupRequests).toBe(420);
     expect(snapshot.budgetStatus.allowOverage).toBe(false);
   });
 });
