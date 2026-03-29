@@ -717,7 +717,7 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     module.usage_store = InMemoryUsageStore()
 
     ok = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": display_key}}, None)
-    assert ok["statusCode"] == 200
+    assert ok["statusCode"] == 403
     missing = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
     assert missing["statusCode"] == 401
 

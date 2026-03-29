@@ -459,7 +459,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch)
         None,
     )
 
-    assert managed_response["statusCode"] == 200
+    assert managed_response["statusCode"] == 403
     assert bootstrap_response["statusCode"] == 401
 
 

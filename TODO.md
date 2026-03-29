@@ -122,3 +122,28 @@ Open design areas include:
 ### Constraint
 
 Keep the `IdentityProviderService` abstraction and user provider fields stable so future SSO support can plug in without breaking the existing local-password auth flow.
+
+## TODO-ARCH-006
+
+### Title
+
+Define tenant-resolution support for non-portal machine clients on nonprofit query routes.
+
+### Rationale
+
+Phase 20A makes nonprofit query routes organization-aware and intentionally supports only:
+
+- organization-managed API keys
+- portal bearer sessions with current-organization headers
+
+Generic control-plane API keys and OAuth client-credentials tokens remain unsupported until there is a stable way to resolve them to an organization membership or equivalent tenant scope.
+
+### Migration Triggers
+
+- tenant-scoped machine-to-machine access requirements
+- partner or integration clients that need nonprofit query access
+- organization-linked OAuth client design
+
+### Constraint
+
+Keep the new tenant nonprofit service contract stable so future non-portal machine-auth support can plug in by adding tenant resolution, not by changing nonprofit lookup callers.

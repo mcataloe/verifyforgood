@@ -38,6 +38,7 @@ from charity_status.billing.service import DEFAULT_PLANS
 from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
+from charity_status.core.models import AuthContext
 from charity_status.enrichments import (
     DynamoOrganizationIntegrationSettingsStore,
     EvaluationContext,
@@ -84,6 +85,7 @@ from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.scoring import SCORING_MODEL_VERSION
 from charity_status.serving import DynamoProfileStore, materialize_profile_item
 from charity_status.serving.writer import MaterializedProfileWriter
+from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
 from charity_status_platform.customer_accounts import (
     ApiKeyCreateRequest,
     ApiKeyManagementError,
@@ -105,6 +107,7 @@ from charity_status_platform.customer_accounts import (
     MemberUpdateRequest,
     MembershipManagementError,
     MembershipManagementService,
+    MembershipStatus,
     OrganizationBootstrapValidationError,
     OrganizationCreateRequest,
     OrganizationService,
@@ -204,6 +207,7 @@ portal_usage_service: UsageService | None = None
 portal_subscription_service: SubscriptionService | None = None
 portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
+nonprofit_service: NonprofitService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -268,6 +272,16 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
             )
         )
     return enrichment_service
+
+
+def _get_nonprofit_service() -> NonprofitService:
+    global nonprofit_service
+    if nonprofit_service is None:
+        nonprofit_service = NonprofitService(
+            client=_get_athena_client(),
+            enrichment_service=_get_enrichment_service(),
+        )
+    return nonprofit_service
 
 
 def _get_profile_store() -> ProfileStoreAdapter | None:
@@ -734,7 +748,7 @@ def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
     )
     metadata = getattr(auth_context, "metadata", {}) or {}
     organization_id = metadata.get("organization_id")
-    if metadata.get("organization_api_key") != "true" or not organization_id:
+    if metadata.get("tenant_scoped_request") != "true" or not organization_id:
         return context
     feature_service = _get_portal_feature_flag_service()
     if feature_service is None:
@@ -746,6 +760,107 @@ def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
         )
     except Exception:  # noqa: BLE001
         return context
+
+
+def _is_tenant_nonprofit_request(event: dict[str, Any], method: str) -> bool:
+    return any(
+        checker(event, method)
+        for checker in (
+            _is_search_request,
+            _is_sources_list_request,
+            _is_sources_detail_request,
+            _is_compliance_request,
+            _is_federal_awards_request,
+            _is_filings_request,
+            _is_lookup_request,
+        )
+    )
+
+
+def _is_lookup_request(event: dict[str, Any], method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    if candidate.endswith("/nonprofit/{ein}") or candidate.endswith("/nonprofit/{ein}/"):
+        return True
+    path_params = event.get("pathParameters") or {}
+    return bool(path_params.get("ein"))
+
+
+def _build_portal_session_auth_context(*, organization_id: str, user_id: str) -> AuthContext:
+    plan_code = "free"
+    subscription_service = _get_portal_subscription_service()
+    if subscription_service is not None:
+        try:
+            resolved = subscription_service.get_subscription_for_organization(organization_id)
+            plan_code = str(resolved.subscription.plan.plan_id)
+        except Exception:  # noqa: BLE001
+            plan_code = "free"
+    entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
+    return AuthContext(
+        account_id=organization_id,
+        credential_id=user_id,
+        auth_method="portal_session",
+        plan=plan_code,
+        scopes=("verify:read", "nonprofits:read", "sources:read"),
+        rate_limit_profile=plan_code,
+        workspace_id=organization_id,
+        subject=f"portal_session:{user_id}",
+        entitlements=entitlements,
+        metadata={
+            "organization_id": organization_id,
+            "portal_session": "true",
+            "tenant_scoped_request": "true",
+        },
+    )
+
+
+def _build_tenant_nonprofit_context(auth_context: Any) -> TenantNonprofitContext:
+    metadata = getattr(auth_context, "metadata", {}) or {}
+    organization_id = str(metadata.get("organization_id") or "").strip()
+    if not organization_id:
+        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
+    return TenantNonprofitContext(
+        organization_id=organization_id,
+        authenticated_subject=str(getattr(auth_context, "subject", "") or ""),
+        authenticated_user_id=(str(getattr(auth_context, "credential_id", "") or "") if getattr(auth_context, "auth_method", "") == "portal_session" else None),
+        auth_method=str(getattr(auth_context, "auth_method", "") or ""),
+        credential_id=(str(getattr(auth_context, "credential_id", "") or "") or None),
+        metadata=dict(metadata),
+    )
+
+
+def _resolve_tenant_nonprofit_auth_context(event: dict[str, Any]) -> AuthContext:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "").strip()
+    has_current_org_headers = bool(_get_header(headers, "x-portal-account-id") or _get_header(headers, "x-portal-workspace-id"))
+    if authorization.lower().startswith("bearer ") and has_current_org_headers:
+        try:
+            current_user = _get_portal_auth_service().get_current_user(authorization)
+            try:
+                organization_id, workspace_id = _resolve_current_portal_context(event)
+            except MembershipManagementError as exc:
+                raise AuthorizationError(str(exc)) from exc
+            if organization_id != workspace_id:
+                raise AuthorizationError("Current organization headers must identify the same scope")
+            membership = DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME).get(organization_id, current_user.user_id)
+            if membership is None or membership.status != MembershipStatus.ACTIVE:
+                raise AuthorizationError("Active membership is required for nonprofit queries")
+            return _build_portal_session_auth_context(organization_id=organization_id, user_id=current_user.user_id)
+        except AuthenticationError:
+            pass
+
+    auth_context = _get_auth_context_provider().extract_context(event or {})
+    if str(getattr(auth_context, "auth_method", "") or "") == "anonymous":
+        if authorization.lower().startswith("bearer "):
+            raise AuthorizationError("Current organization headers are required")
+        raise AuthenticationError("Authentication required")
+    metadata = getattr(auth_context, "metadata", None)
+    if not isinstance(metadata, dict) or not str(metadata.get("organization_id") or "").strip():
+        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
+    metadata["tenant_scoped_request"] = "true"
+    return auth_context
 
 
 def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -1244,8 +1359,12 @@ def handler(event, context):
         except ValueError as exc:
             return error_response(400, str(exc), response_context=portal_context, code="bad_request")
 
+    tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
     try:
-        auth_context = _get_auth_context_provider().extract_context(event or {})
+        if tenant_nonprofit_request:
+            auth_context = _resolve_tenant_nonprofit_auth_context(event or {})
+        else:
+            auth_context = _get_auth_context_provider().extract_context(event or {})
         _prepare_quota_request_metadata(event or {}, auth_context)
         api_context = ResponseContext(
             request_id=api_context.request_id,
@@ -1279,6 +1398,7 @@ def handler(event, context):
     except QuotaExceededError as exc:
         return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
     evaluation_context = _resolve_evaluation_context(auth_context)
+    tenant_context = _build_tenant_nonprofit_context(auth_context) if tenant_nonprofit_request else None
     if method == "POST" and _is_batch_verify_request(event):
         response = _handle_batch_verify(
             event,
@@ -1353,17 +1473,16 @@ def handler(event, context):
 
     try:
         if _is_search_request(event, method):
-            status_code, payload = _handle_search_request(event)
+            status_code, payload = _handle_search_request(event, tenant_context=tenant_context)
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
 
         normalized_ein = normalize_ein(verification_input.ein)
         if _is_sources_list_request(event, method):
-            status_code, payload = get_nonprofit_sources_view(
-                _get_athena_client(),
-                _get_enrichment_service(),
-                normalized_ein,
+            status_code, payload = _get_nonprofit_service().get_sources(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
@@ -1372,10 +1491,9 @@ def handler(event, context):
             return response
         if _is_sources_detail_request(event, method):
             source_name = _extract_source_name(event)
-            status_code, payload = get_nonprofit_single_source_view(
-                _get_athena_client(),
-                _get_enrichment_service(),
-                normalized_ein,
+            status_code, payload = _get_nonprofit_service().get_source_detail(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
                 source_name=source_name,
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
@@ -1384,10 +1502,9 @@ def handler(event, context):
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
         if _is_compliance_request(event, method):
-            status_code, payload = get_nonprofit_compliance_view(
-                _get_athena_client(),
-                _get_enrichment_service(),
-                normalized_ein,
+            status_code, payload = _get_nonprofit_service().get_compliance(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
@@ -1395,10 +1512,9 @@ def handler(event, context):
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
         if _is_federal_awards_request(event, method):
-            status_code, payload = get_nonprofit_federal_awards_view(
-                _get_athena_client(),
-                _get_enrichment_service(),
-                normalized_ein,
+            status_code, payload = _get_nonprofit_service().get_federal_awards(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
                 subsection=verification_input.subsection,
                 evaluation_context=evaluation_context,
             )
@@ -1407,7 +1523,10 @@ def handler(event, context):
             return response
 
         if _is_filings_request(event, method):
-            status_code, payload = get_nonprofit_filings(_get_athena_client(), normalized_ein)
+            status_code, payload = _get_nonprofit_service().get_filings(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+            )
             response = respond(status_code, payload)
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
@@ -1435,12 +1554,19 @@ def handler(event, context):
             policy_id=verification_input.policy_id,
             weighting_profile=verification_input.weighting_profile,
         )
-        status_code, payload = verify_nonprofit(
-            _get_athena_client(),
-            verification_input,
-            enrichment_service=_get_enrichment_service(),
-            evaluation_context=evaluation_context,
-        )
+        if tenant_nonprofit_request:
+            status_code, payload = _get_nonprofit_service().lookup_nonprofit(
+                tenant_context=tenant_context,
+                verification_input=verification_input,
+                evaluation_context=evaluation_context,
+            )
+        else:
+            status_code, payload = verify_nonprofit(
+                _get_athena_client(),
+                verification_input,
+                enrichment_service=_get_enrichment_service(),
+                evaluation_context=evaluation_context,
+            )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
         shaped_payload = _shape_payload_for_response(payload, auth_context) if status_code == 200 else payload
@@ -1952,7 +2078,11 @@ def _require_organization_context(auth_context: Any) -> tuple[str | None, str | 
     return workspace_id, account_id
 
 
-def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
+def _handle_search_request(
+    event: dict,
+    *,
+    tenant_context: TenantNonprofitContext | None,
+) -> tuple[int, dict[str, Any]]:
     query = event.get("queryStringParameters") or {}
     name_query = str(query.get("q") or query.get("name") or "").strip()
     if not name_query:
@@ -1974,8 +2104,11 @@ def _handle_search_request(event: dict) -> tuple[int, dict[str, Any]]:
     subsection = str(query.get("subsection")).strip() if query.get("subsection") else None
     cursor = str(query.get("cursor")).strip() if query.get("cursor") else None
 
-    return search_nonprofit_summaries(
-        client=_get_athena_client(),
+    if tenant_context is None:
+        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
+
+    return _get_nonprofit_service().search_nonprofits(
+        tenant_context=tenant_context,
         name_query=name_query,
         limit=limit,
         state=state,

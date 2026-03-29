@@ -104,6 +104,36 @@ def _mock_enrichment(providers=None, failures=None):
     return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
 
 
+def _install_tenant_auth(
+    module,
+    *,
+    organization_id: str = "org_1",
+    credential_id: str = "key_1",
+    auth_method: str = "api_key",
+    plan: str = "pro",
+):
+    class _AuthProvider:
+        def extract_context(self, event):
+            return AuthContext(
+                account_id=organization_id,
+                credential_id=credential_id,
+                auth_method=auth_method,
+                plan=plan,
+                scopes=("verify:read",),
+                rate_limit_profile=plan,
+                workspace_id=organization_id,
+                subject=f"{auth_method}:{credential_id}",
+                entitlements=DEFAULT_ENTITLEMENTS.get(plan, DEFAULT_ENTITLEMENTS["free"]),
+                metadata={
+                    "organization_id": organization_id,
+                    "tenant_scoped_request": "true",
+                    "organization_api_key": "true" if auth_method == "api_key" else "false",
+                },
+            )
+
+    module.auth_context_provider = _AuthProvider()
+
+
 class _BillingSettingsResolver:
     def __init__(self, allow_overage: bool) -> None:
         self._allow_overage = allow_overage
@@ -177,6 +207,7 @@ class _StripePortalClient:
 
 def test_invalid_ein_still_returns_400():
     module = _load_module()
+    _install_tenant_auth(module)
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "12-34A6789"}, "queryStringParameters": None}
     result = module.handler(event, None)
@@ -207,6 +238,7 @@ def test_options_preflight_returns_cors_headers_for_allowed_origin(monkeypatch):
 
 def test_lookup_hit_path_returns_materialized_profile():
     module = _load_module()
+    _install_tenant_auth(module)
     module.SERVING_DDB_ENABLED = True
     module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
@@ -233,7 +265,7 @@ def test_lookup_hit_path_returns_materialized_profile():
     assert envelope["api_version"] == "v1"
     assert envelope["api_release"] == "1.0.0"
     assert envelope["request_id"]
-    assert envelope["plan"] == "public"
+    assert envelope["plan"] == "pro"
     assert envelope["deprecation"]["status"] == "active"
     assert body["organization"]["name"] == "Cached Org"
     assert body["scores"]["overall"] == 88
@@ -243,6 +275,7 @@ def test_lookup_hit_path_returns_materialized_profile():
 
 def test_lookup_hit_path_refreshes_stale_materialized_profile():
     module = _load_module()
+    _install_tenant_auth(module)
     put_calls = []
     module.SERVING_DDB_ENABLED = True
     module.PROFILE_TABLE_NAME = "profiles"
@@ -276,6 +309,7 @@ def test_lookup_hit_path_refreshes_stale_materialized_profile():
 
 def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
     module = _load_module()
+    _install_tenant_auth(module)
     put_calls = []
     module.SERVING_DDB_ENABLED = True
     module.PROFILE_TABLE_NAME = "profiles"
@@ -362,6 +396,7 @@ def test_post_verify_accepts_weighting_profile():
 
 def test_response_shape_still_contains_core_fields():
     module = _load_module()
+    _install_tenant_auth(module)
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _mock_client(record=_sample_record("Test Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
@@ -387,6 +422,7 @@ def test_response_shape_still_contains_core_fields():
 
 def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
     module = _load_module()
+    _install_tenant_auth(module)
     module.SERVING_DDB_ENABLED = True
     module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
@@ -447,7 +483,16 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
 
     class _AuthProvider:
         def extract_context(self, event):
-            return SimpleNamespace(subject="tenant", scopes=(), metadata={}, workspace_id="ws_1", account_id="acct_1")
+            return SimpleNamespace(
+                subject="tenant",
+                scopes=(),
+                metadata={
+                    "organization_id": "org_1",
+                    "tenant_scoped_request": "true",
+                },
+                workspace_id="ws_1",
+                account_id="acct_1",
+            )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):
@@ -570,7 +615,7 @@ def test_resolve_evaluation_context_applies_org_feature_flag_overrides():
         SimpleNamespace(
             workspace_id="org_1",
             account_id="org_1",
-            metadata={"organization_api_key": "true", "organization_id": "org_1"},
+            metadata={"organization_api_key": "true", "organization_id": "org_1", "tenant_scoped_request": "true"},
         )
     )
 
@@ -1402,7 +1447,7 @@ def test_handler_returns_hard_stop_quota_response_when_overage_disabled():
     module = _load_module()
     store = InMemoryUsageStore()
     month_key = monthly_period_for()
-    store.increment_usage("acct_1", month_key, 250)
+    store.increment_usage("org_1", month_key, 250)
     module.quota_metering_hook = ApiKeyQuotaMeteringHook(
         store,
         billing_settings_resolver=_BillingSettingsResolver(False),
@@ -1411,16 +1456,20 @@ def test_handler_returns_hard_stop_quota_response_when_overage_disabled():
     class _AuthProvider:
         def extract_context(self, event):
             return AuthContext(
-                account_id="acct_1",
+                account_id="org_1",
                 credential_id="key_1",
                 auth_method="api_key",
                 plan="free",
                 scopes=("verify:read",),
                 rate_limit_profile="free",
-                workspace_id="ws_1",
+                workspace_id="org_1",
                 subject="api_key:key_1",
                 entitlements=DEFAULT_ENTITLEMENTS["free"],
-                metadata={},
+                metadata={
+                    "organization_id": "org_1",
+                    "tenant_scoped_request": "true",
+                    "organization_api_key": "true",
+                },
             )
 
     module.auth_context_provider = _AuthProvider()
@@ -1447,22 +1496,26 @@ def test_handler_restricts_product_access_when_payment_failed():
     class _AuthProvider:
         def extract_context(self, event):
             return AuthContext(
-                account_id="acct_1",
+                account_id="org_1",
                 credential_id="key_1",
                 auth_method="api_key",
                 plan="growth",
                 scopes=("verify:read",),
                 rate_limit_profile="growth",
-                workspace_id="ws_1",
+                workspace_id="org_1",
                 subject="api_key:key_1",
                 subscription=Subscription(
-                    account_id="acct_1",
+                    account_id="org_1",
                     plan_code="growth",
                     status="active",
                     billing_status="payment_failed",
                 ),
                 entitlements=DEFAULT_ENTITLEMENTS["growth"],
-                metadata={},
+                metadata={
+                    "organization_id": "org_1",
+                    "tenant_scoped_request": "true",
+                    "organization_api_key": "true",
+                },
             )
 
     module.auth_context_provider = _AuthProvider()
@@ -1665,6 +1718,7 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
 
 def test_nonprofits_search_exactish_name():
     module = _load_module()
+    _install_tenant_auth(module)
     module.SEARCH_DEFAULT_LIMIT = 20
     module.SEARCH_MAX_LIMIT = 50
     module.athena_client = _mock_client(
@@ -1694,6 +1748,7 @@ def test_nonprofits_search_exactish_name():
 
 def test_nonprofits_search_filtered_search():
     module = _load_module()
+    _install_tenant_auth(module)
     captured = {}
 
     def search_nonprofits(**kwargs):
@@ -1717,6 +1772,7 @@ def test_nonprofits_search_filtered_search():
 
 def test_nonprofits_search_pagination_cursor():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(
         search_rows=[
             {"ein": "123456789", "name": "A Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
@@ -1737,6 +1793,7 @@ def test_nonprofits_search_pagination_cursor():
 
 def test_nonprofits_search_invalid_limit_handling():
     module = _load_module()
+    _install_tenant_auth(module)
     module.SEARCH_MAX_LIMIT = 10
     module.athena_client = _mock_client(search_rows=[])
     event = {
@@ -1750,8 +1807,62 @@ def test_nonprofits_search_invalid_limit_handling():
     assert "between 1 and 10" in _response_error_message(result)
 
 
+def test_nonprofits_search_requires_tenant_context_before_client_access():
+    module = _load_module()
+    module.athena_client = SimpleNamespace(
+        search_nonprofits=lambda **kwargs: (_ for _ in ()).throw(AssertionError("search client should not be called")),
+    )
+    event = {
+        "httpMethod": "GET",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
+        "queryStringParameters": {"q": "org"},
+        "headers": {},
+    }
+
+    result = module.handler(event, None)
+
+    assert result["statusCode"] == 401
+
+
+def test_nonprofits_search_rejects_authenticated_non_tenant_context():
+    module = _load_module()
+    module.athena_client = SimpleNamespace(
+        search_nonprofits=lambda **kwargs: (_ for _ in ()).throw(AssertionError("search client should not be called")),
+    )
+
+    class _AuthProvider:
+        def extract_context(self, event):
+            return AuthContext(
+                account_id="acct_1",
+                credential_id="key_1",
+                auth_method="api_key",
+                plan="free",
+                scopes=("verify:read",),
+                rate_limit_profile="free",
+                workspace_id="ws_1",
+                subject="api_key:key_1",
+                entitlements=DEFAULT_ENTITLEMENTS["free"],
+                metadata={},
+            )
+
+    module.auth_context_provider = _AuthProvider()
+    event = {
+        "httpMethod": "GET",
+        "resource": "/v1/nonprofits/search",
+        "path": "/v1/nonprofits/search",
+        "queryStringParameters": {"q": "org"},
+        "headers": {"x-api-key": "csk_dev_001.secret"},
+    }
+
+    result = module.handler(event, None)
+
+    assert result["statusCode"] == 403
+
+
 def test_nonprofits_sources_supported_source_lookup():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(
         enrich=lambda ein, organization_name=None: SimpleNamespace(
@@ -1790,6 +1901,7 @@ def test_nonprofits_sources_supported_source_lookup():
 
 def test_nonprofits_sources_unsupported_source_name():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
@@ -1806,6 +1918,7 @@ def test_nonprofits_sources_unsupported_source_name():
 
 def test_nonprofits_compliance_no_source_data_case():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
@@ -1823,6 +1936,7 @@ def test_nonprofits_compliance_no_source_data_case():
 
 def test_nonprofits_sources_no_source_data_case():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     event = {
@@ -1841,6 +1955,7 @@ def test_nonprofits_sources_no_source_data_case():
 
 def test_nonprofits_compliance_summary_aggregation():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(
         enrich=lambda ein, organization_name=None: SimpleNamespace(
@@ -1891,6 +2006,7 @@ def test_nonprofits_compliance_summary_aggregation():
 
 def test_nonprofits_federal_awards_summary_response():
     module = _load_module()
+    _install_tenant_auth(module)
     module.athena_client = _mock_client(record=_sample_record("Source Org"))
     module.enrichment_service = SimpleNamespace(
         enrich=lambda ein, organization_name=None: SimpleNamespace(
@@ -1936,7 +2052,17 @@ def test_handler_invokes_auth_and_quota_hooks():
     class _AuthProvider:
         def extract_context(self, event):
             calls.append(("auth", event.get("httpMethod")))
-            return SimpleNamespace(subject="anonymous", scopes=(), metadata={})
+            return SimpleNamespace(
+                subject="api_key:key_1",
+                scopes=(),
+                metadata={"organization_id": "org_1", "tenant_scoped_request": "true", "organization_api_key": "true"},
+                auth_method="api_key",
+                credential_id="key_1",
+                account_id="org_1",
+                workspace_id="org_1",
+                plan="pro",
+                entitlements=DEFAULT_ENTITLEMENTS["pro"],
+            )
 
     class _QuotaHook:
         def on_request(self, auth_context, route_key):

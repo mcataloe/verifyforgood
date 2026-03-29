@@ -229,5 +229,5 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
         {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"Authorization": f"Bearer {token}"}},
         None,
     )
-    assert api_key_response["statusCode"] == 200
-    assert oauth_response["statusCode"] == 200
+    assert api_key_response["statusCode"] == 403
+    assert oauth_response["statusCode"] == 403

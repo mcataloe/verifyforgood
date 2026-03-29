@@ -226,7 +226,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
         },
         None,
     )
-    assert customer_response["statusCode"] == 200
+    assert customer_response["statusCode"] == 403
 
     rotated = module.handler(
         {

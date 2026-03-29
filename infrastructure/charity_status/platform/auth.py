@@ -52,6 +52,7 @@ class ApiKeyAuthContextProvider:
             if organization_id:
                 context.metadata["organization_id"] = str(organization_id)
                 context.metadata["organization_api_key"] = "true"
+                context.metadata["tenant_scoped_request"] = "true"
         _attach_context(event, context)
         return context
 
@@ -162,7 +163,7 @@ class ApiKeyQuotaMeteringHook:
         organization_id = auth_context.metadata.get("organization_id")
         if (
             self._organization_feature_service is not None
-            and auth_context.metadata.get("organization_api_key") == "true"
+            and auth_context.metadata.get("tenant_scoped_request") == "true"
             and organization_id
         ):
             apply_overrides = getattr(self._organization_feature_service, "apply_entitlement_overrides", None)
@@ -225,7 +226,7 @@ class ApiKeyQuotaMeteringHook:
         if self._organization_usage_tracker is None or billable_units <= 0:
             return
         organization_id = auth_context.metadata.get("organization_id")
-        if not organization_id or auth_context.metadata.get("organization_api_key") != "true":
+        if not organization_id or auth_context.metadata.get("tenant_scoped_request") != "true":
             return
         record_usage = getattr(self._organization_usage_tracker, "record_usage", None)
         if not callable(record_usage):

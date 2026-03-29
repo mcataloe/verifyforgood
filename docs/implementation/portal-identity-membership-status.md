@@ -2,11 +2,11 @@
 
 ## Status
 
-SSO seams prepared
+tenant-aware nonprofit service enabled
 
 ## Next Phase
 
-TBD
+20B
 
 ## Scope
 

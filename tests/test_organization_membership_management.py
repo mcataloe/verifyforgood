@@ -405,3 +405,109 @@ def test_accept_invitation_rejects_duplicate_existing_membership(monkeypatch):
     assert member_user["email"] == "member@example.com"
     assert response["statusCode"] == 400
     assert payload["errors"][0]["message"] == "User is already a member of this organization"
+
+
+def test_portal_session_can_query_nonprofit_when_membership_is_active(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    module.athena_client = type(
+        "_Client",
+        (),
+        {
+            "lookup_nonprofit": staticmethod(
+                lambda ein, subsection=None: (
+                    "qid-1",
+                    {
+                        "ein": ein,
+                        "name": "Tenant Query Org",
+                        "state": "IL",
+                        "status": "1",
+                        "deductibility": "1",
+                        "subsection": subsection or "03",
+                        "ntee_cd": "P20",
+                        "tax_period": "202501",
+                        "filing_req_cd": "1",
+                        "asset_amt": "",
+                        "income_amt": "",
+                        "revenue_amt": "",
+                    },
+                )
+            ),
+            "lookup_form990_enrichment": staticmethod(lambda ein: ({}, {}, {}, {})),
+            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
+            "list_form990_filings": staticmethod(lambda ein, limit=10: ("qid-f", [])),
+            "search_nonprofits": staticmethod(lambda **kwargs: ("qid-s", [])),
+        },
+    )()
+    module.enrichment_service = type(
+        "_Enrichment",
+        (),
+        {
+            "enrich": staticmethod(
+                lambda **kwargs: type(
+                    "_Payload",
+                    (),
+                    {"to_dict": staticmethod(lambda: {"providers": [], "failures": []})},
+                )()
+            )
+        },
+    )()
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "headers": _current_org_headers(creator_token, organization["organization_id"]),
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 200
+    assert payload["data"]["organization"]["name"] == "Tenant Query Org"
+
+
+def test_portal_session_nonprofit_query_requires_current_org_headers(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _create_organization(module, access_token=creator_token)
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "headers": {"Authorization": f"Bearer {creator_token}"},
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 403
+    assert payload["errors"][0]["message"] == "Current organization headers are required"
+
+
+def test_portal_session_nonprofit_query_rejects_non_member(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+    _, outsider_token, _outsider = _register_user(module, email="outsider@example.com")
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "headers": _current_org_headers(outsider_token, organization["organization_id"]),
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 403
+    assert payload["errors"][0]["message"] == "Active membership is required for nonprofit queries"
