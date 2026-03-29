@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from charity_status.enrichments import EvaluationContext, OrganizationIntegrationSetting
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
 from verification_platform.organization_verification.verification_service import OrganizationVerificationInput as VerificationInput
 
@@ -95,3 +96,133 @@ def test_nonprofit_service_delegates_lookup_search_filings_and_sources():
     assert filings_payload["filings"][0]["form_type"] == "990"
     assert sources_status == 200
     assert sources_payload["organization"]["name"] == "Tenant Org"
+
+
+def test_nonprofit_service_applies_feature_flag_overrides_before_enrichment_calls():
+    captured = []
+
+    class _FeatureFlagService:
+        def apply_evaluation_context_overrides(self, *, organization_id, context):
+            captured.append((organization_id, context.setting_for("candid").enabled, context.setting_for("charity_navigator").enabled))
+            return EvaluationContext(
+                organization_integration_settings={
+                    "candid": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                    "charity_navigator": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                }
+            )
+
+    class _EnrichmentService:
+        def enrich(self, **kwargs):
+            evaluation_context = kwargs["evaluation_context"]
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "providers": [],
+                    "failures": [],
+                    "integration_evaluation": {
+                        "integrations": [
+                            {
+                                "integration_id": "candid",
+                                "offered": True,
+                                "credentials_present": True,
+                                "tenant_enabled": evaluation_context.setting_for("candid").enabled,
+                                "required_for_eligibility": False,
+                                "attempted": False,
+                                "availability_status": "tenant_disabled",
+                                "requirement_status": "not_required",
+                            },
+                            {
+                                "integration_id": "charity_navigator",
+                                "offered": True,
+                                "credentials_present": True,
+                                "tenant_enabled": evaluation_context.setting_for("charity_navigator").enabled,
+                                "required_for_eligibility": False,
+                                "attempted": False,
+                                "availability_status": "tenant_disabled",
+                                "requirement_status": "not_required",
+                            },
+                        ],
+                        "attempted_integrations": [],
+                        "used_integrations": [],
+                        "required_unmet_integrations": [],
+                        "failure_integrations": [],
+                    },
+                }
+            )
+
+    service = NonprofitService(
+        client=_client(),
+        enrichment_service=_EnrichmentService(),
+        feature_flag_service=_FeatureFlagService(),
+    )
+
+    status, payload = service.lookup_nonprofit(
+        tenant_context=_tenant_context(),
+        verification_input=VerificationInput(ein="123456789"),
+        evaluation_context=EvaluationContext(
+            organization_integration_settings={
+                "candid": OrganizationIntegrationSetting(enabled=True, required_for_eligibility=False),
+                "charity_navigator": OrganizationIntegrationSetting(enabled=True, required_for_eligibility=False),
+            }
+        ),
+    )
+
+    assert status == 200
+    assert captured == [("org_1", True, True)]
+    states = {item["integration_id"]: item for item in payload["integration_evaluation"]["integrations"]}
+    assert states["candid"]["tenant_enabled"] is False
+    assert states["charity_navigator"]["tenant_enabled"] is False
+    assert payload["integration_evaluation"]["attempted_integrations"] == []
+
+
+def test_nonprofit_service_falls_back_to_supplied_context_when_flag_resolution_fails():
+    class _FeatureFlagService:
+        def apply_evaluation_context_overrides(self, *, organization_id, context):
+            raise RuntimeError("flag store unavailable")
+
+    class _EnrichmentService:
+        def enrich(self, **kwargs):
+            evaluation_context = kwargs["evaluation_context"]
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "providers": [],
+                    "failures": [],
+                    "integration_evaluation": {
+                        "integrations": [
+                            {
+                                "integration_id": "candid",
+                                "offered": True,
+                                "credentials_present": True,
+                                "tenant_enabled": evaluation_context.setting_for("candid").enabled,
+                                "required_for_eligibility": False,
+                                "attempted": False,
+                                "availability_status": "tenant_disabled",
+                                "requirement_status": "not_required",
+                            }
+                        ],
+                        "attempted_integrations": [],
+                        "used_integrations": [],
+                        "required_unmet_integrations": [],
+                        "failure_integrations": [],
+                    },
+                }
+            )
+
+    service = NonprofitService(
+        client=_client(),
+        enrichment_service=_EnrichmentService(),
+        feature_flag_service=_FeatureFlagService(),
+    )
+
+    status, payload = service.lookup_nonprofit(
+        tenant_context=_tenant_context(),
+        verification_input=VerificationInput(ein="123456789"),
+        evaluation_context=EvaluationContext(
+            organization_integration_settings={
+                "candid": OrganizationIntegrationSetting(enabled=True, required_for_eligibility=False),
+            }
+        ),
+    )
+
+    assert status == 200
+    states = {item["integration_id"]: item for item in payload["integration_evaluation"]["integrations"]}
+    assert states["candid"]["tenant_enabled"] is True

@@ -106,3 +106,32 @@ def test_build_enrichment_service_supports_state_registry_adapter_path_without_l
     assert integrations[0]["integration_id"] == "state_registry"
     assert integrations[0]["credentials_present"] is True
     assert integrations[0]["availability_status"] == "tenant_disabled"
+
+
+def test_build_enrichment_service_skips_disabled_premium_integrations_without_provider_failures():
+    service = build_enrichment_service(
+        RefreshRuntimeConfig(
+            database="db",
+            table="table",
+            workgroup=None,
+            form990_filings_table="f1",
+            form990_metrics_table="f2",
+            form990_governance_table="f3",
+            form990_quality_table="f4",
+            enrichment_candid_offered=True,
+            enrichment_candid_enabled=True,
+        )
+    )
+    payload = service.enrich(
+        "123456789",
+        evaluation_context=EvaluationContext(
+            organization_integration_settings={
+                "candid": TenantIntegrationSetting(enabled=False, required_for_eligibility=False)
+            }
+        ),
+    ).to_dict()
+
+    assert payload["providers"] == []
+    assert payload["failures"] == []
+    assert payload["integration_evaluation"]["integrations"][0]["integration_id"] == "candid"
+    assert payload["integration_evaluation"]["integrations"][0]["availability_status"] == "tenant_disabled"

@@ -2030,6 +2030,149 @@ def test_nonprofits_sources_supported_source_lookup():
     assert body["source"]["normalized_data"]["registration_status"] == "active"
 
 
+def test_lookup_nonprofit_surfaces_disabled_premium_integrations_in_existing_metadata():
+    module = _load_module()
+    _install_tenant_auth(module)
+
+    class _FeatureFlagService:
+        def apply_evaluation_context_overrides(self, *, organization_id, context):
+            return EvaluationContext(
+                organization_integration_settings={
+                    "candid": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                    "charity_navigator": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                }
+            )
+
+    module.portal_feature_flag_service = _FeatureFlagService()
+    module.nonprofit_service = None
+    module.athena_client = _mock_client(record=_sample_record("Flagged Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [],
+                "failures": [],
+                "integration_evaluation": {
+                    "integrations": [
+                        {
+                            "integration_id": "candid",
+                            "offered": True,
+                            "credentials_present": True,
+                            "tenant_enabled": evaluation_context.setting_for("candid").enabled,
+                            "required_for_eligibility": False,
+                            "attempted": False,
+                            "availability_status": "tenant_disabled",
+                            "requirement_status": "not_required",
+                        },
+                        {
+                            "integration_id": "charity_navigator",
+                            "offered": True,
+                            "credentials_present": True,
+                            "tenant_enabled": evaluation_context.setting_for("charity_navigator").enabled,
+                            "required_for_eligibility": False,
+                            "attempted": False,
+                            "availability_status": "tenant_disabled",
+                            "requirement_status": "not_required",
+                        },
+                    ],
+                    "attempted_integrations": [],
+                    "used_integrations": [],
+                    "required_unmet_integrations": [],
+                    "failure_integrations": [],
+                },
+            }
+        )
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    states = {item["integration_id"]: item for item in body["integration_evaluation"]["integrations"]}
+    assert states["candid"]["availability_status"] == "tenant_disabled"
+    assert states["candid"]["tenant_enabled"] is False
+    assert states["charity_navigator"]["availability_status"] == "tenant_disabled"
+    assert body["enrichment"]["providers"] == []
+
+
+def test_nonprofits_sources_omit_disabled_premium_integrations_cleanly():
+    module = _load_module()
+    _install_tenant_auth(module)
+
+    class _FeatureFlagService:
+        def apply_evaluation_context_overrides(self, *, organization_id, context):
+            return EvaluationContext(
+                organization_integration_settings={
+                    "candid": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                    "charity_navigator": OrganizationIntegrationSetting(enabled=False, required_for_eligibility=False),
+                }
+            )
+
+    module.portal_feature_flag_service = _FeatureFlagService()
+    module.nonprofit_service = None
+    module.athena_client = _mock_client(record=_sample_record("Flagged Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: SimpleNamespace(
+            to_dict=lambda: {
+                "providers": [],
+                "failures": [],
+                "integration_evaluation": {
+                    "integrations": [
+                        {
+                            "integration_id": "candid",
+                            "offered": True,
+                            "credentials_present": True,
+                            "tenant_enabled": evaluation_context.setting_for("candid").enabled,
+                            "required_for_eligibility": False,
+                            "attempted": False,
+                            "availability_status": "tenant_disabled",
+                            "requirement_status": "not_required",
+                        },
+                        {
+                            "integration_id": "charity_navigator",
+                            "offered": True,
+                            "credentials_present": True,
+                            "tenant_enabled": evaluation_context.setting_for("charity_navigator").enabled,
+                            "required_for_eligibility": False,
+                            "attempted": False,
+                            "availability_status": "tenant_disabled",
+                            "requirement_status": "not_required",
+                        },
+                    ],
+                    "attempted_integrations": [],
+                    "used_integrations": [],
+                    "required_unmet_integrations": [],
+                    "failure_integrations": [],
+                },
+            }
+        )
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}/sources",
+            "path": "/v1/nonprofits/123456789/sources",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["sources"] == []
+    assert body["failures"] == []
+
+
 def test_nonprofits_sources_unsupported_source_name():
     module = _load_module()
     _install_tenant_auth(module)

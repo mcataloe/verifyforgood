@@ -280,6 +280,7 @@ def _get_nonprofit_service() -> NonprofitService:
         nonprofit_service = NonprofitService(
             client=_get_athena_client(),
             enrichment_service=_get_enrichment_service(),
+            feature_flag_service=_get_portal_feature_flag_service(),
         )
     return nonprofit_service
 

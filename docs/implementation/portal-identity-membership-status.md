@@ -2,11 +2,11 @@
 
 ## Status
 
-usage tracking integrated into nonprofit queries
+feature flags integrated into enrichment pipeline
 
 ## Next Phase
 
-20C
+20D
 
 ## Scope
 

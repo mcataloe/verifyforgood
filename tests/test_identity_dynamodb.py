@@ -5,6 +5,8 @@ import sys
 
 import pytest
 
+from charity_status.enrichments import EvaluationContext
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
@@ -673,3 +675,51 @@ def test_feature_flag_service_resolves_plan_defaults_and_overrides():
         "enable_bulk_lookup",
         "enable_advanced_reporting",
     }
+
+
+def test_feature_flag_service_applies_integration_overrides_for_premium_sources():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=resource)
+    flags = DynamoFeatureFlagRepository(dynamodb_resource=resource)
+    subscription_service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    feature_service = FeatureFlagService(
+        organizations=organizations,
+        subscriptions=subscriptions,
+        flags=flags,
+        subscription_service=subscription_service,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    subscription_service.upsert_subscription(
+        organization_id="org_1",
+        plan_id="enterprise",
+        billing_cycle_start="2026-03-28T00:00:00+00:00",
+        billing_cycle_end="2026-04-27T00:00:00+00:00",
+    )
+    feature_service.set_override(
+        organization_id="org_1",
+        flag_key=FeatureFlagKey.ENABLE_CANDID.value,
+        enabled=False,
+    )
+
+    context = feature_service.apply_evaluation_context_overrides(
+        organization_id="org_1",
+        context=EvaluationContext(),
+    )
+
+    assert context.setting_for("charity_navigator").enabled is True
+    assert context.setting_for("candid").enabled is False

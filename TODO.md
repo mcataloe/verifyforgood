@@ -173,3 +173,23 @@ Other tenant-scoped nonprofit read routes still rely on broader request metering
 ### Constraint
 
 Preserve the Phase 20B metric names and route-to-metric mapping for lookup, search, and filings so any future expansion is additive.
+
+## TODO-ARCH-008
+
+### Title
+
+Move premium enrichment gating to a registry-driven feature map for future paid providers.
+
+### Rationale
+
+Phase 20C enforces feature flags for current premium integrations through the existing feature-to-integration mapping. As new paid enrichment providers are added, manually extending per-feature mappings in query orchestration will become harder to maintain.
+
+### Migration Triggers
+
+- onboarding additional premium enrichment providers
+- plan-tier specific source packaging
+- self-serve premium integration rollout
+
+### Constraint
+
+Keep the Phase 20C nonprofit-service enforcement seam stable so future premium integrations can plug in by extending registry metadata and flag mappings instead of changing nonprofit route contracts.
