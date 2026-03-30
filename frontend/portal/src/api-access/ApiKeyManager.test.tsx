@@ -92,10 +92,24 @@ describe("ApiKeyManager", () => {
 
     renderWithOrganization(state);
 
+    const stackedRoot = document.querySelector(".portal-stacked-sections");
+    expect(stackedRoot).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
     expect(screen.getByDisplayValue("csk_demo.secret")).toBeTruthy();
     expect(screen.getByText("Existing key")).toBeTruthy();
     expect(screen.getByText("Never used")).toBeTruthy();
+
+    const initialDividers =
+      stackedRoot?.querySelectorAll(".portal-stacked-sections__divider") ?? [];
+    expect(initialDividers).toHaveLength(2);
+
+    const stackedPanels = stackedRoot?.querySelectorAll("section");
+    expect(stackedPanels).toHaveLength(3);
+    expect(stackedRoot?.children[0]).toBe(stackedPanels?.[0]);
+    expect(stackedRoot?.children[1]).toBe(initialDividers[0]);
+    expect(stackedRoot?.children[2]).toBe(stackedPanels?.[1]);
+    expect(stackedRoot?.children[3]).toBe(initialDividers[1]);
+    expect(stackedRoot?.children[4]).toBe(stackedPanels?.[2]);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
       target: { value: "New production key" },
@@ -117,6 +131,38 @@ describe("ApiKeyManager", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss secret" }));
     expect(state.dismissSecret).toHaveBeenCalled();
+  });
+
+  it("removes the one-time secret section and its trailing separator when no secret is visible", () => {
+    const state: PortalApiKeysState = {
+      createKey: vi.fn(async () => {}),
+      dismissSecret: vi.fn(),
+      error: null,
+      implementation: "backend",
+      isCreating: false,
+      isLoading: false,
+      isRevokingKeyId: null,
+      items: [],
+      refresh: vi.fn(async () => {}),
+      revokeKey: vi.fn(async () => {}),
+      visibleSecret: null,
+    };
+
+    renderWithOrganization(state);
+
+    const stackedRoot = document.querySelector(".portal-stacked-sections");
+    expect(stackedRoot).toBeTruthy();
+    expect(screen.queryByText("Copy this secret now")).toBeNull();
+
+    const dividers =
+      stackedRoot?.querySelectorAll(".portal-stacked-sections__divider") ?? [];
+    expect(dividers).toHaveLength(1);
+
+    const stackedPanels = stackedRoot?.querySelectorAll("section");
+    expect(stackedPanels).toHaveLength(2);
+    expect(stackedRoot?.children[0]).toBe(stackedPanels?.[0]);
+    expect(stackedRoot?.children[1]).toBe(dividers[0]);
+    expect(stackedRoot?.children[2]).toBe(stackedPanels?.[1]);
   });
 
   it("shows a manual-copy fallback message when clipboard access fails", async () => {
