@@ -187,6 +187,18 @@ code {
   gap: var(--vf-space-5);
 }
 
+.portal-stacked-sections {
+  display: grid;
+  gap: var(--vf-space-5);
+}
+
+.portal-stacked-sections__divider {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--vf-theme-panel-border);
+}
+
 .portal-action-toolbar {
   display: flex;
   flex-wrap: wrap;
