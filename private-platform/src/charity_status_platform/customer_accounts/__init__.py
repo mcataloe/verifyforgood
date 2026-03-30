@@ -108,6 +108,12 @@ from .organization_activity_service import (
     OrganizationActivityPage,
     OrganizationActivityService,
 )
+from .organization_support_service import (
+    OrganizationSupportContext,
+    OrganizationSupportError,
+    OrganizationSupportReceipt,
+    OrganizationSupportService,
+)
 from .membership_service import (
     InvitationAcceptRequest,
     InvitationCreateRequest,
@@ -207,6 +213,10 @@ __all__ = [
     "OrganizationActivityItem",
     "OrganizationActivityPage",
     "OrganizationActivityService",
+    "OrganizationSupportContext",
+    "OrganizationSupportError",
+    "OrganizationSupportReceipt",
+    "OrganizationSupportService",
     "MembershipManagementError",
     "MemberSummary",
     "InvitationSummary",

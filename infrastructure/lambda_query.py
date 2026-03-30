@@ -126,6 +126,8 @@ from charity_status_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationSettingsNotFoundError,
     OrganizationSettingsService,
+    OrganizationSupportError,
+    OrganizationSupportService,
     OrganizationService,
     SubscriptionService,
     UsageService,
@@ -229,6 +231,7 @@ portal_subscription_service: SubscriptionService | None = None
 portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
 portal_activity_service: OrganizationActivityService | None = None
+portal_support_service: OrganizationSupportService | None = None
 nonprofit_service: NonprofitService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -534,6 +537,16 @@ def _get_portal_activity_service() -> OrganizationActivityService:
             users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
         )
     return portal_activity_service
+
+
+def _get_portal_support_service() -> OrganizationSupportService:
+    global portal_support_service
+    if portal_support_service is None:
+        portal_support_service = OrganizationSupportService(
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            audits=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return portal_support_service
 
 
 def _get_portal_auth_service() -> AuthService:
@@ -1657,6 +1670,7 @@ def handler(event, context):
     organization_settings_request = _is_organization_settings_request(event or {}, method)
     organization_usage_request = _is_organization_usage_request(event or {}, method)
     organization_activity_request = _is_organization_activity_request(event or {}, method)
+    organization_support_request = _is_organization_support_request(event or {}, method)
     organization_subscription_visibility_request = _is_organization_subscription_visibility_request(event or {}, method)
     try:
         resolved_tenant_context: TenantContext | None = None
@@ -1671,6 +1685,7 @@ def handler(event, context):
             organization_settings_request
             or organization_usage_request
             or organization_activity_request
+            or organization_support_request
             or organization_subscription_visibility_request
         ):
             auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
@@ -1680,6 +1695,8 @@ def handler(event, context):
                     if organization_usage_request
                     else "Organization-scoped authentication is required for organization activity"
                     if organization_activity_request
+                    else "Organization-scoped authentication is required for organization support"
+                    if organization_support_request
                     else "Organization-scoped authentication is required for billing visibility"
                     if organization_subscription_visibility_request
                     else "Organization-scoped authentication is required for organization settings"
@@ -1793,6 +1810,24 @@ def handler(event, context):
             response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
         except OrganizationActivityError as exc:
             response = fail(exc.status_code, str(exc), code="bad_request")
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_support_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization support")
+            response = _handle_organization_support_request(
+                event,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except OrganizationSupportError as exc:
+            code = "bad_request" if exc.status_code < 500 else "internal_error"
+            response = fail(exc.status_code, str(exc), code=code)
         except ValueError as exc:
             response = fail(400, str(exc), code="bad_request")
         _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
@@ -2163,6 +2198,18 @@ def _is_organization_activity_request(event: dict, method: str) -> bool:
     return resource.endswith("/organization/activity") or path.endswith("/organization/activity")
 
 
+def _is_organization_support_request(event: dict, method: str) -> bool:
+    if method not in {"GET", "POST"}:
+        return False
+    resource, path = _route_paths(event)
+    return (
+        resource.endswith("/organization/support")
+        or path.endswith("/organization/support")
+        or resource.endswith("/organization/support-requests")
+        or path.endswith("/organization/support-requests")
+    )
+
+
 def _is_organization_checkout_request(event: dict, method: str) -> bool:
     if method != "POST":
         return False
@@ -2271,6 +2318,42 @@ def _handle_organization_activity_request(
         cursor=cursor,
     )
     return json_response(200, page.to_dict(), response_context=response_context)
+
+
+def _handle_organization_support_request(
+    event: dict[str, Any],
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization support")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization support")
+
+    service = _get_portal_support_service()
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method == "GET":
+        context = service.get_support_context(
+            organization_id=tenant_context.organization_id,
+            account_id=tenant_context.organization_id,
+            workspace_id=tenant_context.organization_id,
+            current_plan=tenant_context.subscription_plan,
+            membership_role=tenant_context.membership_role,
+        )
+        return json_response(200, context.to_dict(), response_context=response_context)
+
+    payload = _parse_json_body(event)
+    receipt = service.submit_support_request(
+        organization_id=tenant_context.organization_id,
+        account_id=tenant_context.organization_id,
+        workspace_id=tenant_context.organization_id,
+        actor_user_id=tenant_context.user_id,
+        current_plan=tenant_context.subscription_plan,
+        membership_role=tenant_context.membership_role,
+        payload=payload,
+    )
+    return json_response(201, receipt.to_dict(), response_context=response_context)
 
 
 def _handle_organization_usage_request(

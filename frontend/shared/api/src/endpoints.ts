@@ -64,6 +64,12 @@ export const organizationEndpoints = {
   activity: defineEndpoint("GET", "/organization/activity", {
     name: "organizationActivity",
   }),
+  support: defineEndpoint("GET", "/organization/support", {
+    name: "organizationSupport",
+  }),
+  supportRequests: defineEndpoint("POST", "/organization/support-requests", {
+    name: "organizationSupportRequests",
+  }),
   usage: defineEndpoint("GET", "/organization/usage", {
     name: "organizationUsage",
   }),

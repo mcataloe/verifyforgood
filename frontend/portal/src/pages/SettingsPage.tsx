@@ -20,6 +20,7 @@ import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { BudgetLimitVisualization } from "../settings/BudgetLimitVisualization";
 import { OrganizationProfileSettingsPanel } from "../settings/OrganizationProfileSettingsPanel";
 import { ProfileContextSection } from "../settings/ProfileContextSection";
+import { SupportHelpPanel } from "../settings/SupportHelpPanel";
 import {
   usePortalBudgetSettings,
   type PortalBudgetSettingsController,
@@ -28,6 +29,10 @@ import {
   usePortalOrganizationProfileSettings,
   type PortalOrganizationProfileSettingsController,
 } from "../settings/usePortalOrganizationProfileSettings";
+import {
+  usePortalSupport,
+  type PortalSupportController,
+} from "../settings/usePortalSupport";
 
 interface SettingsPageProps {
   budgetController?: PortalBudgetSettingsController;
@@ -35,6 +40,7 @@ interface SettingsPageProps {
   organizationProfileController?: PortalOrganizationProfileSettingsController;
   pane?: CustomerAdminPortalPane | null;
   session: PortalAuthenticatedSession;
+  supportController?: PortalSupportController;
   usageController?: PortalUsageBillingController;
 }
 
@@ -44,6 +50,7 @@ export function SettingsPage({
   organizationProfileController,
   pane,
   session,
+  supportController,
   usageController,
 }: SettingsPageProps) {
   const defaultBudgetController = usePortalBudgetSettings();
@@ -54,6 +61,8 @@ export function SettingsPage({
     organizationProfileController ?? defaultOrganizationProfileController;
   const defaultUsageController = usePortalUsageBilling(session);
   const usage = usageController ?? defaultUsageController;
+  const defaultSupportController = usePortalSupport();
+  const support = supportController ?? defaultSupportController;
   const organization = usePortalOrganization();
 
   return (
@@ -221,6 +230,13 @@ export function SettingsPage({
             <li>Monthly usage caps are still stored per account.</li>
             <li>Slug remains visible but read-only in this phase.</li>
           </ul>
+        </Panel>
+
+        <Panel
+          title="Support & Help"
+          subtitle="Support guidance, account context, and structured issue reporting for customer admins."
+        >
+          <SupportHelpPanel controller={support} />
         </Panel>
       </Grid>
     </PortalPageShell>

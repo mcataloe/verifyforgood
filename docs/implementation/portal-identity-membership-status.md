@@ -2,11 +2,11 @@
 
 ## Status
 
-customer activity visibility implemented
+customer support experience implemented
 
 ## Next Phase
 
-22H
+TBD
 
 ## Scope
 

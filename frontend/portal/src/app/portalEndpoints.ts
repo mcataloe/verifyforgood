@@ -15,6 +15,8 @@ export interface PortalEndpoints {
   organizationCreate: string;
   organizationActivity?: string;
   organizationSettings: string;
+  organizationSupport?: string;
+  organizationSupportRequests?: string;
   organizationUsage?: string;
   oauthToken: string;
 }
@@ -58,6 +60,14 @@ export function portalEndpoints(
     ),
     organizationSettings: buildApiUrl(
       apiEndpoints.organization.settings,
+      runtimeConfig,
+    ),
+    organizationSupport: buildApiUrl(
+      apiEndpoints.organization.support,
+      runtimeConfig,
+    ),
+    organizationSupportRequests: buildApiUrl(
+      apiEndpoints.organization.supportRequests,
       runtimeConfig,
     ),
     organizationUsage: buildApiUrl(

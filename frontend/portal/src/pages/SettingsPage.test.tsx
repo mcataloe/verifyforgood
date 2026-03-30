@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
 } from "../organization/usePortalOrganization";
 import type { PortalBudgetSettingsController } from "../settings/usePortalBudgetSettings";
 import type { PortalOrganizationProfileSettingsController } from "../settings/usePortalOrganizationProfileSettings";
+import type { PortalSupportController } from "../settings/usePortalSupport";
 import { SettingsPage } from "./SettingsPage";
 
 const endpoints: PortalEndpoints = {
@@ -27,6 +28,8 @@ const endpoints: PortalEndpoints = {
   organizationCreate: "/v1/organizations",
   oauthToken: "/v1/oauth/token",
   organizationSettings: "/v1/organization/settings",
+  organizationSupport: "/v1/organization/support",
+  organizationSupportRequests: "/v1/organization/support-requests",
 };
 
 describe("SettingsPage", () => {
@@ -296,6 +299,136 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(screen.getByText("Visualization failed.")).toBeTruthy();
   });
+
+  it("renders support context for customer admins", () => {
+    const supportController = createSupportController();
+
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+        supportController={supportController}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Support & Help" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Support contact" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("heading", { name: "Account context" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeTruthy();
+    expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
+    expect(screen.getAllByText("acct_portal_test").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ws_portal_test").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("growth").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/There is not yet a customer-visible ticket thread./i),
+    ).toBeTruthy();
+  });
+
+  it("validates support requests before submission", () => {
+    const submit = vi.fn(async () => {});
+    const supportController = createSupportController({ submit });
+
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+        supportController={supportController}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Reply email"), {
+      target: { value: "invalid-email" },
+    });
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hi" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "short" },
+    });
+
+    expect(
+      screen.getByText("Subject must be at least 3 characters."),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Record support request" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "API issue" },
+    });
+    expect(
+      screen.getByText("Description must be at least 10 characters."),
+    ).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Enough detail to satisfy validation." },
+    });
+    expect(
+      screen.getByText("Reply email must be a valid email address."),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record support request" }));
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("submits support requests and shows the recorded acknowledgment", async () => {
+    const submit = vi.fn(async () => {});
+    const supportController = createSupportController({
+      clearReceipt: vi.fn(),
+      receipt: {
+        delivery_mode: "recorded_only",
+        status: "received",
+        submitted_at: "2026-03-29T14:15:00Z",
+        support_email: "support@verifyforgood.com",
+        support_request_id: "support_req_123",
+      },
+      submit,
+    });
+
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+        supportController={supportController}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: "billing" },
+    });
+    fireEvent.change(screen.getByLabelText("Reply email"), {
+      target: { value: "ops@example.org" },
+    });
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Billing question" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Please confirm which plan includes higher lookup limits." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Record support request" }));
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledTimes(1);
+    });
+    expect(submit).toHaveBeenCalledWith({
+      category: "billing",
+      context: {
+        current_route_hash: "#/settings?nav=customer-admin-settings",
+        user_agent: window.navigator.userAgent,
+      },
+      description: "Please confirm which plan includes higher lookup limits.",
+      reply_email: "ops@example.org",
+      subject: "Billing question",
+    });
+    expect(screen.getByText(/Support request recorded/i)).toBeTruthy();
+    expect(screen.getByText(/support_req_123/i)).toBeTruthy();
+  });
 });
 
 function createStorageMock(): Storage {
@@ -340,7 +473,48 @@ function renderWithOrganization(element: ReactNode) {
       updated_at: "2026-03-21T00:00:00Z",
       workspace_id: "ws_portal_test",
     },
-    apiClient: {} as PortalOrganizationContextValue["apiClient"],
+    apiClient: {
+      delete: vi.fn(async () => ({})),
+      get: vi.fn(async () => ({
+        account_context: {
+          account_id: "acct_portal_test",
+          contact_email: "ops@example.org",
+          current_plan: "growth",
+          membership_role: "admin",
+          organization_id: "org_portal_test",
+          organization_name: "Portal Test Org",
+          workspace_id: "ws_portal_test",
+        },
+        issue_reporting: {
+          delivery_mode: "recorded_only",
+          honesty_notice:
+            "Support requests are recorded for follow-up. There is not yet a customer-visible ticket thread.",
+          urgent_contact_notice:
+            "Urgent issues should still go through the listed support email.",
+        },
+        product_links: {
+          api_access_hash: "#/api-access?nav=customer-admin-api",
+          billing_hash: "#/usage-billing?nav=customer-admin-billing",
+          homepage_url: "https://verifyforgood.com",
+          usage_hash: "#/usage-billing?nav=customer-admin-usage",
+        },
+        support_contact: {
+          brand_name: "VerifyForGood",
+          homepage_url: "https://verifyforgood.com",
+          support_email: "support@verifyforgood.com",
+          support_mailto: "mailto:support@verifyforgood.com",
+        },
+      })),
+      patch: vi.fn(async () => ({})),
+      post: vi.fn(async () => ({
+        delivery_mode: "recorded_only",
+        status: "received",
+        submitted_at: "2026-03-29T14:15:00Z",
+        support_email: "support@verifyforgood.com",
+        support_request_id: "support_req_default",
+      })),
+      put: vi.fn(async () => ({})),
+    } as unknown as PortalOrganizationContextValue["apiClient"],
     currentMembership: {
       role: "admin",
       status: "active",
@@ -364,4 +538,49 @@ function renderWithOrganization(element: ReactNode) {
       </VerifyForGoodMantineProvider>
     </PortalOrganizationContext.Provider>,
   );
+}
+
+function createSupportController(
+  overrides: Partial<PortalSupportController> = {},
+): PortalSupportController {
+  return {
+    clearReceipt: vi.fn(),
+    context: {
+      account_context: {
+        account_id: "acct_portal_test",
+        contact_email: "ops@example.org",
+        current_plan: "growth",
+        membership_role: "admin",
+        organization_id: "org_portal_test",
+        organization_name: "Portal Test Org",
+        workspace_id: "ws_portal_test",
+      },
+      issue_reporting: {
+        delivery_mode: "recorded_only",
+        honesty_notice:
+          "Support requests are recorded for follow-up. There is not yet a customer-visible ticket thread.",
+        urgent_contact_notice:
+          "Urgent issues should still go through the listed support email.",
+      },
+      product_links: {
+        api_access_hash: "#/api-access?nav=customer-admin-api",
+        billing_hash: "#/usage-billing?nav=customer-admin-billing",
+        homepage_url: "https://verifyforgood.com",
+        usage_hash: "#/usage-billing?nav=customer-admin-usage",
+      },
+      support_contact: {
+        brand_name: "VerifyForGood",
+        homepage_url: "https://verifyforgood.com",
+        support_email: "support@verifyforgood.com",
+        support_mailto: "mailto:support@verifyforgood.com",
+      },
+    },
+    error: null,
+    isLoading: false,
+    isSubmitting: false,
+    receipt: null,
+    reload: vi.fn(async () => {}),
+    submit: vi.fn(async () => {}),
+    ...overrides,
+  };
 }

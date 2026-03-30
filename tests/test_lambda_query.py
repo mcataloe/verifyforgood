@@ -38,6 +38,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationActivityService,
     OrganizationRecord,
     OrganizationSettingsService,
+    OrganizationSupportService,
     SubscriptionService,
     UsageService,
     UserRecord,
@@ -1328,6 +1329,178 @@ def test_get_organization_activity_requires_admin_membership():
 
     assert result["statusCode"] == 403
     assert _response_error_message(result) == "Only organization admins may view organization activity"
+
+
+def test_get_organization_support_returns_org_scoped_context():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+            contact_email="ops@orgone.example",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_2",
+            name="Org Two",
+            slug="org-two",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    module.portal_support_service = OrganizationSupportService(
+        organizations=organizations,
+        audits=DynamoAuditLogRepository(dynamodb_resource=identity_resource),
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/support",
+            "path": "/v1/organization/support",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["account_context"]["organization_name"] == "Org One"
+    assert body["account_context"]["organization_id"] == "org_1"
+    assert body["account_context"]["current_plan"] == "growth"
+    assert body["support_contact"]["support_email"] == "support@verifyforgood.com"
+    assert body["product_links"]["api_access_hash"] == "#/api-access?nav=customer-admin-api"
+
+
+def test_post_organization_support_request_records_sanitized_receipt():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+            contact_email="ops@orgone.example",
+        )
+    )
+    module.portal_support_service = OrganizationSupportService(
+        organizations=organizations,
+        audits=audits,
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/support-requests",
+            "path": "/v1/organization/support-requests",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps(
+                {
+                    "category": "api",
+                    "subject": "Token issue",
+                    "description": "The API token request is failing with a 401 response.",
+                    "reply_email": "ops@orgone.example",
+                    "context": {
+                        "current_route_hash": "#/settings?nav=customer-admin-settings",
+                        "user_agent": "Portal Browser",
+                    },
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 201
+    body = _response_data(result)
+    assert body["status"] == "received"
+    assert body["delivery_mode"] == "recorded_only"
+    assert body["support_email"] == "support@verifyforgood.com"
+
+    audit_items = audits.list_for_organization("org_1")
+    assert len(audit_items) == 1
+    assert audit_items[0].event_type is AuditEventType.SUPPORT_REQUEST_SUBMITTED
+    assert audit_items[0].metadata["subject"] == "Token issue"
+    assert audit_items[0].metadata["category"] == "api"
+    assert audit_items[0].metadata["route_hash"] == "#/settings?nav=customer-admin-settings"
+    assert "description" not in audit_items[0].metadata
+
+
+def test_post_organization_support_request_rejects_invalid_payload():
+    module = _load_module()
+    identity_table = FakeIdentityDynamoTable()
+    identity_resource = FakeIdentityDynamoResource(identity_table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Org One",
+            slug="org-one",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    module.portal_support_service = OrganizationSupportService(
+        organizations=organizations,
+        audits=DynamoAuditLogRepository(dynamodb_resource=identity_resource),
+    )
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
+
+    result = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organization/support-requests",
+            "path": "/v1/organization/support-requests",
+            "headers": {"Authorization": "Bearer test"},
+            "body": json.dumps(
+                {
+                    "category": "api",
+                    "subject": "Hi",
+                    "description": "short",
+                    "reply_email": "bad-email",
+                }
+            ),
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 400
+    assert _response_error_message(result) == "subject must be at least 3 characters"
+
+
+def test_get_organization_support_requires_admin_membership():
+    module = _load_module()
+    module._resolve_organization_tenant_context = _resolve_admin_tenant_context(
+        module,
+        plan="growth",
+        role="user",
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/organization/support",
+            "path": "/v1/organization/support",
+            "headers": {"Authorization": "Bearer test"},
+        },
+        None,
+    )
+
+    assert result["statusCode"] == 403
+    assert _response_error_message(result) == "Only organization admins may view organization support"
 
 
 def test_post_organization_billing_checkout_session_returns_checkout_url():

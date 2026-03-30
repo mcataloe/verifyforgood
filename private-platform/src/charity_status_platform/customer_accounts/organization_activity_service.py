@@ -198,6 +198,19 @@ def _summarize_event(
                 "changed_sections": changed_sections,
             },
         )
+    if record.event_type is AuditEventType.SUPPORT_REQUEST_SUBMITTED:
+        category = _clean_text(metadata.get("category"), fallback="other")
+        subject = _clean_text(metadata.get("subject"), fallback="support request")
+        return (
+            "support",
+            "Support request submitted",
+            f"Submitted a {category} support request: {subject}.",
+            {
+                "category": category,
+                "reply_email": _masked_email(metadata.get("reply_email")),
+                "support_request_id": _clean_text(metadata.get("support_request_id")),
+            },
+        )
     if record.event_type is AuditEventType.ORGANIZATION_CREATION:
         return (
             "organization_settings",

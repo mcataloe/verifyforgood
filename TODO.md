@@ -459,3 +459,23 @@ Phase 22E exposes current-period org-scoped usage totals through `GET /v1/organi
 ### Constraint
 
 Keep organization-scoped usage aggregation authoritative in the backend and extend the existing usage repository/service model instead of inventing frontend-maintained trend history.
+
+## TODO-ARCH-022
+
+### Title
+
+Replace the audit-backed customer support intake with a durable CRM or ticketing integration when operational support workflows mature.
+
+### Rationale
+
+Phase 22H adds a customer-admin support surface and backend support-intake endpoint, but the current implementation intentionally records acknowledged requests through the existing audit/event infrastructure only. That is enough for early customer administration, yet it does not provide agent assignment, threaded communication, SLA tracking, or customer-visible ticket history.
+
+### Migration Triggers
+
+- support volume requires queue management or agent ownership
+- customer-facing ticket updates become a product requirement
+- CRM or helpdesk tooling is selected for operational support workflows
+
+### Constraint
+
+Keep the `OrganizationSupportService` read and intake contracts stable so CRM, email-delivery, or ticketing backends can replace the current recorded-only implementation without changing the customer-admin portal surface.

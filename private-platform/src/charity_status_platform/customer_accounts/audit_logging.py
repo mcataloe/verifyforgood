@@ -12,6 +12,7 @@ class AuditEventType(str, Enum):
     USER_REGISTRATION = "user_registration"
     ORGANIZATION_CREATION = "organization_creation"
     ORGANIZATION_SETTINGS_UPDATE = "organization_settings_update"
+    SUPPORT_REQUEST_SUBMITTED = "support_request_submitted"
     MEMBERSHIP_ROLE_CHANGE = "membership_role_change"
     MEMBER_REMOVAL = "member_removal"
     INVITATION_CREATION = "invitation_creation"
