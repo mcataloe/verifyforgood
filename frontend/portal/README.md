@@ -53,6 +53,7 @@ Route protection is enforced before protected content renders. An unauthenticate
 - auth state is portal-local and replaceable through `src/auth/portalAuthClient.ts`
 - the current implementation uses the backend portal auth endpoints for login, registration, and current-user hydration
 - the browser persists a bearer token in local storage and restores the active session through `GET /v1/auth/me`
+- `GET /v1/auth/me` is now the source of truth for whether the signed-in user already has active organization context; session restore no longer depends on a prior browser-local active-organization record
 - the public entry screens live in `src/pages/PortalSignInPage.tsx` and `src/pages/PortalRegisterPage.tsx`
 - Google and Microsoft buttons remain visible as disabled placeholders; provider exchange is still deferred
 - session state already carries `account_id`, `workspace_id`, `roles`, and `scopes` so the shell does not block future tenant or RBAC work
@@ -77,6 +78,7 @@ The portal now treats organization context as the primary scope for user actions
 
 - the active organization model lives under `src/organization/`
 - the provider starts from the authenticated session's `workspace_id`, `account_id`, and `organization_name`
+- portal auth restore can promote an existing backend organization membership into the active session before any onboarding gate runs
 - when a non-mock portal session is available, the provider can hydrate organization settings from `GET /v1/organization/settings`
 - future portal features should read organization state and the scoped API client from the provider rather than rebuilding workspace/account context inside each page
 

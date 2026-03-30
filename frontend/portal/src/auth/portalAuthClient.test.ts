@@ -76,6 +76,7 @@ describe("portal auth client", () => {
         return new Response(
           JSON.stringify(
             buildEnvelope({
+              organization_context: null,
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -136,6 +137,7 @@ describe("portal auth client", () => {
         return new Response(
           JSON.stringify(
             buildEnvelope({
+              organization_context: null,
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -167,7 +169,7 @@ describe("portal auth client", () => {
     expect(restored?.session.organization_context_status).toBe("pending");
   });
 
-  it("hydrates a stored active organization into the restored session", async () => {
+  it("hydrates backend organization context into the restored session without local org storage", async () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: createStorageMock(),
@@ -184,27 +186,24 @@ describe("portal auth client", () => {
         },
       }),
     );
-    window.localStorage.setItem(
-      "verifyforgood.portal.organization.active",
-      JSON.stringify({
-        account_id: "org_123",
-        membership: {
-          role: "admin",
-          status: "active",
-          user_id: "user_portal_person",
-        },
-        organization_id: "org_123",
-        organization_name: "Verify For Good Org",
-        slug: "verify-for-good-org",
-        workspace_id: "org_123",
-      }),
-    );
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/v1/auth/me")) {
         return new Response(
           JSON.stringify(
             buildEnvelope({
+              organization_context: {
+                account_id: "org_123",
+                membership: {
+                  role: "admin",
+                  status: "active",
+                  user_id: "user_portal_person",
+                },
+                organization_id: "org_123",
+                organization_name: "Verify For Good Org",
+                slug: "verify-for-good-org",
+                workspace_id: "org_123",
+              },
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -229,6 +228,147 @@ describe("portal auth client", () => {
     expect(restored?.session.organization_name).toBe("Verify For Good Org");
     expect(restored?.session.account_id).toBe("org_123");
     expect(restored?.session.workspace_id).toBe("org_123");
+    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
+      "\"organization_name\":\"Verify For Good Org\"",
+    );
+  });
+
+  it("clears stale stored organization state when /auth/me returns no organization context", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "token_login",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_stale",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_portal_person",
+        },
+        organization_id: "org_stale",
+        organization_name: "Stale Org",
+        slug: "stale-org",
+        workspace_id: "org_stale",
+      }),
+    );
+    const client = createPortalAuthClient({
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/v1/auth/me")) {
+          return new Response(
+            JSON.stringify(
+              buildEnvelope({
+                organization_context: null,
+                user: {
+                  email: "person@example.com",
+                  full_name: "Portal Person",
+                  user_id: "user_portal_person",
+                },
+              }),
+            ),
+            { headers: { "Content-Type": "application/json" }, status: 200 },
+          );
+        }
+
+        return new Response("Not Found", { status: 404 });
+      }) as typeof fetch,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.session.organization_context_status).toBe("pending");
+    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toBeNull();
+  });
+
+  it("prefers backend organization context over stale local organization storage", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "token_login",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_stale",
+        membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_portal_person",
+        },
+        organization_id: "org_stale",
+        organization_name: "Stale Org",
+        slug: "stale-org",
+        workspace_id: "org_stale",
+      }),
+    );
+    const client = createPortalAuthClient({
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/v1/auth/me")) {
+          return new Response(
+            JSON.stringify(
+              buildEnvelope({
+                organization_context: {
+                  account_id: "org_123",
+                  membership: {
+                    role: "admin",
+                    status: "active",
+                    user_id: "user_portal_person",
+                  },
+                  organization_id: "org_123",
+                  organization_name: "Verify For Good Org",
+                  slug: "verify-for-good-org",
+                  workspace_id: "org_123",
+                },
+                user: {
+                  email: "person@example.com",
+                  full_name: "Portal Person",
+                  user_id: "user_portal_person",
+                },
+              }),
+            ),
+            { headers: { "Content-Type": "application/json" }, status: 200 },
+          );
+        }
+
+        return new Response("Not Found", { status: 404 });
+      }) as typeof fetch,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.session.organization_name).toBe("Verify For Good Org");
+    expect(restored?.session.organization_membership?.role).toBe("admin");
+    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
+      "\"organization_id\":\"org_123\"",
+    );
   });
 
   it("clears invalid stored tokens when /auth/me returns unauthorized", async () => {

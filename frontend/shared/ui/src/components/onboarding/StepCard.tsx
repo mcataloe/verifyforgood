@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Group, Stack, Text, Title } from "@mantine/core";
+import { Badge, Box, Group, Stack, Text, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useVerifyForGoodSemanticColors } from "../../theme/useVerifyForGoodTheme";
 import { verifyForGoodTokens } from "../../theme/tokens";
@@ -55,7 +55,7 @@ export function StepCard({
         <Text c="dimmed" component="div">
           {description}
         </Text>
-        {action ?? <Button variant="light">Continue</Button>}
+        {action}
       </Stack>
     </Box>
   );

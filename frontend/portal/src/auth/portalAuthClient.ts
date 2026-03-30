@@ -7,8 +7,10 @@ import {
   type PortalStoredAuthRecord,
 } from "../app/portalSession";
 import {
+  createPortalActiveOrganizationRecord,
   clearStoredActiveOrganization,
-  readStoredActiveOrganization,
+  writeStoredActiveOrganization,
+  type PortalOrganizationCreateResponse,
 } from "../organization/portalOrganization";
 
 const PORTAL_AUTH_STORAGE_KEY = "verifyforgood.portal.auth.session";
@@ -25,6 +27,7 @@ interface PortalAuthApiSessionPayload {
 }
 
 interface PortalAuthMePayload {
+  organization_context?: PortalOrganizationCreateResponse | null;
   user: PortalIdentityUser;
 }
 
@@ -116,11 +119,16 @@ async function hydrateSession(
       token_type: record.token_type,
       user: payload.user,
     });
+    const activeOrganization = payload.organization_context
+      ? writeStoredActiveOrganization(
+          createPortalActiveOrganizationRecord(payload.organization_context),
+        )
+      : (clearStoredActiveOrganization(), null);
     return {
       accessToken: refreshedRecord.access_token,
       session: createPortalCompatibilitySession(
         refreshedRecord.user,
-        readStoredActiveOrganization(),
+        activeOrganization,
       ),
     };
   } catch (error) {

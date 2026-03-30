@@ -96,6 +96,7 @@ from .organization_service import (
     OrganizationCreateRequest,
     OrganizationService,
 )
+from .organization_context_service import OrganizationContextService
 from .organization_settings_service import (
     OrganizationProfileSettings,
     OrganizationSettingsDocument,
@@ -205,6 +206,7 @@ __all__ = [
     "OrganizationCreateRequest",
     "OrganizationContextResponse",
     "OrganizationService",
+    "OrganizationContextService",
     "OrganizationProfileSettings",
     "OrganizationSettingsDocument",
     "OrganizationSettingsNotFoundError",

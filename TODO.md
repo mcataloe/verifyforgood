@@ -479,3 +479,23 @@ Phase 22H adds a customer-admin support surface and backend support-intake endpo
 ### Constraint
 
 Keep the `OrganizationSupportService` read and intake contracts stable so CRM, email-delivery, or ticketing backends can replace the current recorded-only implementation without changing the customer-admin portal surface.
+
+## TODO-ARCH-023
+
+### Title
+
+Replace implicit default organization selection with explicit portal organization switching for multi-membership users.
+
+### Rationale
+
+Portal session restore now derives active organization context from backend memberships. Until the portal exposes explicit organization selection, users with multiple active memberships are assigned a temporary default organization based on membership recency.
+
+### Migration Triggers
+
+- first customer with regular multi-organization membership
+- need for user-driven organization switching in the portal shell
+- support requests caused by incorrect default organization selection
+
+### Constraint
+
+Keep the `GET /v1/auth/me` organization-context contract additive so explicit org selection can override the temporary default without breaking current session restore behavior.

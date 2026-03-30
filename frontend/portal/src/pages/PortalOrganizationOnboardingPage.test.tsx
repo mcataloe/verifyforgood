@@ -12,6 +12,7 @@ describe("PortalOrganizationOnboardingPage", () => {
     expect(
       screen.getByRole("button", { name: "Create organization" }),
     ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 
   it("blocks submission when organization name is empty", () => {

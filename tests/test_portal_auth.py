@@ -4,7 +4,19 @@ import importlib
 import json
 import sys
 
-from charity_status_platform.customer_accounts import FakeIdentityDynamoResource, FakeIdentityDynamoTable
+from charity_status_platform.customer_accounts import (
+    DynamoMembershipRepository,
+    DynamoOrganizationRepository,
+    DynamoUserRepository,
+    FakeIdentityDynamoResource,
+    FakeIdentityDynamoTable,
+    MembershipRecord,
+    MembershipRole,
+    MembershipStatus,
+    OrganizationContextService,
+    OrganizationRecord,
+    UserRecord,
+)
 
 
 def _load_module_with_identity_store(monkeypatch):
@@ -20,6 +32,8 @@ def _load_module_with_identity_store(monkeypatch):
     sys.modules.pop("infrastructure.lambda_query", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.portal_auth_service = None
+    module.portal_organization_service = None
+    module.portal_organization_context_service = None
     return module
 
 
@@ -126,7 +140,65 @@ def test_invalid_password_returns_401(monkeypatch):
     assert payload["errors"][0]["message"] == "Invalid email or password"
 
 
-def test_auth_me_returns_current_user(monkeypatch):
+def test_auth_me_returns_current_user_and_active_organization_context(monkeypatch):
+    module = _load_module_with_identity_store(monkeypatch)
+    register_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/auth/register",
+            "path": "/v1/auth/register",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "email": "person@example.com",
+                    "password": "top-secret-password",
+                    "full_name": "Portal Person",
+                }
+            ),
+        },
+        None,
+    )
+    register_payload = _response_body(register_response)
+    access_token = register_payload["data"]["access_token"]
+    organization_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organizations",
+            "path": "/v1/organizations",
+            "headers": {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({"name": "Verify For Good Org"}),
+        },
+        None,
+    )
+    organization_payload = _response_body(organization_response)
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/auth/me",
+            "path": "/v1/auth/me",
+            "headers": {"Authorization": f"Bearer {access_token}"},
+        },
+        None,
+    )
+
+    payload = _response_body(response)
+
+    assert response["statusCode"] == 200
+    assert payload["data"]["user"]["email"] == "person@example.com"
+    assert payload["data"]["user"]["full_name"] == "Portal Person"
+    assert payload["data"]["organization_context"]["organization_name"] == "Verify For Good Org"
+    assert (
+        payload["data"]["organization_context"]["organization_id"]
+        == organization_payload["data"]["organization_id"]
+    )
+    assert payload["data"]["organization_context"]["membership"]["role"] == "admin"
+
+
+def test_auth_me_returns_null_organization_context_without_membership(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
     register_response = module.handler(
         {
@@ -160,5 +232,71 @@ def test_auth_me_returns_current_user(monkeypatch):
     payload = _response_body(response)
 
     assert response["statusCode"] == 200
-    assert payload["data"]["user"]["email"] == "person@example.com"
-    assert payload["data"]["user"]["full_name"] == "Portal Person"
+    assert payload["data"]["organization_context"] is None
+
+
+def test_organization_context_service_prefers_latest_active_membership():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    users = DynamoUserRepository(dynamodb_resource=resource)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    memberships = DynamoMembershipRepository(dynamodb_resource=resource)
+
+    users.create(
+        UserRecord(
+            user_id="user_portal_person",
+            email="person@example.com",
+            normalized_email="person@example.com",
+            full_name="Portal Person",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_older",
+            name="Older Org",
+            slug="older-org",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_newer",
+            name="Newer Org",
+            slug="newer-org",
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_older",
+            user_id="user_portal_person",
+            role=MembershipRole.ADMIN,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_newer",
+            user_id="user_portal_person",
+            role=MembershipRole.USER,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-27T00:00:00+00:00",
+        )
+    )
+
+    resolved = OrganizationContextService(
+        organizations=organizations,
+        memberships=memberships,
+    ).resolve_for_user(user_id="user_portal_person")
+
+    assert resolved is not None
+    assert resolved.organization_id == "org_newer"
+    assert resolved.organization_name == "Newer Org"
+    assert resolved.membership["role"] == "user"

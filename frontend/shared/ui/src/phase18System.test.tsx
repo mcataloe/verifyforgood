@@ -126,5 +126,6 @@ describe("phase 18 shared foundations", () => {
     expect(screen.getByRole("heading", { name: "Onboarding" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Verification" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Move from evaluation to rollout" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 });

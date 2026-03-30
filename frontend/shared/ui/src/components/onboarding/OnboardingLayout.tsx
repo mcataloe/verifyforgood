@@ -1,4 +1,4 @@
-import { Button, SimpleGrid, Stack, Text } from "@mantine/core";
+import { SimpleGrid, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 import { PageHeader } from "../PageHeader";
 import {
@@ -37,13 +37,7 @@ export function OnboardingLayout({
       <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
         {steps.map((step, index) => (
           <StepCard
-            action={
-              step.action ?? (
-                <Button variant={step.status === "current" ? "filled" : "light"}>
-                  {step.status === "complete" ? "Review" : "Continue"}
-                </Button>
-              )
-            }
+            action={step.action}
             description={step.description}
             index={index + 1}
             key={step.key}

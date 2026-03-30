@@ -123,6 +123,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationBootstrapValidationError,
     OrganizationActivityError,
     OrganizationActivityService,
+    OrganizationContextService,
     OrganizationCreateRequest,
     OrganizationSettingsNotFoundError,
     OrganizationSettingsService,
@@ -224,6 +225,7 @@ stripe_webhook_service: StripeWebhookService | None = None
 trial_lifecycle_service: TrialLifecycleService | None = None
 portal_auth_service: AuthService | None = None
 portal_organization_service: OrganizationService | None = None
+portal_organization_context_service: OrganizationContextService | None = None
 portal_membership_service: MembershipManagementService | None = None
 portal_api_key_service: ApiKeyService | None = None
 portal_usage_service: UsageService | None = None
@@ -619,6 +621,16 @@ def _get_portal_organization_service() -> OrganizationService:
             audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_organization_service
+
+
+def _get_portal_organization_context_service() -> OrganizationContextService:
+    global portal_organization_context_service
+    if portal_organization_context_service is None:
+        portal_organization_context_service = OrganizationContextService(
+            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+        )
+    return portal_organization_context_service
 
 
 def _get_portal_membership_service() -> MembershipManagementService:
@@ -1222,7 +1234,19 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
         headers = event.get("headers") or {}
         authorization = str(_get_header(headers, "authorization") or "")
         user = service.get_current_user(authorization)
-        return json_response(200, {"user": user.to_dict()}, response_context=response_context)
+        organization_context = _get_portal_organization_context_service().resolve_for_user(
+            user_id=user.user_id,
+        )
+        return json_response(
+            200,
+            {
+                "organization_context": organization_context.to_dict()
+                if organization_context is not None
+                else None,
+                "user": user.to_dict(),
+            },
+            response_context=response_context,
+        )
 
     return error_response(404, "Auth route not found", response_context=response_context, code="not_found")
 

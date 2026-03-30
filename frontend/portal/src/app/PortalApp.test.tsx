@@ -44,6 +44,21 @@ function buildEnvelope<TData>(data: TData) {
   };
 }
 
+function readStoredActiveOrganizationForTest() {
+  const raw = window.localStorage.getItem(
+    "verifyforgood.portal.organization.active",
+  );
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function buildFetchMock() {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -95,9 +110,11 @@ function buildFetchMock() {
     }
 
     if (url.endsWith("/v1/auth/me")) {
+      const storedOrganization = readStoredActiveOrganizationForTest();
       return new Response(
         JSON.stringify(
           buildEnvelope({
+            organization_context: storedOrganization,
             user: {
               email: "jamie.admin@example.org",
               full_name: "Jamie Admin",
@@ -658,6 +675,69 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("restores existing organization context from backend auth data without local org storage", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              organization_context: {
+                account_id: "org_123",
+                membership: {
+                  role: "admin",
+                  status: "active",
+                  user_id: "user_jamie_admin",
+                },
+                organization_id: "org_123",
+                organization_name: "Verify For Good Org",
+                slug: "verify-for-good-org",
+                workspace_id: "org_123",
+              },
+              user: {
+                email: "jamie.admin@example.org",
+                full_name: "Jamie Admin",
+                user_id: "user_jamie_admin",
+              },
+            }),
+          ),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      return buildFetchMock()(input, init);
+    }) as typeof fetch;
+    window.location.hash = "#/register";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain("\"organization_name\":\"Verify For Good Org\"");
   });
 
   it("gates authenticated users with pending org context to onboarding", async () => {
