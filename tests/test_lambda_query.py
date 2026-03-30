@@ -281,7 +281,7 @@ def test_invalid_ein_still_returns_400():
 
 
 def test_options_preflight_returns_cors_headers_for_allowed_origin(monkeypatch):
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174")
     module = _load_module()
 
     result = module.handler(
@@ -289,13 +289,13 @@ def test_options_preflight_returns_cors_headers_for_allowed_origin(monkeypatch):
             "httpMethod": "OPTIONS",
             "resource": "/v1/auth/register",
             "path": "/v1/auth/register",
-            "headers": {"Origin": "http://localhost:5173"},
+            "headers": {"Origin": "http://localhost:5174"},
         },
         None,
     )
 
     assert result["statusCode"] == 200
-    assert result["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5173"
+    assert result["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5174"
     assert result["headers"]["Access-Control-Allow-Headers"] == "Content-Type,Authorization,X-Portal-Account-Id,X-Portal-Workspace-Id"
     assert result["headers"]["Access-Control-Allow-Methods"] == "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 

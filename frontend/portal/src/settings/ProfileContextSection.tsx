@@ -1,6 +1,7 @@
 import { getPortalAccessLabel } from "../app/portalNavigation";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { PortalOrganizationContextValue } from "../organization/usePortalOrganization";
+import { DetailFieldList } from "@charity-status/shared-ui";
 
 interface ProfileContextSectionProps {
   environment?: string;
@@ -28,46 +29,60 @@ export function ProfileContextSection({
       {showTitle ? <h3 id="profile-context-title">Account context</h3> : null}
       <div className="portal-settings-profile__summary">
         <p className="portal-shell__eyebrow">Current profile</p>
-        <p className="portal-settings-profile__name">{session.user.display_name}</p>
+        <p className="portal-settings-profile__name">
+          {session.user.display_name}
+        </p>
         <p>{session.user.email}</p>
       </div>
 
-      <dl className="portal-settings-profile__details">
-        <div>
-          <dt>Organization</dt>
-          <dd>{organization.organization_name}</dd>
-        </div>
-        <div>
-          <dt>Account</dt>
-          <dd>{organization.account_id}</dd>
-        </div>
-        <div>
-          <dt>Workspace</dt>
-          <dd>{organization.workspace_id}</dd>
-        </div>
-        <div>
-          <dt>Access</dt>
-          <dd>{getPortalAccessLabel(session.roles)}</dd>
-        </div>
-        <div>
-          <dt>Plan</dt>
-          <dd>{session.plan}</dd>
-        </div>
-        {environment ? (
-          <div>
-            <dt>Environment</dt>
-            <dd>{environment}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Auth mode</dt>
-          <dd>{session.auth_method.replaceAll("_", " ")}</dd>
-        </div>
-        <div>
-          <dt>Subject</dt>
-          <dd>{session.user.subject_id}</dd>
-        </div>
-      </dl>
+      <DetailFieldList
+        items={[
+          {
+            key: "organization",
+            label: "Organization",
+            value: organization.organization_name,
+          },
+          {
+            key: "account",
+            label: "Account",
+            value: organization.account_id,
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: organization.workspace_id,
+          },
+          {
+            key: "access",
+            label: "Access",
+            value: getPortalAccessLabel(session.roles),
+          },
+          {
+            key: "plan",
+            label: "Plan",
+            value: session.plan,
+          },
+          ...(environment
+            ? [
+                {
+                  key: "environment",
+                  label: "Environment",
+                  value: environment,
+                },
+              ]
+            : []),
+          {
+            key: "auth-mode",
+            label: "Auth mode",
+            value: session.auth_method.replaceAll("_", " "),
+          },
+          {
+            key: "subject",
+            label: "Subject",
+            value: session.user.subject_id,
+          },
+        ]}
+      />
     </section>
   );
 }

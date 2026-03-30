@@ -18,7 +18,7 @@ describe("CustomerUserProfilePage", () => {
   });
 
   it("renders profile fields, account context, and appearance controls", () => {
-    renderWithOrganization(
+    const { container } = renderWithOrganization(
       <CustomerUserProfilePage
         environment="test"
         session={createMockPortalSession({ roles: ["customer_user"] })}
@@ -29,7 +29,9 @@ describe("CustomerUserProfilePage", () => {
     expect(
       screen.getByRole("heading", { name: "Personal information" }),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Account context" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Account context" }),
+    ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
     expect(screen.getByLabelText("First Name")).toBeTruthy();
     expect(screen.getByLabelText("Last Name")).toBeTruthy();
@@ -43,6 +45,10 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByText("test")).toBeTruthy();
     expect(screen.getByText("User")).toBeTruthy();
     expect(screen.queryByText("Profile details")).toBeNull();
+    expect(container.querySelector(".vf-detail-field-list")).toBeTruthy();
+    expect(
+      container.querySelector(".portal-settings-profile__details"),
+    ).toBeNull();
   });
 
   it("persists appearance selection through the shared color-scheme storage key", () => {

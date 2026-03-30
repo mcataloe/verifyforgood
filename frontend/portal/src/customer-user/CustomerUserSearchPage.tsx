@@ -11,8 +11,11 @@ import {
   type CustomerUserAddressSearchInput,
   type CustomerUserOrganizationRecord,
 } from "./customerUserOrganizations";
-import { PortalNonprofitDetailView } from "../nonprofits/PortalNonprofitDetailView";
-import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
+import { PortalNonprofitEmbeddedDetail } from "../nonprofits/PortalNonprofitDetailView";
+import {
+  PortalDetailSection,
+  PortalDetailView,
+} from "../components/PortalDetailView";
 
 interface CustomerUserSearchPageProps {
   pane: "search-address" | "search-ein";
@@ -63,22 +66,20 @@ const resultColumns: DataTableColumn<SearchResultRow>[] = [
   },
 ];
 
-export function CustomerUserSearchPage({
-  pane,
-}: CustomerUserSearchPageProps) {
+export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
   const [einQuery, setEinQuery] = useState("");
-  const [addressQuery, setAddressQuery] = useState<CustomerUserAddressSearchInput>({
-    address: "",
-    city: "",
-    state: "",
-    zip: "",
-  });
+  const [addressQuery, setAddressQuery] =
+    useState<CustomerUserAddressSearchInput>({
+      address: "",
+      city: "",
+      state: "",
+      zip: "",
+    });
   const [rows, setRows] = useState<CustomerUserOrganizationRecord[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedEin, setSelectedEin] = useState<string | null>(null);
 
-  const title =
-    pane === "search-ein" ? "By EIN" : "By Address";
+  const title = pane === "search-ein" ? "By EIN" : "By Address";
   const description =
     pane === "search-ein"
       ? "Run an exact EIN lookup and sort any returned candidates by city, state, or zip before opening the organization record."
@@ -101,11 +102,7 @@ export function CustomerUserSearchPage({
     : null;
 
   return (
-    <PortalDetailView
-      eyebrow="Search"
-      intro={description}
-      title={title}
-    >
+    <PortalDetailView eyebrow="Search" intro={description} title={title}>
       <PortalDetailSection
         intro={
           pane === "search-ein"
@@ -154,7 +151,8 @@ export function CustomerUserSearchPage({
             className="portal-form portal-form--two-column"
             onSubmit={(event) => {
               event.preventDefault();
-              const nextRows = searchCustomerOrganizationsByAddress(addressQuery);
+              const nextRows =
+                searchCustomerOrganizationsByAddress(addressQuery);
               setRows(nextRows);
               setSelectedEin(nextRows[0]?.ein ?? null);
               setHasSearched(true);
@@ -288,7 +286,7 @@ export function CustomerUserSearchPage({
           intro="Organization detail remains placeholder-backed in this phase."
           title="Organization details"
         >
-          <PortalNonprofitDetailView detail={selectedDetail} />
+          <PortalNonprofitEmbeddedDetail detail={selectedDetail} />
         </PortalDetailSection>
       ) : null}
     </PortalDetailView>
@@ -298,8 +296,8 @@ export function CustomerUserSearchPage({
 function hasAddressSearchInput(input: CustomerUserAddressSearchInput) {
   return Boolean(
     input.address?.trim() ||
-      input.city?.trim() ||
-      input.state?.trim() ||
-      input.zip?.trim(),
+    input.city?.trim() ||
+    input.state?.trim() ||
+    input.zip?.trim(),
   );
 }

@@ -37,7 +37,7 @@ describe("CustomerUserAutomationPage", () => {
   });
 
   it("creates masked API keys and confirms deletion in a modal", async () => {
-    renderWithOrganization(
+    const { container } = renderWithOrganization(
       <CustomerUserAutomationPage
         pane="automation-api"
         session={createMockPortalSession({ roles: ["customer_user"] })}
@@ -58,6 +58,8 @@ describe("CustomerUserAutomationPage", () => {
     expect(screen.getByText(/^\*+$/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Reveal API key" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy API key" })).toBeTruthy();
+    expect(container.querySelector(".portal-credential-card")).toBeNull();
+    expect(container.querySelector(".portal-credential-entry")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete API key" }));
 
@@ -65,7 +67,7 @@ describe("CustomerUserAutomationPage", () => {
   });
 
   it("creates OAuth clients with masked client_id and client_secret fields", async () => {
-    renderWithOrganization(
+    const { container } = renderWithOrganization(
       <CustomerUserAutomationPage
         pane="automation-oauth"
         session={createMockPortalSession({ roles: ["customer_user"] })}
@@ -88,6 +90,8 @@ describe("CustomerUserAutomationPage", () => {
     expect(
       screen.getByRole("button", { name: "Reveal OAuth credentials" }),
     ).toBeTruthy();
+    expect(container.querySelector(".portal-credential-card")).toBeNull();
+    expect(container.querySelector(".portal-credential-entry")).toBeTruthy();
   });
 });
 

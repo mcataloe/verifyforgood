@@ -1,4 +1,9 @@
-import { EntityDetailLayout, StatusBadge } from "@charity-status/shared-ui";
+import {
+  DetailFieldList,
+  DetailStack,
+  EntityDetailLayout,
+  StatusBadge,
+} from "@charity-status/shared-ui";
 import type {
   PortalNonprofitDetail,
   PortalNonprofitSourceAvailability,
@@ -22,154 +27,27 @@ export function PortalNonprofitDetailView({
       onPrimaryAction={() => undefined}
       primaryActionLabel="Queue review"
       status={detailStatus(detail)}
-      summaryItems={[
-        {
-          key: "irs",
-          label: "IRS status",
-          value: detail.irsStatus,
-        },
-        {
-          key: "filing",
-          label: "Most recent filing year",
-          value: detail.filingTaxYear,
-          detail: detail.filingDate,
-        },
-        {
-          key: "classification",
-          label: "Classification",
-          value: detail.nteeCategory,
-          detail: detail.entityType,
-        },
-        {
-          key: "risk",
-          label: "Risk indicators",
-          value: summarizeRisk(detail),
-          detail: detail.filingParseStatus,
-        },
-      ]}
+      summaryItems={buildSummaryItems(detail)}
       tabs={[
         {
           key: "overview",
           label: "Overview",
-          content: (
-            <dl className="portal-shell__details">
-              <div>
-                <dt>Entity type</dt>
-                <dd>{detail.entityType}</dd>
-              </div>
-              <div>
-                <dt>State</dt>
-                <dd>{detail.state}</dd>
-              </div>
-              <div>
-                <dt>Subsection</dt>
-                <dd>{detail.subsection}</dd>
-              </div>
-              <div>
-                <dt>Tax deductible</dt>
-                <dd>{detail.taxDeductible}</dd>
-              </div>
-            </dl>
-          ),
+          content: <DetailFieldList items={buildOverviewItems(detail)} />,
         },
         {
           key: "filings",
           label: "Filings",
-          content: (
-            <dl className="portal-shell__details">
-              <div>
-                <dt>Filing form</dt>
-                <dd>{detail.filingFormType}</dd>
-              </div>
-              <div>
-                <dt>Filing year</dt>
-                <dd>{detail.filingTaxYear}</dd>
-              </div>
-              <div>
-                <dt>Filing date</dt>
-                <dd>{detail.filingDate}</dd>
-              </div>
-              <div>
-                <dt>Known filings</dt>
-                <dd>{String(detail.filingsCount)}</dd>
-              </div>
-            </dl>
-          ),
+          content: <DetailFieldList items={buildFilingsItems(detail)} />,
         },
         {
           key: "compliance",
           label: "Compliance",
-          content: (
-            <dl className="portal-shell__details">
-              <div>
-                <dt>IRS status</dt>
-                <dd>{detail.irsStatus}</dd>
-              </div>
-              <div>
-                <dt>Recent 990 on file</dt>
-                <dd>{detail.recent990OnFile}</dd>
-              </div>
-              <div>
-                <dt>Parse status</dt>
-                <dd>{detail.filingParseStatus}</dd>
-              </div>
-              <div>
-                <dt>Tax period</dt>
-                <dd>{detail.taxPeriod}</dd>
-              </div>
-            </dl>
-          ),
+          content: <DetailFieldList items={buildComplianceItems(detail)} />,
         },
         {
           key: "sources",
           label: "Sources",
-          content: (
-            <>
-              <dl className="portal-shell__details">
-                <div>
-                  <dt>Model source</dt>
-                  <dd>{detail.modelSource}</dd>
-                </div>
-                <div>
-                  <dt>Model version</dt>
-                  <dd>{detail.modelVersion}</dd>
-                </div>
-                <div>
-                  <dt>Query execution</dt>
-                  <dd>{detail.queryExecutionId}</dd>
-                </div>
-                <div>
-                  <dt>Available source checks</dt>
-                  <dd>{String(detail.sourceAvailability.length)}</dd>
-                </div>
-              </dl>
-              {detail.sourceAvailability.length > 0 ? (
-                <table className="portal-table">
-                  <thead>
-                    <tr>
-                      <th>Source</th>
-                      <th>Status</th>
-                      <th>Attempted</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.sourceAvailability.map((source) => (
-                      <tr key={source.integrationId}>
-                        <td>{source.label}</td>
-                        <td>{formatSourceStatus(source)}</td>
-                        <td>{source.attempted ? "Yes" : "No"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="portal-detail-view__section-intro">
-                  No enrichment source availability metadata was returned for
-                  this nonprofit.
-                </p>
-              )}
-            </>
-          ),
+          content: <PortalNonprofitSourceSection detail={detail} />,
         },
         {
           key: "activity",
@@ -177,7 +55,9 @@ export function PortalNonprofitDetailView({
           content: (
             <ul className="portal-list">
               <li>Initial lookup completed for this entity.</li>
-              <li>Recent filing metadata has been attached to the review record.</li>
+              <li>
+                Recent filing metadata has been attached to the review record.
+              </li>
               <li>
                 Detailed activity history can replace this placeholder once the
                 event feed exists.
@@ -187,6 +67,217 @@ export function PortalNonprofitDetailView({
         },
       ]}
     />
+  );
+}
+
+export function PortalNonprofitEmbeddedDetail({
+  detail,
+}: PortalNonprofitDetailViewProps) {
+  return (
+    <article className="portal-nonprofit-embedded-detail">
+      <header className="portal-nonprofit-embedded-detail__header">
+        <div className="portal-nonprofit-embedded-detail__title-row">
+          <h3>{detail.name}</h3>
+          <StatusBadge status={detailStatus(detail)} />
+        </div>
+        <p className="portal-nonprofit-embedded-detail__identifier">
+          EIN {detail.ein}
+        </p>
+        <DetailFieldList items={buildSummaryItems(detail)} />
+      </header>
+
+      <div className="portal-nonprofit-embedded-detail__sections">
+        <DetailStack title="Overview">
+          <DetailFieldList items={buildOverviewItems(detail)} />
+        </DetailStack>
+        <DetailStack title="Filings">
+          <DetailFieldList items={buildFilingsItems(detail)} />
+        </DetailStack>
+        <DetailStack title="Compliance">
+          <DetailFieldList items={buildComplianceItems(detail)} />
+        </DetailStack>
+        <DetailStack title="Sources">
+          <PortalNonprofitSourceSection detail={detail} />
+        </DetailStack>
+        <DetailStack title="Activity">
+          <ul className="portal-list">
+            <li>Initial lookup completed for this entity.</li>
+            <li>
+              Recent filing metadata has been attached to the review record.
+            </li>
+            <li>
+              Detailed activity history can replace this placeholder once the
+              event feed exists.
+            </li>
+          </ul>
+        </DetailStack>
+      </div>
+    </article>
+  );
+}
+
+function buildSummaryItems(detail: PortalNonprofitDetail) {
+  return [
+    {
+      key: "irs",
+      label: "IRS status",
+      value: detail.irsStatus,
+    },
+    {
+      key: "filing",
+      label: "Most recent filing year",
+      value: detail.filingTaxYear,
+      detail: detail.filingDate,
+    },
+    {
+      key: "classification",
+      label: "Classification",
+      value: detail.nteeCategory,
+      detail: detail.entityType,
+    },
+    {
+      key: "risk",
+      label: "Risk indicators",
+      value: summarizeRisk(detail),
+      detail: detail.filingParseStatus,
+    },
+  ];
+}
+
+function buildOverviewItems(detail: PortalNonprofitDetail) {
+  return [
+    {
+      key: "entity-type",
+      label: "Entity type",
+      value: detail.entityType,
+    },
+    {
+      key: "state",
+      label: "State",
+      value: detail.state,
+    },
+    {
+      key: "subsection",
+      label: "Subsection",
+      value: detail.subsection,
+    },
+    {
+      key: "tax-deductible",
+      label: "Tax deductible",
+      value: detail.taxDeductible,
+    },
+  ];
+}
+
+function buildFilingsItems(detail: PortalNonprofitDetail) {
+  return [
+    {
+      key: "filing-form",
+      label: "Filing form",
+      value: detail.filingFormType,
+    },
+    {
+      key: "filing-year",
+      label: "Filing year",
+      value: detail.filingTaxYear,
+    },
+    {
+      key: "filing-date",
+      label: "Filing date",
+      value: detail.filingDate,
+    },
+    {
+      key: "filings-count",
+      label: "Known filings",
+      value: String(detail.filingsCount),
+    },
+  ];
+}
+
+function buildComplianceItems(detail: PortalNonprofitDetail) {
+  return [
+    {
+      key: "irs-status",
+      label: "IRS status",
+      value: detail.irsStatus,
+    },
+    {
+      key: "recent-990",
+      label: "Recent 990 on file",
+      value: detail.recent990OnFile,
+    },
+    {
+      key: "parse-status",
+      label: "Parse status",
+      value: detail.filingParseStatus,
+    },
+    {
+      key: "tax-period",
+      label: "Tax period",
+      value: detail.taxPeriod,
+    },
+  ];
+}
+
+function buildSourceItems(detail: PortalNonprofitDetail) {
+  return [
+    {
+      key: "model-source",
+      label: "Model source",
+      value: detail.modelSource,
+    },
+    {
+      key: "model-version",
+      label: "Model version",
+      value: detail.modelVersion,
+    },
+    {
+      key: "query-execution",
+      label: "Query execution",
+      value: detail.queryExecutionId,
+    },
+    {
+      key: "source-checks",
+      label: "Available source checks",
+      value: String(detail.sourceAvailability.length),
+    },
+  ];
+}
+
+function PortalNonprofitSourceSection({
+  detail,
+}: {
+  detail: PortalNonprofitDetail;
+}) {
+  return (
+    <>
+      <DetailFieldList items={buildSourceItems(detail)} />
+      {detail.sourceAvailability.length > 0 ? (
+        <table className="portal-embedded-detail__table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Status</th>
+              <th>Attempted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detail.sourceAvailability.map((source) => (
+              <tr key={source.integrationId}>
+                <td>{source.label}</td>
+                <td>{formatSourceStatus(source)}</td>
+                <td>{source.attempted ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="portal-detail-view__section-intro">
+          No enrichment source availability metadata was returned for this
+          nonprofit.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -212,7 +303,10 @@ function formatSourceStatus(source: PortalNonprofitSourceAvailability) {
 export function summaryStatus(
   row: PortalNonprofitSearchSummary,
 ): StatusBadgeStatus {
-  if (row.active === false || row.irsStatus.toLowerCase().includes("inactive")) {
+  if (
+    row.active === false ||
+    row.irsStatus.toLowerCase().includes("inactive")
+  ) {
     return "inactive";
   }
 

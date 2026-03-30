@@ -12,6 +12,8 @@ This package contains the shared VerifyForGood design foundation for the fronten
   - `EntityDetailLayout`
   - onboarding layouts and progress primitives
 - shared UI primitives:
+  - `DetailStack`
+  - `DetailFieldList`
   - `PageHeader`
   - `Card`
   - `SectionContainer`
@@ -42,6 +44,8 @@ This package contains the shared VerifyForGood design foundation for the fronten
 - prefer shared primitives when portal and marketing need the same interaction or layout contract
 - keep product data fetching and workflow logic outside this package
 - keep navigation configuration declarative and filter it before rendering rather than scattering role/plan checks through layout components
+- use `EntityDetailLayout` only for standalone page-level review surfaces; do not nest it inside portal or marketing detail bodies
+- embedded detail bodies should use `DetailStack` and `DetailFieldList` so content stays single-flow and avoids nested cards, tabs, or multi-column subsection layouts
 
 ## App shell usage
 

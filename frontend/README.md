@@ -82,6 +82,15 @@ Pricing-plan display follows the same rule:
 - `@charity-status/shared-ui` renders plan cards and grids
 - marketing and portal keep only surface-specific loading and state composition
 
+Local browser runtime config should also stay explicit per app:
+
+- `marketing/.env.example` points local marketing dev at the AWS dev API and
+  assumes `http://localhost:5174`
+- `portal/.env.example` points local portal dev at the AWS dev API and assumes
+  `http://localhost:5173`
+- if browser-based local apps call the AWS dev API directly, Terraform
+  `cors_allowed_origins` must allowlist those local origins
+
 Billing interactions follow the same boundary discipline inside the portal:
 
 - frontend billing UI should call abstraction-layer actions such as `createSubscription`, `updatePlan`, and `cancelSubscription`

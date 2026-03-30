@@ -12,6 +12,7 @@ def test_marketing_shell_has_expected_source_structure():
     assert (MARKETING_ROOT / "src" / "app" / "MarketingSite.tsx").exists()
     assert (MARKETING_ROOT / "src" / "app" / "marketingRoutes.ts").exists()
     assert (MARKETING_ROOT / "src" / "app" / "marketingEndpoints.ts").exists()
+    assert (MARKETING_ROOT / ".env.example").exists()
     assert (MARKETING_ROOT / "src" / "components" / "MarketingLayout.tsx").exists()
     assert (MARKETING_ROOT / "src" / "pages" / "HomePage.tsx").exists()
     assert (MARKETING_ROOT / "src" / "pages" / "ProductPage.tsx").exists()
@@ -44,3 +45,5 @@ def test_marketing_readme_documents_public_ia_and_boundaries():
     assert "contact and demo" in readme
     assert "login entry point" in readme
     assert "portal" in readme
+    assert "get /v1/plans" in readme
+    assert "localhost:5174" in readme

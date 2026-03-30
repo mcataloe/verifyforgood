@@ -36,6 +36,29 @@ These remain placeholder-first, but the IA is deliberate and keeps public conten
 
 ## Running the marketing app
 
+Before running the marketing app locally, copy `.env.example` to `.env.local`
+or `.env.development.local` in this package and point `VITE_API_BASE_URL` at
+the AWS dev API host.
+
+With the current Terraform defaults and custom domain enabled, the dev API host
+is expected to be:
+
+```bash
+https://dev.charitystatusapi.com
+```
+
+If the dev custom domain is disabled in AWS, replace this with the API Gateway
+invoke URL for the dev stage instead.
+
+For local browser development, the AWS dev API must also allowlist your
+frontend origin through the Terraform `cors_allowed_origins` setting. The
+current dev defaults include `http://localhost:5174` and
+`http://127.0.0.1:5174`.
+
+The public pricing page depends on the backend-authored:
+
+- `GET /v1/plans`
+
 From the workspace root:
 
 ```bash

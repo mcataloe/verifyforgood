@@ -1,20 +1,6 @@
-import {
-  ActionIcon,
-  Group,
-  Modal,
-  Stack,
-  Text,
-  Tooltip,
-} from "@mantine/core";
-import {
-  EmptyState,
-} from "@charity-status/shared-ui";
-import {
-  IconCopy,
-  IconEye,
-  IconEyeOff,
-  IconTrash,
-} from "@tabler/icons-react";
+import { ActionIcon, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
+import { DetailFieldList, EmptyState } from "@charity-status/shared-ui";
+import { IconCopy, IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalBudgetSettings } from "../settings/usePortalBudgetSettings";
@@ -27,7 +13,10 @@ import {
   useCustomerUserApiKeys,
   useCustomerUserOAuthClients,
 } from "./useCustomerUserAutomationCredentials";
-import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
+import {
+  PortalDetailSection,
+  PortalDetailView,
+} from "../components/PortalDetailView";
 
 interface CustomerUserAutomationPageProps {
   pane: "automation-api" | "automation-general" | "automation-oauth";
@@ -52,15 +41,8 @@ export function CustomerUserAutomationPage({
         : "Generate client credentials for server-to-server OAuth automation without introducing backend token issuance yet.";
 
   return (
-    <PortalDetailView
-        eyebrow="Automation"
-        intro={description}
-        title={title}
-      >
-
-      {pane === "automation-general" ? (
-        <AutomationGeneralPanel />
-      ) : null}
+    <PortalDetailView eyebrow="Automation" intro={description} title={title}>
+      {pane === "automation-general" ? <AutomationGeneralPanel /> : null}
 
       {pane === "automation-api" ? (
         <AutomationApiKeyPanel session={session} />
@@ -121,7 +103,9 @@ function AutomationGeneralPanel() {
             }
             type="button"
           >
-            {budget.isSaving ? "Saving automation settings..." : "Save automation setting"}
+            {budget.isSaving
+              ? "Saving automation settings..."
+              : "Save automation setting"}
           </button>
         </div>
       </div>
@@ -148,7 +132,7 @@ function AutomationApiKeyPanel({
         title="API Keys"
       >
         <form
-          className="portal-form portal-form--two-column"
+          className="portal-form portal-form--detail"
           onSubmit={(event) => {
             event.preventDefault();
             void apiKeys.createItem({
@@ -228,7 +212,9 @@ function AutomationApiKeyPanel({
                 setPendingDelete(item);
               }}
               onToggleReveal={() => {
-                setRevealedId((current) => (current === item.id ? null : item.id));
+                setRevealedId((current) =>
+                  current === item.id ? null : item.id,
+                );
               }}
               revealLabel={
                 revealedId === item.id ? "Hide API key" : "Reveal API key"
@@ -237,7 +223,10 @@ function AutomationApiKeyPanel({
                 {
                   key: "api-key",
                   label: "API key",
-                  value: revealedId === item.id ? item.keyValue : maskSecret(item.keyValue),
+                  value:
+                    revealedId === item.id
+                      ? item.keyValue
+                      : maskSecret(item.keyValue),
                 },
               ]}
               title={item.name}
@@ -287,7 +276,7 @@ function AutomationOAuthPanel({
         title="OAuth clients"
       >
         <form
-          className="portal-form portal-form--two-column"
+          className="portal-form portal-form--detail"
           onSubmit={(event) => {
             event.preventDefault();
             void oauthClients.createItem({
@@ -338,8 +327,8 @@ function AutomationOAuthPanel({
         </form>
 
         <p className="portal-settings-preferences__note">
-          Backend coordination note: generated `client_id`, `client_secret`,
-          and `created_by` metadata are local placeholders until customer OAuth
+          Backend coordination note: generated `client_id`, `client_secret`, and
+          `created_by` metadata are local placeholders until customer OAuth
           lifecycle endpoints exist.
         </p>
       </PortalDetailSection>
@@ -378,7 +367,9 @@ function AutomationOAuthPanel({
                 setPendingDelete(item);
               }}
               onToggleReveal={() => {
-                setRevealedId((current) => (current === item.id ? null : item.id));
+                setRevealedId((current) =>
+                  current === item.id ? null : item.id,
+                );
               }}
               revealLabel={
                 revealedId === item.id
@@ -459,15 +450,19 @@ function CredentialCard({
   title: string;
 }) {
   return (
-    <article className="portal-credential-card">
+    <article className="portal-credential-entry">
       <Group justify="space-between" wrap="nowrap" align="start">
         <div>
-          <h3 className="portal-credential-card__title">{title}</h3>
-          <p className="portal-credential-card__meta">
+          <h3 className="portal-credential-entry__title">{title}</h3>
+          <p className="portal-credential-entry__meta">
             Expires {formatDate(expiresAt)} | Created by {createdBy}
           </p>
         </div>
-        <Group className="portal-credential-card__actions" gap={6} wrap="nowrap">
+        <Group
+          className="portal-credential-entry__actions"
+          gap={6}
+          wrap="nowrap"
+        >
           <IconActionButton
             ariaLabel={revealLabel}
             icon={isRevealed ? <IconEyeOff size={16} /> : <IconEye size={16} />}
@@ -489,18 +484,20 @@ function CredentialCard({
         </Group>
       </Group>
 
-      <dl className="portal-credential-card__secrets">
-        {secrets.map((secret) => (
-          <div key={secret.key}>
-            <dt>{secret.label}</dt>
-            <dd>{secret.value}</dd>
-          </div>
-        ))}
-        <div>
-          <dt>Created</dt>
-          <dd>{formatDateTime(createdAt)}</dd>
-        </div>
-      </dl>
+      <DetailFieldList
+        items={[
+          ...secrets.map((secret) => ({
+            key: secret.key,
+            label: secret.label,
+            value: secret.value,
+          })),
+          {
+            key: "created-at",
+            label: "Created",
+            value: formatDateTime(createdAt),
+          },
+        ]}
+      />
     </article>
   );
 }
@@ -529,10 +526,18 @@ function DeleteCredentialModal({
           removes the placeholder credential from the local portal store.
         </Text>
         <Group justify="flex-end">
-          <button className="portal-shell__action portal-shell__action--secondary" onClick={onClose} type="button">
+          <button
+            className="portal-shell__action portal-shell__action--secondary"
+            onClick={onClose}
+            type="button"
+          >
             Cancel
           </button>
-          <button className="portal-shell__action portal-shell__action--danger" onClick={onConfirm} type="button">
+          <button
+            className="portal-shell__action portal-shell__action--danger"
+            onClick={onConfirm}
+            type="button"
+          >
             Delete
           </button>
         </Group>
@@ -556,7 +561,7 @@ function IconActionButton({
     <Tooltip label={tooltip} withArrow withinPortal={false}>
       <ActionIcon
         aria-label={ariaLabel}
-        className="portal-credential-card__action"
+        className="portal-credential-entry__action"
         color="gray"
         onClick={onClick}
         radius="xl"

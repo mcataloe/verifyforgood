@@ -28,6 +28,12 @@ describe("CustomerUserSearchPage", () => {
     expect(
       screen.getByRole("heading", { name: "American National Red Cross" }),
     ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Filings" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Compliance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sources" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Activity" })).toBeTruthy();
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 
   it("renders the address search pane with address, city, state, and zip fields", () => {

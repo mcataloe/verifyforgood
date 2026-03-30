@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
-import { PortalDetailSection, PortalDetailView } from "../components/PortalDetailView";
+import {
+  PortalDetailSection,
+  PortalDetailView,
+} from "../components/PortalDetailView";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
 import { ProfileContextSection } from "../settings/ProfileContextSection";
 
@@ -15,27 +18,32 @@ export function CustomerUserProfilePage({
   session,
 }: CustomerUserProfilePageProps) {
   const organization = usePortalOrganization();
-  const [firstName, setFirstName] = useState(splitDisplayName(session.user.display_name).firstName);
-  const [lastName, setLastName] = useState(splitDisplayName(session.user.display_name).lastName);
+  const [firstName, setFirstName] = useState(
+    splitDisplayName(session.user.display_name).firstName,
+  );
+  const [lastName, setLastName] = useState(
+    splitDisplayName(session.user.display_name).lastName,
+  );
   const [email, setEmail] = useState(session.user.email);
   const [pronouns, setPronouns] = useState("Prefer not to say");
   const [avatarName, setAvatarName] = useState<string | null>(null);
   const initials = useMemo(
-    () => `${firstName[0] ?? ""}${lastName[0] ?? ""}`.trim().toUpperCase() || "VF",
+    () =>
+      `${firstName[0] ?? ""}${lastName[0] ?? ""}`.trim().toUpperCase() || "VF",
     [firstName, lastName],
   );
 
   return (
     <PortalDetailView
-        eyebrow="Profile"
-        intro="Manage personal details, account context, and local appearance preferences for this portal session."
-        title="Profile"
-      >
+      eyebrow="Profile"
+      intro="Manage personal details, account context, and local appearance preferences for this portal session."
+      title="Profile"
+    >
       <PortalDetailSection
         intro="These fields are UI-local placeholders in this phase."
         title="Personal information"
       >
-        <form className="portal-form portal-form--two-column">
+        <form className="portal-form portal-form--detail">
           <label className="portal-form__field">
             <span>First Name</span>
             <input

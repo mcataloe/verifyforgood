@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ApiRequestError,
+  apiEndpoints,
+  buildApiUrl,
   createApiClient,
   loadPricingPlanCatalog,
   type ApiClient,
@@ -17,7 +20,10 @@ export interface MarketingPricingPlansController {
 }
 
 export function useMarketingPricingPlans(
-  runtimeConfig: Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">,
+  runtimeConfig: Pick<
+    FrontendRuntimeConfig,
+    "apiBaseUrl" | "apiVersion" | "environment"
+  >,
   apiClient?: Pick<ApiClient, "get">,
 ): MarketingPricingPlansController {
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +47,8 @@ export function useMarketingPricingPlans(
         if (!isCancelled) {
           setPlans(catalog.plans);
         }
-      } catch {
+      } catch (error) {
+        reportPricingCatalogFailure(error, runtimeConfig);
         if (!isCancelled) {
           setError("The pricing catalog could not be loaded.");
         }
@@ -66,7 +73,8 @@ export function useMarketingPricingPlans(
     try {
       const catalog = await loadPricingPlanCatalog(client);
       setPlans(catalog.plans);
-    } catch {
+    } catch (error) {
+      reportPricingCatalogFailure(error, runtimeConfig);
       setError("The pricing catalog could not be loaded.");
     } finally {
       setIsLoading(false);
@@ -79,4 +87,39 @@ export function useMarketingPricingPlans(
     plans,
     reload,
   };
+}
+
+function reportPricingCatalogFailure(
+  error: unknown,
+  runtimeConfig: Pick<
+    FrontendRuntimeConfig,
+    "apiBaseUrl" | "apiVersion" | "environment"
+  >,
+): void {
+  if (runtimeConfig.environment !== "development") {
+    return;
+  }
+
+  const targetUrl = buildApiUrl(apiEndpoints.public.plans, runtimeConfig);
+  const apiError = error instanceof ApiRequestError ? error : null;
+  let hint: string | null = null;
+
+  if (!runtimeConfig.apiBaseUrl) {
+    hint =
+      "VITE_API_BASE_URL is unset, so marketing is requesting the plan catalog from the Vite dev origin instead of the API.";
+  } else if (apiError?.status === 404) {
+    hint =
+      "The configured API responded with 404 for GET /v1/plans. Verify the API base URL and deployed route.";
+  } else {
+    hint =
+      "If this request targets the AWS dev API from http://localhost:5174, confirm that CORS_ALLOWED_ORIGINS allows the marketing dev origin.";
+  }
+
+  console.error("Marketing pricing catalog request failed", {
+    code: apiError?.code ?? null,
+    hint,
+    requestId: apiError?.requestId ?? null,
+    status: apiError?.status ?? null,
+    targetUrl,
+  });
 }

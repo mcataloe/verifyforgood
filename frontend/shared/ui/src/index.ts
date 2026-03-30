@@ -3,6 +3,11 @@ export { Card } from "./components/Card";
 export { ColorSchemeToggle } from "./components/ColorSchemeToggle";
 export { CorePrimitivesExamples } from "./components/CorePrimitives.examples";
 export {
+  DetailFieldList,
+  type DetailFieldListItem,
+} from "./components/DetailFieldList";
+export { DetailStack } from "./components/DetailStack";
+export {
   DataTable,
   type DataTableColumn,
   type DataTableFilterDefinition,
@@ -39,7 +44,10 @@ export { PlanFeatureList } from "./components/PlanFeatureList";
 export { PricingPlanCard } from "./components/PricingPlanCard";
 export { PricingPlanGrid } from "./components/PricingPlanGrid";
 export { SectionContainer } from "./components/SectionContainer";
-export { SidebarProfileSection, type SidebarProfileSectionProps } from "./components/SidebarProfileSection";
+export {
+  SidebarProfileSection,
+  type SidebarProfileSectionProps,
+} from "./components/SidebarProfileSection";
 export { StatusBadge, type StatusBadgeStatus } from "./components/StatusBadge";
 export { ThemeRoot } from "./components/ThemeRoot";
 export { Container } from "./components/layout/Container";

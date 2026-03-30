@@ -72,11 +72,11 @@ def test_error_response_includes_configured_support_metadata_for_server_errors(m
 
 
 def test_json_response_reflects_allowed_cors_origin(monkeypatch):
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,https://dev.charitystatusapi.com")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,https://dev.charitystatusapi.com")
     response_context = build_response_context(
         {
             "headers": {
-                "Origin": "http://localhost:5173",
+                "Origin": "http://localhost:5174",
             }
         },
         None,
@@ -85,7 +85,7 @@ def test_json_response_reflects_allowed_cors_origin(monkeypatch):
 
     response = json_response(200, {"result": "ok"}, response_context=response_context)
 
-    assert response["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5173"
+    assert response["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5174"
     assert response["headers"]["Access-Control-Allow-Headers"] == "Content-Type,Authorization,X-Portal-Account-Id,X-Portal-Workspace-Id"
     assert response["headers"]["Access-Control-Allow-Methods"] == "GET,POST,PUT,PATCH,DELETE,OPTIONS"
     assert response["headers"]["Vary"] == "Origin"
