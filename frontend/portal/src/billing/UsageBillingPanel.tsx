@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Grid, Panel, PricingPlanGrid } from "@charity-status/shared-ui";
+import { useEffect, useState } from "react";
+import { Panel, PricingPlanGrid } from "@charity-status/shared-ui";
 import { Button, Group, Text } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
@@ -8,6 +8,7 @@ import {
   PortalLoadingState,
   PortalNotice,
 } from "../components/feedback";
+import { StackedDetailSections } from "../components/shell";
 import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
@@ -196,7 +197,9 @@ export function UsageBillingPanel({
   );
 
   return (
-    <Grid className="portal-page-grid">
+    <StackedDetailSections
+      sectionWrapper={({ section }) => <section>{section}</section>}
+    >
       <Panel
         title={subscriptionPanelTitle}
         subtitle={subscriptionPanelSubtitle}
@@ -325,108 +328,106 @@ export function UsageBillingPanel({
       </Panel>
 
       {visibilityOnly ? (
-        <>
-          <Panel
-            title="Included limits"
-            subtitle="Limits come from the effective subscription and remain org-scoped."
-          >
-            <div className="portal-usage-summary-grid">
-              <UsageSummaryCard
-                label="Monthly requests"
-                value={(
-                  snapshot.includedLimits?.monthlyRequests ??
-                  snapshot.usage.limit
-                ).toLocaleString()}
-              />
-              <UsageSummaryCard
-                label="Requests per minute"
-                value={(
-                  snapshot.includedLimits?.requestsPerMinute ?? 0
-                ).toLocaleString()}
-              />
-              <UsageSummaryCard
-                label="Batch items"
-                value={(snapshot.includedLimits?.batchItems ?? 0).toLocaleString()}
-              />
-            </div>
-          </Panel>
-
-          <Panel
-            title="Enabled capabilities"
-            subtitle="Premium capability visibility is derived from the effective plan plus organization feature flags."
-          >
-            <CapabilityVisibilityPanel snapshot={snapshot} />
-          </Panel>
-        </>
+        <Panel
+          title="Included limits"
+          subtitle="Limits come from the effective subscription and remain org-scoped."
+        >
+          <div className="portal-usage-summary-grid">
+            <UsageSummaryCard
+              label="Monthly requests"
+              value={(
+                snapshot.includedLimits?.monthlyRequests ??
+                snapshot.usage.limit
+              ).toLocaleString()}
+            />
+            <UsageSummaryCard
+              label="Requests per minute"
+              value={(
+                snapshot.includedLimits?.requestsPerMinute ?? 0
+              ).toLocaleString()}
+            />
+            <UsageSummaryCard
+              label="Batch items"
+              value={(snapshot.includedLimits?.batchItems ?? 0).toLocaleString()}
+            />
+          </div>
+        </Panel>
       ) : (
-        <>
-          <Panel
-            title="Manage plans"
-            subtitle="Compare backend-seeded plans and take the next valid billing action for the current subscription state."
-          >
-            <PricingPlanGrid items={planItems} />
-          </Panel>
-
-          <Panel
-            title="Billing tools"
-            subtitle="Manage invoices and provider billing tools through backend-managed portal sessions."
-          >
-            {billingActions.error ? (
-              <PortalNotice tone="error">
-                <p>{billingActions.error}</p>
-              </PortalNotice>
-            ) : null}
-
-            <div className="portal-billing-tools">
-              <div className="portal-billing-tools__copy">
-                <p className="portal-shell__eyebrow">Invoices & payment methods</p>
-                <h4 className="portal-billing-tools__title">
-                  Open the billing portal
-                </h4>
-                <p className="portal-billing-tools__description">
-                  Invoice history and payment-method management stay inside the
-                  backend-managed provider portal in this phase.
-                </p>
-              </div>
-              <Group gap="sm" wrap="wrap">
-                <Button
-                  disabled={!isAdmin}
-                  loading={billingActions.isPending}
-                  onClick={() => {
-                    setStatusMessage(
-                      "Opening the backend-managed billing portal for invoices and payment details.",
-                    );
-                    void billingActions
-                      .cancelSubscription({
-                        returnUrl: defaultReturnUrl(),
-                        strategy: "backend_billing_portal",
-                      })
-                      .then((result) => {
-                        if (result.kind === "redirect") {
-                          redirectToDestination(result.destinationUrl);
-                        }
-                      })
-                      .catch(() => {});
-                  }}
-                  variant="filled"
-                >
-                  Open billing portal
-                </Button>
-              </Group>
-            </div>
-
-            <Text c="dimmed" fz="sm" mt="md">
-              Signed in plan baseline: <strong>{session.plan}</strong>. Backend
-              routes remain explicit at <code>{endpoints.billingSubscription}</code>
-              , <code>{endpoints.organizationUsage ?? "/v1/organization/usage"}</code>,{" "}
-              <code>{endpoints.billingCheckout}</code>,{" "}
-              <code>{endpoints.billingPlanChange}</code>, and{" "}
-              <code>{endpoints.billingPortal}</code>.
-            </Text>
-          </Panel>
-        </>
+        <Panel
+          title="Manage plans"
+          subtitle="Compare backend-seeded plans and take the next valid billing action for the current subscription state."
+        >
+          <PricingPlanGrid items={planItems} />
+        </Panel>
       )}
-    </Grid>
+
+      {visibilityOnly ? (
+        <Panel
+          title="Enabled capabilities"
+          subtitle="Premium capability visibility is derived from the effective plan plus organization feature flags."
+        >
+          <CapabilityVisibilityPanel snapshot={snapshot} />
+        </Panel>
+      ) : (
+        <Panel
+          title="Billing tools"
+          subtitle="Manage invoices and provider billing tools through backend-managed portal sessions."
+        >
+          {billingActions.error ? (
+            <PortalNotice tone="error">
+              <p>{billingActions.error}</p>
+            </PortalNotice>
+          ) : null}
+
+          <div className="portal-billing-tools">
+            <div className="portal-billing-tools__copy">
+              <p className="portal-shell__eyebrow">Invoices & payment methods</p>
+              <h4 className="portal-billing-tools__title">
+                Open the billing portal
+              </h4>
+              <p className="portal-billing-tools__description">
+                Invoice history and payment-method management stay inside the
+                backend-managed provider portal in this phase.
+              </p>
+            </div>
+            <Group gap="sm" wrap="wrap">
+              <Button
+                disabled={!isAdmin}
+                loading={billingActions.isPending}
+                onClick={() => {
+                  setStatusMessage(
+                    "Opening the backend-managed billing portal for invoices and payment details.",
+                  );
+                  void billingActions
+                    .cancelSubscription({
+                      returnUrl: defaultReturnUrl(),
+                      strategy: "backend_billing_portal",
+                    })
+                    .then((result) => {
+                      if (result.kind === "redirect") {
+                        redirectToDestination(result.destinationUrl);
+                      }
+                    })
+                    .catch(() => {});
+                }}
+                variant="filled"
+              >
+                Open billing portal
+              </Button>
+            </Group>
+          </div>
+
+          <Text c="dimmed" fz="sm" mt="md">
+            Signed in plan baseline: <strong>{session.plan}</strong>. Backend
+            routes remain explicit at <code>{endpoints.billingSubscription}</code>
+            , <code>{endpoints.organizationUsage ?? "/v1/organization/usage"}</code>,{" "}
+            <code>{endpoints.billingCheckout}</code>,{" "}
+            <code>{endpoints.billingPlanChange}</code>, and{" "}
+            <code>{endpoints.billingPortal}</code>.
+          </Text>
+        </Panel>
+      )}
+    </StackedDetailSections>
   );
 }
 
