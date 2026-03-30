@@ -1,4 +1,4 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
@@ -13,6 +13,7 @@ import {
 import {
   PortalActionToolbar,
   PortalPageShell,
+  StackedDetailSections,
 } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
@@ -83,7 +84,9 @@ export function SettingsPage({
         </PortalActionToolbar>
       }
     >
-      <Grid className="portal-page-grid">
+      <StackedDetailSections
+        sectionWrapper={({ section }) => <section>{section}</section>}
+      >
         <Panel
           title="Organization Profile"
           subtitle="Editable organization metadata for the active customer-admin workspace."
@@ -238,7 +241,7 @@ export function SettingsPage({
         >
           <SupportHelpPanel controller={support} />
         </Panel>
-      </Grid>
+      </StackedDetailSections>
     </PortalPageShell>
   );
 }

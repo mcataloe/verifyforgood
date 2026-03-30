@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Grid, Inline, Panel } from "@charity-status/shared-ui";
+import { Inline, Panel } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
+import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "./usePortalOrganization";
 import {
   createPortalMembershipClient,
@@ -172,7 +173,9 @@ export function TeamManagementPanel() {
   };
 
   return (
-    <Grid className="portal-page-grid">
+    <StackedDetailSections
+      sectionWrapper={({ section }) => <section>{section}</section>}
+    >
       <Panel
         title="Team management"
         subtitle="Members and invitation lifecycle visibility for the current organization."
@@ -434,7 +437,7 @@ export function TeamManagementPanel() {
           </table>
         ) : null}
       </Panel>
-    </Grid>
+    </StackedDetailSections>
   );
 }
 
