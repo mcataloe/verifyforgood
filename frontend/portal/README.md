@@ -166,6 +166,14 @@ This keeps nonprofit search, API access, billing visibility, and the auth shell 
 - status, alerts, and badges should not rely on color alone
 - new screens should reuse shared dark-mode-aware surfaces before adding local color values
 - onboarding and dense data views should prefer the shared layouts and table patterns over one-off page composition
+- detail viewers and settings inspector pages should render as one vertical section stack (single-column flow)
+- separate major sections with `<hr />` (or the shared divider primitive) to keep boundaries clear without introducing card grids
+- reserve `Grid`-style multi-column card layouts for dashboard or summary contexts, not detail inspector flows
+
+When choosing a layout pattern:
+
+- use a stacked section flow + dividers for detail screens (example: organization settings with profile, billing defaults, and API key policy sections in sequence)
+- use multi-column cards for glanceable overviews (example: dashboard showing subscription status, usage snapshot, and onboarding progress side by side)
 
 ## Running the portal
 
