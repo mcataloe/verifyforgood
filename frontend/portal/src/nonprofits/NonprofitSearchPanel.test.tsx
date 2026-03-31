@@ -110,13 +110,12 @@ describe("NonprofitSearchPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
+    expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
     expect(screen.getByText("Disabled for this workspace")).toBeTruthy();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider").length,
-    ).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId("section-divider").length).toBeGreaterThanOrEqual(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
     expect(controller.loadMoreResults).toHaveBeenCalledOnce();
@@ -144,6 +143,7 @@ describe("NonprofitSearchPanel", () => {
     const { container } = renderWithOrganization(controller);
 
     expect(screen.getByText("Nonprofit lookup unavailable")).toBeTruthy();
+    expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
     expect(container.querySelector(".portal-page-grid")).toBeNull();
   });
 });

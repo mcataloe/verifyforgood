@@ -7,6 +7,7 @@ describe("PortalOrganizationOnboardingPage", () => {
   it("renders organization name and slug fields", () => {
     const { container } = renderPage();
 
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
     expect(screen.getByLabelText("Slug")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Setup flow" })).toBeTruthy();
@@ -15,9 +16,7 @@ describe("PortalOrganizationOnboardingPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider"),
-    ).toHaveLength(2);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
   });
 
   it("blocks submission when organization name is empty", () => {

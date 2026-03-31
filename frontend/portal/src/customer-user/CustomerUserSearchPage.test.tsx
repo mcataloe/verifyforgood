@@ -33,10 +33,9 @@ describe("CustomerUserSearchPage", () => {
     expect(screen.getByRole("heading", { name: "Compliance" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Sources" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Activity" })).toBeTruthy();
+    expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider").length,
-    ).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByTestId("section-divider").length).toBeGreaterThanOrEqual(2);
   });
 
   it("renders the address search pane with address, city, state, and zip fields", () => {

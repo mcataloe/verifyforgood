@@ -5,7 +5,7 @@ import { PortalPageShell } from "./PortalPageShell";
 
 describe("PortalPageShell", () => {
   it("applies the authenticated portal width container", () => {
-    const { container } = render(
+    render(
       <VerifyForGoodMantineProvider defaultColorScheme="light">
         <PortalPageShell
           description="Shell description"
@@ -18,8 +18,9 @@ describe("PortalPageShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Shell title" })).toBeTruthy();
-    expect(
-      container.querySelector(".portal-authenticated-container.portal-page-shell"),
-    ).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container").className).toContain(
+      "portal-authenticated-container",
+    );
   });
 });

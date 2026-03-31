@@ -5,7 +5,7 @@ import { DashboardPage } from "./DashboardPage";
 
 describe("DashboardPage", () => {
   it("renders the dashboard prototype sections with placeholder content", () => {
-    const { container } = render(
+    render(
       <DashboardPage
         runtimeConfig={{
           apiBaseUrl: "https://dev.charitystatusapi.com",
@@ -26,13 +26,11 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Verification trend chart placeholder")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Alerts" })).toBeTruthy();
     expect(screen.getByText("American National Red Cross")).toBeTruthy();
-    expect(
-      container.querySelector(".portal-authenticated-container.portal-dashboard"),
-    ).toBeTruthy();
+    expect(screen.getByTestId("dashboard-content-layout")).toBeTruthy();
   });
 
   it("renders a dedicated main/sidebar dashboard layout with shrink-safe containers", () => {
-    render(
+    const { container } = render(
       <DashboardPage
         runtimeConfig={{
           apiBaseUrl: "https://dev.charitystatusapi.com",
@@ -50,6 +48,9 @@ describe("DashboardPage", () => {
     expect(contentLayout.className).toContain("portal-dashboard__content");
     expect(mainColumn.className).toContain("portal-dashboard__main");
     expect(sidebarColumn.className).toContain("portal-dashboard__sidebar");
+    expect(
+      container.querySelector(".portal-authenticated-container.portal-dashboard"),
+    ).toBeTruthy();
     expect(
       screen.getByLabelText("Verification trend chart placeholder").className,
     ).toContain("portal-dashboard__chart-placeholder");

@@ -19,6 +19,7 @@ describe("PortalHomePage", () => {
     expect(
       screen.getByText("Sign in first, then manage your organization workspace"),
     ).toBeTruthy();
+    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
     expect(screen.getByText("No organization is created silently or before authentication.")).toBeTruthy();

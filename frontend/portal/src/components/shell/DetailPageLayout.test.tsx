@@ -6,7 +6,7 @@ import { SectionDivider } from "./SectionDivider";
 
 describe("DetailPageLayout", () => {
   it("renders stacked sections in document order with dividers", () => {
-    const { container } = render(
+    render(
       <DetailPageLayout eyebrow="Profile" intro="Intro copy" title="Profile">
         <SectionBlock title="First">Alpha</SectionBlock>
         <SectionDivider />
@@ -20,12 +20,24 @@ describe("DetailPageLayout", () => {
     expect(screen.getByRole("heading", { name: "First" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Second" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Third" })).toBeTruthy();
-    expect(
-      container.querySelector(".portal-authenticated-container.portal-detail-layout"),
-    ).toBeTruthy();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider"),
-    ).toHaveLength(2);
+    expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
+    expect(screen.getByTestId("detail-page-layout-content")).toBeTruthy();
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
+
+    const content = screen.getByTestId("detail-page-layout-content");
+    const firstSection = screen.getByRole("heading", { name: "First" }).closest("section");
+    const secondSection = screen.getByRole("heading", { name: "Second" }).closest("section");
+    const thirdSection = screen.getByRole("heading", { name: "Third" }).closest("section");
+    const dividers = screen.getAllByTestId("section-divider");
+    const orderedChildren = Array.from(content.children);
+
+    expect(orderedChildren).toStrictEqual([
+      firstSection,
+      dividers[0],
+      secondSection,
+      dividers[1],
+      thirdSection,
+    ]);
   });
 
   it("supports custom header content", () => {

@@ -57,6 +57,7 @@ export function PortalOrganizationOnboardingPage({
     <DetailPageLayout
       eyebrow="Onboarding"
       intro="Create your first organization now. Future phases can support switching between multiple organizations."
+      testId="organization-onboarding-page"
       title="Organization setup"
     >
       <SectionBlock

@@ -547,9 +547,26 @@ describe("PortalApp", () => {
         name: "Customer portal entry",
       }),
     ).toBeTruthy();
+    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
     expect(window.location.hash).toBe("#/");
+  });
+
+  it("falls back to the public portal home on an unknown hash", async () => {
+    window.location.hash = "#/missing";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Customer portal entry",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Create your first organization" }),
+    ).toBeNull();
   });
 
   it("redirects unauthenticated access to the sign-in boundary", async () => {
@@ -583,6 +600,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Create your first organization" }),
     ).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
   });
 
@@ -614,6 +632,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Create your first organization" }),
     ).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
   });
 
   it("creates an organization during onboarding and redirects to the dashboard", async () => {
@@ -740,6 +759,7 @@ describe("PortalApp", () => {
         name: "Customer portal entry",
       }),
     ).toBeTruthy();
+    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Create your first organization" }),
     ).toBeNull();
@@ -828,6 +848,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Create your first organization" }),
     ).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(window.location.hash).toBe("#/onboarding/organization");
   });
 

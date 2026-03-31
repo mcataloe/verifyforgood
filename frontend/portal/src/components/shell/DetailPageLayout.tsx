@@ -1,27 +1,38 @@
-import type { PropsWithChildren, ReactNode } from "react";
+import type { HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 
-interface DetailPageLayoutProps extends PropsWithChildren {
+interface DetailPageLayoutProps
+  extends PropsWithChildren,
+    Omit<HTMLAttributes<HTMLElement>, "title"> {
   eyebrow?: ReactNode;
   header?: ReactNode;
   intro?: ReactNode;
   className?: string;
+  contentTestId?: string;
+  testId?: string;
   title?: ReactNode;
 }
 
 export function DetailPageLayout({
   children,
   className,
+  contentTestId,
   eyebrow,
   header,
   intro,
+  testId,
   title,
+  ...rest
 }: DetailPageLayoutProps) {
   const resolvedClassName = className
     ? `portal-authenticated-container portal-detail-layout ${className}`
     : "portal-authenticated-container portal-detail-layout";
 
   return (
-    <article className={resolvedClassName}>
+    <article
+      className={resolvedClassName}
+      data-testid={testId ?? "detail-page-layout"}
+      {...rest}
+    >
       {header ? (
         header
       ) : title ? (
@@ -31,7 +42,12 @@ export function DetailPageLayout({
           {intro ? <p className="portal-detail-layout__intro">{intro}</p> : null}
         </header>
       ) : null}
-      <div className="portal-detail-layout__content">{children}</div>
+      <div
+        className="portal-detail-layout__content"
+        data-testid={contentTestId ?? "detail-page-layout-content"}
+      >
+        {children}
+      </div>
     </article>
   );
 }
