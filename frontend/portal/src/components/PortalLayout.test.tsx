@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   VerifyForGoodMantineProvider,
@@ -9,6 +9,7 @@ import {
   type FrontendAppInfo,
 } from "@charity-status/shared-types";
 import { createMockPortalSession } from "../app/portalSession";
+import { PortalAuthContext } from "../auth/usePortalAuth";
 import {
   portalProtectedRoutes,
   resolvePortalRoute,
@@ -47,10 +48,78 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
+    expect(screen.getByTestId("portal-current-organization")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
     expect(
       screen.getByRole("link", { name: /Profile & preferences/i }),
     ).toBeTruthy();
+  });
+
+  it("shows a multi-organization switcher in the header for users with more than one org", () => {
+    renderPortalLayout({
+      availableOrganizations: [
+        createOrganizationRecord({
+          organization_id: "org_primary",
+          organization_name: "Primary Org",
+          slug: "primary-org",
+        }),
+        createOrganizationRecord({
+          organization_id: "org_secondary",
+          organization_name: "Secondary Org",
+          slug: "secondary-org",
+          membership: { role: "user", status: "active", user_id: "user_verifyforgood_demo" },
+        }),
+      ],
+      session: {
+        ...createMockPortalSession(),
+        account_id: "org_primary",
+        organization_name: "Primary Org",
+        workspace_id: "org_primary",
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+
+    expect(screen.getByText("Switch organization")).toBeTruthy();
+    expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
+    expect(screen.getByText("Secondary Org")).toBeTruthy();
+    expect(screen.getByText("Current")).toBeTruthy();
+  });
+
+  it("switches active organization through the shared auth seam", () => {
+    const applyOrganization = vi.fn();
+
+    renderPortalLayout({
+      applyOrganization,
+      availableOrganizations: [
+        createOrganizationRecord({
+          organization_id: "org_primary",
+          organization_name: "Primary Org",
+          slug: "primary-org",
+        }),
+        createOrganizationRecord({
+          organization_id: "org_secondary",
+          organization_name: "Secondary Org",
+          slug: "secondary-org",
+        }),
+      ],
+      session: {
+        ...createMockPortalSession(),
+        account_id: "org_primary",
+        organization_name: "Primary Org",
+        workspace_id: "org_primary",
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+    fireEvent.click(screen.getByTestId("portal-organization-option-secondary-org"));
+
+    expect(applyOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: "org_secondary",
+        organization_name: "Secondary Org",
+      }),
+    );
   });
 
   it("hides admin-only navigation items when the current membership role is user", () => {
@@ -193,10 +262,21 @@ describe("PortalLayout", () => {
 });
 
 function renderPortalLayout({
+  applyOrganization = vi.fn(),
+  availableOrganizations,
   currentHash,
   currentRoute = resolvePortalRoute("#/dashboard"),
   session = createMockPortalSession(),
 }: {
+  applyOrganization?: ReturnType<typeof vi.fn>;
+  availableOrganizations?: Array<{
+    account_id: string;
+    membership: { role: string; status: string; user_id: string };
+    organization_id: string;
+    organization_name: string;
+    slug: string;
+    workspace_id: string;
+  }>;
   currentHash?: string;
   currentRoute?: PortalRouteDefinition;
   session?: ReturnType<typeof createMockPortalSession>;
@@ -204,53 +284,109 @@ function renderPortalLayout({
   window.location.hash = currentHash ?? currentRoute.hash;
 
   render(
-    <PortalOrganizationContext.Provider
+    <PortalAuthContext.Provider
       value={{
-        activeOrganization: {
-          account_id: session.account_id,
-          billing_allow_overage: true,
-          billing_monthly_request_cap: 10_000,
-          organization_name: session.organization_name,
-          scope_source: "session_mock",
-          settings_source: "mock",
-          updated_at: session.issued_at,
-          workspace_id: session.workspace_id,
-        },
-        apiClient: {
-          delete: vi.fn(),
-          get: vi.fn(),
-          patch: vi.fn(),
-          post: vi.fn(),
-          requestData: vi.fn(),
-          requestEnvelope: vi.fn(),
-          put: vi.fn(),
-        } as never,
-        currentMembership: session.organization_membership,
-        isTenantReady: true,
-        members: [],
-        membersStatus: "ready",
-        refresh: vi.fn(async () => {}),
-        refreshMembers: vi.fn(async () => []),
-        selectionStatus: "active",
-        setMembers: vi.fn(),
-        setActiveOrganization: vi.fn(),
-        status: "ready",
+        accessToken: "test_token",
+        applyOrganization,
+        availableOrganizations:
+          availableOrganizations ??
+          [
+            createOrganizationRecord({
+              organization_id: session.workspace_id,
+              organization_name: session.organization_name,
+              slug: "verifyforgood-demo-workspace",
+              account_id: session.account_id,
+              membership:
+                session.organization_membership ?? {
+                  role: "admin",
+                  status: "active",
+                  user_id: session.user.subject_id,
+                },
+              workspace_id: session.workspace_id,
+            }),
+          ],
+        isBusy: false,
+        login: vi.fn(async () => session),
+        register: vi.fn(async () => session),
+        session,
+        signOut: vi.fn(async () => {}),
+        status: "authenticated",
       }}
     >
-      <VerifyForGoodMantineProvider
-        defaultColorScheme={"light" as VerifyForGoodThemeMode}
+      <PortalOrganizationContext.Provider
+        value={{
+          activeOrganization: {
+            account_id: session.account_id,
+            billing_allow_overage: true,
+            billing_monthly_request_cap: 10_000,
+            organization_id: session.workspace_id,
+            organization_name: session.organization_name,
+            scope_source: "session_mock",
+            settings_source: "mock",
+            slug: "verifyforgood-demo-workspace",
+            updated_at: session.issued_at,
+            workspace_id: session.workspace_id,
+          },
+          apiClient: {
+            delete: vi.fn(),
+            get: vi.fn(),
+            patch: vi.fn(),
+            post: vi.fn(),
+            requestData: vi.fn(),
+            requestEnvelope: vi.fn(),
+            put: vi.fn(),
+          } as never,
+          currentMembership: session.organization_membership,
+          isTenantReady: true,
+          members: [],
+          membersStatus: "ready",
+          refresh: vi.fn(async () => {}),
+          refreshMembers: vi.fn(async () => []),
+          selectionStatus: "active",
+          setMembers: vi.fn(),
+          setActiveOrganization: vi.fn(),
+          status: "ready",
+        }}
       >
-        <PortalLayout
-          app={app}
-          currentRoute={currentRoute}
-          onSignOut={vi.fn(async () => {})}
-          routes={portalProtectedRoutes}
-          runtimeConfig={runtimeConfig}
-          session={session}
+        <VerifyForGoodMantineProvider
+          defaultColorScheme={"light" as VerifyForGoodThemeMode}
         >
-          <div>Portal content</div>
-        </PortalLayout>
-      </VerifyForGoodMantineProvider>
-    </PortalOrganizationContext.Provider>,
+          <PortalLayout
+            app={app}
+            currentRoute={currentRoute}
+            onSignOut={vi.fn(async () => {})}
+            routes={portalProtectedRoutes}
+            runtimeConfig={runtimeConfig}
+            session={session}
+          >
+            <div>Portal content</div>
+          </PortalLayout>
+        </VerifyForGoodMantineProvider>
+      </PortalOrganizationContext.Provider>
+    </PortalAuthContext.Provider>,
   );
+}
+
+function createOrganizationRecord(
+  overrides: Partial<{
+    account_id: string;
+    membership: { role: string; status: string; user_id: string };
+    organization_id: string;
+    organization_name: string;
+    slug: string;
+    workspace_id: string;
+  }>,
+) {
+  return {
+    account_id: overrides.account_id ?? "org_primary",
+    membership: overrides.membership ?? {
+      role: "admin",
+      status: "active",
+      user_id: "user_verifyforgood_demo",
+    },
+    organization_id: overrides.organization_id ?? "org_primary",
+    organization_name: overrides.organization_name ?? "Primary Org",
+    slug: overrides.slug ?? "primary-org",
+    workspace_id: overrides.workspace_id ?? overrides.organization_id ?? "org_primary",
+  };
 }

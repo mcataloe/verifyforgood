@@ -59,6 +59,32 @@ function readStoredActiveOrganizationForTest() {
   }
 }
 
+function createStoredOrganizationForTest(overrides: Partial<{
+  account_id: string;
+  membership: {
+    role: string;
+    status: string;
+    user_id: string;
+  };
+  organization_id: string;
+  organization_name: string;
+  slug: string;
+  workspace_id: string;
+}> = {}) {
+  return {
+    account_id: overrides.account_id ?? "org_123",
+    membership: overrides.membership ?? {
+      role: "admin",
+      status: "active",
+      user_id: "user_jamie_admin",
+    },
+    organization_id: overrides.organization_id ?? "org_123",
+    organization_name: overrides.organization_name ?? "Verify For Good Org",
+    slug: overrides.slug ?? "verify-for-good-org",
+    workspace_id: overrides.workspace_id ?? overrides.organization_id ?? "org_123",
+  };
+}
+
 function buildFetchMock() {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -969,6 +995,105 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Enabled capabilities" }),
     ).toBeTruthy();
+  });
+
+  it("switches organizations from the authenticated shell without leaving the current route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify(
+        createStoredOrganizationForTest({
+          organization_id: "org_primary",
+          organization_name: "Primary Org",
+          slug: "primary-org",
+          workspace_id: "org_primary",
+          account_id: "org_primary",
+        }),
+      ),
+    );
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              available_organizations: [
+                createStoredOrganizationForTest({
+                  organization_id: "org_primary",
+                  organization_name: "Primary Org",
+                  slug: "primary-org",
+                  workspace_id: "org_primary",
+                  account_id: "org_primary",
+                }),
+                createStoredOrganizationForTest({
+                  organization_id: "org_secondary",
+                  organization_name: "Secondary Org",
+                  slug: "secondary-org",
+                  workspace_id: "org_secondary",
+                  account_id: "org_secondary",
+                  membership: {
+                    role: "user",
+                    status: "active",
+                    user_id: "user_jamie_admin",
+                  },
+                }),
+              ],
+              organization_context: createStoredOrganizationForTest({
+                organization_id: "org_primary",
+                organization_name: "Primary Org",
+                slug: "primary-org",
+                workspace_id: "org_primary",
+                account_id: "org_primary",
+              }),
+              user: {
+                email: "jamie.admin@example.org",
+                full_name: "Jamie Admin",
+                user_id: "user_jamie_admin",
+              },
+            }),
+          ),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      return buildFetchMock()(input, init);
+    }) as typeof fetch;
+    window.location.hash = "#/workspace";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Nonprofit search workspace" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+    fireEvent.click(screen.getByTestId("portal-organization-option-secondary-org"));
+
+    expect(
+      (await screen.findByTestId("portal-organization-switcher")).textContent,
+    ).toContain("Secondary Org");
+    expect(window.location.hash).toBe("#/workspace");
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain("\"organization_id\":\"org_secondary\"");
   });
 
   it("renders customer-admin home as an activity-first surface", async () => {

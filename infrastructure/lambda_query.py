@@ -1234,12 +1234,15 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
         headers = event.get("headers") or {}
         authorization = str(_get_header(headers, "authorization") or "")
         user = service.get_current_user(authorization)
-        organization_context = _get_portal_organization_context_service().resolve_for_user(
-            user_id=user.user_id,
-        )
+        context_service = _get_portal_organization_context_service()
+        available_organizations = context_service.list_for_user(user_id=user.user_id)
+        organization_context = available_organizations[0] if available_organizations else None
         return json_response(
             200,
             {
+                "available_organizations": [
+                    context.to_dict() for context in available_organizations
+                ],
                 "organization_context": organization_context.to_dict()
                 if organization_context is not None
                 else None,

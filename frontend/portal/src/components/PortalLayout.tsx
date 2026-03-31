@@ -17,7 +17,9 @@ import {
 import { resolveMembershipRoleFromContext } from "../app/portalAuthorization";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import { usePortalAuth } from "../auth/usePortalAuth";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
+import { PortalOrganizationSwitcher } from "./PortalOrganizationSwitcher";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
@@ -37,6 +39,7 @@ export function PortalLayout({
   runtimeConfig: _runtimeConfig,
   session,
 }: PortalLayoutProps) {
+  const auth = usePortalAuth();
   const organization = usePortalOrganization();
   const audience = resolvePortalNavigationAudience(session.roles);
   const membershipRole = resolveMembershipRoleFromContext(
@@ -71,6 +74,16 @@ export function PortalLayout({
     <VerifyForGoodAppShell
       activeNavigationKey={activeNavigationKey}
       appName={app.title}
+      headerActions={
+        <PortalOrganizationSwitcher
+          activeOrganizationId={organization.activeOrganization.organization_id}
+          activeOrganizationName={organization.activeOrganization.organization_name}
+          availableOrganizations={auth.availableOrganizations}
+          onSelectOrganization={(nextOrganization) => {
+            auth.applyOrganization(nextOrganization);
+          }}
+        />
+      }
       navigationSections={navigationSections}
       sidebarNavigationAriaLabel="Portal navigation"
       sidebarFooter={
@@ -91,7 +104,7 @@ export function PortalLayout({
           primaryLabel={session.user.display_name}
         />
       }
-      showHeader={false}
+      showHeader
       showSidebarHeader={false}
       subtitle={app.description}
     >

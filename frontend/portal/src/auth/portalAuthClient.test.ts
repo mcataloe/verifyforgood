@@ -77,6 +77,7 @@ describe("portal auth client", () => {
           JSON.stringify(
             buildEnvelope({
               organization_context: null,
+              available_organizations: [],
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -138,6 +139,7 @@ describe("portal auth client", () => {
           JSON.stringify(
             buildEnvelope({
               organization_context: null,
+              available_organizations: [],
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -204,6 +206,20 @@ describe("portal auth client", () => {
                 slug: "verify-for-good-org",
                 workspace_id: "org_123",
               },
+              available_organizations: [
+                {
+                  account_id: "org_123",
+                  membership: {
+                    role: "admin",
+                    status: "active",
+                    user_id: "user_portal_person",
+                  },
+                  organization_id: "org_123",
+                  organization_name: "Verify For Good Org",
+                  slug: "verify-for-good-org",
+                  workspace_id: "org_123",
+                },
+              ],
               user: {
                 email: "person@example.com",
                 full_name: "Portal Person",
@@ -273,6 +289,7 @@ describe("portal auth client", () => {
             JSON.stringify(
               buildEnvelope({
                 organization_context: null,
+                available_organizations: [],
                 user: {
                   email: "person@example.com",
                   full_name: "Portal Person",
@@ -346,6 +363,20 @@ describe("portal auth client", () => {
                   slug: "verify-for-good-org",
                   workspace_id: "org_123",
                 },
+                available_organizations: [
+                  {
+                    account_id: "org_123",
+                    membership: {
+                      role: "admin",
+                      status: "active",
+                      user_id: "user_portal_person",
+                    },
+                    organization_id: "org_123",
+                    organization_name: "Verify For Good Org",
+                    slug: "verify-for-good-org",
+                    workspace_id: "org_123",
+                  },
+                ],
                 user: {
                   email: "person@example.com",
                   full_name: "Portal Person",
@@ -413,6 +444,109 @@ describe("portal auth client", () => {
 
     expect(restored).toBeNull();
     expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
+  });
+
+  it("restores a persisted selected organization when it is still available from /auth/me", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "token_login",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_secondary",
+        membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_portal_person",
+        },
+        organization_id: "org_secondary",
+        organization_name: "Secondary Org",
+        slug: "secondary-org",
+        workspace_id: "org_secondary",
+      }),
+    );
+    const client = createPortalAuthClient({
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/v1/auth/me")) {
+          return new Response(
+            JSON.stringify(
+              buildEnvelope({
+                organization_context: {
+                  account_id: "org_primary",
+                  membership: {
+                    role: "admin",
+                    status: "active",
+                    user_id: "user_portal_person",
+                  },
+                  organization_id: "org_primary",
+                  organization_name: "Primary Org",
+                  slug: "primary-org",
+                  workspace_id: "org_primary",
+                },
+                available_organizations: [
+                  {
+                    account_id: "org_primary",
+                    membership: {
+                      role: "admin",
+                      status: "active",
+                      user_id: "user_portal_person",
+                    },
+                    organization_id: "org_primary",
+                    organization_name: "Primary Org",
+                    slug: "primary-org",
+                    workspace_id: "org_primary",
+                  },
+                  {
+                    account_id: "org_secondary",
+                    membership: {
+                      role: "user",
+                      status: "active",
+                      user_id: "user_portal_person",
+                    },
+                    organization_id: "org_secondary",
+                    organization_name: "Secondary Org",
+                    slug: "secondary-org",
+                    workspace_id: "org_secondary",
+                  },
+                ],
+                user: {
+                  email: "person@example.com",
+                  full_name: "Portal Person",
+                  user_id: "user_portal_person",
+                },
+              }),
+            ),
+            { headers: { "Content-Type": "application/json" }, status: 200 },
+          );
+        }
+
+        return new Response("Not Found", { status: 404 });
+      }) as typeof fetch,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.session.organization_name).toBe("Secondary Org");
+    expect(restored?.session.organization_membership?.role).toBe("user");
+    expect(restored?.availableOrganizations).toHaveLength(2);
+    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
+      "\"organization_id\":\"org_secondary\"",
+    );
   });
 
   it("removes persisted auth state on sign out", async () => {

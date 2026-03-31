@@ -56,6 +56,8 @@ export interface PortalActiveOrganizationRecord {
   workspace_id: string;
 }
 
+export type PortalAvailableOrganizationRecord = PortalActiveOrganizationRecord;
+
 const PORTAL_SESSION_COMPATIBILITY_DEFAULTS = {
   account_id: "acct_portal_pending",
   billing_status: "stubbed" as const,

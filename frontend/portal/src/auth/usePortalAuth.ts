@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type {
   PortalActiveOrganizationRecord,
+  PortalAvailableOrganizationRecord,
   PortalAuthenticatedSession,
 } from "../app/portalSession";
 import type {
@@ -12,6 +13,7 @@ export type PortalAuthStatus = "authenticated" | "loading" | "unauthenticated";
 
 export interface PortalAuthContextValue {
   accessToken: string | null;
+  availableOrganizations: PortalAvailableOrganizationRecord[];
   isBusy: boolean;
   login: (request: PortalLoginRequest) => Promise<PortalAuthenticatedSession>;
   applyOrganization: (

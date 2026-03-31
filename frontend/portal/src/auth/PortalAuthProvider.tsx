@@ -8,6 +8,7 @@ import {
 import {
   createPortalCompatibilitySession,
   type PortalActiveOrganizationRecord,
+  type PortalAvailableOrganizationRecord,
   type PortalAuthenticatedSession,
 } from "../app/portalSession";
 import {
@@ -30,6 +31,7 @@ interface PortalAuthProviderProps extends PropsWithChildren {
 
 interface PortalAuthState {
   accessToken: string | null;
+  availableOrganizations: PortalAvailableOrganizationRecord[];
   isBusy: boolean;
   session: PortalAuthenticatedSession | null;
   status: PortalAuthStatus;
@@ -52,6 +54,7 @@ export function PortalAuthProvider({
   );
   const [authState, setAuthState] = useState<PortalAuthState>({
     accessToken: null,
+    availableOrganizations: [],
     isBusy: true,
     session: null,
     status: "loading",
@@ -69,6 +72,7 @@ export function PortalAuthProvider({
 
         setAuthState({
           accessToken: state?.accessToken ?? null,
+          availableOrganizations: state?.availableOrganizations ?? [],
           isBusy: false,
           session: state?.session ?? null,
           status: state ? "authenticated" : "unauthenticated",
@@ -80,6 +84,7 @@ export function PortalAuthProvider({
 
         setAuthState({
           accessToken: null,
+          availableOrganizations: [],
           isBusy: false,
           session: null,
           status: "unauthenticated",
@@ -99,6 +104,7 @@ export function PortalAuthProvider({
     const state = await resolvedAuthClient.login(request);
     setAuthState({
       accessToken: state.accessToken,
+      availableOrganizations: state.availableOrganizations,
       isBusy: false,
       session: state.session,
       status: "authenticated",
@@ -111,6 +117,7 @@ export function PortalAuthProvider({
     const state = await resolvedAuthClient.register(request);
     setAuthState({
       accessToken: state.accessToken,
+      availableOrganizations: state.availableOrganizations,
       isBusy: false,
       session: state.session,
       status: "authenticated",
@@ -132,8 +139,16 @@ export function PortalAuthProvider({
       },
       persisted,
     );
+    const nextAvailableOrganizations =
+      authState.availableOrganizations.find(
+        (candidate) =>
+          candidate.organization_id === persisted.organization_id,
+      )
+        ? authState.availableOrganizations
+        : [...authState.availableOrganizations, persisted];
     setAuthState((currentState) => ({
       ...currentState,
+      availableOrganizations: nextAvailableOrganizations,
       session: nextSession,
       status: "authenticated",
     }));
@@ -145,6 +160,7 @@ export function PortalAuthProvider({
     await resolvedAuthClient.signOut();
     setAuthState({
       accessToken: null,
+      availableOrganizations: [],
       isBusy: false,
       session: null,
       status: "unauthenticated",
@@ -155,6 +171,7 @@ export function PortalAuthProvider({
     <PortalAuthContext.Provider
       value={{
         accessToken: authState.accessToken,
+        availableOrganizations: authState.availableOrganizations,
         applyOrganization,
         isBusy: authState.isBusy,
         login,

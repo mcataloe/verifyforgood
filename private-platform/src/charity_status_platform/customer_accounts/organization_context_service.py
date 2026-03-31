@@ -13,45 +13,56 @@ class OrganizationContextService:
     organizations: OrganizationRepository
     memberships: MembershipRepository
 
-    def resolve_for_user(
+    def list_for_user(
         self,
         *,
         user_id: str,
-    ) -> OrganizationContextResponse | None:
+    ) -> list[OrganizationContextResponse]:
         active_memberships = [
             membership
             for membership in self.memberships.list_for_user(user_id)
             if membership.status is MembershipStatus.ACTIVE
         ]
         if not active_memberships:
-            return None
+            return []
 
-        active_memberships = sorted(
+        ordered_memberships = sorted(
             active_memberships,
             key=lambda membership: membership.organization_id,
         )
-        active_memberships.sort(
+        ordered_memberships.sort(
             key=lambda membership: _timestamp_sort_value(membership.updated_at),
             reverse=True,
         )
 
-        membership = active_memberships[0]
-        organization = self.organizations.get(membership.organization_id)
-        if organization is None:
-            return None
+        contexts: list[OrganizationContextResponse] = []
+        for membership in ordered_memberships:
+            organization = self.organizations.get(membership.organization_id)
+            if organization is None:
+                continue
+            contexts.append(
+                OrganizationContextResponse(
+                    organization_id=organization.organization_id,
+                    organization_name=organization.name,
+                    slug=organization.slug,
+                    account_id=organization.organization_id,
+                    workspace_id=organization.organization_id,
+                    membership={
+                        "user_id": membership.user_id,
+                        "role": membership.role.value,
+                        "status": membership.status.value,
+                    },
+                )
+            )
+        return contexts
 
-        return OrganizationContextResponse(
-            organization_id=organization.organization_id,
-            organization_name=organization.name,
-            slug=organization.slug,
-            account_id=organization.organization_id,
-            workspace_id=organization.organization_id,
-            membership={
-                "user_id": membership.user_id,
-                "role": membership.role.value,
-                "status": membership.status.value,
-            },
-        )
+    def resolve_for_user(
+        self,
+        *,
+        user_id: str,
+    ) -> OrganizationContextResponse | None:
+        contexts = self.list_for_user(user_id=user_id)
+        return contexts[0] if contexts else None
 
 
 def _timestamp_sort_value(value: str) -> float:
