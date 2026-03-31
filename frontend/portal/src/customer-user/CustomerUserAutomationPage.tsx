@@ -37,8 +37,8 @@ export function CustomerUserAutomationPage({
     pane === "automation-general"
       ? "Automation-wide controls for how verification traffic behaves when usage thresholds are reached."
       : pane === "automation-api"
-        ? "Generate masked API keys for direct integrations. The local mock persists credentials in browser storage for this phase only."
-        : "Generate client credentials for server-to-server OAuth automation without introducing backend token issuance yet.";
+        ? "Create API keys for direct integrations and background workflows."
+        : "Create OAuth client credentials for server-to-server integrations.";
 
   return (
     <PortalDetailView eyebrow="Automation" intro={description} title={title}>
@@ -63,7 +63,7 @@ function AutomationGeneralPanel() {
 
   return (
     <PortalDetailSection
-      intro="This pane intentionally contains only the hard-stop automation control in this phase."
+      intro="Control how automation behaves when usage limits are reached."
       title="General settings"
     >
       <div className="portal-budget-form">
@@ -128,7 +128,7 @@ function AutomationApiKeyPanel({
   return (
     <>
       <PortalDetailSection
-        intro="Create browser-local placeholder keys with audit metadata that can later align to a backend customer credential API."
+        intro="Create and manage API keys for your integrations."
         title="API Keys"
       >
         <form
@@ -181,16 +181,10 @@ function AutomationApiKeyPanel({
             </button>
           </div>
         </form>
-
-        <p className="portal-settings-preferences__note">
-          Backend coordination note: `created_by` is being captured locally from
-          the signed-in portal user and should align with the eventual customer
-          credential API contract.
-        </p>
       </PortalDetailSection>
 
       <PortalDetailSection
-        intro="Keys are masked by default and surfaced here as placeholder values only."
+        intro="Keys stay hidden until you choose to reveal them."
         title="Usable API keys"
       >
         {apiKeys.isLoading ? <p>Loading API keys...</p> : null}
@@ -272,7 +266,7 @@ function AutomationOAuthPanel({
   return (
     <>
       <PortalDetailSection
-        intro="Generate placeholder client credentials with the same title-row action pattern as API keys."
+        intro="Create OAuth clients for secure server-to-server access."
         title="OAuth clients"
       >
         <form
@@ -325,12 +319,6 @@ function AutomationOAuthPanel({
             </button>
           </div>
         </form>
-
-        <p className="portal-settings-preferences__note">
-          Backend coordination note: generated `client_id`, `client_secret`, and
-          `created_by` metadata are local placeholders until customer OAuth
-          lifecycle endpoints exist.
-        </p>
       </PortalDetailSection>
 
       <PortalDetailSection
@@ -523,7 +511,7 @@ function DeleteCredentialModal({
       <Stack gap="md">
         <Text size="sm">
           Delete <strong>{itemLabel ?? "this credential"}</strong>? This action
-          removes the placeholder credential from the local portal store.
+          removes it from your saved credentials list.
         </Text>
         <Group justify="flex-end">
           <button

@@ -178,7 +178,7 @@ export function TeamManagementPanel() {
     >
       <Panel
         title="Team management"
-        subtitle="Members and invitation lifecycle visibility for the current organization."
+        subtitle="Invite teammates and manage access for your organization."
       >
         <dl className="portal-shell__details">
           <div>
@@ -276,7 +276,7 @@ export function TeamManagementPanel() {
 
       <Panel
         title="Active members"
-        subtitle="Current organization memberships returned by the backend contract."
+        subtitle="People who currently have access to this organization."
       >
         {organization.membersStatus === "loading" ? (
           <PortalNotice title="Loading" tone="loading">

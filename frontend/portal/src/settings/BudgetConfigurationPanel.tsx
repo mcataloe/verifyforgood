@@ -43,14 +43,14 @@ export function BudgetConfigurationPanel({
               controller.clearNotice();
               setMonthlyRequestCap(event.target.value);
             }}
-            placeholder="Leave blank to follow the plan baseline"
+            placeholder="Optional"
             type="number"
             value={monthlyRequestCap}
           />
         </label>
         <p className="portal-budget-form__hint">
           Set the maximum number of requests you want to budget for this month.
-          Leave it blank to fall back to the included plan usage baseline.
+          Leave it blank to use the limit included with your plan.
         </p>
       </div>
 

@@ -242,12 +242,12 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
 
       {hasSearched ? (
         <PortalDetailSection
-          intro="Use the sortable city, state, and zip columns before opening the organization review pane."
+          intro="Sort and review the results before opening an organization record."
           title="Results"
         >
           {mappedRows.length === 0 ? (
             <EmptyState
-              description="Adjust the current query and try again. These panes are backed by a local placeholder dataset in this phase."
+              description="Adjust your search and try again."
               title={`No organizations matched this ${pane === "search-ein" ? "EIN" : "address"} search`}
             />
           ) : (
@@ -283,7 +283,7 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
 
       {selectedDetail ? (
         <PortalDetailSection
-          intro="Organization detail remains placeholder-backed in this phase."
+          intro="Review the available details for this organization."
           title="Organization details"
         >
           <PortalNonprofitEmbeddedDetail detail={selectedDetail} />

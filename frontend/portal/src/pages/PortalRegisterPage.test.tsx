@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PortalRegisterPage } from "./PortalRegisterPage";
 
 describe("PortalRegisterPage", () => {
-  it("renders registration inputs and disabled provider placeholders", () => {
+  it("renders registration inputs with customer-facing guidance", () => {
     renderRegisterPage();
 
     expect(screen.getByLabelText("Full name")).toBeTruthy();
@@ -20,6 +20,8 @@ describe("PortalRegisterPage", () => {
         .getByRole("button", { name: "Microsoft available soon" })
         .hasAttribute("disabled"),
     ).toBe(true);
+    expect(screen.queryByText("Register endpoint")).toBeNull();
+    expect(screen.queryByText("Login route")).toBeNull();
   });
 
   it("submits the typed registration contract", () => {

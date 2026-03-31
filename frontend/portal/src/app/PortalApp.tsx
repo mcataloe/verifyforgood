@@ -51,8 +51,8 @@ const appInfo: FrontendAppInfo = {
   audience:
     "Authenticated customers managing verification workflows and account settings.",
   description:
-    "Application shell for future authenticated product slices including workspace management, API access, usage, billing, and settings.",
-  title: "Customer portal shell",
+    "Manage verification activity, billing, API access, and organization settings.",
+  title: "Customer portal",
   surface: "portal",
 };
 
@@ -137,11 +137,11 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Checking whether a portal session already exists before any protected route can render."
+        subtitle="Checking your account access."
         title="Checking portal access"
       >
         <PortalNotice title="Loading" tone="loading">
-          <p>Checking whether a portal session already exists.</p>
+          <p>Checking your account access.</p>
         </PortalNotice>
       </PortalAuthLayout>
     );
@@ -152,7 +152,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="These are the public auth routes inside the portal application shell."
+        subtitle="Sign in or create an account to continue."
         title={
           currentRoute.key === homePortalRoute.key
             ? "Customer portal entry"
@@ -187,7 +187,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="An authenticated session exists, so the portal is returning to the requested protected route."
+        subtitle="Taking you back to your workspace."
         title="Redirecting into the portal"
       >
         <p className="portal-auth-shell__message">
@@ -206,7 +206,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="You are signed in. Create the first organization context before the rest of the portal opens."
+        subtitle="You’re signed in. Create your organization to continue."
         title="Create your first organization"
       >
         <PortalOrganizationOnboardingPage
@@ -323,7 +323,7 @@ function PortalAuthorizedShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Checking whether the current organization role allows this route."
+        subtitle="Checking access to this area."
         title="Redirecting to an allowed area"
       >
         <PortalNotice title="Redirecting" tone="loading">

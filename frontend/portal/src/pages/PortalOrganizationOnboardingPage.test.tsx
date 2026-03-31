@@ -10,11 +10,12 @@ describe("PortalOrganizationOnboardingPage", () => {
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
     expect(screen.getByLabelText("Slug")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Setup flow" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Getting started" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Create organization" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(screen.queryByText("Backend contract")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
   });

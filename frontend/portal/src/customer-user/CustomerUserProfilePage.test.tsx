@@ -42,8 +42,8 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
-    expect(screen.getByText("test")).toBeTruthy();
     expect(screen.getByText("User")).toBeTruthy();
+    expect(screen.queryByText("test")).toBeNull();
     expect(screen.queryByText("Profile details")).toBeNull();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".vf-detail-field-list")).toBeTruthy();

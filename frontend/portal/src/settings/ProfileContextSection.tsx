@@ -16,7 +16,7 @@ interface ProfileContextSectionProps {
  * available on the settings/profile surface.
  */
 export function ProfileContextSection({
-  environment,
+  environment: _environment,
   organization,
   session,
   showTitle = true,
@@ -43,16 +43,6 @@ export function ProfileContextSection({
             value: organization.organization_name,
           },
           {
-            key: "account",
-            label: "Account",
-            value: organization.account_id,
-          },
-          {
-            key: "workspace",
-            label: "Workspace",
-            value: organization.workspace_id,
-          },
-          {
             key: "access",
             label: "Access",
             value: getPortalAccessLabel(session.roles),
@@ -61,25 +51,6 @@ export function ProfileContextSection({
             key: "plan",
             label: "Plan",
             value: session.plan,
-          },
-          ...(environment
-            ? [
-                {
-                  key: "environment",
-                  label: "Environment",
-                  value: environment,
-                },
-              ]
-            : []),
-          {
-            key: "auth-mode",
-            label: "Auth mode",
-            value: session.auth_method.replaceAll("_", " "),
-          },
-          {
-            key: "subject",
-            label: "Subject",
-            value: session.user.subject_id,
           },
         ]}
       />

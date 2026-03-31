@@ -18,32 +18,27 @@ interface WorkspacePageProps {
 }
 
 export function WorkspacePage({
-  endpoints,
+  endpoints: _endpoints,
   pane,
   session,
 }: WorkspacePageProps) {
   const organization = usePortalOrganization();
   const workspaceLabel =
-    pane === "team" ? "Customer admin team" : "Tenant-aware workspace";
+    pane === "team" ? "Team access" : "Nonprofit search";
 
   return (
     <PortalPageShell
-      description={`Search, review, and inspect nonprofit records for ${organization.activeOrganization.organization_name}. Requests use the current portal session plus organization scope automatically.`}
+      description={`Search, review, and manage nonprofit records for ${organization.activeOrganization.organization_name}.`}
       eyebrow={workspaceLabel}
-      title="Nonprofit search workspace"
+      title="Nonprofit search"
       toolbar={
         <PortalActionToolbar>
           <div className="portal-action-toolbar__group">
             <span className="portal-shell__summary-pill">
-              Team role {organization.currentMembership?.role ?? "unknown"}
+              {organization.currentMembership?.role ?? "unknown"} access
             </span>
             <span className="portal-shell__summary-pill">
-              Status {organization.currentMembership?.status ?? "unknown"}
-            </span>
-          </div>
-          <div className="portal-action-toolbar__group">
-            <span className="portal-shell__summary-pill">
-              Workspace {organization.activeOrganization.workspace_id}
+              {organization.currentMembership?.status ?? "unknown"}
             </span>
           </div>
         </PortalActionToolbar>
@@ -53,8 +48,8 @@ export function WorkspacePage({
         sectionWrapper={({ section }) => <section>{section}</section>}
       >
         <Panel
-          title="Team operations"
-          subtitle="Search, review, and inspect nonprofit records without leaving the shared team workspace."
+          title="Team overview"
+          subtitle="A quick summary of your organization and access."
         >
           <dl className="portal-shell__details">
             <div>
@@ -62,25 +57,23 @@ export function WorkspacePage({
               <dd>{organization.activeOrganization.organization_name}</dd>
             </div>
             <div>
-              <dt>Workspace ID</dt>
-              <dd>{organization.activeOrganization.workspace_id}</dd>
+              <dt>Your role</dt>
+              <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
             </div>
             <div>
-              <dt>Account ID</dt>
-              <dd>{organization.activeOrganization.account_id}</dd>
+              <dt>Status</dt>
+              <dd>{organization.currentMembership?.status ?? "unknown"}</dd>
             </div>
             <div>
-              <dt>Settings endpoint</dt>
-              <dd>
-                <code>{endpoints.organizationSettings}</code>
-              </dd>
+              <dt>Plan</dt>
+              <dd>{session.plan}</dd>
             </div>
           </dl>
         </Panel>
 
         <Panel
-          title="Signed-in operator"
-          subtitle="Session identity stays separate from the current organization boundary."
+          title="Signed-in user"
+          subtitle="The account currently using this workspace."
         >
           <dl className="portal-shell__details">
             <div>
@@ -94,10 +87,6 @@ export function WorkspacePage({
             <div>
               <dt>Plan</dt>
               <dd>{session.plan}</dd>
-            </div>
-            <div>
-              <dt>Scope source</dt>
-              <dd>{organization.activeOrganization.scope_source}</dd>
             </div>
           </dl>
         </Panel>

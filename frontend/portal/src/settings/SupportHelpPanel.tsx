@@ -129,23 +129,11 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
             <dd>{context.account_context.organization_name ?? "Unknown"}</dd>
           </div>
           <div>
-            <dt>Organization ID</dt>
-            <dd>{context.account_context.organization_id ?? "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Account ID</dt>
-            <dd>{context.account_context.account_id ?? "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Workspace ID</dt>
-            <dd>{context.account_context.workspace_id ?? "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Current plan</dt>
+            <dt>Plan</dt>
             <dd>{context.account_context.current_plan ?? "Unknown"}</dd>
           </div>
           <div>
-            <dt>Membership role</dt>
+            <dt>Your role</dt>
             <dd>{context.account_context.membership_role ?? "Unknown"}</dd>
           </div>
         </dl>
@@ -220,8 +208,8 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
         </form>
 
         <p className="portal-budget-form__hint">
-          Requests are recorded for follow-up. This phase does not provide
-          customer-visible ticket tracking or threaded support replies.
+          Requests are recorded for follow-up. Our team will respond using the
+          contact details you provide.
         </p>
 
         {validationMessage ? (

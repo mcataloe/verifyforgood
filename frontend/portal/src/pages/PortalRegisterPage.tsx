@@ -11,7 +11,7 @@ interface PortalRegisterPageProps {
 }
 
 export function PortalRegisterPage({
-  endpoints,
+  endpoints: _endpoints,
   isBusy,
   onRegister,
   requestedRoute,
@@ -56,9 +56,9 @@ export function PortalRegisterPage({
           <p className="portal-shell__eyebrow">Create access</p>
           <h2>Start your portal account</h2>
           <p>
-            Register to continue to {requestedRoute.label}. Account creation
-            uses <code>{endpoints.authRegister}</code>, then restores the
-            authenticated browser session through <code>{endpoints.authMe}</code>.
+            Create an account to continue to {requestedRoute.label}. Once your
+            account is ready, you can sign in and finish setting up your
+            organization if needed.
           </p>
         </div>
 
@@ -68,33 +68,26 @@ export function PortalRegisterPage({
             <span>{requestedRoute.label}</span>
           </div>
           <div>
-            <strong>Register endpoint</strong>
-            <span>
-              <code>{endpoints.authRegister}</code>
-            </span>
+            <strong>Account setup</strong>
+            <span>Create your login for the customer portal</span>
           </div>
           <div>
-            <strong>Login route</strong>
-            <span>
-              <code>#/sign-in</code>
-            </span>
+            <strong>Next step</strong>
+            <span>After sign-up, you can create or join an organization.</span>
           </div>
         </div>
 
         <div className="portal-auth-page__onboarding">
           <p className="portal-shell__eyebrow">What happens next</p>
-          <h3>Create identity now, finish organization setup later</h3>
+          <h3>Create your account first</h3>
           <ul className="portal-list">
+            <li>Create your account with your work details.</li>
             <li>
-              Registration creates the authenticated user only in this phase.
+              After sign-in, we’ll check whether you already belong to an
+              organization.
             </li>
             <li>
-              After registration, the portal checks for organization context and
-              only then shows explicit onboarding if none exists.
-            </li>
-            <li>
-              Google and Microsoft registration stay visible as disabled
-              placeholders until provider support exists.
+              If you do not, you can create one in a dedicated setup step.
             </li>
           </ul>
         </div>
@@ -108,7 +101,7 @@ export function PortalRegisterPage({
         <div className="portal-auth-page__card-copy">
           <p className="portal-shell__eyebrow">New to VerifyForGood</p>
           <h3>Create account</h3>
-          <p>Use your work identity to establish the first browser session.</p>
+          <p>Use your work email to create your portal login.</p>
         </div>
 
         <label className="portal-form__field" htmlFor={fullNameId}>

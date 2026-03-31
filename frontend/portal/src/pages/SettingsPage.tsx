@@ -49,7 +49,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   budgetController,
-  endpoints,
+  endpoints: _endpoints,
   organizationProfileController,
   pane,
   session,
@@ -70,17 +70,17 @@ export function SettingsPage({
 
   return (
     <PortalPageShell
-      description="Review the current portal identity, appearance defaults, and organization budget controls from one shared settings surface."
+      description="Manage your organization profile, usage controls, appearance preferences, and support settings."
       eyebrow={pane === "settings" ? "Customer admin settings" : "Portal settings"}
       title="Workspace settings"
       toolbar={
         <PortalActionToolbar>
           <div className="portal-action-toolbar__group">
             <span className="portal-shell__summary-pill">
-              Org {organization.activeOrganization.organization_name}
+              {organization.activeOrganization.organization_name}
             </span>
             <span className="portal-shell__summary-pill">
-              Role {organization.currentMembership?.role ?? "unknown"}
+              {session.plan} plan
             </span>
           </div>
         </PortalActionToolbar>
@@ -90,7 +90,7 @@ export function SettingsPage({
         <SectionBlock>
           <Panel
             title="Organization Profile"
-            subtitle="Editable organization metadata for the active customer-admin workspace."
+            subtitle="Update the name and contact details your team sees."
           >
             <OrganizationProfileSettingsPanel controller={organizationProfile} />
           </Panel>
@@ -98,32 +98,13 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Organization Details"
-            subtitle="Stable identifiers and read-only organization context for the active workspace."
+            title="Organization details"
+            subtitle="Key information about your organization."
           >
             <dl className="portal-shell__details">
               <div>
                 <dt>Display name</dt>
                 <dd>{organization.activeOrganization.organization_name}</dd>
-              </div>
-              <div>
-                <dt>Slug</dt>
-                <dd>{organization.activeOrganization.slug ?? "Not assigned"}</dd>
-              </div>
-              <div>
-                <dt>Organization</dt>
-                <dd>
-                  {organization.activeOrganization.organization_id ??
-                    organization.activeOrganization.workspace_id}
-                </dd>
-              </div>
-              <div>
-                <dt>Account</dt>
-                <dd>{organization.activeOrganization.account_id}</dd>
-              </div>
-              <div>
-                <dt>Workspace</dt>
-                <dd>{organization.activeOrganization.workspace_id}</dd>
               </div>
               <div>
                 <dt>Contact email</dt>
@@ -138,36 +119,21 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Administrative Metadata"
-            subtitle="Read-only metadata intended for early customer administration and support handoff."
+            title="Plan & access"
+            subtitle="A quick summary of your current plan and access level."
           >
             <dl className="portal-shell__details">
               <div>
-                <dt>Settings source</dt>
-                <dd>{organization.activeOrganization.settings_source}</dd>
-              </div>
-              <div>
-                <dt>Settings updated</dt>
-                <dd>{organization.activeOrganization.updated_at ?? "Not recorded"}</dd>
-              </div>
-              <div>
-                <dt>Organization created</dt>
-                <dd>{organization.activeOrganization.created_at ?? "Not recorded"}</dd>
-              </div>
-              <div>
-                <dt>Organization updated</dt>
-                <dd>
-                  {organization.activeOrganization.organization_updated_at ??
-                    "Not recorded"}
-                </dd>
-              </div>
-              <div>
-                <dt>Current role</dt>
+                <dt>Your role</dt>
                 <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
               </div>
               <div>
-                <dt>Current plan</dt>
+                <dt>Plan</dt>
                 <dd>{session.plan}</dd>
+              </div>
+              <div>
+                <dt>Last updated</dt>
+                <dd>{organization.activeOrganization.updated_at ?? "Not recorded"}</dd>
               </div>
             </dl>
           </Panel>
@@ -176,7 +142,7 @@ export function SettingsPage({
         <SectionBlock>
           <Panel
             title="Usage budget controls"
-            subtitle="Persisted through the existing organization settings contract."
+            subtitle="Set request limits and decide how usage should be handled at the threshold."
           >
             <BudgetConfigurationPanel controller={budget} />
           </Panel>
@@ -227,28 +193,8 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Current backend anchor"
-            subtitle="Organization profile and budget controls remain explicit about persistence and compatibility."
-          >
-            <p>
-              Organization settings load from and persist to{" "}
-              <code>{endpoints.organizationSettings}</code>.
-            </p>
-            <ul className="portal-list">
-              <li>
-                Display name and contact email live in the current organization
-                settings contract.
-              </li>
-              <li>Monthly usage caps are still stored per account.</li>
-              <li>Slug remains visible but read-only in this phase.</li>
-            </ul>
-          </Panel>
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
-          <Panel
             title="Support & Help"
-            subtitle="Support guidance, account context, and structured issue reporting for customer admins."
+            subtitle="Get help, review support information, and contact our team."
           >
             <SupportHelpPanel controller={support} />
           </Panel>

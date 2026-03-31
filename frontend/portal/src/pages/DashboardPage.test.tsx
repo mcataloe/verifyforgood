@@ -4,7 +4,7 @@ import { createMockPortalSession } from "../app/portalSession";
 import { DashboardPage } from "./DashboardPage";
 
 describe("DashboardPage", () => {
-  it("renders the dashboard prototype sections with placeholder content", () => {
+  it("renders the dashboard sections with customer-facing copy", () => {
     render(
       <DashboardPage
         runtimeConfig={{
@@ -23,10 +23,12 @@ describe("DashboardPage", () => {
     expect(
       screen.getByRole("heading", { name: "Recent verifications" }),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Verification trend chart placeholder")).toBeTruthy();
+    expect(screen.getByLabelText("Verification trend chart")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Alerts" })).toBeTruthy();
     expect(screen.getByText("American National Red Cross")).toBeTruthy();
     expect(screen.getByTestId("dashboard-content-layout")).toBeTruthy();
+    expect(screen.queryByText(/development environment/i)).toBeNull();
+    expect(screen.queryByText(/placeholder/i)).toBeNull();
   });
 
   it("renders a dedicated main/sidebar dashboard layout with shrink-safe containers", () => {
@@ -52,7 +54,7 @@ describe("DashboardPage", () => {
       container.querySelector(".portal-authenticated-container.portal-dashboard"),
     ).toBeTruthy();
     expect(
-      screen.getByLabelText("Verification trend chart placeholder").className,
+      screen.getByLabelText("Verification trend chart").className,
     ).toContain("portal-dashboard__chart-placeholder");
   });
 });

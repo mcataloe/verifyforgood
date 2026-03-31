@@ -1,6 +1,5 @@
 import {
   Container,
-  Inline,
   Page,
   Panel,
   Section,
@@ -31,26 +30,14 @@ export function PortalAuthLayout({
         <Container size="narrow">
           <div className="portal-auth-shell__stack">
             <div className="portal-auth-shell__hero">
-              <p className="portal-shell__eyebrow">Protected Surface</p>
+              <p className="portal-shell__eyebrow">VerifyForGood</p>
               <h1>{title}</h1>
               <p>{subtitle}</p>
-
-              <Inline className="portal-auth-shell__status-row">
-                <span className="portal-shell__status-pill">
-                  App: {app.title}
-                </span>
-                <span className="portal-shell__status-pill">
-                  Env: {runtimeConfig.environment}
-                </span>
-                <span className="portal-shell__status-pill">
-                  API: /{runtimeConfig.apiVersion}
-                </span>
-              </Inline>
             </div>
 
             <Panel
-              title="Portal auth boundary"
-              subtitle="Portal routes stay protected, while marketing and docs remain public."
+              title={app.title}
+              subtitle="Sign in to manage your organization, billing, team access, and verification activity."
             >
               {children}
             </Panel>

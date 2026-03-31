@@ -14,7 +14,7 @@ interface CustomerUserProfilePageProps {
 }
 
 export function CustomerUserProfilePage({
-  environment,
+  environment: _environment,
   session,
 }: CustomerUserProfilePageProps) {
   const organization = usePortalOrganization();
@@ -36,11 +36,11 @@ export function CustomerUserProfilePage({
   return (
     <PortalDetailView
       eyebrow="Profile"
-      intro="Manage personal details, account context, and local appearance preferences for this portal session."
+      intro="Manage your profile details and appearance preferences."
       title="Profile"
     >
       <PortalDetailSection
-        intro="These fields are UI-local placeholders in this phase."
+        intro="Update the personal details shown in your profile."
         title="Personal information"
       >
         <form className="portal-form portal-form--detail">
@@ -104,7 +104,7 @@ export function CustomerUserProfilePage({
       </PortalDetailSection>
 
       <PortalDetailSection
-        intro="Upload support is placeholder-only in this phase and does not persist beyond local component state."
+        intro="Choose the image you want to use for your profile."
         title="Avatar"
       >
         <div className="portal-profile-page__avatar-panel">
@@ -132,11 +132,10 @@ export function CustomerUserProfilePage({
       </PortalDetailSection>
 
       <PortalDetailSection
-        intro="Organization, account, access, and session identity metadata remain read-only here."
+        intro="Review the organization and plan currently associated with your account."
         title="Account context"
       >
         <ProfileContextSection
-          environment={environment}
           organization={organization.activeOrganization}
           session={session}
           showTitle={false}
@@ -144,7 +143,7 @@ export function CustomerUserProfilePage({
       </PortalDetailSection>
 
       <PortalDetailSection
-        intro="Appearance controls live only on this profile surface, not in the sidebar."
+        intro="Choose the appearance that feels best for you."
         title="Appearance"
       >
         <AppearancePreferenceSection showTitle={false} />

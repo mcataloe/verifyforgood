@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PortalSignInPage } from "./PortalSignInPage";
 
 describe("PortalSignInPage", () => {
-  it("renders the typed login form and disabled provider placeholders", () => {
+  it("renders the login form with customer-facing entry guidance", () => {
     renderSignInPage();
 
     expect(screen.getByLabelText("Email")).toBeTruthy();
@@ -20,6 +20,9 @@ describe("PortalSignInPage", () => {
         .hasAttribute("disabled"),
     ).toBe(true);
     expect(screen.getByText("Requested area")).toBeTruthy();
+    expect(screen.queryByText("Login endpoint")).toBeNull();
+    expect(screen.queryByText("Session restore")).toBeNull();
+    expect(screen.queryByText(/auth boundary/i)).toBeNull();
   });
 
   it("submits the typed login contract", () => {

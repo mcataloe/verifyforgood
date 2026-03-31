@@ -72,7 +72,7 @@ const dashboardMetrics: DashboardMetric[] = [
   {
     title: "API calls",
     value: "84.6K",
-    detail: "Placeholder volume across portal and API traffic.",
+    detail: "Total requests across your organization this month.",
     tone: "secondary",
   },
 ];
@@ -118,7 +118,7 @@ const dashboardAlerts: DashboardAlert[] = [
   },
   {
     title: "Nightly sync pending approval",
-    detail: "Connector credentials rotated in the development environment.",
+    detail: "Connection settings were updated and need review.",
     status: "pending",
   },
   {
@@ -182,10 +182,6 @@ const alertItemStyle: CSSProperties = {
   padding: spacing.sm,
 };
 
-/**
- * Initial dashboard layout prototype using placeholder data to demonstrate the
- * VerifyForGood application design system.
- */
 export function DashboardPage({
   pane,
   runtimeConfig,
@@ -201,7 +197,7 @@ export function DashboardPage({
           <PageHeader
             eyebrow="Customer admin home"
             title="Organization activity"
-            description={`Recent organization activity, audit visibility, and operator context for ${session.organization_name} in the ${runtimeConfig.environment} environment.`}
+            description={`Recent activity, access changes, and important updates for ${session.organization_name}.`}
           />
           <CustomerAdminHomePanel />
         </div>
@@ -218,7 +214,7 @@ export function DashboardPage({
         <PageHeader
           eyebrow="Operations overview"
           title="Verification dashboard"
-          description={`Placeholder operational snapshot for ${session.organization_name} in the ${runtimeConfig.environment} environment. This layout is intentionally static and focused on structure.`}
+          description={`Track verification activity, usage, and current priorities for ${session.organization_name}.`}
         />
 
         <div className="portal-dashboard__metrics" data-testid="dashboard-metrics-grid">
@@ -231,7 +227,7 @@ export function DashboardPage({
           <div className="portal-dashboard__main" data-testid="dashboard-main-column">
             <SectionContainer
               title="Recent verifications"
-              description="Placeholder review activity with shared status badges and table styling."
+              description="Recent verification requests across your organization."
             >
               <DataTable
                 columns={recentVerificationColumns}
@@ -243,14 +239,14 @@ export function DashboardPage({
           <div className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column">
             <SectionContainer
               title="Verification trend"
-              description="Chart placeholder for monthly verification throughput."
+              description="Monthly verification volume."
             >
               <TrendChartPlaceholder />
             </SectionContainer>
 
             <SectionContainer
               title="Alerts"
-              description={`Static operational notices for the ${session.plan} workspace plan.`}
+              description={`Important updates for your ${session.plan} plan.`}
             >
               <AlertsPanel />
             </SectionContainer>
@@ -303,12 +299,12 @@ function TrendChartPlaceholder() {
   return (
     <Card
       className="portal-dashboard__chart-card"
-      description="Replace with a real chart once dashboard analytics endpoints are connected."
+      description="Monthly verification activity."
       title="Monthly throughput"
       withBorder
     >
       <div
-        aria-label="Verification trend chart placeholder"
+        aria-label="Verification trend chart"
         className="portal-dashboard__chart-placeholder"
         role="img"
         style={{

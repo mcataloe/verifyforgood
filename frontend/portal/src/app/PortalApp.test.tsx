@@ -581,6 +581,7 @@ describe("PortalApp", () => {
       screen.queryByRole("heading", { name: "Usage & Billing" }),
     ).toBeNull();
     expect(screen.getByText(/Requested area/i)).toBeTruthy();
+    expect(screen.queryByText("Login endpoint")).toBeNull();
   });
 
   it("allows the login flow and restores the protected route", async () => {
@@ -597,9 +598,7 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Create your first organization" }),
-    ).toBeTruthy();
+    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
   });
@@ -629,9 +628,7 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Create your first organization" }),
-    ).toBeTruthy();
+    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
   });
 
@@ -650,9 +647,7 @@ describe("PortalApp", () => {
       target: { value: "top-secret-password" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await screen.findByRole("heading", {
-      name: "Create your first organization",
-    });
+    await screen.findByTestId("organization-onboarding-page");
     fireEvent.change(screen.getByLabelText("Organization name"), {
       target: { value: "Verify For Good Org" },
     });
@@ -845,9 +840,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Create your first organization" }),
-    ).toBeTruthy();
+    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(window.location.hash).toBe("#/onboarding/organization");
   });
@@ -890,7 +883,7 @@ describe("PortalApp", () => {
     expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
   });
 
-  it("renders the tenant-aware nonprofit search on the workspace route", async () => {
+  it("renders the nonprofit search experience on the workspace route", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -923,7 +916,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit search workspace" }),
+      await screen.findByRole("heading", { name: "Nonprofit search" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Nonprofit verification search" }),

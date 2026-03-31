@@ -110,11 +110,10 @@ export function NonprofitSearchPanel({
       <SectionBlock>
         <Panel
           title="Nonprofit verification search"
-          subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
+          subtitle="Search by EIN for an exact lookup or by organization name to review matching nonprofits."
         >
           <p>
-            This is the portal&apos;s core product interaction. Requests run
-            through the organization-scoped portal API client for{" "}
+            Search and review nonprofit records for{" "}
             <strong>{organization.activeOrganization.organization_name}</strong>.
           </p>
 
@@ -189,7 +188,7 @@ export function NonprofitSearchPanel({
           <SectionDivider />
           <SectionBlock>
             <LoadingSkeleton
-              description="Waiting on the backend nonprofit endpoints."
+              description="Fetching nonprofit results."
               title="Loading nonprofit results"
               variant="table"
             />
@@ -235,7 +234,7 @@ export function NonprofitSearchPanel({
           <SectionBlock>
             <Panel
               title="Search results"
-              subtitle="Refine the result set and open an entity detail view from the shared review layout."
+              subtitle="Refine the results and open the organization you want to review."
             >
               <DataTable
                 columns={[
@@ -266,8 +265,7 @@ export function NonprofitSearchPanel({
               {search.hasMoreResults ? (
                 <Group justify="space-between" mt="md" wrap="wrap">
                   <Text c="dimmed" fz="sm">
-                    More backend search results are available for this organization
-                    query.
+                    More matching results are available for this search.
                   </Text>
                   <Button
                     loading={search.isLoadingMore}

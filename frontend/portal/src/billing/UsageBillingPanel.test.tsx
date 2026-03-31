@@ -315,7 +315,7 @@ describe("UsageBillingPanel", () => {
     ).toBeTruthy();
     expect(screen.getByText(/\$0\.003 per extra request/i)).toBeTruthy();
     expect(
-      screen.getByText("/v1/organization/billing/checkout-session"),
+      screen.getByText(/Use this page to review usage, manage billing, and make plan changes./i),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Manage plans" })).toBeTruthy();

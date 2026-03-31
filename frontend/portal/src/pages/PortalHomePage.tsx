@@ -10,12 +10,11 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
           <p className="portal-shell__eyebrow">Customer portal</p>
-          <h2>Sign in first, then manage your organization workspace</h2>
+          <h2>Sign in to manage your organization</h2>
           <p>
-            Access the authenticated portal for verification workflows, billing
-            visibility, API credentials, and organization settings. Account
-            authentication always happens before organization creation or
-            selection.
+            Access billing, team access, API credentials, and verification
+            activity from one secure workspace. Sign in first, then create or
+            join an organization if needed.
           </p>
         </div>
 
@@ -28,32 +27,33 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
             <strong>After authentication</strong>
             <span>
               {requestedRoute.key === "home"
-                ? "You will continue to dashboard or organization onboarding."
+                ? "You will continue to your dashboard or organization setup."
                 : `You will continue to ${requestedRoute.label}.`}
             </span>
           </div>
           <div>
-            <strong>Organization flow</strong>
+            <strong>Organization setup</strong>
             <span>
-              Organization setup appears only when the authenticated account has
-              no organization context yet.
+              Organization setup appears only if your account does not already
+              belong to an organization.
             </span>
           </div>
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What opens after sign-in</p>
-          <h3>Protected operations stay behind one clear auth boundary</h3>
+          <p className="portal-shell__eyebrow">What happens next</p>
+          <h3>Get into the right workspace quickly</h3>
           <ul className="portal-list">
             <li>
-              Existing organization context routes directly into the dashboard.
+              If you already belong to an organization, you go straight to your
+              dashboard.
             </li>
             <li>
-              First-time authenticated users without organizations are routed to
-              explicit organization onboarding.
+              If you are new, you can create your organization in a dedicated
+              setup step.
             </li>
             <li>
-              No organization is created silently or before authentication.
+              Your account is always authenticated before organization setup.
             </li>
           </ul>
         </div>

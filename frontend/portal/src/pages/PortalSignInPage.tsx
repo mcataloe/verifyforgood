@@ -11,7 +11,7 @@ interface PortalSignInPageProps {
 }
 
 export function PortalSignInPage({
-  endpoints,
+  endpoints: _endpoints,
   isBusy,
   onLogin,
   requestedRoute,
@@ -53,9 +53,9 @@ export function PortalSignInPage({
           <p className="portal-shell__eyebrow">Portal entry</p>
           <h2>Secure access for verification operations</h2>
           <p>
-            Sign in to continue to {requestedRoute.label}. This frontend now
-            uses the backend portal auth endpoints and restores the browser
-            session through <code>{endpoints.authMe}</code>.
+            Sign in to continue to {requestedRoute.label}. Use your work email
+            and password to access your organization dashboard, billing, team
+            access, and verification tools.
           </p>
         </div>
 
@@ -65,35 +65,29 @@ export function PortalSignInPage({
             <span>{requestedRoute.label}</span>
           </div>
           <div>
-            <strong>Login endpoint</strong>
-            <span>
-              <code>{endpoints.authLogin}</code>
-            </span>
+            <strong>Account access</strong>
+            <span>Secure sign-in for your organization workspace</span>
           </div>
           <div>
-            <strong>Session restore</strong>
-            <span>
-              <code>{endpoints.authMe}</code>
-            </span>
+            <strong>Need an organization?</strong>
+            <span>You can create one after signing in if your account is new.</span>
           </div>
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What stays true after sign-in</p>
-          <h3>Protected routes still use one consistent auth boundary</h3>
+          <p className="portal-shell__eyebrow">What happens after sign-in</p>
+          <h3>We’ll take you to the right place</h3>
           <ul className="portal-list">
             <li>
-              Requested protected routes are remembered and restored after a
-              successful sign-in.
+              If you requested a specific area, we’ll return you there after
+              sign-in.
             </li>
             <li>
-              Session identity comes from the backend. Organization onboarding
-              only appears after authentication when no organization context
-              exists yet.
+              If your account does not belong to an organization yet, you’ll be
+              guided through organization setup next.
             </li>
             <li>
-              Google and Microsoft sign-in remain visible, but they are not yet
-              available in this phase.
+              Help is available if you need support accessing your account.
             </li>
           </ul>
         </div>

@@ -17,7 +17,7 @@ interface PortalOrganizationOnboardingPageProps {
 }
 
 export function PortalOrganizationOnboardingPage({
-  endpoints,
+  endpoints: _endpoints,
   isBusy,
   onCreateOrganization,
 }: PortalOrganizationOnboardingPageProps) {
@@ -56,34 +56,29 @@ export function PortalOrganizationOnboardingPage({
   return (
     <DetailPageLayout
       eyebrow="Onboarding"
-      intro="Create your first organization now. Future phases can support switching between multiple organizations."
+      intro="Create your organization to start managing your team, billing, and verification work."
       testId="organization-onboarding-page"
-      title="Organization setup"
+      title="Create your first organization"
     >
       <SectionBlock
-        intro="Follow the initial workspace bootstrap sequence in one document flow."
-        title="Setup flow"
+        intro="A few quick steps will get your organization ready."
+        title="Getting started"
       >
         <ol className="portal-list">
+          <li>Create your organization profile.</li>
           <li>
-            Create the first organization context so the portal can attach your
-            workspace, account, and future memberships.
+            We’ll take you to the dashboard when setup is complete.
           </li>
           <li>
-            After organization setup, the portal will send you to the dashboard
-            to start the first workflow.
-          </li>
-          <li>
-            Future team onboarding will build on this organization context
-            instead of page-local assumptions.
+            You can invite teammates after your organization is ready.
           </li>
         </ol>
       </SectionBlock>
       <SectionDivider />
       <SectionBlock>
         <Panel
-          title="Organization bootstrap"
-          subtitle="This activates the global organization context for the portal."
+          title="Create organization"
+          subtitle="Enter the basic details for your organization."
         >
           <form className="portal-form portal-form--detail" noValidate onSubmit={handleSubmit}>
             <label className="portal-form__field" htmlFor={nameId}>
@@ -133,13 +128,12 @@ export function PortalOrganizationOnboardingPage({
       <SectionDivider />
       <SectionBlock>
         <Panel
-          title="Backend contract"
-          subtitle="The onboarding flow already has a stable organization bootstrap API."
+          title="What happens next"
+          subtitle="After your organization is created, you can continue setting up your workspace."
         >
           <p>
-            This screen uses <code>{endpoints.organizationCreate}</code> and
-            promotes the resulting account and workspace identifiers into the
-            global portal organization context.
+            You’ll go straight to the dashboard, where you can review activity,
+            manage access, and continue setup.
           </p>
         </Panel>
       </SectionBlock>

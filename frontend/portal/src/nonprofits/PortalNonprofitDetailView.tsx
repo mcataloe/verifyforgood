@@ -34,7 +34,7 @@ export function PortalNonprofitDetailView({
             </button>
           </div>
           <p className="portal-detail-layout__intro">
-            Shared organization detail layout for trust-forward entity review.
+            Review the latest organization details, filings, and source checks.
           </p>
           <p className="portal-nonprofit-embedded-detail__identifier">
             EIN {detail.ein}
@@ -113,12 +113,9 @@ export function PortalNonprofitEmbeddedDetail({
 function ActivityList() {
   return (
     <ul className="portal-list">
-      <li>Initial lookup completed for this entity.</li>
-      <li>Recent filing metadata has been attached to the review record.</li>
-      <li>
-        Detailed activity history can replace this placeholder once the event
-        feed exists.
-      </li>
+      <li>Initial review completed for this organization.</li>
+      <li>Recent filing information is available in this record.</li>
+      <li>Additional activity will appear here as more updates are recorded.</li>
     </ul>
   );
 }
@@ -280,8 +277,7 @@ function PortalNonprofitSourceSection({
         </table>
       ) : (
         <p className="portal-detail-view__section-intro">
-          No enrichment source availability metadata was returned for this
-          nonprofit.
+          No source checks are available for this nonprofit yet.
         </p>
       )}
     </>

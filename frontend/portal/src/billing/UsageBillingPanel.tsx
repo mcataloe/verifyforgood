@@ -418,12 +418,8 @@ export function UsageBillingPanel({
           </div>
 
           <Text c="dimmed" fz="sm" mt="md">
-            Signed in plan baseline: <strong>{session.plan}</strong>. Backend
-            routes remain explicit at <code>{endpoints.billingSubscription}</code>
-            , <code>{endpoints.organizationUsage ?? "/v1/organization/usage"}</code>,{" "}
-            <code>{endpoints.billingCheckout}</code>,{" "}
-            <code>{endpoints.billingPlanChange}</code>, and{" "}
-            <code>{endpoints.billingPortal}</code>.
+            Your current plan is <strong>{session.plan}</strong>. Use this page
+            to review usage, manage billing, and make plan changes.
           </Text>
         </Panel>
       )}

@@ -121,13 +121,12 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Organization Profile" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Organization Details" }),
+      screen.getByRole("heading", { name: "Organization details" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Administrative Metadata" }),
+      screen.getByRole("heading", { name: "Plan & access" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Portal Test Org").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("acct_portal_test").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/admin/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByText("alex.operator@example.org")).toBeTruthy();
@@ -136,17 +135,18 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
     expect(screen.getByDisplayValue("Portal Test Org")).toBeTruthy();
     expect(screen.getByDisplayValue("ops@example.org")).toBeTruthy();
-    expect(screen.getByText("portal-test-org")).toBeTruthy();
     expect(screen.getByDisplayValue("800")).toBeTruthy();
     expect(screen.getByText("Budget controls saved.")).toBeTruthy();
     expect(screen.getByText("Organization profile saved.")).toBeTruthy();
+    expect(screen.queryByText("Current backend anchor")).toBeNull();
+    expect(screen.queryByText("Settings source")).toBeNull();
     expect(screen.getByText("240 / 800")).toBeTruthy();
     expect(
       screen.getByText(/560 requests remain before the hard stop is reached./i),
     ).toBeTruthy();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(8);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(7);
 
     fireEvent.change(screen.getByLabelText("Monthly usage cap"), {
       target: { value: "950" },
@@ -323,8 +323,6 @@ describe("SettingsPage", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Report an issue" })).toBeTruthy();
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
-    expect(screen.getAllByText("acct_portal_test").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ws_portal_test").length).toBeGreaterThan(0);
     expect(screen.getAllByText("growth").length).toBeGreaterThan(0);
     expect(
       screen.getByText(/There is not yet a customer-visible ticket thread./i),
