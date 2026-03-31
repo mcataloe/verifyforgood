@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Inline, Panel } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
-import { DetailPageLayout, SectionBlock } from "../components/shell";
+import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "./usePortalOrganization";
 import {
   createPortalMembershipClient,
@@ -173,7 +173,9 @@ export function TeamManagementPanel() {
   };
 
   return (
-    <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
+    <StackedDetailSections
+      sectionWrapper={({ section }) => <section>{section}</section>}
+    >
       <Panel
         title="Team management"
         subtitle="Members and invitation lifecycle visibility for the current organization."
@@ -435,7 +437,7 @@ export function TeamManagementPanel() {
           </table>
         ) : null}
       </Panel>
-    </DetailPageLayout>
+    </StackedDetailSections>
   );
 }
 

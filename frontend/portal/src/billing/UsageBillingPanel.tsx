@@ -8,7 +8,7 @@ import {
   PortalLoadingState,
   PortalNotice,
 } from "../components/feedback";
-import { DetailPageLayout, SectionBlock } from "../components/shell";
+import { StackedDetailSections } from "../components/shell";
 import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
@@ -197,7 +197,9 @@ export function UsageBillingPanel({
   );
 
   return (
-    <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
+    <StackedDetailSections
+      sectionWrapper={({ section }) => <section>{section}</section>}
+    >
       <Panel
         title={subscriptionPanelTitle}
         subtitle={subscriptionPanelSubtitle}
@@ -425,7 +427,7 @@ export function UsageBillingPanel({
           </Text>
         </Panel>
       )}
-    </DetailPageLayout>
+    </StackedDetailSections>
   );
 }
 

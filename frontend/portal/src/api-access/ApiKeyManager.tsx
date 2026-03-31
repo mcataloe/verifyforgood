@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Inline, Panel } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
-import { DetailPageLayout } from "../components/shell";
+import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
 
@@ -29,7 +29,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   );
 
   return (
-    <DetailPageLayout>
+    <StackedDetailSections>
       <Panel
         title="API key management"
         subtitle="Create, review, and revoke organization-scoped API credentials."
@@ -259,7 +259,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           </table>
         ) : null}
       </Panel>
-    </DetailPageLayout>
+    </StackedDetailSections>
   );
 }
 

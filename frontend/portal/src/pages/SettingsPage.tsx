@@ -14,7 +14,7 @@ import {
   DetailPageLayout,
   PortalActionToolbar,
   PortalPageShell,
-  SectionBlock,
+  StackedDetailSections,
 } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
@@ -85,7 +85,9 @@ export function SettingsPage({
         </PortalActionToolbar>
       }
     >
-      <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
+      <StackedDetailSections
+        sectionWrapper={({ section }) => <section>{section}</section>}
+      >
         <Panel
           title="Organization Profile"
           subtitle="Editable organization metadata for the active customer-admin workspace."
@@ -240,7 +242,7 @@ export function SettingsPage({
         >
           <SupportHelpPanel controller={support} />
         </Panel>
-      </DetailPageLayout>
+      </StackedDetailSections>
     </PortalPageShell>
   );
 }

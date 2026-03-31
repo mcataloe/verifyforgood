@@ -6,7 +6,7 @@ import {
   DetailPageLayout,
   PortalActionToolbar,
   PortalPageShell,
-  SectionBlock,
+  StackedDetailSections,
 } from "../components/shell";
 import { NonprofitSearchPanel } from "../nonprofits/NonprofitSearchPanel";
 import { TeamManagementPanel } from "../organization/TeamManagementPanel";
@@ -50,7 +50,9 @@ export function WorkspacePage({
         </PortalActionToolbar>
       }
     >
-      <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
+      <StackedDetailSections
+        sectionWrapper={({ section }) => <section>{section}</section>}
+      >
         <Panel
           title="Team operations"
           subtitle="Search, review, and inspect nonprofit records without leaving the shared team workspace."
@@ -104,7 +106,7 @@ export function WorkspacePage({
         <NonprofitSearchPanel />
 
         <TeamManagementPanel />
-      </DetailPageLayout>
+      </StackedDetailSections>
     </PortalPageShell>
   );
 }
