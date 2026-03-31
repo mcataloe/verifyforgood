@@ -1,6 +1,10 @@
 environment = "prod"
 form990_schedule_expression = ""
 refresh_schedule_expression = ""
+platform_postgres_enabled   = false
+platform_postgres_backup_retention_days = 7
+platform_postgres_deletion_protection_enabled = true
+platform_postgres_skip_final_snapshot = false
 enable_custom_domain        = false
 cors_allowed_origins = [
   "https://charitystatusapi.com",

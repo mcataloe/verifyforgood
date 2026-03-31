@@ -3,6 +3,9 @@ form990_schedule_expression = "cron(30 4 * * ? *)"
 form990_execution_mode      = "orchestrated"
 form990_incremental_year_window = 1
 refresh_schedule_expression = "cron(0 6 * * ? *)"
+platform_postgres_enabled   = false
+platform_postgres_vpc_id    = "vpc-xxxxxxxx"
+platform_postgres_private_subnet_ids = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
 enable_custom_domain        = true
 cors_allowed_origins = [
   "http://localhost:5173",

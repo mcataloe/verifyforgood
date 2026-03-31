@@ -22,6 +22,23 @@ service-call sites or route contracts.
 - per-domain persistence selection flags
 - secret-backed credentials for Lambda/runtime use
 
+Current additive env names for the first PostgreSQL bootstrap phase:
+
+- `PLATFORM_POSTGRES_ENABLED`
+- `PLATFORM_POSTGRES_SECRET_ARN`
+- `PLATFORM_POSTGRES_HOST`
+- `PLATFORM_POSTGRES_PORT`
+- `PLATFORM_POSTGRES_DATABASE`
+- `PLATFORM_POSTGRES_SSLMODE`
+- `PLATFORM_POSTGRES_URL` as an optional compatibility fallback only
+- `PLATFORM_IDENTITY_STORE_BACKEND`
+- `PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND`
+- `PLATFORM_CONTROL_PLANE_STORE_BACKEND`
+
+Current infrastructure rule:
+
+- the query/runtime Lambda is VPC-attached when PostgreSQL is enabled so later repository phases can connect to RDS without another network bootstrap phase
+
 ## First Domains to Wire Through the Bootstrap
 
 1. portal identity and customer accounts

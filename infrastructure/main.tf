@@ -31,6 +31,11 @@ locals {
     identity_table                    = "${local.namespace}-${local.platform}-identity-${local.environment_slug}-${local.region_short}"
     organization_settings_table       = "${local.namespace}-${local.platform}-organization-settings-${local.environment_slug}-${local.region_short}"
     control_plane_table               = "${local.namespace}-${local.platform}-control-plane-${local.environment_slug}-${local.region_short}"
+    platform_postgres_instance        = "${local.namespace}-${local.platform}-platform-postgres-${local.environment_slug}-${local.region_short}"
+    platform_postgres_subnet_group    = "${local.namespace}-${local.platform}-platform-postgres-subnet-group-${local.environment_slug}-${local.region_short}"
+    platform_postgres_security_group  = "${local.namespace}-${local.platform}-platform-postgres-sg-${local.environment_slug}-${local.region_short}"
+    platform_postgres_secret          = "${local.namespace}-${local.platform}-platform-postgres-secret-${local.environment_slug}-${local.region_short}"
+    query_lambda_postgres_sg          = "${local.namespace}-${local.platform}-query-postgres-access-sg-${local.environment_slug}-${local.region_short}"
     athena_workgroup                  = "${local.namespace}-${local.platform}-athena-workgroup-${local.environment_slug}-${local.region_short}"
     api_gateway                       = "${local.namespace}-${local.platform}-api-${local.environment_slug}-${local.region_short}"
     lambda_role                       = "${local.namespace}-${local.platform}-lambda-role-${local.environment_slug}-${local.region_short}"
@@ -62,6 +67,11 @@ locals {
     identity_table                    = "identity"
     organization_settings_table       = "${local.legacy_name_prefix}-organization-settings"
     control_plane_table               = "${local.legacy_name_prefix}-control-plane"
+    platform_postgres_instance        = "${local.legacy_name_prefix}-platform-postgres"
+    platform_postgres_subnet_group    = "${local.legacy_name_prefix}-platform-postgres-subnet-group"
+    platform_postgres_security_group  = "${local.legacy_name_prefix}-platform-postgres-sg"
+    platform_postgres_secret          = "${local.legacy_name_prefix}-platform-postgres-secret"
+    query_lambda_postgres_sg          = "${local.legacy_name_prefix}-query-postgres-access-sg"
     athena_workgroup                  = local.environment_slug == "prod" ? var.athena_workgroup_name : "${var.athena_workgroup_name}-${local.environment_slug}"
     api_gateway                       = "${local.legacy_name_prefix}-api"
     lambda_role                       = "${local.legacy_name_prefix}-lambda-role"
@@ -122,6 +132,11 @@ locals {
   identity_table_name                    = local.resource_names.identity_table
   organization_settings_table_name       = local.resource_names.organization_settings_table
   control_plane_table_name               = local.resource_names.control_plane_table
+  platform_postgres_instance_name        = local.resource_names.platform_postgres_instance
+  platform_postgres_subnet_group_name    = local.resource_names.platform_postgres_subnet_group
+  platform_postgres_security_group_name  = local.resource_names.platform_postgres_security_group
+  platform_postgres_secret_name          = local.resource_names.platform_postgres_secret
+  query_lambda_postgres_sg_name          = local.resource_names.query_lambda_postgres_sg
   glue_database_name                     = "${local.data_catalog_prefix}_irs_db"
   athena_workgroup_resource_name         = local.resource_names.athena_workgroup
   api_gateway_name                       = local.resource_names.api_gateway

@@ -16,6 +16,13 @@ from .auth import (
     load_oauth_client_store,
     load_oauth_token_store,
 )
+from .persistence import (
+    PlatformPersistenceConfig,
+    PostgresCredentials,
+    PostgresRuntimeConfig,
+    load_platform_persistence_config,
+    resolve_postgres_credentials,
+)
 from .naming import (
     DEFAULT_NAMESPACE,
     DEFAULT_PLATFORM,
@@ -51,6 +58,11 @@ __all__ = [
     "load_api_key_store",
     "load_oauth_client_store",
     "load_oauth_token_store",
+    "PlatformPersistenceConfig",
+    "PostgresCredentials",
+    "PostgresRuntimeConfig",
+    "load_platform_persistence_config",
+    "resolve_postgres_credentials",
     "DEFAULT_NAMESPACE",
     "DEFAULT_PLATFORM",
     "DEFAULT_REGION",

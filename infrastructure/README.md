@@ -39,3 +39,38 @@ Migration note:
 - use `docs/contributor-naming-rules.md` for the short naming rules shared across runtime and infrastructure work
 - the current normalization rules, compatibility aliases, and legacy exceptions are documented in `docs/infrastructure-naming-normalization.md`
 - the monthly private-ingest architecture and operations docs live in `docs/monthly-ingest-architecture.md` and `docs/monthly-ingest-runbook.md`
+
+## PostgreSQL Foundation
+
+Terraform now supports additive Amazon RDS for PostgreSQL provisioning for the
+platform/application relational pivot.
+
+Current assumptions:
+
+- RDS is provisioned only when `platform_postgres_enabled=true`
+- the initial target instance class is `db.t4g.micro`
+- RDS is placed into existing private subnets supplied through Terraform vars
+- the query Lambda is VPC-attached when PostgreSQL is enabled so later
+  repository phases can connect without another network bootstrap
+- DynamoDB remains active for current production code paths until later
+  persistence cutover phases
+
+Minimum Terraform inputs when enabling PostgreSQL:
+
+- `platform_postgres_vpc_id`
+- `platform_postgres_private_subnet_ids`
+- `platform_postgres_database_name`
+- either:
+  - let Terraform manage the secret with `platform_postgres_username`, or
+  - supply `platform_postgres_existing_secret_arn`
+
+Runtime env wiring added for the query Lambda:
+
+- `PLATFORM_POSTGRES_ENABLED`
+- `PLATFORM_POSTGRES_SECRET_ARN`
+- `PLATFORM_POSTGRES_HOST`
+- `PLATFORM_POSTGRES_PORT`
+- `PLATFORM_POSTGRES_DATABASE`
+- `PLATFORM_POSTGRES_SSLMODE`
+- per-domain backend selectors for identity, organization settings, and
+  control-plane storage

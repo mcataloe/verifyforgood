@@ -78,6 +78,36 @@ output "control_plane_dynamodb_table_name" {
   value       = aws_dynamodb_table.control_plane.name
 }
 
+output "platform_postgres_endpoint" {
+  description = "Endpoint address for the platform PostgreSQL RDS instance."
+  value       = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].address : null
+}
+
+output "platform_postgres_port" {
+  description = "Port for the platform PostgreSQL RDS instance."
+  value       = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].port : null
+}
+
+output "platform_postgres_database_name" {
+  description = "Database name for the platform PostgreSQL RDS instance."
+  value       = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].db_name : null
+}
+
+output "platform_postgres_secret_arn" {
+  description = "Secrets Manager ARN used for platform PostgreSQL credentials."
+  value       = var.platform_postgres_enabled ? local.platform_postgres_secret_arn_resolved : null
+}
+
+output "platform_postgres_subnet_group_name" {
+  description = "Subnet group name for the platform PostgreSQL RDS instance."
+  value       = var.platform_postgres_enabled ? aws_db_subnet_group.platform_postgres[0].name : null
+}
+
+output "platform_postgres_security_group_id" {
+  description = "Security group id attached to the platform PostgreSQL RDS instance."
+  value       = var.platform_postgres_enabled ? aws_security_group.platform_postgres[0].id : null
+}
+
 output "monthly_ingest_state_machine_name" {
   description = "Step Functions state machine name for the monthly private-ingest workflow."
   value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].name : null

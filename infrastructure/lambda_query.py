@@ -65,11 +65,13 @@ from charity_status.platform import (
     ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
     OAuthClientCredentialsService,
+    PlatformPersistenceConfig,
     QueryRuntimeConfig,
     RefreshRuntimeConfig,
     build_athena_client,
     build_enrichment_service,
     load_api_key_store,
+    load_platform_persistence_config,
     load_oauth_client_store,
     load_platform_integrations_config,
     load_oauth_token_store,
@@ -198,6 +200,7 @@ validate_stripe_billing_environment(os.environ)
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 TRIAL_CONFIG = load_trial_config(os.environ)
+PERSISTENCE_CONFIG: PlatformPersistenceConfig = load_platform_persistence_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None

@@ -23,57 +23,88 @@ resource "aws_iam_role_policy_attachment" "basic_lambda" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  count      = var.platform_postgres_enabled ? 1 : 0
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_iam_role_policy" "lambda_data_access" {
   name = local.lambda_data_policy_name
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        # TODO: Narrow this to least-privilege resource actions per Form 990 stage.
-        Action = [
-          "s3:*",
-          "sqs:*",
-          "athena:*",
-          "glue:*"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-      {
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Effect = "Allow"
-        Resource = [
-          aws_lambda_function.form990_orchestrator.arn
-        ]
-      },
-      {
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:Query",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem"
-        ]
-        Effect = "Allow"
-        Resource = [
-          aws_dynamodb_table.profiles.arn,
-          aws_dynamodb_table.identity.arn,
-          aws_dynamodb_table.organization_settings.arn,
-          aws_dynamodb_table.control_plane.arn,
-          "${aws_dynamodb_table.identity.arn}/index/email_lookup",
-          "${aws_dynamodb_table.identity.arn}/index/user_memberships",
-          "${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup",
-          "${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup",
-          "${aws_dynamodb_table.identity.arn}/index/api_key_lookup",
-          "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
-          "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
-          "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",
-        ]
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          # TODO: Narrow this to least-privilege resource actions per Form 990 stage.
+          Action = [
+            "s3:*",
+            "sqs:*",
+            "athena:*",
+            "glue:*"
+          ]
+          Effect   = "Allow"
+          Resource = "*"
+        },
+        {
+          Action = [
+            "lambda:InvokeFunction"
+          ]
+          Effect = "Allow"
+          Resource = [
+            aws_lambda_function.form990_orchestrator.arn
+          ]
+        },
+        {
+          Action = [
+            "dynamodb:GetItem",
+            "dynamodb:Query",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:DeleteItem"
+          ]
+          Effect = "Allow"
+          Resource = [
+            aws_dynamodb_table.profiles.arn,
+            aws_dynamodb_table.identity.arn,
+            aws_dynamodb_table.organization_settings.arn,
+            aws_dynamodb_table.control_plane.arn,
+            "${aws_dynamodb_table.identity.arn}/index/email_lookup",
+            "${aws_dynamodb_table.identity.arn}/index/user_memberships",
+            "${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup",
+            "${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup",
+            "${aws_dynamodb_table.identity.arn}/index/api_key_lookup",
+            "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
+            "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
+            "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",
+          ]
+        }
+      ],
+      var.platform_postgres_enabled ? [
+        {
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Effect = "Allow"
+          Resource = [
+            local.platform_postgres_secret_arn_resolved
+          ]
+        }
+      ] : [],
+      var.platform_postgres_enabled && trim(var.platform_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Action = [
+            "kms:Decrypt"
+          ]
+          Effect = "Allow"
+          Resource = [
+            trim(var.platform_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+    )
   })
 }

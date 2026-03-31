@@ -277,6 +277,160 @@ variable "monthly_ingest_vpc_id" {
   default     = ""
 }
 
+variable "platform_postgres_enabled" {
+  description = "Provision and wire the additive PostgreSQL RDS foundation for platform data."
+  type        = bool
+  default     = false
+}
+
+variable "platform_postgres_vpc_id" {
+  description = "Existing VPC identifier used by the platform PostgreSQL RDS instance and the query Lambda VPC attachment."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.platform_postgres_enabled || trim(var.platform_postgres_vpc_id, " ") != ""
+    error_message = "platform_postgres_vpc_id must be set when platform_postgres_enabled=true."
+  }
+}
+
+variable "platform_postgres_private_subnet_ids" {
+  description = "Existing private subnet identifiers shared by the platform PostgreSQL RDS instance and the query Lambda VPC attachment."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.platform_postgres_enabled || length(var.platform_postgres_private_subnet_ids) > 0
+    error_message = "platform_postgres_private_subnet_ids must contain at least one subnet when platform_postgres_enabled=true."
+  }
+}
+
+variable "platform_postgres_lambda_additional_security_group_ids" {
+  description = "Optional additional security groups attached to the query Lambda when platform PostgreSQL connectivity is enabled."
+  type        = list(string)
+  default     = []
+}
+
+variable "platform_postgres_database_name" {
+  description = "Initial PostgreSQL database name for platform/application relational data."
+  type        = string
+  default     = "verification_platform"
+}
+
+variable "platform_postgres_username" {
+  description = "Initial PostgreSQL application username when Terraform manages the database secret."
+  type        = string
+  default     = "platform_app"
+}
+
+variable "platform_postgres_port" {
+  description = "TCP port for the platform PostgreSQL instance."
+  type        = number
+  default     = 5432
+}
+
+variable "platform_postgres_instance_class" {
+  description = "RDS instance class for the platform PostgreSQL instance."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "platform_postgres_engine_version" {
+  description = "Optional explicit PostgreSQL engine version. Empty lets AWS choose the default supported version."
+  type        = string
+  default     = ""
+}
+
+variable "platform_postgres_allocated_storage_gib" {
+  description = "Allocated storage in GiB for the platform PostgreSQL instance."
+  type        = number
+  default     = 20
+}
+
+variable "platform_postgres_max_allocated_storage_gib" {
+  description = "Maximum autoscaled storage in GiB for the platform PostgreSQL instance."
+  type        = number
+  default     = 100
+}
+
+variable "platform_postgres_backup_retention_days" {
+  description = "Optional backup retention in days for the platform PostgreSQL instance. Null defaults to 1 in non-prod and 7 in prod."
+  type        = number
+  default     = null
+  nullable    = true
+}
+
+variable "platform_postgres_publicly_accessible" {
+  description = "Whether the platform PostgreSQL instance should be publicly accessible."
+  type        = bool
+  default     = false
+}
+
+variable "platform_postgres_deletion_protection_enabled" {
+  description = "Optional override for RDS deletion protection. Null defaults to enabled in prod and disabled elsewhere."
+  type        = bool
+  default     = null
+  nullable    = true
+}
+
+variable "platform_postgres_skip_final_snapshot" {
+  description = "Optional override for skipping the final snapshot on destroy. Null defaults to false in prod and true elsewhere."
+  type        = bool
+  default     = null
+  nullable    = true
+}
+
+variable "platform_postgres_existing_secret_arn" {
+  description = "Optional existing Secrets Manager secret ARN containing PostgreSQL username/password JSON. Empty lets Terraform manage the secret."
+  type        = string
+  default     = ""
+}
+
+variable "platform_postgres_secret_kms_key_arn" {
+  description = "Optional KMS key ARN used to encrypt the managed PostgreSQL Secrets Manager secret."
+  type        = string
+  default     = ""
+}
+
+variable "platform_postgres_sslmode" {
+  description = "SSL mode advertised to runtime consumers of the platform PostgreSQL configuration."
+  type        = string
+  default     = "require"
+}
+
+variable "platform_identity_store_backend" {
+  description = "Persistence backend for portal identity and customer-account repositories."
+  type        = string
+  default     = "dynamodb"
+
+  validation {
+    condition     = contains(["dynamodb", "postgres"], var.platform_identity_store_backend)
+    error_message = "platform_identity_store_backend must be either dynamodb or postgres."
+  }
+}
+
+variable "platform_organization_settings_store_backend" {
+  description = "Persistence backend for organization settings storage."
+  type        = string
+  default     = "dynamodb"
+
+  validation {
+    condition     = contains(["dynamodb", "postgres"], var.platform_organization_settings_store_backend)
+    error_message = "platform_organization_settings_store_backend must be either dynamodb or postgres."
+  }
+}
+
+variable "platform_control_plane_store_backend" {
+  description = "Persistence backend for control-plane and billing storage."
+  type        = string
+  default     = "dynamodb"
+
+  validation {
+    condition     = contains(["dynamodb", "postgres"], var.platform_control_plane_store_backend)
+    error_message = "platform_control_plane_store_backend must be either dynamodb or postgres."
+  }
+}
+
 variable "monthly_ingest_private_subnet_ids" {
   description = "Existing private subnet identifiers shared by the ECS task and the temporary interface endpoints."
   type        = list(string)

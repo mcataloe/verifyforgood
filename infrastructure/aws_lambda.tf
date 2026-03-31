@@ -126,6 +126,17 @@ resource "aws_lambda_function" "query" {
   filename         = data.archive_file.query_zip.output_path
   source_code_hash = data.archive_file.query_zip.output_base64sha256
 
+  dynamic "vpc_config" {
+    for_each = var.platform_postgres_enabled ? [1] : []
+    content {
+      subnet_ids = var.platform_postgres_private_subnet_ids
+      security_group_ids = concat(
+        [aws_security_group.query_lambda_postgres[0].id],
+        var.platform_postgres_lambda_additional_security_group_ids,
+      )
+    }
+  }
+
   environment {
     variables = {
       DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
@@ -201,6 +212,15 @@ resource "aws_lambda_function" "query" {
       FREE_TRIAL_DURATION_DAYS               = tostring(var.free_trial_duration_days)
       FREE_TRIAL_PLAN_CODE                   = var.free_trial_plan_code
       FREE_TRIAL_MONTHLY_REQUEST_LIMIT       = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
+      PLATFORM_POSTGRES_ENABLED              = tostring(var.platform_postgres_enabled)
+      PLATFORM_POSTGRES_SECRET_ARN           = local.platform_postgres_secret_arn_resolved
+      PLATFORM_POSTGRES_HOST                 = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].address : ""
+      PLATFORM_POSTGRES_PORT                 = tostring(var.platform_postgres_port)
+      PLATFORM_POSTGRES_DATABASE             = var.platform_postgres_database_name
+      PLATFORM_POSTGRES_SSLMODE              = var.platform_postgres_sslmode
+      PLATFORM_IDENTITY_STORE_BACKEND        = var.platform_identity_store_backend
+      PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND = var.platform_organization_settings_store_backend
+      PLATFORM_CONTROL_PLANE_STORE_BACKEND   = var.platform_control_plane_store_backend
       ORGANIZATION_SETTINGS_TABLE_NAME       = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
