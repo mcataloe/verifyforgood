@@ -248,13 +248,17 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
 
 ### Phase 24D
 
-- migrate:
-  - org audit
-  - org feature flags
-  - org settings
-  - org API keys
+- cut over the active customer-account identity runtime to PostgreSQL for:
+  - users
+  - organizations
+  - memberships
+  - plans
   - org subscriptions
-  - org usage
+  - org API keys
+  - shared identity and org audit logs
+- keep invitations, usage, feature flags, and organization settings on
+  DynamoDB as a temporary compatibility layer
+- add DynamoDB-to-PostgreSQL backfill tooling and rollback guidance
 
 ### Phase 24E
 
@@ -281,12 +285,16 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
 - preserve route payloads
 - preserve frontend expectations
 - keep DynamoDB adapters available during transition
+- allow mixed mode where PostgreSQL owns migrated identity tables while
+  DynamoDB still serves invitations, usage, feature flags, and settings
 
 ### Rollback
 
 - use per-domain read-source selection
 - keep fallback flags back to DynamoDB until each domain cutover is stable
 - avoid full dual-write unless the domain needs it for safe transition
+- for Phase 24D, keep `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb` as the
+  immediate rollback switch after backfill
 
 ### Tests to add in later phases
 

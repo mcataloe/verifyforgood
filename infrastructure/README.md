@@ -52,8 +52,11 @@ Current assumptions:
 - RDS is placed into existing private subnets supplied through Terraform vars
 - the query Lambda is VPC-attached when PostgreSQL is enabled so later
   repository phases can connect without another network bootstrap
-- DynamoDB remains active for current production code paths until later
-  persistence cutover phases
+- PostgreSQL is now the intended backend for the customer-account identity
+  domain when the relational foundation is enabled
+- DynamoDB still remains active for invitations, usage, feature flags,
+  organization settings, control-plane billing, and the serving cache until
+  later cutover phases
 
 Minimum Terraform inputs when enabling PostgreSQL:
 
@@ -74,3 +77,10 @@ Runtime env wiring added for the query Lambda:
 - `PLATFORM_POSTGRES_SSLMODE`
 - per-domain backend selectors for identity, organization settings, and
   control-plane storage
+
+Phase 24D rollout order for the identity domain:
+
+1. run `alembic upgrade head`
+2. run `python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity`
+3. deploy with `platform_identity_store_backend = "postgres"`
+4. if rollback is needed, redeploy with `platform_identity_store_backend = "dynamodb"`

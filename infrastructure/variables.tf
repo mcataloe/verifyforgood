@@ -401,7 +401,7 @@ variable "platform_postgres_sslmode" {
 variable "platform_identity_store_backend" {
   description = "Persistence backend for portal identity and customer-account repositories."
   type        = string
-  default     = "dynamodb"
+  default     = "postgres"
 
   validation {
     condition     = contains(["dynamodb", "postgres"], var.platform_identity_store_backend)

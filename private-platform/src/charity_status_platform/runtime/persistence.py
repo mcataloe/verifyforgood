@@ -6,6 +6,23 @@ from typing import Any, Mapping
 
 from charity_status.platform import load_platform_persistence_config, resolve_postgres_sqlalchemy_url
 from charity_status_platform.customer_accounts import (
+    AuditLogRepository,
+    ApiKeyRepository,
+    DynamoApiKeyRepository,
+    DynamoAuditLogRepository,
+    DynamoFeatureFlagRepository,
+    DynamoInvitationRepository,
+    DynamoMembershipRepository,
+    DynamoOrganizationRepository,
+    DynamoPlanRepository,
+    DynamoSubscriptionRepository,
+    DynamoUsageRepository,
+    DynamoUserRepository,
+    FeatureFlagRepository,
+    InvitationRepository,
+    MembershipRepository,
+    OrganizationRepository,
+    PlanRepository,
     SqlAlchemyApiKeyRepository,
     SqlAlchemyAuditLogRepository,
     SqlAlchemyMembershipRepository,
@@ -13,6 +30,9 @@ from charity_status_platform.customer_accounts import (
     SqlAlchemyPlanRepository,
     SqlAlchemySubscriptionRepository,
     SqlAlchemyUserRepository,
+    SubscriptionRepository,
+    UsageRepository,
+    UserRepository,
     build_customer_accounts_session_factory,
 )
 
@@ -26,6 +46,21 @@ class CustomerAccountsPostgresRepositories:
     subscriptions: SqlAlchemySubscriptionRepository
     api_keys: SqlAlchemyApiKeyRepository
     audits: SqlAlchemyAuditLogRepository
+
+
+@dataclass(frozen=True)
+class CustomerAccountsRepositories:
+    users: UserRepository
+    organizations: OrganizationRepository
+    memberships: MembershipRepository
+    invitations: InvitationRepository
+    plans: PlanRepository
+    subscriptions: SubscriptionRepository
+    api_keys: ApiKeyRepository
+    usage: UsageRepository
+    flags: FeatureFlagRepository
+    audits: AuditLogRepository
+    identity_backend: str
 
 
 def build_customer_accounts_postgres_repositories(
@@ -48,4 +83,55 @@ def build_customer_accounts_postgres_repositories(
         subscriptions=SqlAlchemySubscriptionRepository(session_factory),
         api_keys=SqlAlchemyApiKeyRepository(session_factory),
         audits=SqlAlchemyAuditLogRepository(session_factory),
+    )
+
+
+def build_customer_accounts_repositories(
+    env: Mapping[str, str] | None = None,
+    *,
+    identity_table_name: str,
+    sqlalchemy_url: str | None = None,
+    dynamodb_resource: Any | None = None,
+    secrets_client: Any | None = None,
+) -> CustomerAccountsRepositories:
+    source = env or os.environ
+    persistence_config = load_platform_persistence_config(source)
+    invitations = DynamoInvitationRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource)
+    usage = DynamoUsageRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource)
+    flags = DynamoFeatureFlagRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource)
+
+    if persistence_config.identity_store_backend == "postgres":
+        postgres_bundle = build_customer_accounts_postgres_repositories(
+            source,
+            sqlalchemy_url=sqlalchemy_url,
+            secrets_client=secrets_client,
+        )
+        if postgres_bundle is None:
+            raise ValueError("PostgreSQL identity backend was selected but PostgreSQL repositories could not be built")
+        return CustomerAccountsRepositories(
+            users=postgres_bundle.users,
+            organizations=postgres_bundle.organizations,
+            memberships=postgres_bundle.memberships,
+            invitations=invitations,
+            plans=postgres_bundle.plans,
+            subscriptions=postgres_bundle.subscriptions,
+            api_keys=postgres_bundle.api_keys,
+            usage=usage,
+            flags=flags,
+            audits=postgres_bundle.audits,
+            identity_backend="postgres",
+        )
+
+    return CustomerAccountsRepositories(
+        users=DynamoUserRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        organizations=DynamoOrganizationRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        memberships=DynamoMembershipRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        invitations=invitations,
+        plans=DynamoPlanRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        subscriptions=DynamoSubscriptionRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        api_keys=DynamoApiKeyRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        usage=usage,
+        flags=flags,
+        audits=DynamoAuditLogRepository(table_name=identity_table_name, dynamodb_resource=dynamodb_resource),
+        identity_backend="dynamodb",
     )

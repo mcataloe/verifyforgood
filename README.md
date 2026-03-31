@@ -1941,10 +1941,19 @@ Common commands:
 ```bash
 alembic upgrade head
 alembic revision -m "describe change"
+python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity
 ```
 
-The live Lambda runtime remains DynamoDB-first until later migration phases
-explicitly switch a backend selector.
+Phase 24D moves the customer-account identity domain to PostgreSQL when
+`PLATFORM_IDENTITY_STORE_BACKEND=postgres`. The temporary rollback path is
+still available by setting that selector back to `dynamodb`.
+
+In the current mixed mode:
+
+- PostgreSQL stores users, organizations, memberships, plans, subscriptions,
+  org API keys, and shared identity/org audit logs
+- DynamoDB still stores invitations, usage, feature flags, organization
+  settings, control-plane billing data, and the serving `profiles` cache
 
 ## Terraform Deployment Notes
 

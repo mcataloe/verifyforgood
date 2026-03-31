@@ -105,16 +105,7 @@ from charity_status_platform.customer_accounts import (
     ApiKeyService,
     AuditEventType,
     AuditLogService,
-    DynamoApiKeyRepository,
-    DynamoAuditLogRepository,
-    DynamoFeatureFlagRepository,
     DynamoUsageRepository,
-    DynamoMembershipRepository,
-    DynamoOrganizationRepository,
-    DynamoPlanRepository,
-    DynamoSubscriptionRepository,
-    DynamoUserRepository,
-    DynamoInvitationRepository,
     FeatureFlagService,
     InvitationAcceptRequest,
     InvitationCreateRequest,
@@ -137,6 +128,7 @@ from charity_status_platform.customer_accounts import (
     UsageService,
     usage_metrics_for_route,
 )
+from charity_status_platform.runtime import CustomerAccountsRepositories, build_customer_accounts_repositories
 from charity_status_platform.identity_access import (
     AuthService,
     BcryptPasswordHasher,
@@ -238,6 +230,7 @@ portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
 portal_activity_service: OrganizationActivityService | None = None
 portal_support_service: OrganizationSupportService | None = None
+portal_customer_accounts_repositories: CustomerAccountsRepositories | None = None
 nonprofit_service: NonprofitService | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -528,8 +521,9 @@ def _get_trial_lifecycle_service() -> TrialLifecycleService:
 def _get_portal_audit_log_service() -> AuditLogService:
     global portal_audit_log_service
     if portal_audit_log_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_audit_log_service = AuditLogService(
-            repository=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
+            repository=repositories.audits,
             logger=logger,
         )
     return portal_audit_log_service
@@ -538,9 +532,10 @@ def _get_portal_audit_log_service() -> AuditLogService:
 def _get_portal_activity_service() -> OrganizationActivityService:
     global portal_activity_service
     if portal_activity_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_activity_service = OrganizationActivityService(
-            audits=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
-            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+            audits=repositories.audits,
+            users=repositories.users,
         )
     return portal_activity_service
 
@@ -548,9 +543,10 @@ def _get_portal_activity_service() -> OrganizationActivityService:
 def _get_portal_support_service() -> OrganizationSupportService:
     global portal_support_service
     if portal_support_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_support_service = OrganizationSupportService(
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-            audits=DynamoAuditLogRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=repositories.organizations,
+            audits=repositories.audits,
         )
     return portal_support_service
 
@@ -558,8 +554,9 @@ def _get_portal_support_service() -> OrganizationSupportService:
 def _get_portal_auth_service() -> AuthService:
     global portal_auth_service
     if portal_auth_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_auth_service = AuthService(
-            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
+            users=repositories.users,
             password_hasher=BcryptPasswordHasher(),
             token_codec=HmacBearerTokenCodec(
                 secret=PORTAL_AUTH_TOKEN_SECRET,
@@ -574,9 +571,10 @@ def _get_portal_usage_service() -> UsageService | None:
     global portal_usage_service
     if portal_usage_service is None:
         try:
+            repositories = _get_portal_customer_accounts_repositories()
             portal_usage_service = UsageService(
-                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-                usage=DynamoUsageRepository(table_name=IDENTITY_TABLE_NAME),
+                organizations=repositories.organizations,
+                usage=repositories.usage,
             )
         except Exception:  # noqa: BLE001
             return None
@@ -587,10 +585,11 @@ def _get_portal_subscription_service() -> SubscriptionService | None:
     global portal_subscription_service
     if portal_subscription_service is None:
         try:
+            repositories = _get_portal_customer_accounts_repositories()
             portal_subscription_service = SubscriptionService(
-                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-                plans=DynamoPlanRepository(table_name=IDENTITY_TABLE_NAME),
-                subscriptions=DynamoSubscriptionRepository(table_name=IDENTITY_TABLE_NAME),
+                organizations=repositories.organizations,
+                plans=repositories.plans,
+                subscriptions=repositories.subscriptions,
             )
         except Exception:  # noqa: BLE001
             return None
@@ -600,14 +599,15 @@ def _get_portal_subscription_service() -> SubscriptionService | None:
 def _get_portal_feature_flag_service() -> FeatureFlagService | None:
     global portal_feature_flag_service
     if portal_feature_flag_service is None:
-        subscription_service = _get_portal_subscription_service()
-        if subscription_service is None:
-            return None
         try:
+            repositories = _get_portal_customer_accounts_repositories()
+            subscription_service = _get_portal_subscription_service()
+            if subscription_service is None:
+                return None
             portal_feature_flag_service = FeatureFlagService(
-                organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-                subscriptions=DynamoSubscriptionRepository(table_name=IDENTITY_TABLE_NAME),
-                flags=DynamoFeatureFlagRepository(table_name=IDENTITY_TABLE_NAME),
+                organizations=repositories.organizations,
+                subscriptions=repositories.subscriptions,
+                flags=repositories.flags,
                 subscription_service=subscription_service,
             )
         except Exception:  # noqa: BLE001
@@ -618,10 +618,11 @@ def _get_portal_feature_flag_service() -> FeatureFlagService | None:
 def _get_portal_organization_service() -> OrganizationService:
     global portal_organization_service
     if portal_organization_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_organization_service = OrganizationService(
-            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+            users=repositories.users,
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
             audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_organization_service
@@ -630,9 +631,10 @@ def _get_portal_organization_service() -> OrganizationService:
 def _get_portal_organization_context_service() -> OrganizationContextService:
     global portal_organization_context_service
     if portal_organization_context_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_organization_context_service = OrganizationContextService(
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
         )
     return portal_organization_context_service
 
@@ -640,11 +642,12 @@ def _get_portal_organization_context_service() -> OrganizationContextService:
 def _get_portal_membership_service() -> MembershipManagementService:
     global portal_membership_service
     if portal_membership_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_membership_service = MembershipManagementService(
-            users=DynamoUserRepository(table_name=IDENTITY_TABLE_NAME),
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
-            invitations=DynamoInvitationRepository(table_name=IDENTITY_TABLE_NAME),
+            users=repositories.users,
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+            invitations=repositories.invitations,
             audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_membership_service
@@ -653,13 +656,24 @@ def _get_portal_membership_service() -> MembershipManagementService:
 def _get_portal_api_key_service() -> ApiKeyService:
     global portal_api_key_service
     if portal_api_key_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         portal_api_key_service = ApiKeyService(
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
-            memberships=DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME),
-            api_keys=DynamoApiKeyRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+            api_keys=repositories.api_keys,
             audit_log_service=_get_portal_audit_log_service(),
         )
     return portal_api_key_service
+
+
+def _get_portal_customer_accounts_repositories() -> CustomerAccountsRepositories:
+    global portal_customer_accounts_repositories
+    if portal_customer_accounts_repositories is None:
+        portal_customer_accounts_repositories = build_customer_accounts_repositories(
+            os.environ,
+            identity_table_name=IDENTITY_TABLE_NAME,
+        )
+    return portal_customer_accounts_repositories
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
@@ -698,14 +712,14 @@ class _ManagedApiKeyStore:
 
 
 class _ManagedOrganizationApiKeyStore:
-    def __init__(self, repository: DynamoApiKeyRepository | None = None) -> None:
+    def __init__(self, repository: Any | None = None) -> None:
         self._repository = repository
 
-    def _get_repository(self) -> DynamoApiKeyRepository | None:
+    def _get_repository(self):
         if self._repository is not None:
             return self._repository
         try:
-            self._repository = DynamoApiKeyRepository(table_name=IDENTITY_TABLE_NAME)
+            self._repository = _get_portal_customer_accounts_repositories().api_keys
         except Exception:  # noqa: BLE001
             return None
         return self._repository
@@ -866,9 +880,10 @@ def _get_organization_integration_settings_service() -> OrganizationIntegrationS
 def _get_organization_settings_service() -> OrganizationSettingsService:
     global organization_settings_service
     if organization_settings_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
         organization_settings_service = OrganizationSettingsService(
             integration_settings=_get_organization_integration_settings_service(),
-            organizations=DynamoOrganizationRepository(table_name=IDENTITY_TABLE_NAME),
+            organizations=repositories.organizations,
             audit_log_service=_get_portal_audit_log_service(),
         )
     return organization_settings_service
@@ -1025,7 +1040,7 @@ def _resolve_portal_session_tenant_context(
         raise AuthorizationError(str(exc)) from exc
     if organization_id != workspace_id:
         raise AuthorizationError("Current organization headers must identify the same scope")
-    membership = DynamoMembershipRepository(table_name=IDENTITY_TABLE_NAME).get(organization_id, current_user.user_id)
+    membership = _get_portal_customer_accounts_repositories().memberships.get(organization_id, current_user.user_id)
     if membership is None or membership.status != MembershipStatus.ACTIVE:
         raise AuthorizationError(missing_membership_message)
     plan_code = _resolve_organization_subscription_plan(organization_id)

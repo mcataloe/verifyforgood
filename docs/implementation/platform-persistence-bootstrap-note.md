@@ -45,6 +45,21 @@ Current infrastructure rule:
 2. organization settings
 3. control-plane and billing
 
+## Current Phase 24D State
+
+- `PLATFORM_IDENTITY_STORE_BACKEND=postgres` is now the intended deployed
+  setting for the customer-account identity domain
+- the identity runtime is mixed by design:
+  - PostgreSQL: users, organizations, memberships, plans, subscriptions,
+    org API keys, and shared audit logs
+  - DynamoDB: invitations, usage, feature flags, and organization settings
+- the rollback switch remains:
+  - `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb`
+- the expected rollout sequence is:
+  1. `alembic upgrade head`
+  2. `python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity`
+  3. deploy with `PLATFORM_IDENTITY_STORE_BACKEND=postgres`
+
 ## Non-Goals
 
 - no route-contract changes

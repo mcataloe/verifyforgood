@@ -92,6 +92,9 @@ Use additive migration rather than replacement:
 
 - The next implementation phases should focus on bootstrap/config seams and
   PostgreSQL repository parity rather than rewriting business logic.
+- The first runtime cutover phase should move customer-account identity data
+  to PostgreSQL while leaving invitations, usage, feature flags, and
+  organization settings on DynamoDB as a narrow compatibility layer.
 - Test strategy should shift from Dynamo-only fake-table tests toward
   backend-agnostic repository contract coverage plus targeted adapter tests.
 - Infrastructure must add PostgreSQL networking, secrets, and runtime

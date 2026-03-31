@@ -28,7 +28,13 @@ from .backend_contracts import (
     version_path,
 )
 from .entrypoints import BackendEntrypoint, ENTRYPOINTS, entrypoint_by_surface
-from .persistence import CustomerAccountsPostgresRepositories, build_customer_accounts_postgres_repositories
+from .persistence import (
+    CustomerAccountsPostgresRepositories,
+    CustomerAccountsRepositories,
+    build_customer_accounts_postgres_repositories,
+    build_customer_accounts_repositories,
+)
+from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
 
 __all__ = [
     "ApiKeyAuthContextProvider",
@@ -60,5 +66,9 @@ __all__ = [
     "ENTRYPOINTS",
     "entrypoint_by_surface",
     "CustomerAccountsPostgresRepositories",
+    "CustomerAccountsRepositories",
     "build_customer_accounts_postgres_repositories",
+    "build_customer_accounts_repositories",
+    "CustomerAccountsBackfillStats",
+    "backfill_customer_accounts_from_dynamodb",
 ]

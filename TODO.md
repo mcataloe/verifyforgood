@@ -37,8 +37,8 @@ frontend payloads.
 ### Follow-On Sequence
 
 1. add PostgreSQL bootstrap/config seams and Terraform scaffolding
-2. migrate identity core: users, organizations, memberships, invitations
-3. migrate org audit, settings, API keys, subscriptions, usage, feature flags
+2. migrate identity core runtime to PostgreSQL for users, organizations, memberships, plans, subscriptions, API keys, and audit logs
+3. migrate remaining identity-side Dynamo compatibility layers: invitations, usage, feature flags, and organization settings
 4. migrate control-plane accounts, billing events, OAuth clients, and account usage
 5. reevaluate the DynamoDB `profiles` cache separately
 
