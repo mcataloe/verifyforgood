@@ -81,6 +81,7 @@ export function buildPortalNavigationSections(
 
 export function resolvePortalNavigation(params: {
   membershipRole?: CustomerMembershipRole | null;
+  organizationContextStatus?: "active" | "pending" | null;
   plan: string;
   roles: readonly FrontendAccessRole[];
   routes: readonly PortalRouteDefinition[];
@@ -97,6 +98,7 @@ export function resolvePortalNavigation(params: {
   return filterResolvedNavigationSectionsByMembershipRole({
     audience,
     membershipRole: params.membershipRole ?? null,
+    organizationContextStatus: params.organizationContextStatus ?? null,
     sections,
   });
 }
@@ -483,9 +485,9 @@ function buildAudienceNavigationSections(
           items: [
             {
               key: "customer-admin-workspace",
-              label: "Workspace",
+              label: "Organization",
               helpText:
-                "Day-to-day verification, search, and team management.",
+                "Day-to-day home, search, and team areas for your organization.",
               children: [
                 navigationItem(
                   routeByKey,
@@ -550,10 +552,10 @@ function buildAudienceNavigationSections(
                   routeByKey,
                   "api-access",
                   "customer-admin-api",
-                  "API",
+                  "API Keys",
                   {
                     allowedPlans: ["growth", "pro", "enterprise"],
-                    helpText: "Manage API keys and access settings.",
+                    helpText: "Create and manage API keys for your organization.",
                     visibility: {
                       planRestrictedBehavior: "locked",
                     },

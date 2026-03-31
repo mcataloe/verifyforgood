@@ -549,6 +549,96 @@ describe("portal auth client", () => {
     );
   });
 
+  it("falls back to backend organization context when the stored selected organization is no longer available", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "token_login",
+        token_type: "Bearer",
+        user: {
+          email: "person@example.com",
+          full_name: "Portal Person",
+          user_id: "user_portal_person",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_missing",
+        membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_portal_person",
+        },
+        organization_id: "org_missing",
+        organization_name: "Missing Org",
+        slug: "missing-org",
+        workspace_id: "org_missing",
+      }),
+    );
+    const client = createPortalAuthClient({
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/v1/auth/me")) {
+          return new Response(
+            JSON.stringify(
+              buildEnvelope({
+                organization_context: {
+                  account_id: "org_primary",
+                  membership: {
+                    role: "admin",
+                    status: "active",
+                    user_id: "user_portal_person",
+                  },
+                  organization_id: "org_primary",
+                  organization_name: "Primary Org",
+                  slug: "primary-org",
+                  workspace_id: "org_primary",
+                },
+                available_organizations: [
+                  {
+                    account_id: "org_primary",
+                    membership: {
+                      role: "admin",
+                      status: "active",
+                      user_id: "user_portal_person",
+                    },
+                    organization_id: "org_primary",
+                    organization_name: "Primary Org",
+                    slug: "primary-org",
+                    workspace_id: "org_primary",
+                  },
+                ],
+                user: {
+                  email: "person@example.com",
+                  full_name: "Portal Person",
+                  user_id: "user_portal_person",
+                },
+              }),
+            ),
+            { headers: { "Content-Type": "application/json" }, status: 200 },
+          );
+        }
+
+        return new Response("Not Found", { status: 404 });
+      }) as typeof fetch,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.session.organization_name).toBe("Primary Org");
+    expect(restored?.session.organization_membership?.role).toBe("admin");
+    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
+      "\"organization_id\":\"org_primary\"",
+    );
+  });
+
   it("removes persisted auth state on sign out", async () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,

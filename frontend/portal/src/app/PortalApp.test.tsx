@@ -749,6 +749,7 @@ describe("PortalApp", () => {
     ).toBeTruthy();
     expect(screen.getByText("Organization settings updated")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
+    expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
 
   it("redirects authenticated users with stored active org state away from public auth routes", async () => {
@@ -949,6 +950,11 @@ describe("PortalApp", () => {
     expect(
       screen.queryByRole("heading", { name: "Complete setup" }),
     ).toBeNull();
+    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
+    expect(screen.getByRole("button", { name: /^Billing\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^API Keys\b/i })).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
   });
 
@@ -981,6 +987,7 @@ describe("PortalApp", () => {
 
     fireEvent.mouseDown(overlay);
     fireEvent.click(overlay);
+    fireEvent.keyDown(document, { key: "Escape" });
 
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
 
@@ -999,6 +1006,101 @@ describe("PortalApp", () => {
     );
 
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("redirects to the nearest allowed surface when switching to a lower-role organization on an admin route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify(
+        createStoredOrganizationForTest({
+          organization_id: "org_primary",
+          organization_name: "Primary Org",
+          slug: "primary-org",
+          workspace_id: "org_primary",
+          account_id: "org_primary",
+        }),
+      ),
+    );
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              available_organizations: [
+                createStoredOrganizationForTest({
+                  organization_id: "org_primary",
+                  organization_name: "Primary Org",
+                  slug: "primary-org",
+                  workspace_id: "org_primary",
+                  account_id: "org_primary",
+                }),
+                createStoredOrganizationForTest({
+                  organization_id: "org_secondary",
+                  organization_name: "Secondary Org",
+                  slug: "secondary-org",
+                  workspace_id: "org_secondary",
+                  account_id: "org_secondary",
+                  membership: {
+                    role: "user",
+                    status: "active",
+                    user_id: "user_jamie_admin",
+                  },
+                }),
+              ],
+              organization_context: createStoredOrganizationForTest({
+                organization_id: "org_primary",
+                organization_name: "Primary Org",
+                slug: "primary-org",
+                workspace_id: "org_primary",
+                account_id: "org_primary",
+              }),
+              user: {
+                email: "jamie.admin@example.org",
+                full_name: "Jamie Admin",
+                user_id: "user_jamie_admin",
+              },
+            }),
+          ),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      return buildFetchMock()(input, init);
+    }) as typeof fetch;
+    window.location.hash = "#/billing";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Billing" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+    fireEvent.click(screen.getByTestId("portal-organization-option-secondary-org"));
+
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
 

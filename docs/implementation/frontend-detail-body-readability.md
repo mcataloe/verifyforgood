@@ -25,4 +25,5 @@ Portal and marketing detail bodies now follow one readability rule: once a user 
 - Authentication must happen before organization creation.
 - Organization onboarding is conditional and protected, not the default landing page.
 - Standard application modals require explicit dismissal and must not close from outside-click or `Escape` unless a documented exception opts in.
+- Organization switching belongs in the authenticated portal shell header, post-login should land in the portal shell, and portal navigation should use nested collapsible sidebar groups with route-backed subsection pages.
 - For customer-facing portal wording, follow [`portal-ux-copy-rules.md`](/d:/Repos/charity-status-api/docs/implementation/portal-ux-copy-rules.md).

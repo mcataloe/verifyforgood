@@ -47,6 +47,7 @@ export function PortalLayout({
   );
   const navigationSections = resolvePortalNavigation({
     membershipRole,
+    organizationContextStatus: session.organization_context_status,
     plan: session.plan,
     roles: session.roles,
     routes,

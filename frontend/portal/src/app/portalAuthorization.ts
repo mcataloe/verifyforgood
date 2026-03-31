@@ -1,4 +1,5 @@
-import type { PortalOrganizationMembership } from "./portalSession";
+import type { VerifyForGoodResolvedNavigationSection } from "@charity-status/shared-ui";
+import type { PortalAuthenticatedSession, PortalOrganizationMembership } from "./portalSession";
 import type {
   PortalNavigationAudience,
 } from "./portalNavigation";
@@ -71,14 +72,12 @@ export function hasCustomerMembershipAccess(params: {
   return params.membershipRole === "admin";
 }
 
-export function filterNavigationSectionsByMembershipRole<
-  TSection extends { items: TItem[] },
-  TItem extends { children?: TItem[]; key: string },
->(params: {
+export function filterNavigationSectionsByMembershipRole(params: {
   audience: PortalNavigationAudience;
   membershipRole: CustomerMembershipRole | null;
-  sections: readonly TSection[];
-}): TSection[] {
+  organizationContextStatus?: PortalAuthenticatedSession["organization_context_status"] | null;
+  sections: readonly VerifyForGoodResolvedNavigationSection[];
+}): VerifyForGoodResolvedNavigationSection[] {
   if (params.audience !== "customer_admin") {
     return params.sections.map((section) => ({
       ...section,
@@ -90,8 +89,19 @@ export function filterNavigationSectionsByMembershipRole<
     .map((section) => ({
       ...section,
       items: section.items
-        .map((item) => filterNavigationItemByMembershipRole(item, params.membershipRole))
-        .filter(Boolean) as TItem[],
+        .map((item) =>
+          filterNavigationItemByMembershipRole(
+            item,
+            params.membershipRole,
+            params.organizationContextStatus ?? null,
+          ),
+        )
+        .filter(
+          (
+            item,
+          ): item is VerifyForGoodResolvedNavigationSection["items"][number] =>
+            Boolean(item),
+        ),
     }))
     .filter((section) => section.items.length > 0);
 }
@@ -192,10 +202,11 @@ function resolvePortalNavigationAlias(currentHash: string): string | null {
   return nav?.trim() || null;
 }
 
-function filterNavigationItemByMembershipRole<TItem extends { children?: TItem[]; key: string }>(
-  item: TItem,
+function filterNavigationItemByMembershipRole(
+  item: VerifyForGoodResolvedNavigationSection["items"][number],
   membershipRole: CustomerMembershipRole | null,
-): TItem | null {
+  organizationContextStatus: PortalAuthenticatedSession["organization_context_status"] | null,
+): VerifyForGoodResolvedNavigationSection["items"][number] | null {
   const requiredAccess = customerAdminNavigationAccess[item.key];
   if (
     requiredAccess &&
@@ -204,12 +215,27 @@ function filterNavigationItemByMembershipRole<TItem extends { children?: TItem[]
       requiredAccess,
     })
   ) {
+    if (membershipRole === null && organizationContextStatus === "pending") {
+      return lockNavigationItemForPendingOrganization(item);
+    }
+
     return null;
   }
 
   const children = item.children
-    ?.map((child) => filterNavigationItemByMembershipRole(child, membershipRole))
-    .filter(Boolean) as TItem[] | undefined;
+    ?.map((child) =>
+      filterNavigationItemByMembershipRole(
+        child,
+        membershipRole,
+        organizationContextStatus,
+      ),
+    )
+    .filter(
+      (
+        child,
+      ): child is VerifyForGoodResolvedNavigationSection["items"][number] =>
+        Boolean(child),
+    );
 
   if (item.children && (!children || children.length === 0)) {
     return null;
@@ -228,6 +254,43 @@ function cloneNavigationItem<TItem extends { children?: TItem[] }>(item: TItem):
       ? { children: item.children.map((child) => cloneNavigationItem(child)) }
       : {}),
   };
+}
+
+function lockNavigationItemForPendingOrganization(
+  item: VerifyForGoodResolvedNavigationSection["items"][number],
+): VerifyForGoodResolvedNavigationSection["items"][number] {
+  if ((item.children ?? []).length > 0) {
+    return {
+      ...item,
+      children: item.children?.map((child) =>
+        lockNavigationItemForPendingOrganization(child),
+      ),
+      href: undefined,
+      helpText:
+        item.helpText ?? "Available after you create your organization.",
+      visibilityState: "visible",
+    };
+  }
+
+  return {
+    ...item,
+    href: undefined,
+    helpText: appendPendingOrganizationHelpText(item.helpText),
+    visibilityState: "locked",
+  };
+}
+
+function appendPendingOrganizationHelpText(helpText?: string) {
+  const suffix = "Available after you create your organization.";
+  if (!helpText) {
+    return suffix;
+  }
+
+  if (helpText.includes(suffix)) {
+    return helpText;
+  }
+
+  return `${helpText} ${suffix}`;
 }
 
 export function resolveMembershipRoleFromContext(

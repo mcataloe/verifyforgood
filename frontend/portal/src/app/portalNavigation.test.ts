@@ -21,7 +21,7 @@ describe("portal navigation config", () => {
     expect(sections.map((section) => section.key)).toEqual(["customer-admin"]);
     expect(sections[0]?.items[0]).toMatchObject({
       key: "customer-admin-workspace",
-      label: "Workspace",
+      label: "Organization",
     });
     expect(sections[0]?.items[0]?.children?.[0]).toMatchObject({
       href: "#/dashboard?nav=customer-admin-home",
@@ -36,7 +36,7 @@ describe("portal navigation config", () => {
     expect(sections[0]?.items[1]?.children?.[2]).toMatchObject({
       href: "#/api-access?nav=customer-admin-api",
       key: "customer-admin-api",
-      label: "API",
+      label: "API Keys",
     });
   });
 
@@ -81,7 +81,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Workspace", "Account"],
+        items: ["Organization", "Account"],
         label: "",
       },
     ]);
@@ -164,10 +164,36 @@ describe("portal navigation config", () => {
     expect(accountBranch?.label).toBe("Account");
     expect(apiItem).toMatchObject({
       key: "customer-admin-api",
-      label: "API",
+      label: "API Keys",
       visibilityState: "locked",
     });
     expect(apiItem?.href).toBeUndefined();
+  });
+
+  it("keeps account navigation visible but locked while organization setup is pending", () => {
+    const sections = resolvePortalNavigation({
+      membershipRole: null,
+      organizationContextStatus: "pending",
+      plan: "growth",
+      roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
+      routes: portalProtectedRoutes,
+    });
+    const section = sections[0];
+    const accountBranch = section?.items.find(
+      (item) => item.key === "customer-admin-account",
+    );
+
+    expect(section?.items.map((item) => item.label)).toEqual([
+      "Organization",
+      "Account",
+    ]);
+    expect(accountBranch?.children?.map((item) => [item.label, item.visibilityState])).toEqual([
+      ["Billing", "locked"],
+      ["Usage", "locked"],
+      ["API Keys", "locked"],
+      ["Settings", "locked"],
+    ]);
+    expect(accountBranch?.children?.every((item) => !item.href)).toBe(true);
   });
 
   it("resolves the active navigation item from the current hash alias before falling back to the base route", () => {
@@ -203,7 +229,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Workspace"],
+        items: ["Organization"],
         label: "",
       },
     ]);
@@ -212,6 +238,7 @@ describe("portal navigation config", () => {
 
 function summarizeSections(params: {
   membershipRole?: "admin" | "user" | null;
+  organizationContextStatus?: "active" | "pending" | null;
   plan: string;
   roles: readonly FrontendAccessRole[];
 }) {

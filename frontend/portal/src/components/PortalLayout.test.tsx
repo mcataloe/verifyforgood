@@ -38,10 +38,10 @@ describe("PortalLayout", () => {
       currentRoute: resolvePortalRoute("#/billing"),
     });
 
-    expect(screen.getByRole("button", { name: /^Workspace\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^API Keys\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
@@ -53,12 +53,12 @@ describe("PortalLayout", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the active workspace child visible under the workspace branch", () => {
+  it("keeps the active organization child visible under the organization branch", () => {
     renderPortalLayout({
       currentRoute: resolvePortalRoute("#/dashboard"),
     });
 
-    expect(screen.getByRole("button", { name: /^Workspace\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
@@ -94,6 +94,14 @@ describe("PortalLayout", () => {
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
     expect(screen.getByText("Secondary Org")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();
+  });
+
+  it("keeps the header simple for single-organization sessions", () => {
+    renderPortalLayout();
+
+    expect(screen.getByTestId("portal-current-organization")).toBeTruthy();
+    expect(screen.queryByTestId("portal-organization-switcher")).toBeNull();
+    expect(screen.queryByText("Switch organization")).toBeNull();
   });
 
   it("switches active organization through the shared auth seam", () => {
@@ -150,8 +158,36 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("button", { name: /^Account\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Usage\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API Keys\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
+  });
+
+  it("keeps account navigation visible but locked while organization setup is pending", () => {
+    renderPortalLayout({
+      session: {
+        ...createMockPortalSession(),
+        organization_context_status: "pending",
+        organization_membership: null,
+        organization_name: "Organization setup pending",
+      },
+    });
+
+    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
+    const billingButton = screen.getByRole("button", { name: /^Billing\b/i });
+    const usageButton = screen.getByRole("button", { name: /^Usage\b/i });
+    const apiKeysButton = screen.getByRole("button", { name: /^API Keys\b/i });
+    const settingsButton = screen.getByRole("button", { name: /^Settings\b/i });
+    const isUnavailable = (element: HTMLElement) =>
+      element.getAttribute("aria-disabled") === "true" ||
+      element.getAttribute("data-disabled") !== null ||
+      element.hasAttribute("disabled");
+    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
+    expect(isUnavailable(billingButton)).toBe(true);
+    expect(isUnavailable(usageButton)).toBe(true);
+    expect(isUnavailable(apiKeysButton)).toBe(true);
+    expect(isUnavailable(settingsButton)).toBe(true);
   });
 
   it("maps customer-user navigation to dashboard, search, automation, and footer profile access", () => {
@@ -229,15 +265,15 @@ describe("PortalLayout", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
-    const lockedApiItem = screen.getByRole("button", { name: /^API\b/i });
+    const lockedApiItem = screen.getByRole("button", { name: /^API Keys\b/i });
     const isUnavailable =
       lockedApiItem.getAttribute("aria-disabled") === "true" ||
       lockedApiItem.getAttribute("data-disabled") !== null;
 
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API Keys\b/i })).toBeNull();
     expect(isUnavailable).toBe(true);
     expect(
-      screen.getByText("Manage API keys and access settings."),
+      screen.getByText("Create and manage API keys for your organization."),
     ).toBeTruthy();
   });
 
@@ -292,7 +328,7 @@ function renderPortalLayout({
   currentHash?: string;
   currentRoute?: PortalRouteDefinition;
   session?: ReturnType<typeof createMockPortalSession>;
-}) {
+} = {}) {
   window.location.hash = currentHash ?? currentRoute.hash;
 
   render(
