@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,6 +64,34 @@ describe("CustomerUserAutomationPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete API key" }));
 
     expect(document.body.getAttribute("data-scroll-locked")).toBe("1");
+    expect(
+      await screen.findByRole("heading", { name: "Confirm credential deletion" }),
+    ).toBeTruthy();
+
+    const overlay = document.body.querySelector(".mantine-Modal-overlay");
+    if (!overlay) {
+      throw new Error("Expected modal overlay");
+    }
+
+    fireEvent.mouseDown(overlay);
+    fireEvent.click(overlay);
+
+    expect(
+      screen.getByRole("heading", { name: "Confirm credential deletion" }),
+    ).toBeTruthy();
+
+    const closeButton = document.body.querySelector(".mantine-Modal-close");
+    if (!(closeButton instanceof HTMLElement)) {
+      throw new Error("Expected modal close button");
+    }
+
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Confirm credential deletion" }),
+      ).toBeNull();
+    });
   });
 
   it("creates OAuth clients with masked client_id and client_secret fields", async () => {

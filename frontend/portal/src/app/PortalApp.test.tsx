@@ -883,10 +883,57 @@ describe("PortalApp", () => {
 
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
-      screen.getAllByRole("heading", { name: "Create your first organization" })
-        .length,
-    ).toBeGreaterThan(0);
+      screen.getByRole("heading", { name: "Complete setup" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Create your first organization" }),
+    ).toBeTruthy();
     expect(window.location.hash).toBe("#/onboarding/organization");
+  });
+
+  it("does not dismiss organization setup on overlay click and allows explicit close and reopen", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.location.hash = "#/onboarding/organization";
+
+    render(<App />);
+
+    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
+
+    const overlay = document.body.querySelector(".mantine-Modal-overlay");
+    if (!overlay) {
+      throw new Error("Expected modal overlay");
+    }
+
+    fireEvent.mouseDown(overlay);
+    fireEvent.click(overlay);
+
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close organization setup" }),
+    );
+
+    expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Open organization setup" }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open organization setup" }),
+    );
+
+    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
   });
 
   it("redirects customer admins without admin membership away from admin-only routes", async () => {

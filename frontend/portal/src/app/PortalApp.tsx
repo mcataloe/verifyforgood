@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
 import { usePortalAuth } from "../auth/usePortalAuth";
@@ -76,6 +76,8 @@ function PortalAppShell({
   const requestedRoute = resolvePortalRoute(peekPortalReturnTo());
   const hasPendingOrganization =
     auth.session?.organization_context_status === "pending";
+  const [isOrganizationOnboardingOpen, setIsOrganizationOnboardingOpen] =
+    useState(true);
   const organizationClient = useMemo(
     () =>
       auth.accessToken
@@ -132,6 +134,12 @@ function PortalAppShell({
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
+  useEffect(() => {
+    if (auth.status === "authenticated" && hasPendingOrganization) {
+      setIsOrganizationOnboardingOpen(true);
+    }
+  }, [auth.status, hasPendingOrganization]);
+
   if (auth.status === "loading") {
     return (
       <PortalAuthLayout
@@ -157,8 +165,8 @@ function PortalAppShell({
           currentRoute.key === homePortalRoute.key
             ? "Customer portal entry"
             : currentRoute.key === registerPortalRoute.key
-            ? "Create your customer portal account"
-            : "Sign in to the customer portal"
+              ? "Create your customer portal account"
+              : "Sign in to the customer portal"
         }
       >
         {currentRoute.key === homePortalRoute.key ? (
@@ -201,32 +209,58 @@ function PortalAppShell({
   if (!session) {
     return null;
   }
+
   if (hasPendingOrganization) {
     return (
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="You’re signed in. Create your organization to continue."
-        title="Create your first organization"
+        subtitle="Finish setting up your account to continue."
+        title="Complete setup"
       >
-        <PortalOrganizationOnboardingPage
-          endpoints={endpoints}
-          isBusy={auth.isBusy}
-          onCreateOrganization={async (request) => {
-            if (!organizationClient) {
-              throw new Error("Authentication is required");
-            }
+        <div className="portal-auth-page">
+          <div className="portal-auth-page__card-copy">
+            <p className="portal-shell__eyebrow">Organization setup</p>
+            <h2>Create your organization to continue</h2>
+            <p>
+              Your account is ready. Finish setup to access the dashboard,
+              billing, team access, and verification tools.
+            </p>
+          </div>
 
-            const created = await organizationClient.createOrganization(request);
-            auth.applyOrganization(
-              createPortalActiveOrganizationRecord(created),
-            );
-            navigateToPortalRoute("#/dashboard");
-          }}
-        />
+          <div className="portal-form__actions">
+            <button
+              className="portal-shell__action portal-shell__action--primary"
+              onClick={() => setIsOrganizationOnboardingOpen(true)}
+              type="button"
+            >
+              Open organization setup
+            </button>
+          </div>
+        </div>
+
+        {isOrganizationOnboardingOpen ? (
+          <PortalOrganizationOnboardingPage
+            endpoints={endpoints}
+            isBusy={auth.isBusy}
+            onClose={() => setIsOrganizationOnboardingOpen(false)}
+            onCreateOrganization={async (request) => {
+              if (!organizationClient) {
+                throw new Error("Authentication is required");
+              }
+
+              const created = await organizationClient.createOrganization(request);
+              auth.applyOrganization(
+                createPortalActiveOrganizationRecord(created),
+              );
+              navigateToPortalRoute("#/dashboard");
+            }}
+          />
+        ) : null}
       </PortalAuthLayout>
     );
   }
+
   const audience = resolvePortalNavigationAudience(session.roles);
   const currentHash =
     typeof window === "undefined"

@@ -183,9 +183,12 @@ export const verifyForGoodMantineTheme = createTheme({
     Modal: Modal.extend({
       defaultProps: {
         centered: true,
+        closeOnClickOutside: false,
+        closeOnEscape: false,
         padding: "lg",
         radius: "lg",
         shadow: "md",
+        withCloseButton: true,
       },
     }),
   },

@@ -4,22 +4,44 @@ import { describe, expect, it, vi } from "vitest";
 import { PortalOrganizationOnboardingPage } from "./PortalOrganizationOnboardingPage";
 
 describe("PortalOrganizationOnboardingPage", () => {
-  it("renders organization name and slug fields", () => {
-    const { container } = renderPage();
-    const layout = screen.getByTestId("organization-onboarding-page");
+  it("renders the organization setup modal with the required form fields", () => {
+    renderPage();
 
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Create your first organization" }),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
     expect(screen.getByLabelText("Slug")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Getting started" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Create organization" }),
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Close organization setup" }),
+    ).toBeTruthy();
     expect(screen.queryByText("Backend contract")).toBeNull();
-    expect(layout.className).toContain("portal-detail-layout");
-    expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
+  });
+
+  it("does not close on outside click or escape, and closes from the X button", () => {
+    const onClose = vi.fn();
+    renderPage(undefined, onClose);
+
+    const overlay = document.body.querySelector(".mantine-Modal-overlay");
+    if (!overlay) {
+      throw new Error("Expected modal overlay");
+    }
+
+    fireEvent.mouseDown(overlay);
+    fireEvent.click(overlay);
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close organization setup" }),
+    );
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("blocks submission when organization name is empty", () => {
@@ -74,6 +96,7 @@ describe("PortalOrganizationOnboardingPage", () => {
 
 function renderPage(
   onCreateOrganization = vi.fn(async () => undefined),
+  onClose = vi.fn(),
 ) {
   return render(
     <VerifyForGoodMantineProvider defaultColorScheme="light">
@@ -94,6 +117,7 @@ function renderPage(
           organizationSettings: "/v1/organization/settings",
         }}
         isBusy={false}
+        onClose={onClose}
         onCreateOrganization={onCreateOrganization}
       />
     </VerifyForGoodMantineProvider>,
