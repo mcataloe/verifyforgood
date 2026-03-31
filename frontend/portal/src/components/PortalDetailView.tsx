@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DetailPageLayout, SectionBlock } from "./shell";
 
 interface PortalDetailViewProps {
   children: ReactNode;
@@ -26,7 +27,9 @@ export function PortalDetailView({
         <h1>{title}</h1>
         {intro ? <p className="portal-detail-view__intro">{intro}</p> : null}
       </header>
-      {children}
+      <DetailPageLayout className="portal-detail-view__sections">
+        {children}
+      </DetailPageLayout>
     </article>
   );
 }
@@ -37,12 +40,12 @@ export function PortalDetailSection({
   title,
 }: PortalDetailSectionProps) {
   return (
-    <section className="portal-detail-view__section">
+    <SectionBlock className="portal-detail-view__section">
       <div className="portal-detail-view__section-header">
         <h2>{title}</h2>
         {intro ? <p className="portal-detail-view__section-intro">{intro}</p> : null}
       </div>
       <div className="portal-detail-view__section-body">{children}</div>
-    </section>
+    </SectionBlock>
   );
 }

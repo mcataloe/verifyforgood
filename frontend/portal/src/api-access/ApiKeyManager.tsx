@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Inline, Panel } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
+import { DetailPageLayout } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
 
@@ -28,7 +29,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   );
 
   return (
-    <div className="portal-stacked-sections">
+    <DetailPageLayout>
       <Panel
         title="API key management"
         subtitle="Create, review, and revoke organization-scoped API credentials."
@@ -117,61 +118,56 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         ) : null}
       </Panel>
 
-      <hr className="portal-stacked-sections__divider" />
-
       {apiKeys.visibleSecret ? (
-        <>
-          <Panel
-            title="Copy this secret now"
-            subtitle="The plaintext API key is shown once and cannot be recovered later."
-          >
+        <Panel
+          title="Copy this secret now"
+          subtitle="The plaintext API key is shown once and cannot be recovered later."
+        >
+          <PortalNotice tone="warning">
+            <p>
+              Store this key in your secrets manager before leaving the page.
+            </p>
+          </PortalNotice>
+          {copyFeedback ? (
             <PortalNotice tone="warning">
-              <p>
-                Store this key in your secrets manager before leaving the page.
-              </p>
+              <p>{copyFeedback}</p>
             </PortalNotice>
-            {copyFeedback ? (
-              <PortalNotice tone="warning">
-                <p>{copyFeedback}</p>
-              </PortalNotice>
-            ) : null}
-            <textarea
-              aria-label="Plaintext API key"
-              className="portal-form__input"
-              readOnly
-              rows={3}
-              value={apiKeys.visibleSecret.secret}
-            />
-            <Inline className="portal-form__actions">
-              <span className="portal-key-chip">
-                {apiKeys.visibleSecret.key.display_name}
-              </span>
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                onClick={() => {
-                  void copySecretToClipboard({
-                    onResult: setCopyFeedback,
-                    secret: apiKeys.visibleSecret?.secret ?? "",
-                  });
-                }}
-                type="button"
-              >
-                Copy key
-              </button>
-              <button
-                className="portal-shell__action"
-                onClick={() => {
-                  setCopyFeedback(null);
-                  apiKeys.dismissSecret();
-                }}
-                type="button"
-              >
-                Dismiss secret
-              </button>
-            </Inline>
-          </Panel>
-          <hr className="portal-stacked-sections__divider" />
-        </>
+          ) : null}
+          <textarea
+            aria-label="Plaintext API key"
+            className="portal-form__input"
+            readOnly
+            rows={3}
+            value={apiKeys.visibleSecret.secret}
+          />
+          <Inline className="portal-form__actions">
+            <span className="portal-key-chip">
+              {apiKeys.visibleSecret.key.display_name}
+            </span>
+            <button
+              className="portal-shell__action portal-shell__action--primary"
+              onClick={() => {
+                void copySecretToClipboard({
+                  onResult: setCopyFeedback,
+                  secret: apiKeys.visibleSecret?.secret ?? "",
+                });
+              }}
+              type="button"
+            >
+              Copy key
+            </button>
+            <button
+              className="portal-shell__action"
+              onClick={() => {
+                setCopyFeedback(null);
+                apiKeys.dismissSecret();
+              }}
+              type="button"
+            >
+              Dismiss secret
+            </button>
+          </Inline>
+        </Panel>
       ) : null}
 
       <Panel
@@ -263,7 +259,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           </table>
         ) : null}
       </Panel>
-    </div>
+    </DetailPageLayout>
   );
 }
 

@@ -616,6 +616,10 @@ code {
   padding-bottom: var(--vf-space-6);
 }
 
+.portal-detail-view__sections {
+  gap: var(--vf-space-6);
+}
+
 .portal-detail-view__header {
   display: grid;
   gap: var(--vf-space-2);
@@ -644,11 +648,6 @@ code {
   display: grid;
   gap: var(--vf-space-4);
   min-width: 0;
-}
-
-.portal-detail-view__section + .portal-detail-view__section {
-  padding-top: var(--vf-space-5);
-  border-top: 1px solid var(--vf-theme-panel-border);
 }
 
 .portal-detail-view__section-header {

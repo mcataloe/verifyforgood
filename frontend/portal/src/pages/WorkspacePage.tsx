@@ -1,10 +1,12 @@
-import { Grid, Panel } from "@charity-status/shared-ui";
+import { Panel } from "@charity-status/shared-ui";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
 import {
+  DetailPageLayout,
   PortalActionToolbar,
   PortalPageShell,
+  SectionBlock,
 } from "../components/shell";
 import { NonprofitSearchPanel } from "../nonprofits/NonprofitSearchPanel";
 import { TeamManagementPanel } from "../organization/TeamManagementPanel";
@@ -48,7 +50,7 @@ export function WorkspacePage({
         </PortalActionToolbar>
       }
     >
-      <Grid className="portal-page-grid">
+      <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
         <Panel
           title="Team operations"
           subtitle="Search, review, and inspect nonprofit records without leaving the shared team workspace."
@@ -102,7 +104,7 @@ export function WorkspacePage({
         <NonprofitSearchPanel />
 
         <TeamManagementPanel />
-      </Grid>
+      </DetailPageLayout>
     </PortalPageShell>
   );
 }

@@ -3,7 +3,6 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
-  Grid,
   LoadingSkeleton,
   Panel,
   StatusBadge,
@@ -11,6 +10,7 @@ import {
   type DataTableFilterDefinition,
 } from "@charity-status/shared-ui";
 import { Button, Group, Text } from "@mantine/core";
+import { DetailPageLayout, SectionBlock } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   PortalNonprofitDetailView,
@@ -102,7 +102,7 @@ export function NonprofitSearchPanel({
     ];
 
   return (
-    <Grid className="portal-page-grid">
+    <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
       <Panel
         title="Nonprofit verification search"
         subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
@@ -257,6 +257,6 @@ export function NonprofitSearchPanel({
       {search.detail ? (
         <PortalNonprofitDetailView detail={search.detail} />
       ) : null}
-    </Grid>
+    </DetailPageLayout>
   );
 }

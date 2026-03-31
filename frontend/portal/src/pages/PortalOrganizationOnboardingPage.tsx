@@ -1,6 +1,7 @@
-import { Grid, OnboardingLayout, Panel } from "@charity-status/shared-ui";
+import { OnboardingLayout, Panel } from "@charity-status/shared-ui";
 import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
+import { DetailPageLayout, SectionBlock } from "../components/shell";
 import type { PortalOrganizationCreateRequest } from "../organization/portalOrganization";
 
 interface PortalOrganizationOnboardingPageProps {
@@ -49,7 +50,7 @@ export function PortalOrganizationOnboardingPage({
   };
 
   return (
-    <Grid className="portal-page-grid">
+    <DetailPageLayout sectionWrapper={({ section }) => <SectionBlock>{section}</SectionBlock>}>
       <OnboardingLayout
         steps={[
           {
@@ -137,6 +138,6 @@ export function PortalOrganizationOnboardingPage({
           global portal organization context.
         </p>
       </Panel>
-    </Grid>
+    </DetailPageLayout>
   );
 }
