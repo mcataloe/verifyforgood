@@ -20,8 +20,8 @@ Portal and marketing detail bodies now follow one readability rule: once a user 
 
 ## Do Not Regress
 
-- Detail pages must render through `DetailPageLayout`, `SectionBlock`, and `SectionDivider`.
-- Authenticated portal surfaces must use the shared wide responsive container pattern.
+- Detail pages must render through `DetailPageLayout`, `SectionBlock`, and `SectionDivider`, and major sections must stay in one single-column stacked flow.
+- Authenticated portal surfaces must use the shared wide responsive container pattern instead of narrow marketing-width shells.
 - Authentication must happen before organization creation.
 - Organization onboarding is conditional and protected, not the default landing page.
 - For customer-facing portal wording, follow [`portal-ux-copy-rules.md`](/d:/Repos/charity-status-api/docs/implementation/portal-ux-copy-rules.md).

@@ -6,6 +6,7 @@ import { PortalOrganizationOnboardingPage } from "./PortalOrganizationOnboarding
 describe("PortalOrganizationOnboardingPage", () => {
   it("renders organization name and slug fields", () => {
     const { container } = renderPage();
+    const layout = screen.getByTestId("organization-onboarding-page");
 
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
@@ -16,6 +17,7 @@ describe("PortalOrganizationOnboardingPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.queryByText("Backend contract")).toBeNull();
+    expect(layout.className).toContain("portal-detail-layout");
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
   });

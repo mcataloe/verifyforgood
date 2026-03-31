@@ -2,6 +2,7 @@ import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/s
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type {
   PortalActiveOrganizationRecord,
+  PortalAvailableOrganizationRecord,
   PortalAuthenticatedSession,
 } from "../app/portalSession";
 
@@ -93,6 +94,51 @@ export interface PortalOrganizationClient {
   createOrganization(
     request: PortalOrganizationCreateRequest,
   ): Promise<PortalOrganizationCreateResponse>;
+}
+
+export function dedupePortalOrganizations(
+  organizations: readonly PortalAvailableOrganizationRecord[],
+): PortalAvailableOrganizationRecord[] {
+  const seen = new Set<string>();
+  const deduped: PortalAvailableOrganizationRecord[] = [];
+
+  for (const organization of organizations) {
+    if (seen.has(organization.organization_id)) {
+      continue;
+    }
+    seen.add(organization.organization_id);
+    deduped.push(organization);
+  }
+
+  return deduped;
+}
+
+export function resolveAvailablePortalOrganizations(options: {
+  availableOrganizations?: readonly PortalAvailableOrganizationRecord[] | null;
+  organizationContext?: PortalActiveOrganizationRecord | null;
+}): PortalAvailableOrganizationRecord[] {
+  const resolved = dedupePortalOrganizations(options.availableOrganizations ?? []);
+
+  if (!resolved.length && options.organizationContext) {
+    return [options.organizationContext];
+  }
+
+  return resolved;
+}
+
+export function resolveActivePortalOrganization(options: {
+  availableOrganizations: readonly PortalAvailableOrganizationRecord[];
+  organizationContext?: PortalActiveOrganizationRecord | null;
+  storedOrganization?: PortalActiveOrganizationRecord | null;
+}): PortalActiveOrganizationRecord | null {
+  const matchingStoredOrganization = options.storedOrganization
+    ? options.availableOrganizations.find(
+        (organization) =>
+          organization.organization_id === options.storedOrganization?.organization_id,
+      ) ?? null
+    : null;
+
+  return matchingStoredOrganization ?? options.organizationContext ?? null;
 }
 
 export function createSessionPortalOrganization(

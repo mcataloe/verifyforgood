@@ -20,23 +20,26 @@ describe("DetailPageLayout", () => {
     expect(screen.getByRole("heading", { name: "First" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Second" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Third" })).toBeTruthy();
-    expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
-    expect(screen.getByTestId("detail-page-layout-content")).toBeTruthy();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
 
+    const layout = screen.getByTestId("detail-page-layout");
     const content = screen.getByTestId("detail-page-layout-content");
-    const firstSection = screen.getByRole("heading", { name: "First" }).closest("section");
-    const secondSection = screen.getByRole("heading", { name: "Second" }).closest("section");
-    const thirdSection = screen.getByRole("heading", { name: "Third" }).closest("section");
+    const sections = content.querySelectorAll(".portal-detail-layout__section");
     const dividers = screen.getAllByTestId("section-divider");
     const orderedChildren = Array.from(content.children);
 
+    expect(layout.className).toContain("portal-authenticated-container");
+    expect(layout.className).toContain("portal-detail-layout");
+    expect(sections).toHaveLength(3);
+    expect(sections[0]?.textContent).toContain("Alpha");
+    expect(sections[1]?.textContent).toContain("Beta");
+    expect(sections[2]?.textContent).toContain("Gamma");
+    expect(dividers).toHaveLength(2);
     expect(orderedChildren).toStrictEqual([
-      firstSection,
+      sections[0],
       dividers[0],
-      secondSection,
+      sections[1],
       dividers[1],
-      thirdSection,
+      sections[2],
     ]);
   });
 

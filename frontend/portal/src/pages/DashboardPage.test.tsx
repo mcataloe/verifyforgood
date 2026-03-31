@@ -26,6 +26,9 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Verification trend chart")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Alerts" })).toBeTruthy();
     expect(screen.getByText("American National Red Cross")).toBeTruthy();
+    const container = screen.getByTestId("portal-page-container");
+    expect(container.className).toContain("portal-authenticated-container");
+    expect(container.className).toContain("portal-dashboard");
     expect(screen.getByTestId("dashboard-content-layout")).toBeTruthy();
     expect(screen.queryByText(/development environment/i)).toBeNull();
     expect(screen.queryByText(/placeholder/i)).toBeNull();

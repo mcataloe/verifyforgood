@@ -915,9 +915,13 @@ describe("UsageBillingPanel", () => {
     await waitFor(() => {
       expect(cancelSubscription).toHaveBeenCalled();
     });
-    expect(
-      screen.getByText(/Cancellation is scheduled for the end of the current billing period/i),
-    ).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Cancellation is scheduled for the end of the current billing period/i,
+        ),
+      ).toBeTruthy();
+    });
     expect(screen.getByText("Cancellation at period end")).toBeTruthy();
     expect(reload).toHaveBeenCalled();
   });

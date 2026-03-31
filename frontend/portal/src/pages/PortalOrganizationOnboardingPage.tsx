@@ -55,6 +55,7 @@ export function PortalOrganizationOnboardingPage({
 
   return (
     <DetailPageLayout
+      data-testid="organization-onboarding-page"
       eyebrow="Onboarding"
       intro="Create your organization to start managing your team, billing, and verification work."
       testId="organization-onboarding-page"

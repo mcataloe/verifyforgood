@@ -18,9 +18,9 @@ describe("PortalPageShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Shell title" })).toBeTruthy();
-    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
-    expect(screen.getByTestId("portal-page-container").className).toContain(
-      "portal-authenticated-container",
-    );
+    const container = screen.getByTestId("portal-page-container");
+    expect(container).toBeTruthy();
+    expect(container.className).toContain("portal-authenticated-container");
+    expect(container.className).toContain("portal-page-shell");
   });
 });

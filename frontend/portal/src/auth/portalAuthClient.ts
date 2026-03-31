@@ -2,13 +2,17 @@ import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/s
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import {
   createPortalCompatibilitySession,
+  type PortalAvailableOrganizationRecord,
   type PortalAuthenticatedSession,
   type PortalIdentityUser,
   type PortalStoredAuthRecord,
 } from "../app/portalSession";
 import {
-  createPortalActiveOrganizationRecord,
   clearStoredActiveOrganization,
+  createPortalActiveOrganizationRecord,
+  readStoredActiveOrganization,
+  resolveActivePortalOrganization,
+  resolveAvailablePortalOrganizations,
   writeStoredActiveOrganization,
   type PortalOrganizationCreateResponse,
 } from "../organization/portalOrganization";
@@ -27,6 +31,7 @@ interface PortalAuthApiSessionPayload {
 }
 
 interface PortalAuthMePayload {
+  available_organizations?: PortalOrganizationCreateResponse[] | null;
   organization_context?: PortalOrganizationCreateResponse | null;
   user: PortalIdentityUser;
 }
@@ -44,6 +49,7 @@ export interface PortalRegisterRequest {
 
 export interface PortalAuthState {
   accessToken: string;
+  availableOrganizations: PortalAvailableOrganizationRecord[];
   session: PortalAuthenticatedSession;
 }
 
@@ -119,13 +125,11 @@ async function hydrateSession(
       token_type: record.token_type,
       user: payload.user,
     });
-    const activeOrganization = payload.organization_context
-      ? writeStoredActiveOrganization(
-          createPortalActiveOrganizationRecord(payload.organization_context),
-        )
-      : (clearStoredActiveOrganization(), null);
+    const { activeOrganization, availableOrganizations } =
+      resolveHydratedOrganizations(payload);
     return {
       accessToken: refreshedRecord.access_token,
+      availableOrganizations,
       session: createPortalCompatibilitySession(
         refreshedRecord.user,
         activeOrganization,
@@ -140,6 +144,40 @@ async function hydrateSession(
     }
     throw error;
   }
+}
+
+function resolveHydratedOrganizations(
+  payload: PortalAuthMePayload,
+): {
+  activeOrganization: PortalAvailableOrganizationRecord | null;
+  availableOrganizations: PortalAvailableOrganizationRecord[];
+} {
+  const organizationContext = payload.organization_context
+    ? createPortalActiveOrganizationRecord(payload.organization_context)
+    : null;
+  const availableOrganizations = resolveAvailablePortalOrganizations({
+    availableOrganizations: payload.available_organizations?.map(
+      createPortalActiveOrganizationRecord,
+    ),
+    organizationContext,
+  });
+  const storedOrganization = readStoredActiveOrganization();
+  const activeOrganization = resolveActivePortalOrganization({
+    availableOrganizations,
+    organizationContext,
+    storedOrganization,
+  });
+
+  if (activeOrganization) {
+    writeStoredActiveOrganization(activeOrganization);
+  } else {
+    clearStoredActiveOrganization();
+  }
+
+  return {
+    activeOrganization,
+    availableOrganizations,
+  };
 }
 
 async function requireHydratedSession(

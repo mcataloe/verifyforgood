@@ -191,6 +191,11 @@ def test_auth_me_returns_current_user_and_active_organization_context(monkeypatc
     assert payload["data"]["user"]["email"] == "person@example.com"
     assert payload["data"]["user"]["full_name"] == "Portal Person"
     assert payload["data"]["organization_context"]["organization_name"] == "Verify For Good Org"
+    assert len(payload["data"]["available_organizations"]) == 1
+    assert (
+        payload["data"]["available_organizations"][0]["organization_name"]
+        == "Verify For Good Org"
+    )
     assert (
         payload["data"]["organization_context"]["organization_id"]
         == organization_payload["data"]["organization_id"]
@@ -232,6 +237,7 @@ def test_auth_me_returns_null_organization_context_without_membership(monkeypatc
     payload = _response_body(response)
 
     assert response["statusCode"] == 200
+    assert payload["data"]["available_organizations"] == []
     assert payload["data"]["organization_context"] is None
 
 
@@ -300,3 +306,69 @@ def test_organization_context_service_prefers_latest_active_membership():
     assert resolved.organization_id == "org_newer"
     assert resolved.organization_name == "Newer Org"
     assert resolved.membership["role"] == "user"
+
+
+def test_organization_context_service_lists_active_memberships_in_priority_order():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    users = DynamoUserRepository(dynamodb_resource=resource)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    memberships = DynamoMembershipRepository(dynamodb_resource=resource)
+
+    users.create(
+        UserRecord(
+            user_id="user_portal_person",
+            email="person@example.com",
+            normalized_email="person@example.com",
+            full_name="Portal Person",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_alpha",
+            name="Alpha Org",
+            slug="alpha-org",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_beta",
+            name="Beta Org",
+            slug="beta-org",
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_alpha",
+            user_id="user_portal_person",
+            role=MembershipRole.ADMIN,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_beta",
+            user_id="user_portal_person",
+            role=MembershipRole.USER,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-27T00:00:00+00:00",
+        )
+    )
+
+    resolved = OrganizationContextService(
+        organizations=organizations,
+        memberships=memberships,
+    ).list_for_user(user_id="user_portal_person")
+
+    assert [item.organization_id for item in resolved] == ["org_beta", "org_alpha"]
+    assert resolved[0].membership["role"] == "user"
+    assert resolved[1].membership["role"] == "admin"

@@ -5,6 +5,8 @@ import {
   loadActivePortalOrganization,
   mapSettingsToPortalOrganization,
   readStoredActiveOrganization,
+  resolveActivePortalOrganization,
+  resolveAvailablePortalOrganizations,
   writeStoredActiveOrganization,
 } from "./portalOrganization";
 
@@ -201,5 +203,64 @@ describe("portal organization client", () => {
     expect(organization.organization_name).toBe("Org Profile Name");
     expect(organization.contact_email).toBe("ops@example.org");
     expect(organization.created_at).toBe("2026-03-20T00:00:00Z");
+  });
+
+  it("keeps backend organization context in the available list when /auth/me omits a separate list", () => {
+    const organizationContext = createPortalActiveOrganizationRecord({
+      account_id: "org_123",
+      membership: {
+        role: "admin",
+        status: "active",
+        user_id: "user_123",
+      },
+      organization_id: "org_123",
+      organization_name: "Verify For Good Org",
+      slug: "verify-for-good-org",
+      workspace_id: "org_123",
+    });
+
+    const resolved = resolveAvailablePortalOrganizations({
+      availableOrganizations: [],
+      organizationContext,
+    });
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]?.organization_name).toBe("Verify For Good Org");
+  });
+
+  it("prefers a persisted selected organization when it still exists in the available list", () => {
+    const organizationContext = createPortalActiveOrganizationRecord({
+      account_id: "org_primary",
+      membership: {
+        role: "admin",
+        status: "active",
+        user_id: "user_123",
+      },
+      organization_id: "org_primary",
+      organization_name: "Primary Org",
+      slug: "primary-org",
+      workspace_id: "org_primary",
+    });
+    const storedOrganization = createPortalActiveOrganizationRecord({
+      account_id: "org_secondary",
+      membership: {
+        role: "user",
+        status: "active",
+        user_id: "user_123",
+      },
+      organization_id: "org_secondary",
+      organization_name: "Secondary Org",
+      slug: "secondary-org",
+      workspace_id: "org_secondary",
+    });
+
+    const resolved = resolveActivePortalOrganization({
+      availableOrganizations: [organizationContext, storedOrganization],
+      organizationContext,
+      storedOrganization,
+    });
+
+    expect(resolved?.organization_id).toBe("org_secondary");
+    expect(resolved?.membership.role).toBe("user");
   });
 });

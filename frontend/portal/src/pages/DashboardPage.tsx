@@ -192,6 +192,7 @@ export function DashboardPage({
       <VerifyForGoodMantineProvider>
         <div
           className="portal-authenticated-container portal-dashboard"
+          data-testid="portal-page-container"
           style={pageStyle}
         >
           <PageHeader
@@ -209,6 +210,7 @@ export function DashboardPage({
     <VerifyForGoodMantineProvider>
       <div
         className="portal-authenticated-container portal-dashboard"
+        data-testid="portal-page-container"
         style={pageStyle}
       >
         <PageHeader

@@ -116,7 +116,9 @@ describe("NonprofitSearchPanel", () => {
     expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider").length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getAllByTestId("section-divider").length,
+    ).toBeGreaterThanOrEqual(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
     expect(controller.loadMoreResults).toHaveBeenCalledOnce();
