@@ -13,6 +13,7 @@ import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   createPortalActiveOrganizationRecord,
   createPortalOrganizationClient,
+  type PortalOrganizationCreateRequest,
 } from "../organization/portalOrganization";
 import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
@@ -108,7 +109,7 @@ function PortalAppShell({
     ) {
       navigateToPortalRoute(
         hasPendingOrganization
-          ? organizationOnboardingPortalRoute.hash
+          ? "#/dashboard"
           : consumePortalReturnTo(),
       );
     }
@@ -118,9 +119,9 @@ function PortalAppShell({
     if (
       auth.status === "authenticated" &&
       hasPendingOrganization &&
-      currentRoute.key !== organizationOnboardingPortalRoute.key
+      currentRoute.key !== "dashboard"
     ) {
-      navigateToPortalRoute(organizationOnboardingPortalRoute.hash);
+      navigateToPortalRoute("#/dashboard");
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
@@ -210,57 +211,6 @@ function PortalAppShell({
     return null;
   }
 
-  if (hasPendingOrganization) {
-    return (
-      <PortalAuthLayout
-        app={appInfo}
-        runtimeConfig={runtimeConfig}
-        subtitle="Finish setting up your account to continue."
-        title="Complete setup"
-      >
-        <div className="portal-auth-page">
-          <div className="portal-auth-page__card-copy">
-            <p className="portal-shell__eyebrow">Organization setup</p>
-            <h2>Create your organization to continue</h2>
-            <p>
-              Your account is ready. Finish setup to access the dashboard,
-              billing, team access, and verification tools.
-            </p>
-          </div>
-
-          <div className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              onClick={() => setIsOrganizationOnboardingOpen(true)}
-              type="button"
-            >
-              Open organization setup
-            </button>
-          </div>
-        </div>
-
-        {isOrganizationOnboardingOpen ? (
-          <PortalOrganizationOnboardingPage
-            endpoints={endpoints}
-            isBusy={auth.isBusy}
-            onClose={() => setIsOrganizationOnboardingOpen(false)}
-            onCreateOrganization={async (request) => {
-              if (!organizationClient) {
-                throw new Error("Authentication is required");
-              }
-
-              const created = await organizationClient.createOrganization(request);
-              auth.applyOrganization(
-                createPortalActiveOrganizationRecord(created),
-              );
-              navigateToPortalRoute("#/dashboard");
-            }}
-          />
-        ) : null}
-      </PortalAuthLayout>
-    );
-  }
-
   const audience = resolvePortalNavigationAudience(session.roles);
   const currentHash =
     typeof window === "undefined"
@@ -293,6 +243,21 @@ function PortalAppShell({
         currentRoute={currentRoute}
         customerUserPane={customerUserPane}
         endpoints={endpoints}
+        isOrganizationOnboardingBusy={auth.isBusy}
+        isOrganizationOnboardingOpen={
+          hasPendingOrganization && isOrganizationOnboardingOpen
+        }
+        onCloseOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(false)}
+        onOpenOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(true)}
+        onCreateOrganization={async (request) => {
+          if (!organizationClient) {
+            throw new Error("Authentication is required");
+          }
+
+          const created = await organizationClient.createOrganization(request);
+          auth.applyOrganization(createPortalActiveOrganizationRecord(created));
+          navigateToPortalRoute("#/dashboard");
+        }}
         runtimeConfig={runtimeConfig}
         session={session}
         onSignOut={auth.signOut}
@@ -307,6 +272,11 @@ function PortalAuthorizedShell({
   currentRoute,
   customerUserPane,
   endpoints,
+  isOrganizationOnboardingBusy,
+  isOrganizationOnboardingOpen,
+  onCloseOrganizationOnboarding,
+  onOpenOrganizationOnboarding,
+  onCreateOrganization,
   onSignOut,
   runtimeConfig,
   session,
@@ -316,6 +286,11 @@ function PortalAuthorizedShell({
   currentRoute: ReturnType<typeof usePortalRoute>;
   customerUserPane: ReturnType<typeof resolveCustomerUserPortalPane> | null;
   endpoints: ReturnType<typeof portalEndpoints>;
+  isOrganizationOnboardingBusy: boolean;
+  isOrganizationOnboardingOpen: boolean;
+  onCloseOrganizationOnboarding: () => void;
+  onOpenOrganizationOnboarding: () => void;
+  onCreateOrganization: (request: PortalOrganizationCreateRequest) => Promise<void>;
   onSignOut: () => Promise<void>;
   runtimeConfig: ReturnType<typeof readRuntimeConfig>;
   session: NonNullable<ReturnType<typeof usePortalAuth>["session"]>;
@@ -378,6 +353,29 @@ function PortalAuthorizedShell({
       runtimeConfig={runtimeConfig}
       session={session}
     >
+      {session.organization_context_status === "pending" &&
+      !isOrganizationOnboardingOpen ? (
+        <div className="portal-auth-page" data-testid="pending-organization-callout">
+          <div className="portal-auth-page__card-copy">
+            <p className="portal-shell__eyebrow">Organization setup</p>
+            <h2>Create your organization to continue</h2>
+            <p>
+              Finish creating your organization to unlock billing, team access,
+              and verification tools.
+            </p>
+          </div>
+
+          <div className="portal-form__actions">
+            <button
+              className="portal-shell__action portal-shell__action--primary"
+              onClick={onOpenOrganizationOnboarding}
+              type="button"
+            >
+              Open organization setup
+            </button>
+          </div>
+        </div>
+      ) : null}
       {currentRoute.key === "dashboard" ? (
         <DashboardPage
           pane={customerAdminPane}
@@ -432,6 +430,14 @@ function PortalAuthorizedShell({
             session={session}
           />
         )
+      ) : null}
+      {isOrganizationOnboardingOpen ? (
+        <PortalOrganizationOnboardingPage
+          endpoints={endpoints}
+          isBusy={isOrganizationOnboardingBusy}
+          onClose={onCloseOrganizationOnboarding}
+          onCreateOrganization={onCreateOrganization}
+        />
       ) : null}
     </PortalLayout>
   );

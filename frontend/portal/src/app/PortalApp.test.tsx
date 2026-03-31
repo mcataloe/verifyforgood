@@ -610,7 +610,7 @@ describe("PortalApp", () => {
     expect(screen.queryByText("Login endpoint")).toBeNull();
   });
 
-  it("allows the login flow and restores the protected route", async () => {
+  it("allows the login flow and enters the portal shell for zero-org users", async () => {
     render(<App />);
 
     await screen.findByRole("heading", {
@@ -624,12 +624,18 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Organization activity" })).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Complete setup" }),
+    ).toBeNull();
   });
 
-  it("allows the registration flow and redirects into organization onboarding", async () => {
+  it("allows the registration flow and enters the portal shell for zero-org users", async () => {
     render(<App />);
 
     await screen.findByRole("heading", {
@@ -654,8 +660,59 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Organization activity" })).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
+  });
+
+  it("restores the remembered protected route after login when org context exists", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              organization_context: createStoredOrganizationForTest(),
+              user: {
+                email: "jamie.admin@example.org",
+                full_name: "Jamie Admin",
+                user_id: "user_jamie_admin",
+              },
+            }),
+          ),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      return buildFetchMock()(input, init);
+    }) as typeof fetch;
+
+    render(<App />);
+
+    await screen.findByRole("heading", {
+      name: "Sign in to the customer portal",
+    });
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "jamie.admin@example.org" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "top-secret-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Subscription visibility" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("#/usage-billing");
+    expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
 
   it("creates an organization during onboarding and redirects to the dashboard", async () => {
@@ -864,7 +921,7 @@ describe("PortalApp", () => {
     ).toContain("\"organization_name\":\"Verify For Good Org\"");
   });
 
-  it("gates authenticated users with pending org context to onboarding", async () => {
+  it("routes authenticated users with pending org context into the portal shell", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -881,17 +938,21 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Complete setup" }),
+      await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
+    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Create your first organization" }),
     ).toBeTruthy();
-    expect(window.location.hash).toBe("#/onboarding/organization");
+    expect(
+      screen.queryByRole("heading", { name: "Complete setup" }),
+    ).toBeNull();
+    expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
   });
 
-  it("does not dismiss organization setup on overlay click and allows explicit close and reopen", async () => {
+  it("does not dismiss organization setup on overlay click and allows explicit close and reopen from the portal shell", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -904,10 +965,13 @@ describe("PortalApp", () => {
         },
       }),
     );
-    window.location.hash = "#/onboarding/organization";
+    window.location.hash = "#/dashboard";
 
     render(<App />);
 
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
 
     const overlay = document.body.querySelector(".mantine-Modal-overlay");
@@ -925,6 +989,7 @@ describe("PortalApp", () => {
     );
 
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
+    expect(screen.getByTestId("pending-organization-callout")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Open organization setup" }),
     ).toBeTruthy();
@@ -934,6 +999,31 @@ describe("PortalApp", () => {
     );
 
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("redirects authenticated onboarding-route access into the dashboard shell", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.location.hash = "#/onboarding/organization";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
   });
 
   it("redirects customer admins without admin membership away from admin-only routes", async () => {
