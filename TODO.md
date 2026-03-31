@@ -4,30 +4,43 @@
 
 ### Title
 
-Evaluate migration of identity domain from DynamoDB to PostgreSQL/Aurora Serverless once customer growth or reporting complexity justifies relational storage.
+Execute the staged PostgreSQL migration for platform relational domains while preserving DynamoDB compatibility during cutover.
 
 ### Rationale
 
-The identity domain includes relational structures:
+The Phase 24A relational pivot assessment confirms that the current DynamoDB
+footprint spans multiple relational domains:
 
 - users
 - organizations
 - memberships
 - invitations
+- org-scoped subscriptions, usage, feature flags, API keys, and audit events
+- organization settings
+- control-plane accounts, billing events, OAuth clients, and account usage
 
-DynamoDB is being used initially for cost control.
+DynamoDB remains the current runtime backend, but PostgreSQL is now the
+accepted target for platform/application relational persistence.
 
 ### Migration Triggers
 
-- SSO rollout
-- enterprise onboarding requirements
-- complex reporting needs
-- audit requirements
-- 50+ paying customers
+- complete Phase 24B bootstrap/config scaffolding
+- complete identity-domain PostgreSQL repository parity
+- complete org settings and control-plane follow-on migration phases
 
 ### Constraint
 
-Service and repository interfaces should remain datastore-agnostic.
+Keep service and repository interfaces stable so PostgreSQL adapters can
+replace or coexist with DynamoDB adapters without changing route contracts or
+frontend payloads.
+
+### Follow-On Sequence
+
+1. add PostgreSQL bootstrap/config seams and Terraform scaffolding
+2. migrate identity core: users, organizations, memberships, invitations
+3. migrate org audit, settings, API keys, subscriptions, usage, feature flags
+4. migrate control-plane accounts, billing events, OAuth clients, and account usage
+5. reevaluate the DynamoDB `profiles` cache separately
 
 ## TODO-ARCH-002
 
