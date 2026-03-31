@@ -48,6 +48,7 @@ class PlatformPersistenceConfig:
     organization_settings_store_backend: str = "dynamodb"
     control_plane_store_backend: str = "dynamodb"
     nonprofit_store_backend: str = "disabled"
+    nonprofit_query_backend: str = "athena"
 
 
 def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> PlatformPersistenceConfig:
@@ -67,6 +68,7 @@ def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> Pl
         organization_settings_store_backend=_mapping_text(source, "PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND", "dynamodb") or "dynamodb",
         control_plane_store_backend=_mapping_text(source, "PLATFORM_CONTROL_PLANE_STORE_BACKEND", "dynamodb") or "dynamodb",
         nonprofit_store_backend=_mapping_text(source, "PLATFORM_NONPROFIT_STORE_BACKEND", "disabled") or "disabled",
+        nonprofit_query_backend=_mapping_text(source, "PLATFORM_NONPROFIT_QUERY_BACKEND", "athena") or "athena",
     )
     _validate_platform_persistence_config(config)
     return config
@@ -138,8 +140,14 @@ def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> 
 
     if config.nonprofit_store_backend not in {"disabled", "postgres"}:
         raise ValueError("PLATFORM_NONPROFIT_STORE_BACKEND must be either disabled or postgres")
+    if config.nonprofit_query_backend not in {"athena", "postgres"}:
+        raise ValueError("PLATFORM_NONPROFIT_QUERY_BACKEND must be either athena or postgres")
 
-    any_postgres_backend = any(value == "postgres" for value in selected.values()) or config.nonprofit_store_backend == "postgres"
+    any_postgres_backend = (
+        any(value == "postgres" for value in selected.values())
+        or config.nonprofit_store_backend == "postgres"
+        or config.nonprofit_query_backend == "postgres"
+    )
     if any_postgres_backend and not config.postgres.enabled:
         raise ValueError("PLATFORM_POSTGRES_ENABLED must be true when any platform store backend is postgres")
 

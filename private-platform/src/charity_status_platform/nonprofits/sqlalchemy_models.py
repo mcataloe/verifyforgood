@@ -18,6 +18,7 @@ class NonprofitModel(CustomerAccountsBase):
     __table_args__ = (
         UniqueConstraint("ein", name="uq_nonprofits_ein"),
         Index("ix_nonprofits_normalized_name", "normalized_name"),
+        Index("ix_nonprofits_normalized_name_ein", "normalized_name", "ein"),
     )
 
     nonprofit_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -59,6 +60,7 @@ class NonprofitFilingModel(CustomerAccountsBase):
             name="uq_nonprofit_filings_nonprofit_identity",
         ),
         Index("ix_nonprofit_filings_nonprofit_tax_year", "nonprofit_id", "tax_year", "filing_date"),
+        Index("ix_nonprofit_filings_nonprofit_latest", "nonprofit_id", "tax_year", "filing_date", "updated_at"),
         Index("ix_nonprofit_filings_nonprofit_source", "nonprofit_id", "source_name", "source_record_id"),
     )
 
@@ -132,6 +134,7 @@ class ComplianceCheckModel(CustomerAccountsBase):
     __table_args__ = (
         Index("ix_compliance_checks_nonprofit_evaluated", "nonprofit_id", "evaluated_at"),
         Index("ix_compliance_checks_nonprofit_type", "nonprofit_id", "check_type"),
+        Index("ix_compliance_checks_nonprofit_type_evaluated", "nonprofit_id", "check_type", "evaluated_at"),
     )
 
     compliance_check_id: Mapped[str] = mapped_column(String(64), primary_key=True)

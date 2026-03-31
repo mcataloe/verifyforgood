@@ -24,6 +24,7 @@ from charity_status_platform.customer_accounts import (
     AuditEventType,
     AuditLogService,
     AuditRecord,
+    CustomerAccountsBase,
     DynamoAuditLogRepository,
     DynamoFeatureFlagRepository,
     DynamoOrganizationRepository,
@@ -42,6 +43,15 @@ from charity_status_platform.customer_accounts import (
     SubscriptionService,
     UsageService,
     UserRecord,
+    build_customer_accounts_engine,
+    build_customer_accounts_session_factory,
+)
+from charity_status_platform.nonprofits import (
+    NonprofitFilingRecord,
+    NonprofitRecord,
+    SqlAlchemyNonprofitRepository,
+    build_nonprofit_id,
+    make_record_id,
 )
 
 
@@ -134,6 +144,44 @@ def _mock_client(
 
 def _mock_enrichment(providers=None, failures=None):
     return SimpleNamespace(to_dict=lambda: {"providers": providers or [], "failures": failures or []})
+
+
+def _seed_postgres_nonprofit(sqlite_url, *, ein="123456789", name="Postgres Org", state="IL", subsection="03", irs_status="active"):
+    engine = build_customer_accounts_engine(sqlite_url)
+    CustomerAccountsBase.metadata.create_all(engine)
+    repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
+    nonprofit = NonprofitRecord(
+        nonprofit_id=build_nonprofit_id(ein),
+        ein=ein,
+        canonical_name=name,
+        normalized_name=name.lower(),
+        subsection_code=subsection,
+        deductibility_code="1",
+        irs_status=irs_status,
+        state=state,
+        ntee_category="P20",
+        created_at="2026-03-31T00:00:00+00:00",
+        updated_at="2026-03-31T00:00:00+00:00",
+    )
+    repository.upsert_nonprofit(nonprofit)
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=make_record_id("fil"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2024,
+            tax_period="202412",
+            form_type="990",
+            filing_date="2025-05-15",
+            amended=False,
+            parse_status="parsed",
+            total_assets=120000,
+            total_income=80000,
+            total_revenue=76000,
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+    return repository
 
 
 def _install_tenant_auth(
@@ -2844,6 +2892,43 @@ def test_nonprofits_search_exactish_name():
     assert body["items"][0]["ein"] == "12-3456789"
 
 
+def test_nonprofits_search_reads_from_postgres_query_backend(monkeypatch, tmp_path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_search.sqlite3'}"
+    _seed_postgres_nonprofit(sqlite_url, name="Helping Hands Foundation")
+    monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
+    monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
+    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
+
+    module = _load_module()
+    _install_tenant_auth(module)
+    module.athena_client = _mock_client(search_rows=[])
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/search",
+            "path": "/v1/nonprofits/search",
+            "queryStringParameters": {"q": "helping"},
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["items"] == [
+        {
+            "ein": "12-3456789",
+            "ein_normalized": "123456789",
+            "name": "Helping Hands Foundation",
+            "state": "IL",
+            "subsection": "03",
+            "irs_status": "active",
+            "active": True,
+            "tax_period": "202412",
+        }
+    ]
+
+
 def test_nonprofits_search_filtered_search():
     module = _load_module()
     _install_tenant_auth(module)
@@ -2887,6 +2972,44 @@ def test_nonprofits_search_pagination_cursor():
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["pagination"]["next_cursor"] is not None
+
+
+def test_nonprofit_filings_reads_from_postgres_query_backend(monkeypatch, tmp_path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_filings.sqlite3'}"
+    _seed_postgres_nonprofit(sqlite_url, name="Filings Org")
+    monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
+    monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
+    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
+
+    module = _load_module()
+    _install_tenant_auth(module)
+    module.athena_client = _mock_client(filing_rows=[])
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}/filings",
+            "path": "/v1/nonprofit/123456789/filings",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body == {
+        "ein": "123456789",
+        "filings": [
+            {
+                "tax_year": "2024",
+                "form_type": "990",
+                "filing_date": "2025-05-15",
+                "amended": False,
+                "parse_status": "parsed",
+            }
+        ],
+    }
 
 
 def test_nonprofits_search_invalid_limit_handling():
@@ -3453,6 +3576,37 @@ def test_lookup_nonprofit_surfaces_disabled_premium_integrations_in_existing_met
     assert states["candid"]["tenant_enabled"] is False
     assert states["charity_navigator"]["availability_status"] == "tenant_disabled"
     assert body["enrichment"]["providers"] == []
+
+
+def test_nonprofit_lookup_uses_postgres_query_backend_for_base_record(monkeypatch, tmp_path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_lookup.sqlite3'}"
+    _seed_postgres_nonprofit(sqlite_url, name="Postgres Lookup Org")
+    monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
+    monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
+    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
+
+    module = _load_module()
+    _install_tenant_auth(module)
+    module.athena_client = _mock_client(record=_sample_record("Athena Fallback Org"))
+    module.enrichment_service = SimpleNamespace(
+        enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment()
+    )
+
+    result = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Postgres Lookup Org"
+    assert body["queryExecutionId"] == "postgres:lookup_nonprofit"
 
 
 def test_nonprofits_sources_omit_disabled_premium_integrations_cleanly():

@@ -13,12 +13,13 @@ from charity_status_platform.nonprofits import (
     NonprofitFilingRecord,
     NonprofitModel,
     NonprofitRecord,
+    PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
     build_nonprofit_id,
     make_record_id,
 )
-from charity_status_platform.runtime import build_nonprofit_postgres_repository
+from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
 
 def _session_factory(tmp_path: Path):
@@ -146,6 +147,109 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
     assert latest_check.final_recommendation == "approve"
 
 
+def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = NonprofitRecord(
+        nonprofit_id=build_nonprofit_id("12-3456789"),
+        ein="12-3456789",
+        canonical_name="Helping Hands Foundation",
+        normalized_name="helping hands foundation",
+        subsection_code="03",
+        deductibility_code="1",
+        irs_status="active",
+        state="IL",
+        ntee_category="P20",
+        created_at="2026-03-31T00:00:00+00:00",
+        updated_at="2026-03-31T00:00:00+00:00",
+    )
+    repository.upsert_nonprofit(nonprofit)
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=make_record_id("fil"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2024,
+            tax_period="202412",
+            form_type="990",
+            filing_date="2025-05-15",
+            amended=False,
+            parse_status="parsed",
+            total_assets=120000,
+            total_income=80000,
+            total_revenue=76000,
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+    repository.create_compliance_check(
+        ComplianceCheckRecord(
+            compliance_check_id=make_record_id("chk"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            check_type="state_compliance",
+            status="pass",
+            evaluated_at="2026-04-01T00:00:00+00:00",
+            created_at="2026-04-01T00:00:00+00:00",
+        )
+    )
+    repository.upsert_source(
+        NonprofitSourceRecord(
+            nonprofit_source_id=make_record_id("src"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            source_id="state_registry_mock",
+            provider_name="state_registry",
+            category="compliance",
+            record_id="registry-1",
+            retrieved_at="2026-04-02T00:00:00+00:00",
+            created_at="2026-04-02T00:00:00+00:00",
+            updated_at="2026-04-02T00:00:00+00:00",
+        )
+    )
+
+    snapshot = repository.get_nonprofit_snapshot_by_ein("123456789")
+    search_rows = repository.search_nonprofit_summaries(name_query="helping", limit=10, state="IL", subsection="03", active_only=True)
+    filing_rows = repository.list_filings_by_ein("123456789")
+    source_rows = repository.list_sources_by_ein("123456789", source_id="state_registry_mock")
+    latest_check = repository.latest_compliance_check_by_ein("123456789", check_type="state_compliance")
+    eins = repository.list_nonprofit_eins_page(limit=10)
+
+    assert snapshot == {
+        "ein": "123456789",
+        "name": "Helping Hands Foundation",
+        "state": "IL",
+        "subsection": "03",
+        "status": "active",
+        "deductibility": "1",
+        "ntee_cd": "P20",
+        "tax_period": "202412",
+        "asset_amt": 120000,
+        "income_amt": 80000,
+        "revenue_amt": 76000,
+    }
+    assert search_rows == [
+        {
+            "ein": "123456789",
+            "name": "Helping Hands Foundation",
+            "state": "IL",
+            "subsection": "03",
+            "status": "active",
+            "tax_period": "202412",
+        }
+    ]
+    assert filing_rows == [
+        {
+            "ein": "123456789",
+            "tax_year": "2024",
+            "return_type": "990",
+            "filing_date": "2025-05-15",
+            "amended_return": "false",
+            "parse_status": "parsed",
+        }
+    ]
+    assert source_rows[0].source_id == "state_registry_mock"
+    assert latest_check is not None
+    assert latest_check.status == "pass"
+    assert eins == ["123456789"]
+
+
 def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
     session_factory = _session_factory(tmp_path)
     repository = SqlAlchemyNonprofitRepository(session_factory)
@@ -192,3 +296,42 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
 
     assert repository is not None
     assert disabled is None
+
+
+def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selected(tmp_path: Path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_runtime.sqlite3'}"
+    engine = build_customer_accounts_engine(sqlite_url)
+    CustomerAccountsBase.metadata.create_all(engine)
+    repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
+    repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=build_nonprofit_id("123456789"),
+            ein="123456789",
+            canonical_name="Query Runtime Org",
+            normalized_name="query runtime org",
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+
+    athena_delegate = type(
+        "AthenaDelegate",
+        (),
+        {
+            "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
+            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
+        },
+    )()
+    client = build_nonprofit_query_client(
+        athena_client=athena_delegate,
+        env={
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": sqlite_url,
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+        },
+    )
+    disabled = build_nonprofit_query_client(athena_client=athena_delegate, env={})
+
+    assert isinstance(client, PostgresNonprofitQueryClient)
+    assert disabled is athena_delegate
+    assert client.lookup_nonprofit("123456789")[1]["name"] == "Query Runtime Org"

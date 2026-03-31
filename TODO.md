@@ -528,9 +528,15 @@ Phase 24E introduces PostgreSQL tables for:
 - source provenance
 - compliance snapshots
 
-That schema is additive only in the current phase. The live nonprofit request
-path still uses Athena queries and the DynamoDB materialized profile cache, so
-the repo still needs a deliberate backfill and read-path migration plan.
+That schema is additive only in the current phase. Phase 24G allows
+PostgreSQL-backed lookup, search, and filings reads behind an explicit query
+backend selector, but the repo still needs a deliberate backfill and final
+read-path migration plan for the remaining routes and caches:
+
+- source views
+- compliance views
+- federal-awards views
+- the DynamoDB materialized profile cache
 
 ### Migration Triggers
 

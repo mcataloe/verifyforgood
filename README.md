@@ -1956,9 +1956,7 @@ In the current mixed mode:
   settings, control-plane billing data, and the serving `profiles` cache
 
 Phase 24E also adds an additive PostgreSQL nonprofit schema for canonical
-nonprofit identity, filings, source provenance, and compliance snapshots. The
-live nonprofit read path still uses Athena plus the DynamoDB materialized
-profile cache in this phase.
+nonprofit identity, filings, source provenance, and compliance snapshots.
 
 Phase 24F adds an opt-in PostgreSQL nonprofit ingest persistence path behind:
 
@@ -1969,6 +1967,17 @@ workers persist repeat-safe nonprofit rows, filing rows, and filing-source
 provenance into PostgreSQL after normalization. S3 manifests, raw XML, source
 catalogs, and the current Athena/materialized-profile read path still remain
 in place.
+
+Phase 24G adds an additive nonprofit query selector:
+
+- `PLATFORM_NONPROFIT_QUERY_BACKEND=athena|postgres`
+
+When set to `postgres`, nonprofit lookup, search, and filings routes read from
+the PostgreSQL nonprofit schema. The lookup flow stays hybrid in this phase:
+the canonical nonprofit row and latest filing facts come from PostgreSQL, while
+Form 990 enrichment and peer-benchmark lookups still delegate to Athena for
+compatibility. Source, compliance, and federal-awards routes remain
+enrichment-driven in this phase.
 
 ## Terraform Deployment Notes
 

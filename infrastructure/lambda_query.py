@@ -128,7 +128,11 @@ from charity_status_platform.customer_accounts import (
     UsageService,
     usage_metrics_for_route,
 )
-from charity_status_platform.runtime import CustomerAccountsRepositories, build_customer_accounts_repositories
+from charity_status_platform.runtime import (
+    CustomerAccountsRepositories,
+    build_customer_accounts_repositories,
+    build_nonprofit_query_client,
+)
 from charity_status_platform.identity_access import (
     AuthService,
     BcryptPasswordHasher,
@@ -232,6 +236,7 @@ portal_activity_service: OrganizationActivityService | None = None
 portal_support_service: OrganizationSupportService | None = None
 portal_customer_accounts_repositories: CustomerAccountsRepositories | None = None
 nonprofit_service: NonprofitService | None = None
+nonprofit_query_client: QueryRepository | Any | None = None
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -309,11 +314,21 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
     return enrichment_service
 
 
+def _get_nonprofit_query_client() -> QueryRepository:
+    global nonprofit_query_client
+    if nonprofit_query_client is None:
+        nonprofit_query_client = build_nonprofit_query_client(
+            athena_client=_get_athena_client(),
+            env=os.environ,
+        )
+    return nonprofit_query_client
+
+
 def _get_nonprofit_service() -> NonprofitService:
     global nonprofit_service
     if nonprofit_service is None:
         nonprofit_service = NonprofitService(
-            client=_get_athena_client(),
+            client=_get_nonprofit_query_client(),
             enrichment_service=_get_enrichment_service(),
             feature_flag_service=_get_portal_feature_flag_service(),
         )
@@ -2053,7 +2068,7 @@ def handler(event, context):
             )
         else:
             status_code, payload = verify_nonprofit(
-                _get_athena_client(),
+                _get_nonprofit_query_client(),
                 verification_input,
                 enrichment_service=_get_enrichment_service(),
                 evaluation_context=evaluation_context,

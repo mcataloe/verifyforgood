@@ -221,6 +221,7 @@ resource "aws_lambda_function" "query" {
       PLATFORM_IDENTITY_STORE_BACKEND        = var.platform_identity_store_backend
       PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND = var.platform_organization_settings_store_backend
       PLATFORM_CONTROL_PLANE_STORE_BACKEND   = var.platform_control_plane_store_backend
+      PLATFORM_NONPROFIT_QUERY_BACKEND       = var.platform_nonprofit_query_backend
       ORGANIZATION_SETTINGS_TABLE_NAME       = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                    = var.ops_metadata_prefix

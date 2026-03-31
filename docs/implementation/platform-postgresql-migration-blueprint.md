@@ -197,8 +197,10 @@ Phase 24E adds an additive PostgreSQL nonprofit schema foundation for:
 - `nonprofit_sources`
 - `compliance_checks`
 
-That schema is intentionally additive. Athena and the serving cache remain the
-live nonprofit read path until a later backfill and cutover phase.
+That schema is intentionally additive. Phase 24G narrows the read-path gap by
+allowing lookup, search, and filings reads to use PostgreSQL behind an
+explicit selector, while Athena still remains in play for enrichment-heavy
+nonprofit reads and the serving cache remains unchanged.
 
 ## Repository and Runtime Refactor Direction
 
@@ -287,6 +289,17 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
   read paths unchanged
 - make nonprofit ingest PostgreSQL persistence opt-in until ingest workers have
   fully standardized database connectivity in deployed environments
+
+### Phase 24G
+
+- add a PostgreSQL nonprofit query backend for:
+  - EIN lookup
+  - nonprofit search
+  - filings retrieval
+- keep the verification lookup flow hybrid:
+  - canonical nonprofit row and latest filing facts from PostgreSQL
+  - peer-benchmark and Form 990 enrichment from Athena
+- keep source, compliance, and federal-awards routes enrichment-driven for now
 
 ### Later control-plane phase
 

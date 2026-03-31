@@ -34,6 +34,7 @@ from .persistence import (
     build_customer_accounts_postgres_repositories,
     build_customer_accounts_repositories,
     build_nonprofit_postgres_repository,
+    build_nonprofit_query_client,
 )
 from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
 
@@ -71,6 +72,7 @@ __all__ = [
     "build_customer_accounts_postgres_repositories",
     "build_customer_accounts_repositories",
     "build_nonprofit_postgres_repository",
+    "build_nonprofit_query_client",
     "CustomerAccountsBackfillStats",
     "backfill_customer_accounts_from_dynamodb",
 ]

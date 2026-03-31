@@ -431,6 +431,17 @@ variable "platform_control_plane_store_backend" {
   }
 }
 
+variable "platform_nonprofit_query_backend" {
+  description = "Read backend for nonprofit lookup, search, and filings query paths."
+  type        = string
+  default     = "athena"
+
+  validation {
+    condition     = contains(["athena", "postgres"], var.platform_nonprofit_query_backend)
+    error_message = "platform_nonprofit_query_backend must be either athena or postgres."
+  }
+}
+
 variable "monthly_ingest_private_subnet_ids" {
   description = "Existing private subnet identifiers shared by the ECS task and the temporary interface endpoints."
   type        = list(string)

@@ -3,10 +3,15 @@
 This note captures the additive nonprofit relational schema introduced for the
 PostgreSQL foundation.
 
-The current nonprofit runtime remains Athena-first for lookup, filings, search,
-source views, and verification assembly. The DynamoDB materialized profile
-cache also remains active. PostgreSQL now provides a normalized target schema
-for future backfill and cutover work.
+The nonprofit runtime is now mixed:
+
+- PostgreSQL can serve lookup, search, and filings through
+  `PLATFORM_NONPROFIT_QUERY_BACKEND=postgres`
+- verification assembly remains hybrid because enrichment and peer-benchmark
+  calls still delegate to Athena
+- source views, compliance, and federal-awards routes still remain
+  enrichment-driven
+- the DynamoDB materialized profile cache also remains active
 
 ## Canonical vs Source-Specific Data
 
@@ -59,8 +64,10 @@ Source-specific and provenance-heavy records live outside the canonical row:
 
 - unique index on `nonprofits.ein`
 - name lookup index on `nonprofits.normalized_name`
+- ordered lookup index on `nonprofits(normalized_name, ein)`
 - nonprofit-to-child indexes for filings, sources, and compliance checks
 - composite lookup indexes for latest filing/source/check retrieval
+- PostgreSQL trigram search index on `nonprofits.normalized_name`
 - provenance uniqueness on nonprofit source lineage
 
 ## Follow-On Work
@@ -68,7 +75,8 @@ Source-specific and provenance-heavy records live outside the canonical row:
 This schema foundation does not yet:
 
 - backfill from Athena or the materialized profile cache
-- replace Athena nonprofit reads
+- replace the remaining Athena-backed source, compliance, and federal-awards
+  reads
 - replace the DynamoDB serving cache
 - add PostgreSQL-native nonprofit search behavior beyond the normalized name
   index

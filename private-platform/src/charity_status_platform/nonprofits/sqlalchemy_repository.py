@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
@@ -131,6 +131,29 @@ class SqlAlchemyNonprofitRepository:
             model = session.scalar(select(NonprofitModel).where(NonprofitModel.ein == _normalize_ein(ein)).limit(1))
             return None if model is None else _nonprofit_record(model)
 
+    def get_nonprofit_snapshot_by_ein(self, ein: str) -> dict[str, Any] | None:
+        latest_filing = _latest_filing_subquery()
+        with customer_accounts_session_scope(self._session_factory) as session:
+            row = session.execute(
+                select(
+                    NonprofitModel.ein,
+                    NonprofitModel.canonical_name,
+                    NonprofitModel.state,
+                    NonprofitModel.subsection_code,
+                    NonprofitModel.irs_status,
+                    NonprofitModel.deductibility_code,
+                    NonprofitModel.ntee_category,
+                    latest_filing.c.tax_period,
+                    latest_filing.c.total_assets,
+                    latest_filing.c.total_income,
+                    latest_filing.c.total_revenue,
+                )
+                .outerjoin(latest_filing, latest_filing.c.nonprofit_id == NonprofitModel.nonprofit_id)
+                .where(NonprofitModel.ein == _normalize_ein(ein))
+                .limit(1)
+            ).mappings().first()
+            return None if row is None else _snapshot_row(dict(row))
+
     def upsert_filing(self, record: NonprofitFilingRecord) -> NonprofitFilingRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(
@@ -155,6 +178,26 @@ class SqlAlchemyNonprofitRepository:
             if limit is not None:
                 statement = statement.limit(limit)
             return [_filing_record(model) for model in session.scalars(statement).all()]
+
+    def list_filings_by_ein(self, ein: str, *, limit: int | None = None) -> list[dict[str, Any]]:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(
+                    NonprofitModel.ein,
+                    NonprofitFilingModel.tax_year,
+                    NonprofitFilingModel.form_type,
+                    NonprofitFilingModel.filing_date,
+                    NonprofitFilingModel.amended,
+                    NonprofitFilingModel.parse_status,
+                )
+                .join(NonprofitFilingModel, NonprofitFilingModel.nonprofit_id == NonprofitModel.nonprofit_id)
+                .where(NonprofitModel.ein == _normalize_ein(ein))
+                .order_by(desc(NonprofitFilingModel.tax_year), desc(NonprofitFilingModel.filing_date))
+            )
+            if limit is not None:
+                statement = statement.limit(limit)
+            rows = session.execute(statement).mappings().all()
+            return [_filing_query_row(dict(row)) for row in rows]
 
     def upsert_source(self, record: NonprofitSourceRecord) -> NonprofitSourceRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
@@ -189,6 +232,26 @@ class SqlAlchemyNonprofitRepository:
                 statement = statement.limit(limit)
             return [_source_record(model) for model in session.scalars(statement).all()]
 
+    def list_sources_by_ein(
+        self,
+        ein: str,
+        *,
+        source_id: str | None = None,
+        limit: int | None = None,
+    ) -> list[NonprofitSourceRecord]:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(NonprofitSourceModel)
+                .join(NonprofitModel, NonprofitModel.nonprofit_id == NonprofitSourceModel.nonprofit_id)
+                .where(NonprofitModel.ein == _normalize_ein(ein))
+                .order_by(desc(NonprofitSourceModel.retrieved_at))
+            )
+            if source_id:
+                statement = statement.where(NonprofitSourceModel.source_id == source_id)
+            if limit is not None:
+                statement = statement.limit(limit)
+            return [_source_record(model) for model in session.scalars(statement).all()]
+
     def create_compliance_check(self, record: ComplianceCheckRecord) -> ComplianceCheckRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
             session.add(_check_model(record))
@@ -211,6 +274,77 @@ class SqlAlchemyNonprofitRepository:
                 statement = statement.where(ComplianceCheckModel.check_type == check_type)
             model = session.scalar(statement.limit(1))
             return None if model is None else _check_record(model)
+
+    def latest_compliance_check_by_ein(
+        self,
+        ein: str,
+        *,
+        check_type: str | None = None,
+    ) -> ComplianceCheckRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(ComplianceCheckModel)
+                .join(NonprofitModel, NonprofitModel.nonprofit_id == ComplianceCheckModel.nonprofit_id)
+                .where(NonprofitModel.ein == _normalize_ein(ein))
+                .order_by(desc(ComplianceCheckModel.evaluated_at), desc(ComplianceCheckModel.created_at))
+            )
+            if check_type:
+                statement = statement.where(ComplianceCheckModel.check_type == check_type)
+            model = session.scalar(statement.limit(1))
+            return None if model is None else _check_record(model)
+
+    def search_nonprofit_summaries(
+        self,
+        *,
+        name_query: str,
+        limit: int,
+        state: str | None = None,
+        subsection: str | None = None,
+        active_only: bool = False,
+        cursor_name: str | None = None,
+        cursor_ein: str | None = None,
+    ) -> list[dict[str, Any]]:
+        latest_filing = _latest_filing_subquery()
+        normalized_query = str(name_query or "").strip().lower()
+        cursor_name_normalized = str(cursor_name or "").strip().lower() or None
+
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(
+                    NonprofitModel.ein,
+                    NonprofitModel.canonical_name,
+                    NonprofitModel.state,
+                    NonprofitModel.subsection_code,
+                    NonprofitModel.irs_status,
+                    latest_filing.c.tax_period,
+                )
+                .outerjoin(latest_filing, latest_filing.c.nonprofit_id == NonprofitModel.nonprofit_id)
+                .where(NonprofitModel.normalized_name.contains(normalized_query))
+                .order_by(NonprofitModel.normalized_name.asc(), NonprofitModel.ein.asc())
+            )
+            if state:
+                statement = statement.where(NonprofitModel.state == state.strip().upper())
+            if subsection:
+                statement = statement.where(NonprofitModel.subsection_code == subsection.strip())
+            if active_only:
+                statement = statement.where(NonprofitModel.irs_status == "active")
+            if cursor_name_normalized and cursor_ein:
+                statement = statement.where(
+                    or_(
+                        NonprofitModel.normalized_name > cursor_name_normalized,
+                        and_(NonprofitModel.normalized_name == cursor_name_normalized, NonprofitModel.ein > cursor_ein),
+                    )
+                )
+            rows = session.execute(statement.limit(limit)).mappings().all()
+            return [_search_row(dict(row)) for row in rows]
+
+    def list_nonprofit_eins_page(self, *, limit: int, start_after_ein: str | None = None) -> list[str]:
+        normalized_start = _normalize_ein(start_after_ein) if start_after_ein else None
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = select(NonprofitModel.ein).order_by(NonprofitModel.ein.asc()).limit(limit)
+            if normalized_start:
+                statement = statement.where(NonprofitModel.ein > normalized_start)
+            return [str(value) for value in session.scalars(statement).all()]
 
 
 def build_nonprofit_id(ein: str) -> str:
@@ -256,6 +390,83 @@ def _format_timestamp(value: datetime | None) -> str | None:
 
 def _format_date(value: date | None) -> str | None:
     return None if value is None else value.isoformat()
+
+
+def _latest_filing_subquery():
+    ranked = (
+        select(
+            NonprofitFilingModel.nonprofit_id.label("nonprofit_id"),
+            NonprofitFilingModel.tax_period.label("tax_period"),
+            NonprofitFilingModel.total_assets.label("total_assets"),
+            NonprofitFilingModel.total_income.label("total_income"),
+            NonprofitFilingModel.total_revenue.label("total_revenue"),
+            func.row_number()
+            .over(
+                partition_by=NonprofitFilingModel.nonprofit_id,
+                order_by=(
+                    desc(NonprofitFilingModel.tax_year),
+                    desc(NonprofitFilingModel.filing_date),
+                    desc(NonprofitFilingModel.updated_at),
+                ),
+            )
+            .label("row_number"),
+        ).subquery()
+    )
+    return (
+        select(
+            ranked.c.nonprofit_id,
+            ranked.c.tax_period,
+            ranked.c.total_assets,
+            ranked.c.total_income,
+            ranked.c.total_revenue,
+        )
+        .where(ranked.c.row_number == 1)
+        .subquery()
+    )
+
+
+def _snapshot_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ein": row.get("ein"),
+        "name": row.get("canonical_name"),
+        "state": row.get("state"),
+        "subsection": row.get("subsection_code"),
+        "status": row.get("irs_status"),
+        "deductibility": row.get("deductibility_code"),
+        "ntee_cd": row.get("ntee_category"),
+        "tax_period": row.get("tax_period"),
+        "asset_amt": row.get("total_assets"),
+        "income_amt": row.get("total_income"),
+        "revenue_amt": row.get("total_revenue"),
+    }
+
+
+def _filing_query_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ein": row.get("ein"),
+        "tax_year": None if row.get("tax_year") is None else str(row.get("tax_year")),
+        "return_type": row.get("form_type"),
+        "filing_date": _format_date(row.get("filing_date")),
+        "amended_return": _query_bool_string(row.get("amended")),
+        "parse_status": row.get("parse_status"),
+    }
+
+
+def _search_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ein": row.get("ein"),
+        "name": row.get("canonical_name"),
+        "state": row.get("state"),
+        "subsection": row.get("subsection_code"),
+        "status": row.get("irs_status"),
+        "tax_period": row.get("tax_period"),
+    }
+
+
+def _query_bool_string(value: bool | None) -> str | None:
+    if value is None:
+        return None
+    return "true" if value else "false"
 
 
 def _nonprofit_model(record: NonprofitRecord) -> NonprofitModel:

@@ -77,6 +77,7 @@ Runtime env wiring added for the query Lambda:
 - `PLATFORM_POSTGRES_SSLMODE`
 - per-domain backend selectors for identity, organization settings, and
   control-plane storage
+- `PLATFORM_NONPROFIT_QUERY_BACKEND` for nonprofit lookup/search/filings reads
 
 Phase 24D rollout order for the identity domain:
 
