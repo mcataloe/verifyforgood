@@ -537,6 +537,8 @@ read-path migration plan for the remaining routes and caches:
 - compliance views
 - federal-awards views
 - the DynamoDB materialized profile cache
+- any historical provider data that is not preserved in the current
+  materialized profile snapshot payloads
 
 ### Migration Triggers
 

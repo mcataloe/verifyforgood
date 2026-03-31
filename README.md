@@ -1942,6 +1942,9 @@ Common commands:
 alembic upgrade head
 alembic revision -m "describe change"
 python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity
+python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
+python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity
+python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
 ```
 
 Phase 24D moves the customer-account identity domain to PostgreSQL when
@@ -1978,6 +1981,15 @@ the canonical nonprofit row and latest filing facts come from PostgreSQL, while
 Form 990 enrichment and peer-benchmark lookups still delegate to Athena for
 compatibility. Source, compliance, and federal-awards routes remain
 enrichment-driven in this phase.
+
+Phase 24H adds migration wrappers with dry-run and validation reporting for
+identity and nonprofit cutover preparation:
+
+- `python -m charity_status_platform.runtime.customer_accounts_migration`
+- `python -m charity_status_platform.runtime.nonprofit_migration`
+
+The detailed cutover and rollback sequence now lives in
+`docs/implementation/postgresql-cutover-runbook.md`.
 
 ## Terraform Deployment Notes
 

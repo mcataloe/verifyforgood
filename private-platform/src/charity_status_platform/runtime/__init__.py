@@ -37,6 +37,9 @@ from .persistence import (
     build_nonprofit_query_client,
 )
 from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
+from .customer_accounts_migration import CustomerAccountsMigrationReport, run_customer_accounts_migration
+from .nonprofit_migration import NonprofitMigrationCounts, NonprofitMigrationReport, run_nonprofit_migration
+from .migration_validation import MigrationEntityValidation
 
 __all__ = [
     "ApiKeyAuthContextProvider",
@@ -75,4 +78,10 @@ __all__ = [
     "build_nonprofit_query_client",
     "CustomerAccountsBackfillStats",
     "backfill_customer_accounts_from_dynamodb",
+    "CustomerAccountsMigrationReport",
+    "run_customer_accounts_migration",
+    "NonprofitMigrationCounts",
+    "NonprofitMigrationReport",
+    "run_nonprofit_migration",
+    "MigrationEntityValidation",
 ]

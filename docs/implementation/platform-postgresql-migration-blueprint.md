@@ -301,6 +301,20 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
   - peer-benchmark and Form 990 enrichment from Athena
 - keep source, compliance, and federal-awards routes enrichment-driven for now
 
+### Phase 24H
+
+- add reusable migration wrappers with:
+  - dry-run mode
+  - per-entity validation reporting
+  - missing/invalid record samples
+- keep the raw identity backfill function available, but prefer the migration
+  wrapper during operational cutover
+- backfill nonprofit PostgreSQL rows from:
+  - Athena canonical nonprofit and filing reads
+  - Dynamo materialized profile cache snapshots for source/compliance data when
+    available
+- document cutover, verification, and rollback in a dedicated runbook
+
 ### Later control-plane phase
 
 - migrate control-plane:

@@ -57,8 +57,22 @@ Current infrastructure rule:
   - `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb`
 - the expected rollout sequence is:
   1. `alembic upgrade head`
-  2. `python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity`
-  3. deploy with `PLATFORM_IDENTITY_STORE_BACKEND=postgres`
+  2. `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
+  3. `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
+  4. deploy with `PLATFORM_IDENTITY_STORE_BACKEND=postgres`
+
+## Current Phase 24H State
+
+- migration wrappers now exist for identity and nonprofit data:
+  - `python -m charity_status_platform.runtime.customer_accounts_migration`
+  - `python -m charity_status_platform.runtime.nonprofit_migration`
+- both wrappers support dry-run validation before cutover
+- the nonprofit wrapper uses:
+  - Athena for canonical nonprofit rows and filings
+  - the Dynamo materialized profile cache, when available, for source and
+    compliance snapshot backfill
+- the detailed operational runbook now lives in:
+  - `docs/implementation/postgresql-cutover-runbook.md`
 
 ## Non-Goals
 

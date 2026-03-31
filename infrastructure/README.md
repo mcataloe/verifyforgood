@@ -82,6 +82,14 @@ Runtime env wiring added for the query Lambda:
 Phase 24D rollout order for the identity domain:
 
 1. run `alembic upgrade head`
-2. run `python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity`
-3. deploy with `platform_identity_store_backend = "postgres"`
-4. if rollback is needed, redeploy with `platform_identity_store_backend = "dynamodb"`
+2. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
+3. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
+4. deploy with `platform_identity_store_backend = "postgres"`
+5. if rollback is needed, redeploy with `platform_identity_store_backend = "dynamodb"`
+
+Phase 24H also adds a nonprofit migration wrapper:
+
+- `python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles`
+
+Use that wrapper to validate PostgreSQL nonprofit backfill before switching
+`platform_nonprofit_query_backend` to `postgres`.
