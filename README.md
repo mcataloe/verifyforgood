@@ -47,7 +47,7 @@ Important:
 - Orchestration: EventBridge + Step Functions for monthly private-ingest
 - API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
-- Relational foundation: Amazon RDS for PostgreSQL (additive bootstrap for platform/application data)
+- Relational foundation: Amazon RDS for PostgreSQL (platform/application data plus additive nonprofit schema foundation)
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
 
 ## Naming Layers
@@ -1954,6 +1954,11 @@ In the current mixed mode:
   org API keys, and shared identity/org audit logs
 - DynamoDB still stores invitations, usage, feature flags, organization
   settings, control-plane billing data, and the serving `profiles` cache
+
+Phase 24E also adds an additive PostgreSQL nonprofit schema for canonical
+nonprofit identity, filings, source provenance, and compliance snapshots. The
+live nonprofit read path still uses Athena plus the DynamoDB materialized
+profile cache in this phase.
 
 ## Terraform Deployment Notes
 

@@ -71,11 +71,15 @@ Move relational platform/application data to PostgreSQL in stages:
 
 ### Domains staying separate for now
 
-Do not include these in the initial relational pivot:
+Do not include these in the initial nonprofit runtime cutover:
 
 - nonprofit/source/search/filing datasets in Athena/S3
 - Form 990 ingest storage and Glue catalog structures
 - `profiles` serving cache unless a later serving redesign justifies moving it
+
+An additive nonprofit relational schema may still be introduced before runtime
+cutover so canonical nonprofit identity, filings, source provenance, and
+compliance snapshots have a stable PostgreSQL target model.
 
 ### Migration shape
 

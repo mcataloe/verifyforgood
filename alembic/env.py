@@ -18,6 +18,12 @@ for path in (ROOT, INFRA_PATH, PRIVATE_PLATFORM_SRC):
 
 from charity_status.platform import resolve_postgres_sqlalchemy_url  # noqa: E402
 from charity_status_platform.customer_accounts import CustomerAccountsBase  # noqa: E402
+from charity_status_platform.nonprofits import (  # noqa: F401,E402
+    ComplianceCheckModel,
+    NonprofitFilingModel,
+    NonprofitModel,
+    NonprofitSourceModel,
+)
 
 config = context.config
 

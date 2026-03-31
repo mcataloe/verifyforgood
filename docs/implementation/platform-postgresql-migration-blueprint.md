@@ -183,12 +183,22 @@ store selection:
 
 ### Keep separate for now
 
-Do not move in the initial pivot:
+Do not move nonprofit request handling in the initial pivot:
 
 - Athena/S3 nonprofit source and search data
 - Form 990 ingest artifacts and Glue catalog datasets
 - `profiles` materialized-serving cache
 - state-registry and source-provider data
+
+Phase 24E adds an additive PostgreSQL nonprofit schema foundation for:
+
+- `nonprofits`
+- `nonprofit_filings`
+- `nonprofit_sources`
+- `compliance_checks`
+
+That schema is intentionally additive. Athena and the serving cache remain the
+live nonprofit read path until a later backfill and cutover phase.
 
 ## Repository and Runtime Refactor Direction
 
@@ -261,6 +271,15 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
 - add DynamoDB-to-PostgreSQL backfill tooling and rollback guidance
 
 ### Phase 24E
+
+- add nonprofit relational schema foundation for:
+  - canonical nonprofit identity
+  - filing records
+  - source provenance records
+  - compliance snapshot records
+- keep Athena and serving-cache nonprofit reads unchanged
+
+### Later control-plane phase
 
 - migrate control-plane:
   - accounts

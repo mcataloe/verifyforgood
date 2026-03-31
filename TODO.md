@@ -512,3 +512,34 @@ Portal session restore now derives active organization context from backend memb
 ### Constraint
 
 Keep the `GET /v1/auth/me` organization-context contract additive so explicit org selection can override the temporary default without breaking current session restore behavior.
+
+## TODO-ARCH-024
+
+### Title
+
+Backfill and cut over the nonprofit read model from Athena/materialized cache inputs into the PostgreSQL nonprofit schema.
+
+### Rationale
+
+Phase 24E introduces PostgreSQL tables for:
+
+- canonical nonprofit identity
+- filing records
+- source provenance
+- compliance snapshots
+
+That schema is additive only in the current phase. The live nonprofit request
+path still uses Athena queries and the DynamoDB materialized profile cache, so
+the repo still needs a deliberate backfill and read-path migration plan.
+
+### Migration Triggers
+
+- nonprofit PostgreSQL backfill tooling
+- decision to make PostgreSQL authoritative for some or all nonprofit reads
+- need for Postgres-native nonprofit reporting or serving workflows
+
+### Constraint
+
+Keep the current nonprofit route contracts stable so any future cutover swaps
+the storage/read path behind the existing service surfaces rather than
+changing customer-visible payloads.
