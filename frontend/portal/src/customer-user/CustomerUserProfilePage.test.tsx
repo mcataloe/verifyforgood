@@ -49,6 +49,9 @@ describe("CustomerUserProfilePage", () => {
     expect(
       container.querySelector(".portal-settings-profile__details"),
     ).toBeNull();
+    expect(
+      container.querySelectorAll(".portal-detail-layout__divider"),
+    ).toHaveLength(3);
   });
 
   it("persists appearance selection through the shared color-scheme storage key", () => {

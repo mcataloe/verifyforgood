@@ -32,7 +32,7 @@ export function OrganizationProfileSettingsPanel({
 
   return (
     <div className="portal-budget-form">
-      <form className="portal-form portal-form--two-column">
+      <form className="portal-form portal-form--detail">
         <label className="portal-form__field" htmlFor="organization-display-name">
           <span>Display name</span>
           <input

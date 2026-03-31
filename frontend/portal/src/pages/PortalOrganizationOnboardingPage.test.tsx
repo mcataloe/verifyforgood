@@ -5,14 +5,19 @@ import { PortalOrganizationOnboardingPage } from "./PortalOrganizationOnboarding
 
 describe("PortalOrganizationOnboardingPage", () => {
   it("renders organization name and slug fields", () => {
-    renderPage();
+    const { container } = renderPage();
 
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
     expect(screen.getByLabelText("Slug")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Setup flow" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Create organization" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(container.querySelector(".portal-page-grid")).toBeNull();
+    expect(
+      container.querySelectorAll(".portal-detail-layout__divider"),
+    ).toHaveLength(2);
   });
 
   it("blocks submission when organization name is empty", () => {

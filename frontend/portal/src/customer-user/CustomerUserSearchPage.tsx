@@ -148,7 +148,7 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
           </form>
         ) : (
           <form
-            className="portal-form portal-form--two-column"
+            className="portal-form portal-form--detail"
             onSubmit={(event) => {
               event.preventDefault();
               const nextRows =

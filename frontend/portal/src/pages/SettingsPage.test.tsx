@@ -101,7 +101,7 @@ describe("SettingsPage", () => {
       },
     };
 
-    renderWithOrganization(
+    const { container } = renderWithOrganization(
       <SettingsPage
         budgetController={budgetController}
         endpoints={endpoints}
@@ -144,6 +144,9 @@ describe("SettingsPage", () => {
     expect(
       screen.getByText(/560 requests remain before the hard stop is reached./i),
     ).toBeTruthy();
+    expect(
+      container.querySelectorAll(".portal-detail-layout__divider"),
+    ).toHaveLength(8);
 
     fireEvent.change(screen.getByLabelText("Monthly usage cap"), {
       target: { value: "950" },

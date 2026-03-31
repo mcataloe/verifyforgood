@@ -3,7 +3,6 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
-  Grid,
   LoadingSkeleton,
   Panel,
   StatusBadge,
@@ -11,6 +10,11 @@ import {
   type DataTableFilterDefinition,
 } from "@charity-status/shared-ui";
 import { Button, Group, Text } from "@mantine/core";
+import {
+  DetailPageLayout,
+  SectionBlock,
+  SectionDivider,
+} from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   PortalNonprofitDetailView,
@@ -102,83 +106,95 @@ export function NonprofitSearchPanel({
     ];
 
   return (
-    <Grid className="portal-page-grid">
-      <Panel
-        title="Nonprofit verification search"
-        subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
-      >
-        <p>
-          This is the portal&apos;s core product interaction. Requests run
-          through the organization-scoped portal API client for{" "}
-          <strong>{organization.activeOrganization.organization_name}</strong>.
-        </p>
-
-        <form
-          className="portal-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void search.runSearch(query);
-          }}
+    <DetailPageLayout>
+      <SectionBlock>
+        <Panel
+          title="Nonprofit verification search"
+          subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
         >
-          <label className="portal-form__field">
-            <span>Search query</span>
-            <input
-              aria-label="Search query"
-              className="portal-form__input"
-              name="query"
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              placeholder="12-3456789 or Helping Hands Foundation"
-              type="text"
-              value={query}
-            />
-          </label>
+          <p>
+            This is the portal&apos;s core product interaction. Requests run
+            through the organization-scoped portal API client for{" "}
+            <strong>{organization.activeOrganization.organization_name}</strong>.
+          </p>
 
-          <div className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              disabled={search.isLoading || !query.trim()}
-              type="submit"
-            >
-              {search.isLoading ? "Searching..." : "Search nonprofit"}
-            </button>
-          </div>
-        </form>
+          <form
+            className="portal-form portal-form--detail"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void search.runSearch(query);
+            }}
+          >
+            <label className="portal-form__field">
+              <span>Search query</span>
+              <input
+                aria-label="Search query"
+                className="portal-form__input"
+                name="query"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder="12-3456789 or Helping Hands Foundation"
+                type="text"
+                value={query}
+              />
+            </label>
 
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Search mode</dt>
-            <dd>{search.searchMode ?? "Not run yet"}</dd>
-          </div>
-          <div>
-            <dt>Last query</dt>
-            <dd>{search.lastQuery || "None"}</dd>
-          </div>
-          <div>
-            <dt>Workspace</dt>
-            <dd>{organization.activeOrganization.workspace_id}</dd>
-          </div>
-          <div>
-            <dt>Loaded results</dt>
-            <dd>{String(search.results.length)}</dd>
-          </div>
-        </dl>
-      </Panel>
+            <div className="portal-form__actions">
+              <button
+                className="portal-shell__action portal-shell__action--primary"
+                disabled={search.isLoading || !query.trim()}
+                type="submit"
+              >
+                {search.isLoading ? "Searching..." : "Search nonprofit"}
+              </button>
+            </div>
+          </form>
+
+          <dl className="portal-shell__details">
+            <div>
+              <dt>Search mode</dt>
+              <dd>{search.searchMode ?? "Not run yet"}</dd>
+            </div>
+            <div>
+              <dt>Last query</dt>
+              <dd>{search.lastQuery || "None"}</dd>
+            </div>
+            <div>
+              <dt>Workspace</dt>
+              <dd>{organization.activeOrganization.workspace_id}</dd>
+            </div>
+            <div>
+              <dt>Loaded results</dt>
+              <dd>{String(search.results.length)}</dd>
+            </div>
+          </dl>
+        </Panel>
+      </SectionBlock>
 
       {search.error ? (
-        <ErrorState
-          description={search.error}
-          title="Nonprofit lookup unavailable"
-        />
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <ErrorState
+              description={search.error}
+              title="Nonprofit lookup unavailable"
+            />
+          </SectionBlock>
+        </>
       ) : null}
 
       {search.isLoading ? (
-        <LoadingSkeleton
-          description="Waiting on the backend nonprofit endpoints."
-          title="Loading nonprofit results"
-          variant="table"
-        />
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <LoadingSkeleton
+              description="Waiting on the backend nonprofit endpoints."
+              title="Loading nonprofit results"
+              variant="table"
+            />
+          </SectionBlock>
+        </>
       ) : null}
 
       {search.hasSearched &&
@@ -186,10 +202,15 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "ein" &&
       !search.detail ? (
-        <EmptyState
-          description="Try another EIN or switch to a name-based search if you are still narrowing the candidate organization."
-          title="No nonprofit found"
-        />
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <EmptyState
+              description="Try another EIN or switch to a name-based search if you are still narrowing the candidate organization."
+              title="No nonprofit found"
+            />
+          </SectionBlock>
+        </>
       ) : null}
 
       {search.hasSearched &&
@@ -197,66 +218,81 @@ export function NonprofitSearchPanel({
       !search.error &&
       search.searchMode === "name" &&
       search.results.length === 0 ? (
-        <EmptyState
-          description="Try broadening the organization name or run an exact EIN lookup for a more deterministic result."
-          title="No nonprofit matches"
-        />
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <EmptyState
+              description="Try broadening the organization name or run an exact EIN lookup for a more deterministic result."
+              title="No nonprofit matches"
+            />
+          </SectionBlock>
+        </>
       ) : null}
 
       {search.results.length > 0 ? (
-        <Panel
-          title="Search results"
-          subtitle="Refine the result set and open an entity detail view from the shared review layout."
-        >
-          <DataTable
-            columns={[
-              ...resultColumns,
-              {
-                key: "actions",
-                header: "Actions",
-                render: (row) => (
-                  <button
-                    className="portal-shell__action"
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <Panel
+              title="Search results"
+              subtitle="Refine the result set and open an entity detail view from the shared review layout."
+            >
+              <DataTable
+                columns={[
+                  ...resultColumns,
+                  {
+                    key: "actions",
+                    header: "Actions",
+                    render: (row) => (
+                      <button
+                        className="portal-shell__action"
+                        onClick={() => {
+                          void search.viewResultDetail(row.ein);
+                        }}
+                        type="button"
+                      >
+                        View details
+                      </button>
+                    ),
+                  },
+                ]}
+                filterDefinitions={filterDefinitions}
+                getSearchText={(row) =>
+                  `${row.name} ${row.ein} ${row.state} ${row.irsStatus}`
+                }
+                rows={search.results}
+                searchPlaceholder="Refine search results"
+              />
+              {search.hasMoreResults ? (
+                <Group justify="space-between" mt="md" wrap="wrap">
+                  <Text c="dimmed" fz="sm">
+                    More backend search results are available for this organization
+                    query.
+                  </Text>
+                  <Button
+                    loading={search.isLoadingMore}
                     onClick={() => {
-                      void search.viewResultDetail(row.ein);
+                      void search.loadMoreResults();
                     }}
-                    type="button"
+                    variant="light"
                   >
-                    View details
-                  </button>
-                ),
-              },
-            ]}
-            filterDefinitions={filterDefinitions}
-            getSearchText={(row) =>
-              `${row.name} ${row.ein} ${row.state} ${row.irsStatus}`
-            }
-            rows={search.results}
-            searchPlaceholder="Refine search results"
-          />
-          {search.hasMoreResults ? (
-            <Group justify="space-between" mt="md" wrap="wrap">
-              <Text c="dimmed" fz="sm">
-                More backend search results are available for this organization
-                query.
-              </Text>
-              <Button
-                loading={search.isLoadingMore}
-                onClick={() => {
-                  void search.loadMoreResults();
-                }}
-                variant="light"
-              >
-                Load more results
-              </Button>
-            </Group>
-          ) : null}
-        </Panel>
+                    Load more results
+                  </Button>
+                </Group>
+              ) : null}
+            </Panel>
+          </SectionBlock>
+        </>
       ) : null}
 
       {search.detail ? (
-        <PortalNonprofitDetailView detail={search.detail} />
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <PortalNonprofitDetailView detail={search.detail} />
+          </SectionBlock>
+        </>
       ) : null}
-    </Grid>
+    </DetailPageLayout>
   );
 }

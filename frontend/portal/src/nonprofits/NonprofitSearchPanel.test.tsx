@@ -35,7 +35,7 @@ function renderWithOrganization(controller: PortalNonprofitSearchController) {
     status: "ready",
   };
 
-  render(
+  return render(
     <VerifyForGoodMantineProvider>
       <PortalOrganizationContext.Provider value={value}>
         <NonprofitSearchPanel controller={controller} />
@@ -98,7 +98,7 @@ describe("NonprofitSearchPanel", () => {
       viewResultDetail: vi.fn(async () => {}),
     };
 
-    renderWithOrganization(controller);
+    const { container } = renderWithOrganization(controller);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search query" }), {
       target: { value: "Helping Hands" },
@@ -110,9 +110,14 @@ describe("NonprofitSearchPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
     expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
     expect(screen.getByText("Disabled for this workspace")).toBeTruthy();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(container.querySelector(".portal-page-grid")).toBeNull();
+    expect(
+      container.querySelectorAll(".portal-detail-layout__divider").length,
+    ).toBeGreaterThanOrEqual(2);
+
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
     expect(controller.loadMoreResults).toHaveBeenCalledOnce();
 
@@ -136,8 +141,9 @@ describe("NonprofitSearchPanel", () => {
       viewResultDetail: vi.fn(async () => {}),
     };
 
-    renderWithOrganization(controller);
+    const { container } = renderWithOrganization(controller);
 
     expect(screen.getByText("Nonprofit lookup unavailable")).toBeTruthy();
+    expect(container.querySelector(".portal-page-grid")).toBeNull();
   });
 });

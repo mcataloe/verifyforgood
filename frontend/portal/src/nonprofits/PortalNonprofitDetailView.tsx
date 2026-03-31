@@ -1,9 +1,12 @@
 import {
   DetailFieldList,
-  DetailStack,
-  EntityDetailLayout,
   StatusBadge,
 } from "@charity-status/shared-ui";
+import {
+  DetailPageLayout,
+  SectionBlock,
+  SectionDivider,
+} from "../components/shell";
 import type {
   PortalNonprofitDetail,
   PortalNonprofitSourceAvailability,
@@ -19,54 +22,50 @@ export function PortalNonprofitDetailView({
   detail,
 }: PortalNonprofitDetailViewProps) {
   return (
-    <EntityDetailLayout
-      actions={<StatusBadge status={detailStatus(detail)} />}
-      description="Shared organization detail layout for trust-forward entity review."
-      ein={detail.ein}
-      name={detail.name}
-      onPrimaryAction={() => undefined}
-      primaryActionLabel="Queue review"
-      status={detailStatus(detail)}
-      summaryItems={buildSummaryItems(detail)}
-      tabs={[
-        {
-          key: "overview",
-          label: "Overview",
-          content: <DetailFieldList items={buildOverviewItems(detail)} />,
-        },
-        {
-          key: "filings",
-          label: "Filings",
-          content: <DetailFieldList items={buildFilingsItems(detail)} />,
-        },
-        {
-          key: "compliance",
-          label: "Compliance",
-          content: <DetailFieldList items={buildComplianceItems(detail)} />,
-        },
-        {
-          key: "sources",
-          label: "Sources",
-          content: <PortalNonprofitSourceSection detail={detail} />,
-        },
-        {
-          key: "activity",
-          label: "Activity Log",
-          content: (
-            <ul className="portal-list">
-              <li>Initial lookup completed for this entity.</li>
-              <li>
-                Recent filing metadata has been attached to the review record.
-              </li>
-              <li>
-                Detailed activity history can replace this placeholder once the
-                event feed exists.
-              </li>
-            </ul>
-          ),
-        },
-      ]}
-    />
+    <DetailPageLayout
+      header={
+        <header className="portal-detail-layout__header">
+          <p className="portal-shell__eyebrow">Entity review</p>
+          <div className="portal-nonprofit-embedded-detail__title-row">
+            <h1>{detail.name}</h1>
+            <StatusBadge status={detailStatus(detail)} />
+            <button className="portal-shell__action" onClick={() => undefined} type="button">
+              Queue review
+            </button>
+          </div>
+          <p className="portal-detail-layout__intro">
+            Shared organization detail layout for trust-forward entity review.
+          </p>
+          <p className="portal-nonprofit-embedded-detail__identifier">
+            EIN {detail.ein}
+          </p>
+        </header>
+      }
+    >
+      <SectionBlock title="Summary">
+        <DetailFieldList items={buildSummaryItems(detail)} />
+      </SectionBlock>
+      <SectionDivider />
+      <SectionBlock title="Overview">
+        <DetailFieldList items={buildOverviewItems(detail)} />
+      </SectionBlock>
+      <SectionDivider />
+      <SectionBlock title="Filings">
+        <DetailFieldList items={buildFilingsItems(detail)} />
+      </SectionBlock>
+      <SectionDivider />
+      <SectionBlock title="Compliance">
+        <DetailFieldList items={buildComplianceItems(detail)} />
+      </SectionBlock>
+      <SectionDivider />
+      <SectionBlock title="Sources">
+        <PortalNonprofitSourceSection detail={detail} />
+      </SectionBlock>
+      <SectionDivider />
+      <SectionBlock title="Activity">
+        <ActivityList />
+      </SectionBlock>
+    </DetailPageLayout>
   );
 }
 
@@ -87,32 +86,40 @@ export function PortalNonprofitEmbeddedDetail({
       </header>
 
       <div className="portal-nonprofit-embedded-detail__sections">
-        <DetailStack title="Overview">
+        <SectionBlock title="Overview">
           <DetailFieldList items={buildOverviewItems(detail)} />
-        </DetailStack>
-        <DetailStack title="Filings">
+        </SectionBlock>
+        <SectionDivider />
+        <SectionBlock title="Filings">
           <DetailFieldList items={buildFilingsItems(detail)} />
-        </DetailStack>
-        <DetailStack title="Compliance">
+        </SectionBlock>
+        <SectionDivider />
+        <SectionBlock title="Compliance">
           <DetailFieldList items={buildComplianceItems(detail)} />
-        </DetailStack>
-        <DetailStack title="Sources">
+        </SectionBlock>
+        <SectionDivider />
+        <SectionBlock title="Sources">
           <PortalNonprofitSourceSection detail={detail} />
-        </DetailStack>
-        <DetailStack title="Activity">
-          <ul className="portal-list">
-            <li>Initial lookup completed for this entity.</li>
-            <li>
-              Recent filing metadata has been attached to the review record.
-            </li>
-            <li>
-              Detailed activity history can replace this placeholder once the
-              event feed exists.
-            </li>
-          </ul>
-        </DetailStack>
+        </SectionBlock>
+        <SectionDivider />
+        <SectionBlock title="Activity">
+          <ActivityList />
+        </SectionBlock>
       </div>
     </article>
+  );
+}
+
+function ActivityList() {
+  return (
+    <ul className="portal-list">
+      <li>Initial lookup completed for this entity.</li>
+      <li>Recent filing metadata has been attached to the review record.</li>
+      <li>
+        Detailed activity history can replace this placeholder once the event
+        feed exists.
+      </li>
+    </ul>
   );
 }
 

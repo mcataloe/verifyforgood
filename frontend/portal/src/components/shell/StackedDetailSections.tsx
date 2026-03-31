@@ -1,4 +1,5 @@
 import { Children, Fragment, type PropsWithChildren, type ReactNode } from "react";
+import { SectionDivider } from "./SectionDivider";
 
 interface StackedDetailSectionsProps extends PropsWithChildren {
   className?: string;
@@ -30,11 +31,7 @@ export function StackedDetailSections({
         >
           {sectionWrapper ? sectionWrapper({ index, section }) : section}
           {index < sections.length - 1 ? (
-            <hr
-              aria-hidden="true"
-              className="portal-stacked-sections__divider"
-              role="presentation"
-            />
+            <SectionDivider className="portal-stacked-sections__divider" />
           ) : null}
         </Fragment>
       ))}

@@ -153,7 +153,7 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
 
       <section className="portal-budget-form__section">
         <h3>Report an issue</h3>
-        <form className="portal-form portal-form--two-column">
+        <form className="portal-form portal-form--detail">
           <label className="portal-form__field" htmlFor="support-category">
             <span>Category</span>
             <select

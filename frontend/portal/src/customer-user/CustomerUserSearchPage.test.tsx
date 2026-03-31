@@ -5,7 +5,7 @@ import { CustomerUserSearchPage } from "./CustomerUserSearchPage";
 
 describe("CustomerUserSearchPage", () => {
   it("renders the EIN search pane with sortable location columns and detail drill-in", () => {
-    render(
+    const { container } = render(
       <VerifyForGoodMantineProvider defaultColorScheme="light">
         <CustomerUserSearchPage pane="search-ein" />
       </VerifyForGoodMantineProvider>,
@@ -34,10 +34,13 @@ describe("CustomerUserSearchPage", () => {
     expect(screen.getByRole("heading", { name: "Sources" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Activity" })).toBeTruthy();
     expect(screen.queryByRole("tablist")).toBeNull();
+    expect(
+      container.querySelectorAll(".portal-detail-layout__divider").length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("renders the address search pane with address, city, state, and zip fields", () => {
-    render(
+    const { container } = render(
       <VerifyForGoodMantineProvider defaultColorScheme="light">
         <CustomerUserSearchPage pane="search-address" />
       </VerifyForGoodMantineProvider>,
@@ -54,5 +57,6 @@ describe("CustomerUserSearchPage", () => {
     expect(screen.getByLabelText("Address")).toBeTruthy();
     expect(screen.getByLabelText("Zip")).toBeTruthy();
     expect(screen.getAllByText("Feeding America").length).toBeGreaterThan(0);
+    expect(container.querySelector(".portal-form--two-column")).toBeNull();
   });
 });
