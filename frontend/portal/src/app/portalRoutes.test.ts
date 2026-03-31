@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   consumePortalReturnTo,
+  defaultPortalRoute,
   defaultProtectedPortalRoute,
+  homePortalRoute,
   organizationOnboardingPortalRoute,
   rememberPortalReturnTo,
   registerPortalRoute,
@@ -10,6 +12,10 @@ import {
 } from "./portalRoutes";
 
 describe("portal route resolution", () => {
+  it("resolves the public portal home directly", () => {
+    expect(resolvePortalRoute("#/")).toStrictEqual(homePortalRoute);
+  });
+
   it("preserves canonical protected hashes", () => {
     expect(resolvePortalRoute("#/dashboard")).toMatchObject({
       hash: "#/dashboard",
@@ -32,11 +38,9 @@ describe("portal route resolution", () => {
     });
   });
 
-  it("falls back to the default protected route for unknown or empty hashes", () => {
-    expect(resolvePortalRoute("")).toStrictEqual(defaultProtectedPortalRoute);
-    expect(resolvePortalRoute("#/missing")).toStrictEqual(
-      defaultProtectedPortalRoute,
-    );
+  it("falls back to the default public route for unknown or empty hashes", () => {
+    expect(resolvePortalRoute("")).toStrictEqual(defaultPortalRoute);
+    expect(resolvePortalRoute("#/missing")).toStrictEqual(defaultPortalRoute);
   });
 
   it("continues resolving the public sign-in boundary directly", () => {
@@ -68,6 +72,7 @@ describe("portal route resolution", () => {
     window.sessionStorage.clear();
 
     rememberPortalReturnTo("#/register");
+    rememberPortalReturnTo("#/");
 
     expect(consumePortalReturnTo()).toBe(defaultProtectedPortalRoute.hash);
   });

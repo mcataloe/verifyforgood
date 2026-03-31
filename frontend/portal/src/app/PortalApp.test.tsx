@@ -537,6 +537,21 @@ describe("PortalApp", () => {
     window.location.hash = "#/usage-billing";
   });
 
+  it("shows the public portal home on an empty hash", async () => {
+    window.location.hash = "";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Customer portal entry",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
+    expect(window.location.hash).toBe("#/");
+  });
+
   it("redirects unauthenticated access to the sign-in boundary", async () => {
     render(<App />);
 
@@ -675,6 +690,59 @@ describe("PortalApp", () => {
       await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("routes authenticated users from the public home to the dashboard when org context exists", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Organization activity" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("#/dashboard");
+  });
+
+  it("never shows organization onboarding before authentication", async () => {
+    window.location.hash = "#/";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Customer portal entry",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Create your first organization" }),
+    ).toBeNull();
   });
 
   it("restores existing organization context from backend auth data without local org storage", async () => {

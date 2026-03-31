@@ -8,7 +8,7 @@ export type PortalProtectedRouteKey =
   | "usage-billing"
   | "settings";
 
-export type PortalPublicRouteKey = "register" | "sign-in";
+export type PortalPublicRouteKey = "home" | "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
 export interface PortalRouteDefinition {
@@ -22,6 +22,14 @@ export interface PortalRouteDefinition {
 const PORTAL_RETURN_TO_STORAGE_KEY = "verifyforgood.portal.return-to";
 
 export const portalPublicRoutes: PortalRouteDefinition[] = [
+  {
+    access: "public",
+    key: "home",
+    label: "Portal Home",
+    hash: "#/",
+    description:
+      "Public landing route for entering the authenticated customer portal.",
+  },
   {
     access: "public",
     key: "sign-in",
@@ -98,15 +106,18 @@ export const portalRoutes: PortalRouteDefinition[] = [
   ...portalProtectedRoutes,
 ];
 
-export const signInPortalRoute = portalPublicRoutes[0];
-export const registerPortalRoute = portalPublicRoutes[1];
-export const defaultProtectedPortalRoute = portalProtectedRoutes[0];
+export const homePortalRoute = portalPublicRoutes[0];
+export const signInPortalRoute = portalPublicRoutes[1];
+export const registerPortalRoute = portalPublicRoutes[2];
+export const defaultProtectedPortalRoute =
+  portalProtectedRoutes.find((route) => route.key === "dashboard") ??
+  portalProtectedRoutes[0];
+export const defaultPortalRoute = homePortalRoute;
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
-  const candidate = getPortalHashPath(hash) || defaultProtectedPortalRoute.hash;
+  const candidate = getPortalHashPath(hash) || defaultPortalRoute.hash;
   const resolved =
-    portalRoutes.find((route) => route.hash === candidate) ??
-    defaultProtectedPortalRoute;
+    portalRoutes.find((route) => route.hash === candidate) ?? defaultPortalRoute;
 
   // Return a fresh object so hash-only query changes like ?nav=... still
   // trigger React state updates even when the base route key stays the same.
@@ -120,7 +131,7 @@ export function usePortalRoute(): PortalRouteDefinition {
 
   useEffect(() => {
     if (!window.location.hash) {
-      window.location.hash = defaultProtectedPortalRoute.hash;
+      window.location.hash = defaultPortalRoute.hash;
     }
 
     const handleHashChange = () => {

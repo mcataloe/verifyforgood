@@ -89,8 +89,8 @@ export function PortalRegisterPage({
               Registration creates the authenticated user only in this phase.
             </li>
             <li>
-              The current portal shell uses temporary compatibility context
-              until real onboarding and organization selection land.
+              After registration, the portal checks for organization context and
+              only then shows explicit onboarding if none exists.
             </li>
             <li>
               Google and Microsoft registration stay visible as disabled

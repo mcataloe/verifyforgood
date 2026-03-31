@@ -87,9 +87,9 @@ export function PortalSignInPage({
               successful sign-in.
             </li>
             <li>
-              Session identity comes from the backend, while temporary
-              organization context stays compatibility-backed until onboarding
-              lands.
+              Session identity comes from the backend. Organization onboarding
+              only appears after authentication when no organization context
+              exists yet.
             </li>
             <li>
               Google and Microsoft sign-in remain visible, but they are not yet
@@ -201,6 +201,7 @@ export function PortalSignInPage({
         </div>
 
         <div className="portal-auth-page__utility-links">
+          <a href="#/">Portal home</a>
           <a href="#/register">Need an account?</a>
           <a href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20password%20help">
             Forgot password

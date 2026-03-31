@@ -18,6 +18,7 @@ import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { PortalOrganizationOnboardingPage } from "../pages/PortalOrganizationOnboardingPage";
+import { PortalHomePage } from "../pages/PortalHomePage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -35,6 +36,7 @@ import { portalEndpoints } from "./portalEndpoints";
 import {
   consumePortalReturnTo,
   navigateToPortalRoute,
+  homePortalRoute,
   organizationOnboardingPortalRoute,
   peekPortalReturnTo,
   portalProtectedRoutes,
@@ -98,12 +100,17 @@ function PortalAppShell({
   useEffect(() => {
     if (
       auth.status === "authenticated" &&
-      (currentRoute.key === signInPortalRoute.key ||
+      (currentRoute.key === homePortalRoute.key ||
+        currentRoute.key === signInPortalRoute.key ||
         currentRoute.key === registerPortalRoute.key)
     ) {
-      navigateToPortalRoute(consumePortalReturnTo());
+      navigateToPortalRoute(
+        hasPendingOrganization
+          ? organizationOnboardingPortalRoute.hash
+          : consumePortalReturnTo(),
+      );
     }
-  }, [auth.status, currentRoute.key]);
+  }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
   useEffect(() => {
     if (
@@ -147,12 +154,16 @@ function PortalAppShell({
         runtimeConfig={runtimeConfig}
         subtitle="These are the public auth routes inside the portal application shell."
         title={
-          currentRoute.key === registerPortalRoute.key
+          currentRoute.key === homePortalRoute.key
+            ? "Customer portal entry"
+            : currentRoute.key === registerPortalRoute.key
             ? "Create your customer portal account"
             : "Sign in to the customer portal"
         }
       >
-        {currentRoute.key === registerPortalRoute.key ? (
+        {currentRoute.key === homePortalRoute.key ? (
+          <PortalHomePage requestedRoute={requestedRoute} />
+        ) : currentRoute.key === registerPortalRoute.key ? (
           <PortalRegisterPage
             endpoints={endpoints}
             isBusy={auth.isBusy}
@@ -195,7 +206,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Create the first organization context before the rest of the portal opens."
+        subtitle="You are signed in. Create the first organization context before the rest of the portal opens."
         title="Create your first organization"
       >
         <PortalOrganizationOnboardingPage
