@@ -16,7 +16,7 @@ export function PortalOrganizationSwitcher({
   availableOrganizations,
   onSelectOrganization,
 }: PortalOrganizationSwitcherProps) {
-  if (availableOrganizations.length <= 1) {
+  if (availableOrganizations.length === 0) {
     return (
       <Stack
         data-testid="portal-current-organization"

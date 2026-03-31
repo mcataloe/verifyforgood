@@ -25,6 +25,9 @@ export const organizationEndpoints = {
   create: defineEndpoint("POST", "/organizations", {
     name: "createOrganization",
   }),
+  deleteCurrent: defineEndpoint("DELETE", "/organizations/current", {
+    name: "deleteCurrentOrganization",
+  }),
   createCurrentApiKey: defineEndpoint("POST", "/organizations/current/api-keys", {
     name: "createCurrentOrganizationApiKey",
   }),

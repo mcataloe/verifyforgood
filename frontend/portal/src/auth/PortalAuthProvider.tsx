@@ -21,7 +21,10 @@ import {
   PortalAuthContext,
   type PortalAuthStatus,
 } from "./usePortalAuth";
-import { writeStoredActiveOrganization } from "../organization/portalOrganization";
+import {
+  clearStoredActiveOrganization,
+  writeStoredActiveOrganization,
+} from "../organization/portalOrganization";
 
 interface PortalAuthProviderProps extends PropsWithChildren {
   authClient?: PortalAuthClient;
@@ -155,6 +158,45 @@ export function PortalAuthProvider({
     return nextSession;
   };
 
+  const removeOrganization = (organizationId: string) => {
+    if (!authState.session) {
+      throw new Error("An authenticated session is required");
+    }
+
+    const remainingOrganizations = authState.availableOrganizations.filter(
+      (organization) => organization.organization_id !== organizationId,
+    );
+    const nextOrganization =
+      remainingOrganizations.find(
+        (organization) =>
+          organization.organization_id !== authState.session?.workspace_id,
+      ) ??
+      remainingOrganizations[0] ??
+      null;
+
+    if (nextOrganization) {
+      writeStoredActiveOrganization(nextOrganization);
+    } else {
+      clearStoredActiveOrganization();
+    }
+
+    const nextSession = createPortalCompatibilitySession(
+      {
+        email: authState.session.user.email,
+        full_name: authState.session.user.display_name,
+        user_id: authState.session.user.subject_id,
+      },
+      nextOrganization,
+    );
+    setAuthState((currentState) => ({
+      ...currentState,
+      availableOrganizations: remainingOrganizations,
+      session: nextSession,
+      status: "authenticated",
+    }));
+    return nextSession;
+  };
+
   const signOut = async () => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
     await resolvedAuthClient.signOut();
@@ -175,6 +217,7 @@ export function PortalAuthProvider({
         applyOrganization,
         isBusy: authState.isBusy,
         login,
+        removeOrganization,
         register,
         session: authState.session,
         signOut,

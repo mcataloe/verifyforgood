@@ -27,6 +27,11 @@ class OrganizationCreateRequest:
 
 
 @dataclass(frozen=True)
+class OrganizationDeleteRequest:
+    slug: str
+
+
+@dataclass(frozen=True)
 class OrganizationContextResponse:
     organization_id: str
     organization_name: str
@@ -126,6 +131,67 @@ class OrganizationService:
                 "user_id": persisted_membership.user_id,
                 "role": persisted_membership.role.value,
                 "status": persisted_membership.status.value,
+            },
+        )
+
+    def delete_organization(
+        self,
+        *,
+        actor_user_id: str,
+        organization_id: str,
+        request: OrganizationDeleteRequest,
+    ) -> OrganizationContextResponse:
+        actor = self._users.get(actor_user_id)
+        if actor is None:
+            raise OrganizationBootstrapValidationError("Authenticated user was not found")
+
+        organization = self._organizations.get(organization_id)
+        if organization is None:
+            raise OrganizationBootstrapValidationError("Organization was not found")
+
+        membership = self._memberships.get(organization_id, actor_user_id)
+        if membership is None or membership.status is not MembershipStatus.ACTIVE:
+            raise OrganizationBootstrapValidationError("Active membership is required for this organization")
+        if membership.role is not MembershipRole.ADMIN:
+            raise OrganizationBootstrapValidationError("Only organization admins can delete an organization")
+
+        requested_slug = str(request.slug or "").strip().lower()
+        if requested_slug != organization.slug:
+            raise OrganizationBootstrapValidationError("Organization slug confirmation did not match")
+
+        deleted_at = _utc_now()
+        deleted_organization = self._organizations.soft_delete(
+            organization.organization_id,
+            deleted_at=deleted_at,
+            deleted_by_user_id=actor.user_id,
+        )
+        if deleted_organization is None:
+            raise OrganizationBootstrapValidationError("Organization was not found")
+
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.ORGANIZATION_DELETION,
+                actor_user_id=actor.user_id,
+                organization_id=deleted_organization.organization_id,
+                target_user_id=actor.user_id,
+                metadata={
+                    "deleted_at": deleted_at,
+                    "deleted_by_user_id": actor.user_id,
+                    "organization_name": deleted_organization.name,
+                    "slug": deleted_organization.slug,
+                },
+            )
+
+        return OrganizationContextResponse(
+            organization_id=deleted_organization.organization_id,
+            organization_name=deleted_organization.name,
+            slug=deleted_organization.slug,
+            account_id=deleted_organization.organization_id,
+            workspace_id=deleted_organization.organization_id,
+            membership={
+                "user_id": membership.user_id,
+                "role": membership.role.value,
+                "status": membership.status.value,
             },
         )
 

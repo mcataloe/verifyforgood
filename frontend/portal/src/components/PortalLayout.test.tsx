@@ -38,15 +38,15 @@ describe("PortalLayout", () => {
       currentRoute: resolvePortalRoute("#/billing"),
     });
 
-    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
+    expect(getSidebarBranchButton("Organization")).toBeTruthy();
+    expect(getSidebarBranchButton("Account")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API Keys\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
-    expect(screen.getByTestId("portal-current-organization")).toBeTruthy();
+    expect(screen.getByTestId("portal-organization-switcher")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
     expect(
       screen.getByRole("link", { name: /Profile & preferences/i }),
@@ -58,7 +58,7 @@ describe("PortalLayout", () => {
       currentRoute: resolvePortalRoute("#/dashboard"),
     });
 
-    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
+    expect(getSidebarBranchButton("Organization")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
@@ -96,12 +96,29 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Current")).toBeTruthy();
   });
 
-  it("keeps the header simple for single-organization sessions", () => {
+  it("shows the organization dropdown when at least one accessible organization is available", () => {
     renderPortalLayout();
+
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+
+    expect(screen.getByText("Switch organization")).toBeTruthy();
+    expect(screen.getAllByText("VerifyForGood Demo Workspace").length).toBeGreaterThan(0);
+    expect(screen.getByText("Current")).toBeTruthy();
+  });
+
+  it("keeps a simple label when no accessible organizations are available yet", () => {
+    renderPortalLayout({
+      availableOrganizations: [],
+      session: {
+        ...createMockPortalSession(),
+        organization_context_status: "pending",
+        organization_membership: null,
+        organization_name: "Organization setup pending",
+      },
+    });
 
     expect(screen.getByTestId("portal-current-organization")).toBeTruthy();
     expect(screen.queryByTestId("portal-organization-switcher")).toBeNull();
-    expect(screen.queryByText("Switch organization")).toBeNull();
   });
 
   it("switches active organization through the shared auth seam", () => {
@@ -172,9 +189,11 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
+    const organizationBranch = getSidebarBranchButton("Organization");
+    const accountBranch = getSidebarBranchButton("Account");
+    expect(organizationBranch).toBeTruthy();
+    expect(accountBranch).toBeTruthy();
+    fireEvent.click(accountBranch as HTMLElement);
     const billingButton = screen.getByRole("button", { name: /^Billing\b/i });
     const usageButton = screen.getByRole("button", { name: /^Usage\b/i });
     const apiKeysButton = screen.getByRole("button", { name: /^API Keys\b/i });
@@ -355,6 +374,7 @@ function renderPortalLayout({
           ],
         isBusy: false,
         login: vi.fn(async () => session),
+        removeOrganization: vi.fn(() => session),
         register: vi.fn(async () => session),
         session,
         signOut: vi.fn(async () => {}),
@@ -437,4 +457,14 @@ function createOrganizationRecord(
     slug: overrides.slug ?? "primary-org",
     workspace_id: overrides.workspace_id ?? overrides.organization_id ?? "org_primary",
   };
+}
+
+function getSidebarBranchButton(label: string) {
+  return (
+    screen
+      .getAllByRole("button", { name: new RegExp(`^${label}\\b`, "i") })
+      .find((element) =>
+        element.className.includes("vf-app-shell-nav__item--branch"),
+      ) ?? null
+  );
 }

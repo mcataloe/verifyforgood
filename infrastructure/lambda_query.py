@@ -125,6 +125,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationActivityService,
     OrganizationContextService,
     OrganizationCreateRequest,
+    OrganizationDeleteRequest,
     OrganizationSettingsNotFoundError,
     OrganizationSettingsService,
     OrganizationSupportError,
@@ -1166,11 +1167,11 @@ def _is_portal_auth_request(event: dict[str, Any], method: str) -> bool:
 
 
 def _is_portal_organization_request(event: dict[str, Any], method: str) -> bool:
-    if method != "POST":
+    if method not in {"POST", "DELETE"}:
         return False
     resource, path = _route_paths(event)
     candidate = resource or path
-    return candidate == "/organizations"
+    return candidate in {"/organizations", "/organizations/current"}
 
 
 def _is_portal_membership_request(event: dict[str, Any], method: str) -> bool:
@@ -1255,18 +1256,38 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
 
 
 def _handle_portal_organization_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
     headers = event.get("headers") or {}
     authorization = str(_get_header(headers, "authorization") or "")
     current_user = _get_portal_auth_service().get_current_user(authorization)
     payload = _parse_json_body(event)
-    organization = _get_portal_organization_service().create_organization(
-        creator_user_id=current_user.user_id,
-        request=OrganizationCreateRequest(
-            name=str(payload.get("name") or ""),
-            slug=(str(payload.get("slug")) if payload.get("slug") is not None else None),
+
+    if method == "POST":
+        organization = _get_portal_organization_service().create_organization(
+            creator_user_id=current_user.user_id,
+            request=OrganizationCreateRequest(
+                name=str(payload.get("name") or ""),
+                slug=(str(payload.get("slug")) if payload.get("slug") is not None else None),
+            ),
+        )
+        return json_response(201, organization.to_dict(), response_context=response_context)
+
+    workspace_id, _account_id = _resolve_current_portal_context(event)
+    organization = _get_portal_organization_service().delete_organization(
+        actor_user_id=current_user.user_id,
+        organization_id=workspace_id,
+        request=OrganizationDeleteRequest(
+            slug=str(payload.get("slug") or ""),
         ),
     )
-    return json_response(201, organization.to_dict(), response_context=response_context)
+    return json_response(
+        200,
+        {
+            "deleted": True,
+            "organization": organization.to_dict(),
+        },
+        response_context=response_context,
+    )
 
 
 def _resolve_current_portal_context(event: dict[str, Any]) -> tuple[str, str]:

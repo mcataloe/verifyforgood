@@ -19,6 +19,7 @@ export interface PortalAuthContextValue {
   applyOrganization: (
     organization: PortalActiveOrganizationRecord,
   ) => PortalAuthenticatedSession;
+  removeOrganization: (organizationId: string) => PortalAuthenticatedSession;
   register: (
     request: PortalRegisterRequest,
   ) => Promise<PortalAuthenticatedSession>;

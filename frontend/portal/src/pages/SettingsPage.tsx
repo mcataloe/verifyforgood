@@ -22,6 +22,7 @@ import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSec
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { BudgetLimitVisualization } from "../settings/BudgetLimitVisualization";
 import { OrganizationProfileSettingsPanel } from "../settings/OrganizationProfileSettingsPanel";
+import { OrganizationDeletionPanel } from "../settings/OrganizationDeletionPanel";
 import { ProfileContextSection } from "../settings/ProfileContextSection";
 import { SupportHelpPanel } from "../settings/SupportHelpPanel";
 import {
@@ -33,12 +34,17 @@ import {
   type PortalOrganizationProfileSettingsController,
 } from "../settings/usePortalOrganizationProfileSettings";
 import {
+  usePortalOrganizationDeletion,
+  type PortalOrganizationDeletionController,
+} from "../settings/usePortalOrganizationDeletion";
+import {
   usePortalSupport,
   type PortalSupportController,
 } from "../settings/usePortalSupport";
 
 interface SettingsPageProps {
   budgetController?: PortalBudgetSettingsController;
+  deletionController?: PortalOrganizationDeletionController;
   endpoints: PortalEndpoints;
   organizationProfileController?: PortalOrganizationProfileSettingsController;
   pane?: CustomerAdminPortalPane | null;
@@ -49,6 +55,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   budgetController,
+  deletionController,
   endpoints: _endpoints,
   organizationProfileController,
   pane,
@@ -66,6 +73,8 @@ export function SettingsPage({
   const usage = usageController ?? defaultUsageController;
   const defaultSupportController = usePortalSupport();
   const support = supportController ?? defaultSupportController;
+  const defaultDeletionController = usePortalOrganizationDeletion();
+  const deletion = deletionController ?? defaultDeletionController;
   const organization = usePortalOrganization();
 
   return (
@@ -178,6 +187,18 @@ export function SettingsPage({
               />
             </Panel>
           )}
+        </SectionBlock>
+        <SectionDivider />
+        <SectionBlock>
+          <Panel
+            title="Delete organization"
+            subtitle="Remove this organization from the portal when it is no longer needed."
+          >
+            <OrganizationDeletionPanel
+              controller={deletion}
+              session={session}
+            />
+          </Panel>
         </SectionBlock>
         <SectionDivider />
         <SectionBlock>

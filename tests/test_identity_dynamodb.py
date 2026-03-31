@@ -319,6 +319,33 @@ def test_organization_lookup_by_slug_and_duplicate_slug_rejection():
         )
 
 
+def test_soft_deleted_organization_is_hidden_from_standard_lookups():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-26T00:00:00+00:00",
+            updated_at="2026-03-26T00:00:00+00:00",
+        )
+    )
+
+    deleted = organizations.soft_delete(
+        "org_1",
+        deleted_at="2026-03-27T00:00:00+00:00",
+        deleted_by_user_id="user_admin",
+    )
+
+    assert deleted is not None
+    assert deleted.deleted_at == "2026-03-27T00:00:00+00:00"
+    assert deleted.deleted_by_user_id == "user_admin"
+    assert organizations.get("org_1") is None
+    assert organizations.get_by_slug("verify-for-good-org") is None
+
+
 def test_audit_record_round_trips_with_metadata_and_scope_partitioning():
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)

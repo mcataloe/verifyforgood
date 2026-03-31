@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import { createMockPortalSession } from "../app/portalSession";
+import { PortalAuthContext } from "../auth/usePortalAuth";
 import type { PortalUsageBillingController } from "../billing/usePortalUsageBilling";
 import {
   PortalOrganizationContext,
@@ -11,6 +12,7 @@ import {
 } from "../organization/usePortalOrganization";
 import type { PortalBudgetSettingsController } from "../settings/usePortalBudgetSettings";
 import type { PortalOrganizationProfileSettingsController } from "../settings/usePortalOrganizationProfileSettings";
+import type { PortalOrganizationDeletionController } from "../settings/usePortalOrganizationDeletion";
 import type { PortalSupportController } from "../settings/usePortalSupport";
 import { SettingsPage } from "./SettingsPage";
 
@@ -26,6 +28,7 @@ const endpoints: PortalEndpoints = {
   nonprofitLookup: "/v1/nonprofit/{ein}",
   nonprofitSearch: "/v1/nonprofits/search",
   organizationCreate: "/v1/organizations",
+  organizationDeleteCurrent: "/v1/organizations/current",
   oauthToken: "/v1/oauth/token",
   organizationSettings: "/v1/organization/settings",
   organizationSupport: "/v1/organization/support",
@@ -146,7 +149,7 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(7);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(8);
 
     fireEvent.change(screen.getByLabelText("Monthly usage cap"), {
       target: { value: "950" },
@@ -280,6 +283,61 @@ describe("SettingsPage", () => {
     expect(save).toHaveBeenCalledWith({
       contactEmail: "support@example.org",
       displayName: "Updated Portal Org",
+    });
+  });
+
+  it("requires an exact slug match before deleting an organization", async () => {
+    const deleteOrganization = vi.fn(
+      async (_input: { slug: string }) => {},
+    );
+    const deletionController: PortalOrganizationDeletionController = {
+      deleteOrganization: vi.fn(async ({ slug }) => {
+        await deleteOrganization({ slug });
+        return true;
+      }),
+      error: null,
+      isDeleting: false,
+      organizationName: "Portal Test Org",
+      organizationSlug: "portal-test-org",
+    };
+
+    renderWithOrganization(
+      <SettingsPage
+        deletionController={deletionController}
+        endpoints={endpoints}
+        session={createMockPortalSession()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete organization" }));
+
+    expect(screen.getAllByRole("heading", { name: "Delete organization" }).length).toBeGreaterThan(0);
+    const modal = await screen.findByRole("dialog");
+    const slugInput = await screen.findByLabelText("Organization slug");
+    expect(document.body.textContent).toContain(
+      "This action will be recorded as performed by",
+    );
+    expect(document.body.textContent).toContain("portal-test-org");
+    const confirmDeleteButton = within(modal).getByRole("button", {
+      name: "Delete organization",
+    });
+
+    expect((confirmDeleteButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(slugInput, {
+      target: { value: "wrong-slug" },
+    });
+    expect((confirmDeleteButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(slugInput, {
+      target: { value: "portal-test-org" },
+    });
+    fireEvent.click(confirmDeleteButton);
+
+    await waitFor(() => {
+      expect(deleteOrganization).toHaveBeenCalledWith({
+        slug: "portal-test-org",
+      });
     });
   });
 
@@ -533,11 +591,39 @@ function renderWithOrganization(element: ReactNode) {
   };
 
   return render(
-    <PortalOrganizationContext.Provider value={value}>
-      <VerifyForGoodMantineProvider defaultColorScheme="light">
-        {element}
-      </VerifyForGoodMantineProvider>
-    </PortalOrganizationContext.Provider>,
+    <PortalAuthContext.Provider
+      value={{
+        accessToken: "test_token",
+        applyOrganization: vi.fn(),
+        availableOrganizations: [
+          {
+            account_id: "acct_portal_test",
+            membership: {
+              role: "admin",
+              status: "active",
+              user_id: "user_verifyforgood_demo",
+            },
+            organization_id: "org_portal_test",
+            organization_name: "Portal Test Org",
+            slug: "portal-test-org",
+            workspace_id: "ws_portal_test",
+          },
+        ],
+        isBusy: false,
+        login: vi.fn(async () => createMockPortalSession()),
+        register: vi.fn(async () => createMockPortalSession()),
+        removeOrganization: vi.fn(() => createMockPortalSession()),
+        session: createMockPortalSession(),
+        signOut: vi.fn(async () => {}),
+        status: "authenticated",
+      }}
+    >
+      <PortalOrganizationContext.Provider value={value}>
+        <VerifyForGoodMantineProvider defaultColorScheme="light">
+          {element}
+        </VerifyForGoodMantineProvider>
+      </PortalOrganizationContext.Provider>
+    </PortalAuthContext.Provider>,
   );
 }
 

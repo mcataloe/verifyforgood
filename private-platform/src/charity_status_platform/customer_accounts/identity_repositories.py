@@ -56,6 +56,15 @@ class OrganizationRepository(Protocol):
     ) -> OrganizationRecord | None:
         ...
 
+    def soft_delete(
+        self,
+        organization_id: str,
+        *,
+        deleted_at: str,
+        deleted_by_user_id: str,
+    ) -> OrganizationRecord | None:
+        ...
+
 
 class MembershipRepository(Protocol):
     def create(self, membership: MembershipRecord) -> MembershipRecord:

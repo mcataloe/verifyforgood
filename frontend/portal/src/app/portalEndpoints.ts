@@ -14,6 +14,7 @@ export interface PortalEndpoints {
   nonprofitSearch: string;
   organizationCreate: string;
   organizationActivity?: string;
+  organizationDeleteCurrent: string;
   organizationSettings: string;
   organizationSupport?: string;
   organizationSupportRequests?: string;
@@ -56,6 +57,10 @@ export function portalEndpoints(
     ),
     organizationActivity: buildApiUrl(
       apiEndpoints.organization.activity,
+      runtimeConfig,
+    ),
+    organizationDeleteCurrent: buildApiUrl(
+      apiEndpoints.organization.deleteCurrent,
       runtimeConfig,
     ),
     organizationSettings: buildApiUrl(

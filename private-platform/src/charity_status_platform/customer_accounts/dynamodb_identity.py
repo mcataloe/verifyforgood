@@ -94,7 +94,10 @@ class DynamoOrganizationRepository:
         item = response.get("Item")
         if item is None:
             return None
-        return _organization_from_item(item)
+        organization = _organization_from_item(item)
+        if organization.deleted_at:
+            return None
+        return organization
 
     def get_by_slug(self, slug: str) -> OrganizationRecord | None:
         normalized_slug = _normalize_slug(slug)
@@ -107,7 +110,10 @@ class DynamoOrganizationRepository:
         items = response.get("Items") or []
         if not items:
             return None
-        return _organization_from_item(items[0])
+        organization = _organization_from_item(items[0])
+        if organization.deleted_at:
+            return None
+        return organization
 
     def update_profile(
         self,
@@ -127,6 +133,33 @@ class DynamoOrganizationRepository:
             created_at=existing.created_at,
             updated_at=updated_at,
             contact_email=contact_email,
+            deleted_at=existing.deleted_at,
+            deleted_by_user_id=existing.deleted_by_user_id,
+        )
+        self._table.put_item(Item=_organization_item(updated))
+        return updated
+
+    def soft_delete(
+        self,
+        organization_id: str,
+        *,
+        deleted_at: str,
+        deleted_by_user_id: str,
+    ) -> OrganizationRecord | None:
+        response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": "ORG"})
+        item = response.get("Item")
+        if item is None:
+            return None
+        existing = _organization_from_item(item)
+        updated = OrganizationRecord(
+            organization_id=existing.organization_id,
+            name=existing.name,
+            slug=existing.slug,
+            created_at=existing.created_at,
+            updated_at=deleted_at,
+            contact_email=existing.contact_email,
+            deleted_at=deleted_at,
+            deleted_by_user_id=deleted_by_user_id,
         )
         self._table.put_item(Item=_organization_item(updated))
         return updated
@@ -552,6 +585,8 @@ def _organization_item(organization: OrganizationRecord) -> dict[str, Any]:
         "created_at": organization.created_at,
         "updated_at": organization.updated_at,
         "contact_email": organization.contact_email,
+        "deleted_at": organization.deleted_at,
+        "deleted_by_user_id": organization.deleted_by_user_id,
         "gsi4pk": f"ORGSLUG#{organization.slug}",
         "gsi4sk": _organization_pk(organization.organization_id),
     }
@@ -693,6 +728,8 @@ def _organization_from_item(item: dict[str, Any]) -> OrganizationRecord:
         created_at=str(item.get("created_at") or ""),
         updated_at=str(item.get("updated_at") or ""),
         contact_email=_optional_string(item.get("contact_email")),
+        deleted_at=_optional_string(item.get("deleted_at")),
+        deleted_by_user_id=_optional_string(item.get("deleted_by_user_id")),
     )
 
 

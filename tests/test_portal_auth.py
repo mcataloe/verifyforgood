@@ -203,6 +203,73 @@ def test_auth_me_returns_current_user_and_active_organization_context(monkeypatc
     assert payload["data"]["organization_context"]["membership"]["role"] == "admin"
 
 
+def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
+    module = _load_module_with_identity_store(monkeypatch)
+    register_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/auth/register",
+            "path": "/v1/auth/register",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "email": "person@example.com",
+                    "password": "top-secret-password",
+                    "full_name": "Portal Person",
+                }
+            ),
+        },
+        None,
+    )
+    register_payload = _response_body(register_response)
+    access_token = register_payload["data"]["access_token"]
+    organization_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organizations",
+            "path": "/v1/organizations",
+            "headers": {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({"name": "Verify For Good Org"}),
+        },
+        None,
+    )
+    organization_payload = _response_body(organization_response)
+    delete_response = module.handler(
+        {
+            "httpMethod": "DELETE",
+            "resource": "/v1/organizations/current",
+            "path": "/v1/organizations/current",
+            "headers": {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "X-Portal-Account-Id": organization_payload["data"]["account_id"],
+                "X-Portal-Workspace-Id": organization_payload["data"]["workspace_id"],
+            },
+            "body": json.dumps({"slug": organization_payload["data"]["slug"]}),
+        },
+        None,
+    )
+
+    response = module.handler(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/auth/me",
+            "path": "/v1/auth/me",
+            "headers": {"Authorization": f"Bearer {access_token}"},
+        },
+        None,
+    )
+    payload = _response_body(response)
+
+    assert delete_response["statusCode"] == 200
+    assert response["statusCode"] == 200
+    assert payload["data"]["available_organizations"] == []
+    assert payload["data"]["organization_context"] is None
+
+
 def test_auth_me_returns_null_organization_context_without_membership(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
     register_response = module.handler(
@@ -372,3 +439,53 @@ def test_organization_context_service_lists_active_memberships_in_priority_order
     assert [item.organization_id for item in resolved] == ["org_beta", "org_alpha"]
     assert resolved[0].membership["role"] == "user"
     assert resolved[1].membership["role"] == "admin"
+
+
+def test_organization_context_service_ignores_soft_deleted_organizations():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    users = DynamoUserRepository(dynamodb_resource=resource)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    memberships = DynamoMembershipRepository(dynamodb_resource=resource)
+
+    users.create(
+        UserRecord(
+            user_id="user_portal_person",
+            email="person@example.com",
+            normalized_email="person@example.com",
+            full_name="Portal Person",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_alpha",
+            name="Alpha Org",
+            slug="alpha-org",
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    memberships.create(
+        MembershipRecord(
+            organization_id="org_alpha",
+            user_id="user_portal_person",
+            role=MembershipRole.ADMIN,
+            status=MembershipStatus.ACTIVE,
+            created_at="2026-03-25T00:00:00+00:00",
+            updated_at="2026-03-25T00:00:00+00:00",
+        )
+    )
+    organizations.soft_delete(
+        "org_alpha",
+        deleted_at="2026-03-27T00:00:00+00:00",
+        deleted_by_user_id="user_portal_person",
+    )
+
+    resolved = OrganizationContextService(
+        organizations=organizations,
+        memberships=memberships,
+    ).list_for_user(user_id="user_portal_person")
+
+    assert resolved == []

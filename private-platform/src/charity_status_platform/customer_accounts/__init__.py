@@ -94,6 +94,7 @@ from .organization_service import (
     OrganizationBootstrapValidationError,
     OrganizationContextResponse,
     OrganizationCreateRequest,
+    OrganizationDeleteRequest,
     OrganizationService,
 )
 from .organization_context_service import OrganizationContextService
@@ -204,6 +205,7 @@ __all__ = [
     "AuditLogService",
     "OrganizationBootstrapValidationError",
     "OrganizationCreateRequest",
+    "OrganizationDeleteRequest",
     "OrganizationContextResponse",
     "OrganizationService",
     "OrganizationContextService",

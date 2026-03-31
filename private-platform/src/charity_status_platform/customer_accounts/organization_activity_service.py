@@ -198,6 +198,18 @@ def _summarize_event(
                 "changed_sections": changed_sections,
             },
         )
+    if record.event_type is AuditEventType.ORGANIZATION_DELETION:
+        return (
+            "organization_settings",
+            "Organization deleted",
+            "The organization was deleted and is no longer available in the portal.",
+            {
+                "organization_name": _clean_text(metadata.get("organization_name")),
+                "slug": _clean_text(metadata.get("slug")),
+                "deleted_at": _clean_text(metadata.get("deleted_at")),
+                "deleted_by_user_id": _clean_text(metadata.get("deleted_by_user_id")),
+            },
+        )
     if record.event_type is AuditEventType.SUPPORT_REQUEST_SUBMITTED:
         category = _clean_text(metadata.get("category"), fallback="other")
         subject = _clean_text(metadata.get("subject"), fallback="support request")

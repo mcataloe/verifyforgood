@@ -22,6 +22,7 @@ const endpoints: PortalEndpoints = {
   nonprofitLookup: "/v1/nonprofit/{ein}",
   nonprofitSearch: "/v1/nonprofits/search",
   organizationCreate: "/v1/organizations",
+  organizationDeleteCurrent: "/v1/organizations/current",
   oauthToken: "/v1/oauth/token",
   organizationSettings: "/v1/organization/settings",
 };

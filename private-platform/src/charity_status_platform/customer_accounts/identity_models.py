@@ -75,6 +75,8 @@ class OrganizationRecord:
     created_at: str
     updated_at: str
     contact_email: str | None = None
+    deleted_at: str | None = None
+    deleted_by_user_id: str | None = None
 
 
 @dataclass(frozen=True)
