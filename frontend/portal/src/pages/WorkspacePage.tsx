@@ -48,7 +48,7 @@ export function WorkspacePage({
         sectionWrapper={({ section }) => <section>{section}</section>}
       >
         <Panel
-          title="Team overview"
+          title="Organization details"
           subtitle="A quick summary of your organization and access."
         >
           <dl className="portal-shell__details">
@@ -72,8 +72,8 @@ export function WorkspacePage({
         </Panel>
 
         <Panel
-          title="Signed-in user"
-          subtitle="The account currently using this workspace."
+          title="Signed-in account"
+          subtitle="The account currently using this organization."
         >
           <dl className="portal-shell__details">
             <div>

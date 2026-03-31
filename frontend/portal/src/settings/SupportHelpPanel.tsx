@@ -21,7 +21,9 @@ const supportCategories = [
 ] as const;
 
 export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
-  const [category, setCategory] = useState<(typeof supportCategories)[number]["value"]>("other");
+  const [category, setCategory] = useState<
+    (typeof supportCategories)[number]["value"]
+  >("other");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [replyEmail, setReplyEmail] = useState("");
@@ -42,10 +44,10 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
   if (controller.isLoading) {
     return (
       <PortalLoadingState
-        subtitle="Loading support contact details and account context."
+        subtitle="Loading support details for your organization."
         title="Loading support"
       >
-        <p>Preparing support guidance and the current organization context.</p>
+        <p>Preparing contact details and help options.</p>
       </PortalLoadingState>
     );
   }
@@ -58,7 +60,7 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
         onAction={() => {
           void controller.reload();
         }}
-        subtitle="The portal could not load support details for the current organization."
+        subtitle="We couldn't load support details for your organization."
         title="Support unavailable"
       />
     );
@@ -68,7 +70,7 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
   if (!context) {
     return (
       <PortalNotice title="Support unavailable" tone="empty">
-        <p>Support details are not available for the current organization.</p>
+        <p>Support details are not available right now.</p>
       </PortalNotice>
     );
   }
@@ -109,9 +111,9 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
             <dt>Helpful links</dt>
             <dd>
               <a href={context.product_links.api_access_hash}>API access</a>
-              {" · "}
+              {" | "}
               <a href={context.product_links.usage_hash}>Usage visibility</a>
-              {" · "}
+              {" | "}
               <a href={context.product_links.billing_hash}>Billing visibility</a>
             </dd>
           </div>
@@ -122,7 +124,7 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
       </section>
 
       <section className="portal-budget-form__section">
-        <h3>Account context</h3>
+        <h3>Account details</h3>
         <dl className="portal-shell__details">
           <div>
             <dt>Organization</dt>
@@ -149,7 +151,10 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
               id="support-category"
               onChange={(event) => {
                 controller.clearReceipt();
-                setCategory(event.target.value as (typeof supportCategories)[number]["value"]);
+                setCategory(
+                  event.target
+                    .value as (typeof supportCategories)[number]["value"],
+                );
               }}
               value={category}
             >
@@ -225,11 +230,11 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
         ) : null}
 
         {controller.receipt ? (
-          <PortalNotice title="Support request recorded" tone="warning">
+          <PortalNotice title="Support request sent" tone="warning">
             <p>
-              Request {controller.receipt.support_request_id} was recorded on{" "}
-              {formatDateTime(controller.receipt.submitted_at)}. Follow-up will
-              come through {controller.receipt.support_email}.
+              Your request was sent on{" "}
+              {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
+              through {controller.receipt.support_email}.
             </p>
           </PortalNotice>
         ) : null}
@@ -239,20 +244,24 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
             className="portal-shell__action portal-shell__action--primary"
             disabled={controller.isSubmitting || validationMessage !== null}
             onClick={() => {
-              void controller.submit({
-                category,
-                context: {
-                  current_route_hash:
-                    typeof window === "undefined"
-                      ? "#/settings?nav=customer-admin-settings"
-                      : window.location.hash || "#/settings?nav=customer-admin-settings",
-                  user_agent:
-                    typeof navigator === "undefined" ? null : navigator.userAgent,
-                },
-                description: description.trim(),
-                reply_email: replyEmail.trim() || null,
-                subject: subject.trim(),
-              })
+              void controller
+                .submit({
+                  category,
+                  context: {
+                    current_route_hash:
+                      typeof window === "undefined"
+                        ? "#/settings?nav=customer-admin-settings"
+                        : window.location.hash ||
+                          "#/settings?nav=customer-admin-settings",
+                    user_agent:
+                      typeof navigator === "undefined"
+                        ? null
+                        : navigator.userAgent,
+                  },
+                  description: description.trim(),
+                  reply_email: replyEmail.trim() || null,
+                  subject: subject.trim(),
+                })
                 .then(() => {
                   setSubject("");
                   setDescription("");
@@ -262,8 +271,8 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
             type="button"
           >
             {controller.isSubmitting
-              ? "Recording support request..."
-              : "Record support request"}
+              ? "Sending support request..."
+              : "Send support request"}
           </button>
         </div>
       </section>

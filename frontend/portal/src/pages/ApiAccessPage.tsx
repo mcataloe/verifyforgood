@@ -22,7 +22,7 @@ export function ApiAccessPage({
 }: ApiAccessPageProps) {
   return (
     <PortalPageShell
-      description="Manage self-serve API credentials and keep the OAuth boundary explicit for operational admin workflows."
+      description="Create and manage API keys for your organization."
       eyebrow={pane === "api" ? "Customer admin API" : "Customer portal API"}
       title="API access"
       toolbar={
@@ -39,31 +39,29 @@ export function ApiAccessPage({
       }
     >
       <Panel
-        title="Credential access"
-        subtitle="API keys are managed through the organization-scoped backend lifecycle."
+        title="API credentials"
+        subtitle="Manage API keys for your organization and review available access."
       >
         <PortalSectionHeader
-          description="Use the shared account shell to manage customer credentials without mixing OAuth token exchange details into the rest of the portal."
-          eyebrow="Shared admin shell"
-          title="Keep API workflows consistent"
+          description="Use this page to manage API access for your organization."
+          eyebrow="Organization access"
+          title="Manage API access"
         />
         <p>
-          Customers authenticate through issued API keys or OAuth client
-          credentials. API key lifecycle is now backed by the current
-          organization routes, while OAuth token exchange continues to anchor at{" "}
-          <code>{endpoints.oauthToken}</code>.
+          Use API keys for server-to-server integrations. If your team also uses
+          OAuth, token requests are available at <code>{endpoints.oauthToken}</code>.
         </p>
         <dl className="portal-shell__details">
           <div>
-            <dt>Portal auth mode</dt>
+            <dt>Sign-in method</dt>
             <dd>{session.auth_method.replaceAll("_", " ")}</dd>
           </div>
           <div>
-            <dt>Available scopes</dt>
+            <dt>Available access</dt>
             <dd>{session.scopes.join(", ")}</dd>
           </div>
           <div>
-            <dt>OAuth token route</dt>
+            <dt>OAuth token URL</dt>
             <dd>
               <code>{endpoints.oauthToken}</code>
             </dd>

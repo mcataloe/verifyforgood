@@ -13,7 +13,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
           <h2>Sign in to manage your organization</h2>
           <p>
             Access billing, team access, API credentials, and verification
-            activity from one secure workspace. Sign in first, then create or
+            activity from one secure account. Sign in first, then create or
             join an organization if needed.
           </p>
         </div>
@@ -42,7 +42,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
 
         <div className="portal-auth-page__onboarding">
           <p className="portal-shell__eyebrow">What happens next</p>
-          <h3>Get into the right workspace quickly</h3>
+          <h3>Get started quickly</h3>
           <ul className="portal-list">
             <li>
               If you already belong to an organization, you go straight to your
@@ -82,12 +82,12 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
         </div>
 
         <div className="portal-auth-page__divider" role="presentation">
-          <span>Portal scope</span>
+          <span>What you can manage</span>
         </div>
 
         <ul className="portal-auth-page__list portal-list">
           <li>Verification dashboard and organization activity</li>
-          <li>Tenant-aware nonprofit workspace and detail review</li>
+          <li>Nonprofit search and detailed review</li>
           <li>Usage, billing, settings, and API credential management</li>
         </ul>
       </div>

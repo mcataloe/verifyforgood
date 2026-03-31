@@ -28,7 +28,7 @@ export const portalPublicRoutes: PortalRouteDefinition[] = [
     label: "Portal Home",
     hash: "#/",
     description:
-      "Public landing route for entering the authenticated customer portal.",
+      "Portal home and sign-in entry point.",
   },
   {
     access: "public",
@@ -36,7 +36,7 @@ export const portalPublicRoutes: PortalRouteDefinition[] = [
     label: "Sign In",
     hash: "#/sign-in",
     description:
-      "Public auth boundary for the portal shell while production identity integration remains deferred.",
+      "Sign in to your account.",
   },
   {
     access: "public",
@@ -44,7 +44,7 @@ export const portalPublicRoutes: PortalRouteDefinition[] = [
     label: "Register",
     hash: "#/register",
     description:
-      "Public registration boundary for creating a new portal account before onboarding is complete.",
+      "Create a new account.",
   },
 ];
 
@@ -54,7 +54,7 @@ export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
   label: "Create Organization",
   hash: "#/onboarding/organization",
   description:
-    "Protected onboarding route for creating the first organization context.",
+    "Create your organization after signing in.",
 };
 
 export const portalProtectedRoutes: PortalRouteDefinition[] = [
@@ -65,7 +65,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Dashboard",
     hash: "#/dashboard",
     description:
-      "High-level authenticated entry point for future product signals and recent activity.",
+      "Overview of organization activity and priorities.",
   },
   {
     access: "protected",
@@ -73,7 +73,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Workspace",
     hash: "#/workspace",
     description:
-      "Organization and workspace context for account, tenant, and membership-aware slices.",
+      "Search nonprofits and manage your team.",
   },
   {
     access: "protected",
@@ -81,7 +81,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "API Access",
     hash: "#/api-access",
     description:
-      "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
+      "Manage API keys and related access settings.",
   },
   {
     access: "protected",
@@ -89,7 +89,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Usage & Billing",
     hash: "#/usage-billing",
     description:
-      "Subscription, backend-managed billing actions, and usage-aware billing workflows.",
+      "Review usage, billing, and plan details.",
   },
   {
     access: "protected",
@@ -97,7 +97,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Settings",
     hash: "#/settings",
     description:
-      "Organization-level settings and future integrations configuration.",
+      "Update organization settings and preferences.",
   },
 ];
 

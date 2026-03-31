@@ -152,19 +152,21 @@ export function NonprofitSearchPanel({
 
           <dl className="portal-shell__details">
             <div>
-              <dt>Search mode</dt>
-              <dd>{search.searchMode ?? "Not run yet"}</dd>
+              <dt>Search type</dt>
+              <dd>
+                {search.searchMode === "ein"
+                  ? "EIN"
+                  : search.searchMode === "name"
+                    ? "Name"
+                    : "Not run yet"}
+              </dd>
             </div>
             <div>
-              <dt>Last query</dt>
+              <dt>Last search</dt>
               <dd>{search.lastQuery || "None"}</dd>
             </div>
             <div>
-              <dt>Workspace</dt>
-              <dd>{organization.activeOrganization.workspace_id}</dd>
-            </div>
-            <div>
-              <dt>Loaded results</dt>
+              <dt>Results loaded</dt>
               <dd>{String(search.results.length)}</dd>
             </div>
           </dl>

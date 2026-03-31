@@ -155,7 +155,7 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
     expect(isUnavailable).toBe(true);
     expect(
-      screen.getByText("Self-serve API credentials and token access."),
+      screen.getByText("Manage API keys and access settings."),
     ).toBeTruthy();
   });
 

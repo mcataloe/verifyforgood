@@ -32,7 +32,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
     <StackedDetailSections>
       <Panel
         title="API key management"
-        subtitle="Create, review, and revoke organization-scoped API credentials."
+        subtitle="Create, review, and revoke API keys for your organization."
       >
         <p>
           API keys created here belong to{" "}
@@ -41,14 +41,6 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         </p>
 
         <dl className="portal-shell__details">
-          <div>
-            <dt>Workspace</dt>
-            <dd>{organization.activeOrganization.workspace_id}</dd>
-          </div>
-          <div>
-            <dt>Account</dt>
-            <dd>{organization.activeOrganization.account_id}</dd>
-          </div>
           <div>
             <dt>Your role</dt>
             <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
@@ -82,7 +74,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 onChange={(event) => {
                   setDisplayName(event.target.value);
                 }}
-                placeholder="Production integration"
+                placeholder="Server integration"
                 type="text"
                 value={displayName}
               />
@@ -105,7 +97,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 }}
                 type="button"
               >
-                Refresh list
+                Refresh keys
               </button>
             </Inline>
           </form>
@@ -193,7 +185,6 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 <th>Status</th>
                 <th>Created</th>
                 <th>Last used</th>
-                <th>Key ID</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -208,7 +199,6 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                       ? formatDateTime(key.last_used_at)
                       : "Never used"}
                   </td>
-                  <td>{key.key_id}</td>
                   <td>
                     {key.status === "revoked" || !canManageKeys ? (
                       <span>

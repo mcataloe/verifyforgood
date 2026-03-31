@@ -433,7 +433,7 @@ function buildAudienceNavigationSections(
         {
           key: "workspace",
           label: "Workspace",
-          helpText: "Day-to-day verification, team, and workspace operations.",
+          helpText: "Day-to-day verification, team, and organization work.",
           items: [
             navigationItem(
               routeByKey,
@@ -451,7 +451,7 @@ function buildAudienceNavigationSections(
               "customer-admin-team",
               "Team",
               {
-                helpText: "Team, membership, and workspace context.",
+                helpText: "Team access and organization details.",
               },
             ),
           ],
@@ -487,7 +487,7 @@ function buildAudienceNavigationSections(
               "API",
               {
                 allowedPlans: ["growth", "pro", "enterprise"],
-                helpText: "Self-serve API credentials and token access.",
+                helpText: "Manage API keys and access settings.",
                 visibility: {
                   planRestrictedBehavior: "locked",
                 },
@@ -499,7 +499,7 @@ function buildAudienceNavigationSections(
               "customer-admin-settings",
               "Settings",
               {
-                helpText: "Workspace settings and budget controls.",
+                helpText: "Manage organization settings and preferences.",
               },
             ),
           ],
@@ -526,7 +526,7 @@ function buildAudienceNavigationSections(
               key: "customer-user-search",
               label: "Search",
               helpText:
-                "Discover organizations by EIN or address without leaving the workspace.",
+                "Discover organizations by EIN or address from one place.",
               icon: createElement(IconSearch, { size: 18, stroke: 1.7 }),
               children: [
                 navigationItem(
@@ -545,7 +545,7 @@ function buildAudienceNavigationSections(
                   "By Address",
                   {
                     helpText:
-                      "Find organizations with any combination of address, city, state, or zip.",
+                      "Find organizations with address details.",
                   },
                 ),
               ],
@@ -577,7 +577,7 @@ function buildAudienceNavigationSections(
                   "API Key",
                   {
                     helpText:
-                      "Create and manage portal-issued API keys for direct integrations.",
+                      "Create and manage API keys for direct integrations.",
                   },
                 ),
                 navigationItem(

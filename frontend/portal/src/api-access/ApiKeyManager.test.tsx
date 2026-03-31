@@ -98,6 +98,9 @@ describe("ApiKeyManager", () => {
     expect(screen.getByDisplayValue("csk_demo.secret")).toBeTruthy();
     expect(screen.getByText("Existing key")).toBeTruthy();
     expect(screen.getByText("Never used")).toBeTruthy();
+    expect(screen.queryByText("ws_portal_test")).toBeNull();
+    expect(screen.queryByText("acct_portal_test")).toBeNull();
+    expect(screen.queryByText("key_existing")).toBeNull();
 
     const initialDividers =
       stackedRoot?.querySelectorAll(".portal-stacked-sections__divider") ?? [];

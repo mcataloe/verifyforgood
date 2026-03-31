@@ -66,12 +66,8 @@ export function PortalOrganizationOnboardingPage({
       >
         <ol className="portal-list">
           <li>Create your organization profile.</li>
-          <li>
-            We’ll take you to the dashboard when setup is complete.
-          </li>
-          <li>
-            You can invite teammates after your organization is ready.
-          </li>
+          <li>We'll take you to the dashboard when setup is complete.</li>
+          <li>You can invite teammates after your organization is ready.</li>
         </ol>
       </SectionBlock>
       <SectionDivider />
@@ -80,7 +76,11 @@ export function PortalOrganizationOnboardingPage({
           title="Create organization"
           subtitle="Enter the basic details for your organization."
         >
-          <form className="portal-form portal-form--detail" noValidate onSubmit={handleSubmit}>
+          <form
+            className="portal-form portal-form--detail"
+            noValidate
+            onSubmit={handleSubmit}
+          >
             <label className="portal-form__field" htmlFor={nameId}>
               <span>Organization name</span>
               <input
@@ -108,7 +108,11 @@ export function PortalOrganizationOnboardingPage({
             </label>
 
             {validationMessage ? (
-              <p aria-live="polite" className="portal-auth-page__error" role="alert">
+              <p
+                aria-live="polite"
+                className="portal-auth-page__error"
+                role="alert"
+              >
                 {validationMessage}
               </p>
             ) : null}
@@ -129,10 +133,10 @@ export function PortalOrganizationOnboardingPage({
       <SectionBlock>
         <Panel
           title="What happens next"
-          subtitle="After your organization is created, you can continue setting up your workspace."
+          subtitle="After your organization is created, you can continue setting up your account."
         >
           <p>
-            You’ll go straight to the dashboard, where you can review activity,
+            You'll go straight to the dashboard, where you can review activity,
             manage access, and continue setup.
           </p>
         </Panel>

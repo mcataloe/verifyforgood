@@ -58,7 +58,7 @@ export function PortalNonprofitDetailView({
         <DetailFieldList items={buildComplianceItems(detail)} />
       </SectionBlock>
       <SectionDivider />
-      <SectionBlock title="Sources">
+      <SectionBlock title="Data sources">
         <PortalNonprofitSourceSection detail={detail} />
       </SectionBlock>
       <SectionDivider />
@@ -226,23 +226,8 @@ function buildComplianceItems(detail: PortalNonprofitDetail) {
 function buildSourceItems(detail: PortalNonprofitDetail) {
   return [
     {
-      key: "model-source",
-      label: "Model source",
-      value: detail.modelSource,
-    },
-    {
-      key: "model-version",
-      label: "Model version",
-      value: detail.modelVersion,
-    },
-    {
-      key: "query-execution",
-      label: "Query execution",
-      value: detail.queryExecutionId,
-    },
-    {
       key: "source-checks",
-      label: "Available source checks",
+      label: "Source checks",
       value: String(detail.sourceAvailability.length),
     },
   ];
@@ -277,7 +262,7 @@ function PortalNonprofitSourceSection({
         </table>
       ) : (
         <p className="portal-detail-view__section-intro">
-          No source checks are available for this nonprofit yet.
+          No source checks are available for this organization yet.
         </p>
       )}
     </>
@@ -287,7 +272,7 @@ function PortalNonprofitSourceSection({
 function formatSourceStatus(source: PortalNonprofitSourceAvailability) {
   switch (source.status) {
     case "tenant_disabled":
-      return "Disabled for this workspace";
+      return "Not enabled for your organization";
     case "matched":
       return "Matched";
     case "no_match":

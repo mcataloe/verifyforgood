@@ -100,6 +100,12 @@ describe("WorkspacePage", () => {
     ).toBeTruthy();
     expect(screen.getByText("admin access")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite user" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Organization details" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Signed-in account" }),
+    ).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Role for member@example.org"), {
       target: { value: "admin" },
     });
@@ -140,7 +146,9 @@ describe("WorkspacePage", () => {
     expect(screen.getByText("user access")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
     expect(screen.getByText("Read-only team view")).toBeTruthy();
-    expect(screen.getByText("Current user")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Signed-in account" }),
+    ).toBeTruthy();
   });
 });
 

@@ -10,11 +10,6 @@ interface ProfileContextSectionProps {
   showTitle?: boolean;
 }
 
-/**
- * Compact identity and account context for the current authenticated portal
- * user. This keeps shell footer content minimal while making account metadata
- * available on the settings/profile surface.
- */
 export function ProfileContextSection({
   environment: _environment,
   organization,
@@ -26,7 +21,7 @@ export function ProfileContextSection({
       aria-labelledby={showTitle ? "profile-context-title" : undefined}
       className="portal-settings-profile"
     >
-      {showTitle ? <h3 id="profile-context-title">Account context</h3> : null}
+      {showTitle ? <h3 id="profile-context-title">Account details</h3> : null}
       <div className="portal-settings-profile__summary">
         <p className="portal-shell__eyebrow">Current profile</p>
         <p className="portal-settings-profile__name">

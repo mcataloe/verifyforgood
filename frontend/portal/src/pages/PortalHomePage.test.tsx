@@ -25,5 +25,6 @@ describe("PortalHomePage", () => {
     expect(
       screen.getByText("Your account is always authenticated before organization setup."),
     ).toBeTruthy();
+    expect(screen.queryByText("Portal scope")).toBeNull();
   });
 });

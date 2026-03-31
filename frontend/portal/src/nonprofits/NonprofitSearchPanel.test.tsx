@@ -111,8 +111,9 @@ describe("NonprofitSearchPanel", () => {
       screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
     expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
-    expect(screen.getByText("Disabled for this workspace")).toBeTruthy();
+    expect(screen.getByText("Not enabled for your organization")).toBeTruthy();
+    expect(screen.queryByText("irs_eo_bmf_athena")).toBeNull();
+    expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(screen.getAllByTestId("section-divider").length).toBeGreaterThanOrEqual(2);

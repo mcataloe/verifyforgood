@@ -957,7 +957,7 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Billing and subscription visibility",
+        name: "Billing",
       }),
     ).toBeTruthy();
     expect(
@@ -1051,7 +1051,7 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Billing and subscription visibility",
+        name: "Billing",
       }),
     ).toBeTruthy();
 
@@ -1060,7 +1060,7 @@ describe("PortalApp", () => {
     rerender(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Usage visibility" }),
+      await screen.findByRole("heading", { name: "Usage" }),
     ).toBeTruthy();
   });
 });

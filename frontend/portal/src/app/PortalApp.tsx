@@ -187,7 +187,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Taking you back to your workspace."
+        subtitle="Taking you back to your account."
         title="Redirecting into the portal"
       >
         <p className="portal-auth-shell__message">

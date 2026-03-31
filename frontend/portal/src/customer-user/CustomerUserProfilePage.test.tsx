@@ -17,7 +17,7 @@ describe("CustomerUserProfilePage", () => {
     });
   });
 
-  it("renders profile fields, account context, and appearance controls", () => {
+  it("renders profile fields, account details, and appearance controls", () => {
     const { container } = renderWithOrganization(
       <CustomerUserProfilePage
         environment="test"
@@ -30,7 +30,7 @@ describe("CustomerUserProfilePage", () => {
       screen.getByRole("heading", { name: "Personal information" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Account context" }),
+      screen.getByRole("heading", { name: "Account details" }),
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
     expect(screen.getByLabelText("First Name")).toBeTruthy();

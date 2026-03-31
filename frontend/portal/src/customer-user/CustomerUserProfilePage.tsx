@@ -132,8 +132,8 @@ export function CustomerUserProfilePage({
       </PortalDetailSection>
 
       <PortalDetailSection
-        intro="Review the organization and plan currently associated with your account."
-        title="Account context"
+        intro="Review the organization and plan connected to your account."
+        title="Account details"
       >
         <ProfileContextSection
           organization={organization.activeOrganization}

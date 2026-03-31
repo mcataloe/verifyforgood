@@ -26,11 +26,11 @@ export function BillingPage({
     <PortalPageShell
       description={
         focus === "usage"
-          ? `Monitor request consumption, budget posture, and quota visibility for ${organization.activeOrganization.organization_name} without leaving the shared billing surface.`
-          : `Review authoritative subscription visibility, plan-derived limits, and enabled capabilities for ${organization.activeOrganization.organization_name}.`
+          ? `Track request usage, limits, and budget settings for ${organization.activeOrganization.organization_name}.`
+          : `Review billing, plan details, and included features for ${organization.activeOrganization.organization_name}.`
       }
       eyebrow={focus === "usage" ? "Customer admin usage" : "Customer admin billing"}
-      title={focus === "usage" ? "Usage visibility" : "Billing and subscription visibility"}
+      title={focus === "usage" ? "Usage" : "Billing"}
       toolbar={
         <PortalActionToolbar>
           <div className="portal-action-toolbar__group">
@@ -39,11 +39,6 @@ export function BillingPage({
             </span>
             <span className="portal-shell__summary-pill">
               Role {organization.currentMembership?.role ?? "unknown"}
-            </span>
-          </div>
-          <div className="portal-action-toolbar__group">
-            <span className="portal-shell__summary-pill">
-              Route #/usage-billing
             </span>
           </div>
         </PortalActionToolbar>

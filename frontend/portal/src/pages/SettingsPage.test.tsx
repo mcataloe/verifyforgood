@@ -319,7 +319,7 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Support contact" })).toBeTruthy();
     expect(
-      screen.getAllByRole("heading", { name: "Account context" }).length,
+      screen.getAllByRole("heading", { name: "Account details" }).length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Report an issue" })).toBeTruthy();
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
@@ -356,7 +356,7 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("button", { name: "Record support request" })
+        .getByRole("button", { name: "Send support request" })
         .hasAttribute("disabled"),
     ).toBe(true);
 
@@ -374,7 +374,7 @@ describe("SettingsPage", () => {
       screen.getByText("Reply email must be a valid email address."),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Record support request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
     expect(submit).not.toHaveBeenCalled();
   });
 
@@ -412,7 +412,7 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Please confirm which plan includes higher lookup limits." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Record support request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
 
     await waitFor(() => {
       expect(submit).toHaveBeenCalledTimes(1);
@@ -427,8 +427,8 @@ describe("SettingsPage", () => {
       reply_email: "ops@example.org",
       subject: "Billing question",
     });
-    expect(screen.getByText(/Support request recorded/i)).toBeTruthy();
-    expect(screen.getByText(/support_req_123/i)).toBeTruthy();
+    expect(screen.getByText(/Support request sent/i)).toBeTruthy();
+    expect(screen.queryByText(/support_req_123/i)).toBeNull();
   });
 });
 

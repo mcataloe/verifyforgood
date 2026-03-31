@@ -124,7 +124,7 @@ function renderWithOrganization(
 }
 
 describe("UsageBillingPanel", () => {
-  it("renders request usage and billing state clearly", () => {
+  it("renders request usage and billing details clearly", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-21T12:00:00-05:00"));
 
@@ -320,7 +320,7 @@ describe("UsageBillingPanel", () => {
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Manage plans" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
-    expect(screen.getAllByText("Effective access").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Current access").length).toBeGreaterThan(0);
     expect(screen.getByText("Scheduled downgrade")).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Schedule downgrade" }).length,
@@ -769,7 +769,7 @@ describe("UsageBillingPanel", () => {
     });
 
     expect(
-      screen.getByText(/Billing controls are limited to organization admins/i),
+      screen.getByText(/Only organization admins can make billing changes/i),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Current plan" })).toBeNull();
     expect(

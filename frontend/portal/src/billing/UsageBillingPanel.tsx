@@ -71,7 +71,7 @@ export function UsageBillingPanel({
   if (billing.isLoading || pricingPlans.isLoading) {
     return (
       <PortalLoadingState
-        subtitle="Fetching the current customer billing summary."
+        subtitle="Fetching your current billing summary."
         title="Loading usage and billing"
       >
         <p>Loading plan, request usage, and overage policy state.</p>
@@ -92,7 +92,7 @@ export function UsageBillingPanel({
           void billing.reload();
           void pricingPlans.reload();
         }}
-        subtitle="The portal could not load the current usage and billing state."
+        subtitle="We couldn't load your current usage and billing details."
         title="Billing summary unavailable"
       />
     );
@@ -147,10 +147,10 @@ export function UsageBillingPanel({
         : "Current subscription";
   const subscriptionPanelSubtitle =
     focus === "usage"
-      ? "Usage, budget posture, and effective access stay visible without leaving the shared billing route."
+      ? "Review usage, budget settings, and plan access in one place."
       : visibilityOnly
-        ? "Authoritative backend subscription state, cycle timing, limits, and enabled capabilities for the current organization."
-        : "Authoritative backend subscription state, billing cycle visibility, and pending billing changes.";
+        ? "Review your current plan, billing dates, limits, and enabled features."
+        : "Review your plan, billing cycle, and any pending changes.";
   const subscriptionSummary = (
     <SubscriptionSummaryCard currentPlan={currentPlan} snapshot={snapshot} />
   );
@@ -222,8 +222,8 @@ export function UsageBillingPanel({
         {!isAdmin ? (
           <PortalNotice tone="warning">
             <p>
-              Billing controls are limited to organization admins. Subscription
-              state remains visible here for shared operator context.
+              Only organization admins can make billing changes. Billing details
+              are still visible here.
             </p>
           </PortalNotice>
         ) : null}
@@ -232,16 +232,12 @@ export function UsageBillingPanel({
 
         <dl className="portal-shell__details">
           <div>
-          <dt>Effective access</dt>
+            <dt>Current access</dt>
             <dd>{snapshot.effectiveAccessPlan}</dd>
           </div>
           <div>
             <dt>Budget mode</dt>
             <dd>{snapshot.budgetStatus.label}</dd>
-          </div>
-          <div>
-            <dt>Budget policy source</dt>
-            <dd>{snapshot.budgetStatus.policySource}</dd>
           </div>
           <div>
             <dt>Included monthly requests</dt>
@@ -262,10 +258,6 @@ export function UsageBillingPanel({
             </dd>
           </div>
           <div>
-            <dt>Data source</dt>
-            <dd>{snapshot.source}</dd>
-          </div>
-          <div>
             <dt>Pending change</dt>
             <dd>{pendingSummary.label}</dd>
           </div>
@@ -274,7 +266,7 @@ export function UsageBillingPanel({
 
       <Panel
         title="Subscription details"
-        subtitle="Current cycle timing, included limits, and backend-derived visibility for this organization."
+        subtitle="Review plan details, billing dates, and scheduled changes."
       >
         <dl className="portal-shell__details">
           <div>
@@ -330,7 +322,7 @@ export function UsageBillingPanel({
       {visibilityOnly ? (
         <Panel
           title="Included limits"
-          subtitle="Limits come from the effective subscription and remain org-scoped."
+          subtitle="These limits apply to your current plan."
         >
           <div className="portal-usage-summary-grid">
             <UsageSummaryCard
@@ -355,7 +347,7 @@ export function UsageBillingPanel({
       ) : (
         <Panel
           title="Manage plans"
-          subtitle="Compare backend-seeded plans and take the next valid billing action for the current subscription state."
+          subtitle="Compare plans and choose the next billing action."
         >
           <PricingPlanGrid items={planItems} />
         </Panel>
@@ -364,14 +356,14 @@ export function UsageBillingPanel({
       {visibilityOnly ? (
         <Panel
           title="Enabled capabilities"
-          subtitle="Premium capability visibility is derived from the effective plan plus organization feature flags."
+          subtitle="Features available with your current plan."
         >
           <CapabilityVisibilityPanel snapshot={snapshot} />
         </Panel>
       ) : (
         <Panel
           title="Billing tools"
-          subtitle="Manage invoices and provider billing tools through backend-managed portal sessions."
+          subtitle="Open invoice history and payment settings."
         >
           {billingActions.error ? (
             <PortalNotice tone="error">
@@ -386,8 +378,7 @@ export function UsageBillingPanel({
                 Open the billing portal
               </h4>
               <p className="portal-billing-tools__description">
-                Invoice history and payment-method management stay inside the
-                backend-managed provider portal in this phase.
+                Manage invoices and payment methods in the billing portal.
               </p>
             </div>
             <Group gap="sm" wrap="wrap">
@@ -396,7 +387,7 @@ export function UsageBillingPanel({
                 loading={billingActions.isPending}
                 onClick={() => {
                   setStatusMessage(
-                    "Opening the backend-managed billing portal for invoices and payment details.",
+                    "Opening the billing portal for invoices and payment details.",
                   );
                   void billingActions
                     .cancelSubscription({
@@ -442,7 +433,7 @@ function CapabilityVisibilityPanel(input: {
       <PortalNotice tone="warning">
         <p>
           No premium capabilities are enabled for the current plan beyond the
-          baseline verification workflow.
+          included verification features.
         </p>
       </PortalNotice>
     );
@@ -675,7 +666,7 @@ function resolvePlanAction(input: {
   if (currentPlanCode === "free") {
     return {
       disabled: false,
-      footnote: "Starts a backend-managed checkout flow for the selected paid plan.",
+      footnote: "Starts checkout for the selected paid plan.",
       label: "Start checkout",
       variant: "filled" as const,
     };
@@ -743,8 +734,8 @@ async function runPlanAction(input: {
   if (result.kind === "redirect") {
     input.setStatusMessage(
       result.action === "manage_billing_portal"
-        ? "Opening the backend-managed billing portal."
-        : "Opening the backend-managed checkout experience.",
+        ? "Opening the billing portal."
+        : "Opening checkout.",
     );
     return result;
   }
