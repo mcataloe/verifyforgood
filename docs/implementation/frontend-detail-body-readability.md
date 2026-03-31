@@ -24,3 +24,4 @@ Portal and marketing detail bodies now follow one readability rule: once a user 
 - Authenticated portal surfaces must use the shared wide responsive container pattern.
 - Authentication must happen before organization creation.
 - Organization onboarding is conditional and protected, not the default landing page.
+- For customer-facing portal wording, follow [`portal-ux-copy-rules.md`](/d:/Repos/charity-status-api/docs/implementation/portal-ux-copy-rules.md).
