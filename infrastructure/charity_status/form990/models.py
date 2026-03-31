@@ -60,6 +60,7 @@ class Form990IngestResult:
     quality_s3_key: str
     relationships_s3_key: str
     records: list[dict[str, Any]]
+    nonprofit_persistence: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

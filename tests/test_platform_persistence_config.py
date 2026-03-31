@@ -15,6 +15,7 @@ def test_load_platform_persistence_config_defaults_to_dynamodb_backends():
     assert config.identity_store_backend == "dynamodb"
     assert config.organization_settings_store_backend == "dynamodb"
     assert config.control_plane_store_backend == "dynamodb"
+    assert config.nonprofit_store_backend == "disabled"
     assert config.postgres.enabled is False
 
 
@@ -27,6 +28,9 @@ def test_load_platform_persistence_config_requires_enabled_flag_when_backend_swi
     with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
         load_platform_persistence_config({"PLATFORM_IDENTITY_STORE_BACKEND": "postgres"})
 
+    with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
+        load_platform_persistence_config({"PLATFORM_NONPROFIT_STORE_BACKEND": "postgres"})
+
 
 def test_load_platform_persistence_config_accepts_secret_backed_postgres_settings():
     config = load_platform_persistence_config(
@@ -37,6 +41,7 @@ def test_load_platform_persistence_config_accepts_secret_backed_postgres_setting
             "PLATFORM_POSTGRES_DATABASE": "verification_platform",
             "PLATFORM_POSTGRES_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:platform-postgres",
             "PLATFORM_POSTGRES_SSLMODE": "require",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         }
     )
 
@@ -45,6 +50,7 @@ def test_load_platform_persistence_config_accepts_secret_backed_postgres_setting
     assert config.postgres.port == 5432
     assert config.postgres.database == "verification_platform"
     assert config.postgres.secret_arn.endswith(":platform-postgres")
+    assert config.nonprofit_store_backend == "postgres"
 
 
 def test_resolve_postgres_credentials_reads_secret_backed_username_and_password():

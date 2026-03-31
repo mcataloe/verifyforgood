@@ -72,3 +72,12 @@ This schema foundation does not yet:
 - replace the DynamoDB serving cache
 - add PostgreSQL-native nonprofit search behavior beyond the normalized name
   index
+
+Phase 24F adds an opt-in PostgreSQL ingest persistence path for normalized Form
+990 outputs. That path:
+
+- upserts canonical nonprofit rows by EIN
+- upserts filing rows with deterministic filing identifiers
+- upserts filing provenance/source rows with archive and signature metadata
+- leaves discovery manifests, raw-source storage, Athena reads, and the
+  materialized serving cache unchanged

@@ -50,6 +50,9 @@ class NonprofitFilingRecord:
     total_revenue: int | None = None
     source_name: str | None = None
     source_record_id: str | None = None
+    source_signature: str | None = None
+    xml_source_reference: str | None = None
+    raw_s3_key: str | None = None
     raw_payload: dict[str, Any] | None = None
     created_at: str = ""
     updated_at: str = ""
@@ -76,6 +79,7 @@ class NonprofitSourceRecord:
     explanation: str | None = None
     licensed: bool | None = None
     notes: str | None = None
+    source_signature: str | None = None
     normalized_data: dict[str, Any] | None = None
     raw_payload: dict[str, Any] | None = None
     created_at: str = ""
@@ -333,6 +337,9 @@ def _filing_model(record: NonprofitFilingRecord) -> NonprofitFilingModel:
         total_revenue=record.total_revenue,
         source_name=record.source_name,
         source_record_id=record.source_record_id,
+        source_signature=record.source_signature,
+        xml_source_reference=record.xml_source_reference,
+        raw_s3_key=record.raw_s3_key,
         raw_payload=record.raw_payload,
         created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
         updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
@@ -351,6 +358,9 @@ def _apply_filing_record(model: NonprofitFilingModel, record: NonprofitFilingRec
     model.total_revenue = record.total_revenue
     model.source_name = record.source_name
     model.source_record_id = record.source_record_id
+    model.source_signature = record.source_signature
+    model.xml_source_reference = record.xml_source_reference
+    model.raw_s3_key = record.raw_s3_key
     model.raw_payload = record.raw_payload
     model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
 
@@ -370,6 +380,9 @@ def _filing_record(model: NonprofitFilingModel) -> NonprofitFilingRecord:
         total_revenue=model.total_revenue,
         source_name=model.source_name,
         source_record_id=model.source_record_id,
+        source_signature=model.source_signature,
+        xml_source_reference=model.xml_source_reference,
+        raw_s3_key=model.raw_s3_key,
         raw_payload=model.raw_payload,
         created_at=_format_timestamp(model.created_at) or "",
         updated_at=_format_timestamp(model.updated_at) or "",
@@ -397,6 +410,7 @@ def _source_model(record: NonprofitSourceRecord) -> NonprofitSourceModel:
         explanation=record.explanation,
         licensed=record.licensed,
         notes=record.notes,
+        source_signature=record.source_signature,
         normalized_data=record.normalized_data,
         raw_payload=record.raw_payload,
         created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
@@ -422,6 +436,7 @@ def _apply_source_record(model: NonprofitSourceModel, record: NonprofitSourceRec
     model.explanation = record.explanation
     model.licensed = record.licensed
     model.notes = record.notes
+    model.source_signature = record.source_signature
     model.normalized_data = record.normalized_data
     model.raw_payload = record.raw_payload
     model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
@@ -448,6 +463,7 @@ def _source_record(model: NonprofitSourceModel) -> NonprofitSourceRecord:
         explanation=model.explanation,
         licensed=model.licensed,
         notes=model.notes,
+        source_signature=model.source_signature,
         normalized_data=model.normalized_data,
         raw_payload=model.raw_payload,
         created_at=_format_timestamp(model.created_at) or "",

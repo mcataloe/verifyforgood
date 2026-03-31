@@ -15,6 +15,7 @@ from charity_status.form990.teos_batch_processing import process_teos_manifest_b
 from charity_status.form990.teos_manifest import S3TeosZipManifestRepository
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
+from nonprofit_ingest_persistence import build_form990_nonprofit_persistence_service
 
 BUCKET = os.environ.get("BUCKET", "").strip()
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -113,6 +114,7 @@ def _process_chunk(message: dict[str, Any]) -> None:
         quality_prefix=QUALITY_PREFIX,
         relationships_prefix=RELATIONSHIPS_PREFIX,
         s3_client=s3,
+        nonprofit_persistence_service=build_form990_nonprofit_persistence_service(),
     )
     _update_run_status(s3, run_id, "running")
     _log_structured("form990.worker.chunk_start", run_id=run_id, chunk_id=chunk_id, task_type=task_type, attempt=attempt)
@@ -305,6 +307,7 @@ def _process_source_batch_chunk(
         quality_prefix=QUALITY_PREFIX,
         relationships_prefix=RELATIONSHIPS_PREFIX,
         s3_client=s3,
+        nonprofit_persistence_service=build_form990_nonprofit_persistence_service(),
     )
     repository = S3TeosZipManifestRepository(
         s3_client=s3,

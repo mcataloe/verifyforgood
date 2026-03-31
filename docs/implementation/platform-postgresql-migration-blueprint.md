@@ -279,6 +279,15 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
   - compliance snapshot records
 - keep Athena and serving-cache nonprofit reads unchanged
 
+### Phase 24F
+
+- refactor Form 990 ingestion persistence so normalized nonprofit rows,
+  filings, and filing-source provenance can be written into PostgreSQL
+- keep ingest discovery catalogs, raw source storage, and downstream nonprofit
+  read paths unchanged
+- make nonprofit ingest PostgreSQL persistence opt-in until ingest workers have
+  fully standardized database connectivity in deployed environments
+
 ### Later control-plane phase
 
 - migrate control-plane:

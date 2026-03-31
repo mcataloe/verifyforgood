@@ -34,6 +34,7 @@ Internal service-area package roots:
 
 - `identity_access/`
 - `customer_accounts/`
+- `nonprofits/`
 - `billing_usage/`
 - `admin_operations/`
 - `runtime/`

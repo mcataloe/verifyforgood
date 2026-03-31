@@ -66,6 +66,7 @@ def run_form990_monthly_processing_task(
     env: Mapping[str, str] | None = None,
     s3_client: Any | None = None,
     now: datetime | None = None,
+    nonprofit_persistence_service: Any | None = None,
 ) -> dict[str, Any]:
     source = dict(os.environ) if env is None else dict(env)
     started_at = now or datetime.now(timezone.utc)
@@ -145,6 +146,7 @@ def run_form990_monthly_processing_task(
                 s3_client=s3,
                 download_raw=True,
                 record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
+                nonprofit_persistence_service=nonprofit_persistence_service,
             ).to_dict()
             completed_at = datetime.now(timezone.utc)
             artifacts_payload = {

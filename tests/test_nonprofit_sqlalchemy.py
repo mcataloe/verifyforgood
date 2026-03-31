@@ -18,6 +18,7 @@ from charity_status_platform.nonprofits import (
     build_nonprofit_id,
     make_record_id,
 )
+from charity_status_platform.runtime import build_nonprofit_postgres_repository
 
 
 def _session_factory(tmp_path: Path):
@@ -173,3 +174,21 @@ def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
                 )
             )
             session.flush()
+
+
+def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selected(tmp_path: Path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_runtime.sqlite3'}"
+    engine = build_customer_accounts_engine(sqlite_url)
+    CustomerAccountsBase.metadata.create_all(engine)
+
+    repository = build_nonprofit_postgres_repository(
+        {
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": sqlite_url,
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+        }
+    )
+    disabled = build_nonprofit_postgres_repository({})
+
+    assert repository is not None
+    assert disabled is None

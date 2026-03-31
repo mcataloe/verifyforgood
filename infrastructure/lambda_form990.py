@@ -42,6 +42,7 @@ from charity_status.form990.teos_zip_discovery import fetch_teos_download_page_h
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key, teos_zip_manifest_state_prefix
+from nonprofit_ingest_persistence import build_form990_nonprofit_persistence_service
 
 BUCKET = os.environ.get("BUCKET")
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -119,6 +120,7 @@ def handler(event, context):
         governance_prefix=GOVERNANCE_PREFIX,
         quality_prefix=QUALITY_PREFIX,
         relationships_prefix=RELATIONSHIPS_PREFIX,
+        nonprofit_persistence_service=build_form990_nonprofit_persistence_service(),
     )
 
     explicit_records = payload.get("records")

@@ -543,3 +543,34 @@ the repo still needs a deliberate backfill and read-path migration plan.
 Keep the current nonprofit route contracts stable so any future cutover swaps
 the storage/read path behind the existing service surfaces rather than
 changing customer-visible payloads.
+
+## TODO-ARCH-025
+
+### Title
+
+Standardize deployed PostgreSQL connectivity and enablement policy for nonprofit ingest workers.
+
+### Rationale
+
+Phase 24F adds an opt-in PostgreSQL nonprofit ingest persistence path, but the
+current deployment posture is still mixed:
+
+- nonprofit ingest discovery and staging artifacts remain S3-backed
+- Athena and the materialized profile cache still serve nonprofit reads
+- not every ingest entrypoint environment is guaranteed to have PostgreSQL
+  network/secrets wiring enabled yet
+
+### Migration Triggers
+
+- enabling `PLATFORM_NONPROFIT_STORE_BACKEND=postgres` in deployed ingest
+  environments
+- making PostgreSQL-backed nonprofit ingest persistence authoritative rather
+  than optional
+- aligning Lambda/ECS worker DB connectivity with the current query/runtime
+  PostgreSQL posture
+
+### Constraint
+
+Keep the new nonprofit ingest persistence hook additive so environments can
+enable PostgreSQL-backed nonprofit writes deliberately without breaking the
+existing S3 manifest and artifact flow.

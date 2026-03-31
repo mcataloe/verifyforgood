@@ -42,6 +42,7 @@ class Form990IngestService:
         quality_prefix: str,
         relationships_prefix: str = "form990/normalized/relationships/",
         s3_client: Any | None = None,
+        nonprofit_persistence_service: Any | None = None,
     ):
         self.bucket = bucket
         self.raw_prefix = raw_prefix
@@ -52,6 +53,7 @@ class Form990IngestService:
         self.quality_prefix = quality_prefix
         self.relationships_prefix = relationships_prefix
         self.s3 = s3_client or boto3.client("s3")
+        self.nonprofit_persistence_service = nonprofit_persistence_service
 
     def ingest_index_payload(
         self,
@@ -73,6 +75,7 @@ class Form990IngestService:
             s3_client=self.s3,
             download_raw=download_raw,
             record_downloader=record_downloader,
+            nonprofit_persistence_service=self.nonprofit_persistence_service,
         )
         return result.to_dict()
 
@@ -97,6 +100,7 @@ def ingest_form990_records(
     download_raw: bool = False,
     downloader: Any | None = None,
     record_downloader: Any | None = None,
+    nonprofit_persistence_service: Any | None = None,
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
@@ -261,6 +265,13 @@ def ingest_form990_records(
     manifest_s3 = manifest_key(manifest_prefix, now=started)
     s3_client.put_object(Bucket=bucket, Key=manifest_s3, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
 
+    nonprofit_persistence = None
+    if nonprofit_persistence_service is not None:
+        nonprofit_persistence = nonprofit_persistence_service.persist_normalized_records(
+            filing_records,
+            persisted_at=started,
+        ).to_dict()
+
     return Form990IngestResult(
         status=status,
         records_processed=len(filing_records),
@@ -273,6 +284,7 @@ def ingest_form990_records(
         quality_s3_key=quality_key,
         relationships_s3_key=relationships_key,
         records=filing_records,
+        nonprofit_persistence=nonprofit_persistence,
     )
 
 

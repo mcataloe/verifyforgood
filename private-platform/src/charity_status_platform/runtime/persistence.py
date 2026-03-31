@@ -35,6 +35,7 @@ from charity_status_platform.customer_accounts import (
     UserRepository,
     build_customer_accounts_session_factory,
 )
+from charity_status_platform.nonprofits import SqlAlchemyNonprofitRepository
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,21 @@ class CustomerAccountsRepositories:
     flags: FeatureFlagRepository
     audits: AuditLogRepository
     identity_backend: str
+
+
+def build_nonprofit_postgres_repository(
+    env: Mapping[str, str] | None = None,
+    *,
+    sqlalchemy_url: str | None = None,
+    secrets_client: Any | None = None,
+) -> SqlAlchemyNonprofitRepository | None:
+    source = env or os.environ
+    persistence_config = load_platform_persistence_config(source)
+    if persistence_config.nonprofit_store_backend != "postgres":
+        return None
+    resolved_url = sqlalchemy_url or resolve_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
+    session_factory = build_customer_accounts_session_factory(resolved_url)
+    return SqlAlchemyNonprofitRepository(session_factory)
 
 
 def build_customer_accounts_postgres_repositories(

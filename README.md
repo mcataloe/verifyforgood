@@ -1960,6 +1960,16 @@ nonprofit identity, filings, source provenance, and compliance snapshots. The
 live nonprofit read path still uses Athena plus the DynamoDB materialized
 profile cache in this phase.
 
+Phase 24F adds an opt-in PostgreSQL nonprofit ingest persistence path behind:
+
+- `PLATFORM_NONPROFIT_STORE_BACKEND=postgres`
+
+When enabled in an environment that can reach PostgreSQL, Form 990 ingest
+workers persist repeat-safe nonprofit rows, filing rows, and filing-source
+provenance into PostgreSQL after normalization. S3 manifests, raw XML, source
+catalogs, and the current Athena/materialized-profile read path still remain
+in place.
+
 ## Terraform Deployment Notes
 
 - Query Lambda package includes query/normalization/scoring modules.
