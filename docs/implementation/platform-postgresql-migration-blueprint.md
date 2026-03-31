@@ -239,9 +239,12 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
   - users
   - organizations
   - memberships
-  - invitations
-- add backfill tooling
-- cut over auth and org-context restore only after parity checks
+  - plans
+  - subscriptions
+  - org API keys
+  - org audit logs
+- add SQLAlchemy and Alembic foundation
+- keep invitations, backfill tooling, and runtime cutover as follow-on work
 
 ### Phase 24D
 

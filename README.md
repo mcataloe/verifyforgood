@@ -1920,6 +1920,32 @@ python infrastructure/local_reference.py
 
 This demonstrates local use of domain logic without Terraform, API Gateway, or Lambda deployment wiring.
 
+### Relational foundation and migrations
+
+The platform relational foundation now uses SQLAlchemy models under
+`private-platform/src/charity_status_platform/customer_accounts/` and Alembic
+for schema evolution.
+
+Set one of the following before running migrations locally:
+
+- `PLATFORM_POSTGRES_URL=postgresql+psycopg://...`
+- or the Phase 24B PostgreSQL env set:
+  - `PLATFORM_POSTGRES_ENABLED=true`
+  - `PLATFORM_POSTGRES_HOST`
+  - `PLATFORM_POSTGRES_PORT`
+  - `PLATFORM_POSTGRES_DATABASE`
+  - `PLATFORM_POSTGRES_SECRET_ARN`
+
+Common commands:
+
+```bash
+alembic upgrade head
+alembic revision -m "describe change"
+```
+
+The live Lambda runtime remains DynamoDB-first until later migration phases
+explicitly switch a backend selector.
+
 ## Terraform Deployment Notes
 
 - Query Lambda package includes query/normalization/scoring modules.

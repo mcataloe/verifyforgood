@@ -17,10 +17,12 @@ from .auth import (
     load_oauth_token_store,
 )
 from .persistence import (
+    build_postgres_sqlalchemy_url,
     PlatformPersistenceConfig,
     PostgresCredentials,
     PostgresRuntimeConfig,
     load_platform_persistence_config,
+    resolve_postgres_sqlalchemy_url,
     resolve_postgres_credentials,
 )
 from .naming import (
@@ -61,7 +63,9 @@ __all__ = [
     "PlatformPersistenceConfig",
     "PostgresCredentials",
     "PostgresRuntimeConfig",
+    "build_postgres_sqlalchemy_url",
     "load_platform_persistence_config",
+    "resolve_postgres_sqlalchemy_url",
     "resolve_postgres_credentials",
     "DEFAULT_NAMESPACE",
     "DEFAULT_PLATFORM",

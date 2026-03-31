@@ -1,8 +1,10 @@
 import pytest
 
 from charity_status.platform import (
+    build_postgres_sqlalchemy_url,
     PostgresRuntimeConfig,
     load_platform_persistence_config,
+    resolve_postgres_sqlalchemy_url,
     resolve_postgres_credentials,
 )
 
@@ -63,3 +65,40 @@ def test_resolve_postgres_credentials_reads_secret_backed_username_and_password(
 
     assert credentials.username == "platform_app"
     assert credentials.password == "super-secret"
+
+
+def test_build_postgres_sqlalchemy_url_uses_psycopg_driver_and_sslmode():
+    url = build_postgres_sqlalchemy_url(
+        PostgresRuntimeConfig(
+            enabled=True,
+            host="db.example.internal",
+            port=5432,
+            database="verification_platform",
+            sslmode="require",
+        ),
+        credentials=type("Creds", (), {"username": "platform_app", "password": "super-secret"})(),
+    )
+
+    assert url.startswith("postgresql+psycopg://platform_app:super-secret@db.example.internal:5432/verification_platform")
+    assert "sslmode=require" in url
+
+
+def test_resolve_postgres_sqlalchemy_url_uses_secret_when_raw_url_absent():
+    class _SecretsClient:
+        def get_secret_value(self, *, SecretId):
+            assert SecretId == "arn:secret"
+            return {"SecretString": '{"username":"platform_app","password":"super-secret"}'}
+
+    url = resolve_postgres_sqlalchemy_url(
+        {
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_HOST": "db.example.internal",
+            "PLATFORM_POSTGRES_PORT": "5432",
+            "PLATFORM_POSTGRES_DATABASE": "verification_platform",
+            "PLATFORM_POSTGRES_SECRET_ARN": "arn:secret",
+            "PLATFORM_POSTGRES_SSLMODE": "require",
+        },
+        secrets_client=_SecretsClient(),
+    )
+
+    assert url.startswith("postgresql+psycopg://platform_app:super-secret@db.example.internal:5432/verification_platform")

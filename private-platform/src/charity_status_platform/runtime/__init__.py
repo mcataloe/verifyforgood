@@ -28,6 +28,7 @@ from .backend_contracts import (
     version_path,
 )
 from .entrypoints import BackendEntrypoint, ENTRYPOINTS, entrypoint_by_surface
+from .persistence import CustomerAccountsPostgresRepositories, build_customer_accounts_postgres_repositories
 
 __all__ = [
     "ApiKeyAuthContextProvider",
@@ -58,4 +59,6 @@ __all__ = [
     "BackendEntrypoint",
     "ENTRYPOINTS",
     "entrypoint_by_surface",
+    "CustomerAccountsPostgresRepositories",
+    "build_customer_accounts_postgres_repositories",
 ]

@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, inspect
+
+
+def test_alembic_upgrade_creates_customer_account_foundation_tables(tmp_path: Path):
+    db_path = tmp_path / "alembic.sqlite3"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{db_path}")
+
+    command.upgrade(config, "head")
+
+    inspector = inspect(create_engine(f"sqlite+pysqlite:///{db_path}"))
+    table_names = set(inspector.get_table_names())
+
+    assert "users" in table_names
+    assert "organizations" in table_names
+    assert "organization_memberships" in table_names
+    assert "plans" in table_names
+    assert "organization_subscriptions" in table_names
+    assert "organization_api_keys" in table_names
+    assert "organization_audit_logs" in table_names

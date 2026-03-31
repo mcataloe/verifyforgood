@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping
+from urllib.parse import quote_plus
 
 import boto3
 
@@ -89,6 +90,37 @@ def resolve_postgres_credentials(
     if not username or not password:
         raise ValueError("PostgreSQL secret must contain username and password")
     return PostgresCredentials(username=username, password=password)
+
+
+def build_postgres_sqlalchemy_url(
+    config: PostgresRuntimeConfig,
+    *,
+    credentials: PostgresCredentials | None = None,
+) -> str:
+    if not config.enabled:
+        raise ValueError("PostgreSQL runtime config is disabled")
+    if config.url:
+        return config.url
+    if credentials is None:
+        raise ValueError("PostgreSQL credentials are required when PLATFORM_POSTGRES_URL is not set")
+    sslmode = quote_plus(config.sslmode or "require")
+    return (
+        "postgresql+psycopg://"
+        f"{quote_plus(credentials.username)}:{quote_plus(credentials.password)}"
+        f"@{config.host}:{config.port}/{config.database}?sslmode={sslmode}"
+    )
+
+
+def resolve_postgres_sqlalchemy_url(
+    env: Mapping[str, str] | None = None,
+    *,
+    secrets_client: Any | None = None,
+) -> str:
+    config = load_platform_persistence_config(env)
+    if config.postgres.url:
+        return config.postgres.url
+    credentials = resolve_postgres_credentials(config.postgres, secrets_client=secrets_client)
+    return build_postgres_sqlalchemy_url(config.postgres, credentials=credentials)
 
 
 def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> None:

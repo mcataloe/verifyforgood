@@ -44,6 +44,30 @@ from .dynamodb_identity import (
 )
 from .audit_logging import AuditEventType, AuditLogRepository, AuditLogService, AuditRecord
 from .audit_repository import AUDIT_GLOBAL_PARTITION_KEY, DynamoAuditLogRepository
+from .sqlalchemy_db import (
+    CustomerAccountsBase,
+    build_customer_accounts_engine,
+    build_customer_accounts_session_factory,
+    customer_accounts_session_scope,
+)
+from .sqlalchemy_models import (
+    OrganizationApiKeyModel,
+    OrganizationAuditLogModel,
+    OrganizationMembershipModel,
+    OrganizationModel,
+    OrganizationSubscriptionModel,
+    PlanModel,
+    UserModel,
+)
+from .sqlalchemy_identity import (
+    SqlAlchemyApiKeyRepository,
+    SqlAlchemyMembershipRepository,
+    SqlAlchemyOrganizationRepository,
+    SqlAlchemyPlanRepository,
+    SqlAlchemySubscriptionRepository,
+    SqlAlchemyUserRepository,
+)
+from .sqlalchemy_audit import SqlAlchemyAuditLogRepository
 from .identity_models import (
     ApiKeyRecord,
     ApiKeyStatus,
@@ -156,6 +180,7 @@ __all__ = [
     "API_KEY_LOOKUP_INDEX",
     "PLAN_LOOKUP_INDEX",
     "AUDIT_GLOBAL_PARTITION_KEY",
+    "CustomerAccountsBase",
     "ApiKeyRecord",
     "ApiKeyStatus",
     "FeatureFlagKey",
@@ -200,6 +225,23 @@ __all__ = [
     "DynamoSubscriptionRepository",
     "DynamoUsageRepository",
     "DynamoAuditLogRepository",
+    "SqlAlchemyUserRepository",
+    "SqlAlchemyOrganizationRepository",
+    "SqlAlchemyMembershipRepository",
+    "SqlAlchemyPlanRepository",
+    "SqlAlchemySubscriptionRepository",
+    "SqlAlchemyApiKeyRepository",
+    "SqlAlchemyAuditLogRepository",
+    "UserModel",
+    "OrganizationModel",
+    "OrganizationMembershipModel",
+    "PlanModel",
+    "OrganizationSubscriptionModel",
+    "OrganizationApiKeyModel",
+    "OrganizationAuditLogModel",
+    "build_customer_accounts_engine",
+    "build_customer_accounts_session_factory",
+    "customer_accounts_session_scope",
     "FakeIdentityDynamoTable",
     "FakeIdentityDynamoResource",
     "AuditLogService",
