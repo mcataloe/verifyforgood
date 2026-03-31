@@ -7,22 +7,19 @@ import {
 } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 
-interface BillingPageProps {
+interface UsagePageProps {
   endpoints: PortalEndpoints;
   session: PortalAuthenticatedSession;
 }
 
-export function BillingPage({
-  endpoints,
-  session,
-}: BillingPageProps) {
+export function UsagePage({ endpoints, session }: UsagePageProps) {
   const organization = usePortalOrganization();
 
   return (
     <PortalPageShell
-      description={`Review billing, plan details, and included features for ${organization.activeOrganization.organization_name}.`}
-      eyebrow="Billing"
-      title="Billing"
+      description={`Track request usage, limits, and budget settings for ${organization.activeOrganization.organization_name}.`}
+      eyebrow="Usage"
+      title="Usage"
       toolbar={
         <PortalActionToolbar>
           <div className="portal-action-toolbar__group">
@@ -38,7 +35,7 @@ export function BillingPage({
     >
       <UsageBillingPanel
         endpoints={endpoints}
-        focus="billing"
+        focus="usage"
         managementMode="visibility"
         session={session}
       />

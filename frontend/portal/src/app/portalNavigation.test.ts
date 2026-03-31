@@ -18,16 +18,22 @@ describe("portal navigation config", () => {
       "customer_admin",
     );
 
-    expect(sections.map((section) => section.key)).toEqual([
-      "workspace",
-      "account",
-    ]);
+    expect(sections.map((section) => section.key)).toEqual(["customer-admin"]);
     expect(sections[0]?.items[0]).toMatchObject({
+      key: "customer-admin-workspace",
+      label: "Workspace",
+    });
+    expect(sections[0]?.items[0]?.children?.[0]).toMatchObject({
       href: "#/dashboard?nav=customer-admin-home",
       key: "customer-admin-home",
       label: "Home",
     });
-    expect(sections[1]?.items[2]).toMatchObject({
+    expect(sections[0]?.items[0]?.children?.[1]).toMatchObject({
+      href: "#/search?nav=customer-admin-search",
+      key: "customer-admin-search",
+      label: "Search",
+    });
+    expect(sections[0]?.items[1]?.children?.[2]).toMatchObject({
       href: "#/api-access?nav=customer-admin-api",
       key: "customer-admin-api",
       label: "API",
@@ -75,12 +81,8 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Team"],
-        label: "Workspace",
-      },
-      {
-        items: ["Billing", "Usage", "API", "Settings"],
-        label: "Account",
+        items: ["Workspace", "Account"],
+        label: "",
       },
     ]);
   });
@@ -152,14 +154,14 @@ describe("portal navigation config", () => {
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
     });
-    const accountSection = sections.find(
-      (section) => section.key === "account",
+    const accountBranch = sections[0]?.items.find(
+      (item) => item.key === "customer-admin-account",
     );
-    const apiItem = accountSection?.items.find(
+    const apiItem = accountBranch?.children?.find(
       (item) => item.key === "customer-admin-api",
     );
 
-    expect(accountSection?.label).toBe("Account");
+    expect(accountBranch?.label).toBe("Account");
     expect(apiItem).toMatchObject({
       key: "customer-admin-api",
       label: "API",
@@ -178,17 +180,15 @@ describe("portal navigation config", () => {
 
     expect(
       resolveActivePortalNavigationKey({
-        currentHash: "#/usage-billing?nav=customer-admin-usage",
-        currentRoute: resolvePortalRoute(
-          "#/usage-billing?nav=customer-admin-usage",
-        ),
+        currentHash: "#/usage?nav=customer-admin-usage",
+        currentRoute: resolvePortalRoute("#/usage?nav=customer-admin-usage"),
         navigationSections: sections,
       }),
     ).toBe("customer-admin-usage");
     expect(
       resolveActivePortalNavigationKey({
-        currentHash: "#/usage-billing",
-        currentRoute: resolvePortalRoute("#/usage-billing"),
+        currentHash: "#/billing",
+        currentRoute: resolvePortalRoute("#/billing"),
         navigationSections: sections,
       }),
     ).toBe("customer-admin-billing");
@@ -203,8 +203,8 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Team"],
-        label: "Workspace",
+        items: ["Workspace"],
+        label: "",
       },
     ]);
   });

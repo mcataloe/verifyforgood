@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 export type PortalProtectedRouteKey =
   | "onboarding-organization"
   | "dashboard"
+  | "search"
+  | "team"
+  | "billing"
+  | "usage"
   | "workspace"
   | "api-access"
   | "usage-billing"
@@ -69,11 +73,43 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
   },
   {
     access: "protected",
+    key: "search",
+    label: "Search",
+    hash: "#/search",
+    description:
+      "Search and review nonprofit organizations.",
+  },
+  {
+    access: "protected",
+    key: "team",
+    label: "Team",
+    hash: "#/team",
+    description:
+      "Manage team access and review organization details.",
+  },
+  {
+    access: "protected",
+    key: "billing",
+    label: "Billing",
+    hash: "#/billing",
+    description:
+      "Review billing, plan details, and subscription status.",
+  },
+  {
+    access: "protected",
+    key: "usage",
+    label: "Usage",
+    hash: "#/usage",
+    description:
+      "Track usage, limits, and budget visibility.",
+  },
+  {
+    access: "protected",
     key: "workspace",
     label: "Workspace",
     hash: "#/workspace",
     description:
-      "Search nonprofits and manage your team.",
+      "Legacy workspace route.",
   },
   {
     access: "protected",
@@ -89,7 +125,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     label: "Usage & Billing",
     hash: "#/usage-billing",
     description:
-      "Review usage, billing, and plan details.",
+      "Legacy billing and usage route.",
   },
   {
     access: "protected",

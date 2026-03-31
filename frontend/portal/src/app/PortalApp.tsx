@@ -8,6 +8,7 @@ import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
 import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomationPage";
 import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
+import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
@@ -23,6 +24,8 @@ import { PortalHomePage } from "../pages/PortalHomePage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { TeamPage } from "../pages/TeamPage";
+import { UsagePage } from "../pages/UsagePage";
 import { WorkspacePage } from "../pages/WorkspacePage";
 import {
   resolveMembershipRoleFromContext,
@@ -30,6 +33,7 @@ import {
 } from "./portalAuthorization";
 import {
   resolveCustomerAdminPortalPane,
+  resolveCanonicalCustomerAdminHash,
   resolveCustomerUserPortalPane,
   resolvePortalNavigationAudience,
 } from "./portalNavigation";
@@ -77,6 +81,12 @@ function PortalAppShell({
   const requestedRoute = resolvePortalRoute(peekPortalReturnTo());
   const hasPendingOrganization =
     auth.session?.organization_context_status === "pending";
+  const authAudience = auth.session
+    ? resolvePortalNavigationAudience(auth.session.roles)
+    : null;
+  const authMembershipRole = auth.session
+    ? resolveMembershipRoleFromContext(auth.session.organization_membership)
+    : null;
   const [isOrganizationOnboardingOpen, setIsOrganizationOnboardingOpen] =
     useState(true);
   const organizationClient = useMemo(
@@ -134,6 +144,52 @@ function PortalAppShell({
       navigateToPortalRoute("#/dashboard");
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
+
+  useEffect(() => {
+    if (auth.status !== "authenticated" || hasPendingOrganization) {
+      return;
+    }
+
+    if (authAudience !== "customer_admin") {
+      return;
+    }
+
+    const canonicalHash = resolveCanonicalCustomerAdminHash({
+      currentHash:
+        typeof window === "undefined"
+          ? currentRoute.hash
+          : window.location.hash || currentRoute.hash,
+      currentRoute,
+    });
+    const routeAuthorization = resolveRouteAuthorization({
+      audience: authAudience,
+      currentHash:
+        typeof window === "undefined"
+          ? currentRoute.hash
+          : window.location.hash || currentRoute.hash,
+      currentRoute,
+      membershipRole: authMembershipRole,
+    });
+
+    if (!routeAuthorization.allowed) {
+      return;
+    }
+
+    if (
+      canonicalHash &&
+      (typeof window === "undefined"
+        ? currentRoute.hash
+        : window.location.hash || currentRoute.hash) !== canonicalHash
+    ) {
+      navigateToPortalRoute(canonicalHash);
+    }
+  }, [
+    auth.status,
+    authAudience,
+    authMembershipRole,
+    currentRoute,
+    hasPendingOrganization,
+  ]);
 
   useEffect(() => {
     if (auth.status === "authenticated" && hasPendingOrganization) {
@@ -384,11 +440,25 @@ function PortalAuthorizedShell({
         />
       ) : null}
       {currentRoute.key === "workspace" ? (
+        audience === "customer_user" &&
+        (customerUserPane === "search-ein" ||
+          customerUserPane === "search-address") ? (
+          <CustomerUserSearchPage pane={customerUserPane} />
+        ) : (
+          <WorkspacePage
+            endpoints={endpoints}
+            session={session}
+          />
+        )
+      ) : null}
+      {currentRoute.key === "search" ? (
         <WorkspacePage
           endpoints={endpoints}
-          pane={customerAdminPane}
           session={session}
         />
+      ) : null}
+      {currentRoute.key === "team" ? (
+        <TeamPage session={session} />
       ) : null}
       {currentRoute.key === "api-access" ? (
         audience === "customer_user" && customerUserPane ? (
@@ -413,7 +483,18 @@ function PortalAuthorizedShell({
       {currentRoute.key === "usage-billing" ? (
         <BillingPage
           endpoints={endpoints}
-          pane={customerAdminPane}
+          session={session}
+        />
+      ) : null}
+      {currentRoute.key === "billing" ? (
+        <BillingPage
+          endpoints={endpoints}
+          session={session}
+        />
+      ) : null}
+      {currentRoute.key === "usage" ? (
+        <UsagePage
+          endpoints={endpoints}
           session={session}
         />
       ) : null}

@@ -7,10 +7,8 @@ describe("portalAuthorization", () => {
     expect(
       resolveRouteAuthorization({
         audience: "customer_admin",
-        currentHash: "#/usage-billing?nav=customer-admin-usage",
-        currentRoute: resolvePortalRoute(
-          "#/usage-billing?nav=customer-admin-usage",
-        ),
+        currentHash: "#/usage",
+        currentRoute: resolvePortalRoute("#/usage"),
         membershipRole: "admin",
       }),
     ).toEqual({
@@ -23,10 +21,8 @@ describe("portalAuthorization", () => {
     expect(
       resolveRouteAuthorization({
         audience: "customer_admin",
-        currentHash: "#/usage-billing?nav=customer-admin-usage",
-        currentRoute: resolvePortalRoute(
-          "#/usage-billing?nav=customer-admin-usage",
-        ),
+        currentHash: "#/usage",
+        currentRoute: resolvePortalRoute("#/usage"),
         membershipRole: "user",
       }),
     ).toEqual({
@@ -39,8 +35,8 @@ describe("portalAuthorization", () => {
     expect(
       resolveRouteAuthorization({
         audience: "customer_admin",
-        currentHash: "#/workspace?nav=customer-admin-team",
-        currentRoute: resolvePortalRoute("#/workspace?nav=customer-admin-team"),
+        currentHash: "#/team",
+        currentRoute: resolvePortalRoute("#/team"),
         membershipRole: "user",
       }),
     ).toEqual({

@@ -41,6 +41,7 @@ export type CustomerUserPortalPane =
 
 export type CustomerAdminPortalPane =
   | "home"
+  | "search"
   | "team"
   | "billing"
   | "usage"
@@ -61,6 +62,7 @@ const customerAdminPaneByAlias: Record<string, CustomerAdminPortalPane> = {
   "customer-admin-api": "api",
   "customer-admin-billing": "billing",
   "customer-admin-home": "home",
+  "customer-admin-search": "search",
   "customer-admin-settings": "settings",
   "customer-admin-team": "team",
   "customer-admin-usage": "usage",
@@ -171,10 +173,17 @@ export function resolveCustomerAdminPortalPane(params: {
   switch (params.currentRoute.key) {
     case "dashboard":
       return "home";
-    case "workspace":
+    case "search":
+      return "search";
+    case "team":
       return "team";
-    case "usage-billing":
+    case "workspace":
+      return "search";
+    case "billing":
       return "billing";
+    case "usage":
+    case "usage-billing":
+      return "usage";
     case "api-access":
       return "api";
     case "settings":
@@ -231,6 +240,44 @@ export function resolveActivePortalNavigationKey(params: {
   );
 
   return routeMatch?.key ?? params.currentRoute.key;
+}
+
+export function resolveCanonicalCustomerAdminHash(params: {
+  currentHash: string;
+  currentRoute: PortalRouteDefinition;
+}): string | null {
+  const alias = resolvePortalNavigationAlias(params.currentHash);
+
+  switch (params.currentRoute.key) {
+    case "dashboard":
+      return alias === "customer-admin-home" ? "#/dashboard" : null;
+    case "search":
+      return "#/search";
+    case "team":
+      return "#/team";
+    case "billing":
+      return "#/billing";
+    case "usage":
+      return "#/usage";
+    case "api-access":
+      return alias === "customer-admin-api" ? "#/api-access" : null;
+    case "settings":
+      return alias === "customer-admin-settings" ? "#/settings" : null;
+    case "workspace":
+      if (alias === "customer-admin-team") {
+        return "#/team";
+      }
+
+      return "#/search";
+    case "usage-billing":
+      if (alias === "customer-admin-usage") {
+        return "#/usage";
+      }
+
+      return "#/billing";
+    default:
+      return null;
+  }
 }
 
 function navigationItem(
@@ -431,77 +478,98 @@ function buildAudienceNavigationSections(
     case "customer_admin":
       return [
         {
-          key: "workspace",
-          label: "Workspace",
-          helpText: "Day-to-day verification, team, and organization work.",
+          key: "customer-admin",
+          label: "",
           items: [
-            navigationItem(
-              routeByKey,
-              "dashboard",
-              "customer-admin-home",
-              "Home",
-              {
-                helpText:
-                  "Recent activity, nonprofit search, and review entry points.",
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "workspace",
-              "customer-admin-team",
-              "Team",
-              {
-                helpText: "Team access and organization details.",
-              },
-            ),
-          ],
-        },
-        {
-          key: "account",
-          label: "Account",
-          helpText:
-            "Commercial, API, and settings controls for account owners.",
-          items: [
-            navigationItem(
-              routeByKey,
-              "usage-billing",
-              "customer-admin-billing",
-              "Billing",
-              {
-                helpText: "Plan, billing actions, and subscription controls.",
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "usage-billing",
-              "customer-admin-usage",
-              "Usage",
-              {
-                helpText: "Usage baselines, limits, and budget visibility.",
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "api-access",
-              "customer-admin-api",
-              "API",
-              {
-                allowedPlans: ["growth", "pro", "enterprise"],
-                helpText: "Manage API keys and access settings.",
-                visibility: {
-                  planRestrictedBehavior: "locked",
-                },
-              },
-            ),
-            navigationItem(
-              routeByKey,
-              "settings",
-              "customer-admin-settings",
-              "Settings",
-              {
-                helpText: "Manage organization settings and preferences.",
-              },
-            ),
+            {
+              key: "customer-admin-workspace",
+              label: "Workspace",
+              helpText:
+                "Day-to-day verification, search, and team management.",
+              children: [
+                navigationItem(
+                  routeByKey,
+                  "dashboard",
+                  "customer-admin-home",
+                  "Home",
+                  {
+                    helpText:
+                      "Recent activity and the main organization home view.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "search",
+                  "customer-admin-search",
+                  "Search",
+                  {
+                    helpText: "Search and review nonprofit organizations.",
+                    icon: createElement(IconSearch, {
+                      size: 18,
+                      stroke: 1.7,
+                    }),
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "team",
+                  "customer-admin-team",
+                  "Team",
+                  {
+                    helpText: "Team access and organization details.",
+                  },
+                ),
+              ],
+            },
+            {
+              key: "customer-admin-account",
+              label: "Account",
+              helpText:
+                "Commercial, API, and settings controls for account owners.",
+              children: [
+                navigationItem(
+                  routeByKey,
+                  "billing",
+                  "customer-admin-billing",
+                  "Billing",
+                  {
+                    helpText:
+                      "Plan, billing actions, and subscription controls.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "usage",
+                  "customer-admin-usage",
+                  "Usage",
+                  {
+                    helpText: "Usage baselines, limits, and budget visibility.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "api-access",
+                  "customer-admin-api",
+                  "API",
+                  {
+                    allowedPlans: ["growth", "pro", "enterprise"],
+                    helpText: "Manage API keys and access settings.",
+                    visibility: {
+                      planRestrictedBehavior: "locked",
+                    },
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "settings",
+                  "customer-admin-settings",
+                  "Settings",
+                  {
+                    helpText: "Manage organization settings and preferences.",
+                  },
+                ),
+              ],
+            },
           ],
         },
       ];

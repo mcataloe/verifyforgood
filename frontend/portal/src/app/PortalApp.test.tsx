@@ -711,7 +711,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Subscription visibility" }),
     ).toBeTruthy();
-    expect(window.location.hash).toBe("#/usage-billing");
+    expect(window.location.hash).toBe("#/billing");
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
 
@@ -1061,10 +1061,50 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Organization activity" }),
     ).toBeTruthy();
-    expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
+    expect(window.location.hash).toBe("#/dashboard");
   });
 
-  it("renders the nonprofit search experience on the workspace route", async () => {
+  it("renders the nonprofit search experience on the dedicated search route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/search";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Nonprofit search" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Nonprofit verification search" }),
+    ).toBeTruthy();
+  });
+
+  it("redirects the legacy workspace route to the dedicated search route", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1099,12 +1139,55 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Nonprofit search" }),
     ).toBeTruthy();
+    expect(window.location.hash).toBe("#/search");
+  });
+
+  it("renders the billing management experience on the dedicated billing route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/billing";
+
+    render(<App />);
+
     expect(
-      screen.getByRole("heading", { name: "Nonprofit verification search" }),
+      await screen.findByRole("heading", {
+        name: "Billing",
+      }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Subscription visibility" }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Enabled capabilities" }),
     ).toBeTruthy();
   });
 
-  it("renders the billing management experience on the usage-billing route", async () => {
+  it("redirects the legacy usage-billing route to the dedicated billing route", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1136,17 +1219,8 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", {
-        name: "Billing",
-      }),
-    ).toBeTruthy();
-    expect(
-      await screen.findByRole("heading", { name: "Subscription visibility" }),
-    ).toBeTruthy();
-    expect(
-      await screen.findByRole("heading", { name: "Enabled capabilities" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
+    expect(window.location.hash).toBe("#/billing");
   });
 
   it("switches organizations from the authenticated shell without leaving the current route", async () => {
@@ -1227,7 +1301,7 @@ describe("PortalApp", () => {
 
       return buildFetchMock()(input, init);
     }) as typeof fetch;
-    window.location.hash = "#/workspace";
+    window.location.hash = "#/search";
 
     render(<App />);
 
@@ -1242,7 +1316,7 @@ describe("PortalApp", () => {
     expect(
       (await screen.findByTestId("portal-organization-switcher")).textContent,
     ).toContain("Secondary Org");
-    expect(window.location.hash).toBe("#/workspace");
+    expect(window.location.hash).toBe("#/search");
     expect(
       window.localStorage.getItem("verifyforgood.portal.organization.active"),
     ).toContain("\"organization_id\":\"org_secondary\"");
@@ -1297,7 +1371,7 @@ describe("PortalApp", () => {
     ).toBeTruthy();
   });
 
-  it("keeps billing and usage as distinct aliases on the same route surface", async () => {
+  it("keeps billing and usage as distinct route surfaces", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1325,7 +1399,7 @@ describe("PortalApp", () => {
         workspace_id: "org_123",
       }),
     );
-    window.location.hash = "#/usage-billing?nav=customer-admin-billing";
+    window.location.hash = "#/billing";
 
     const { rerender } = render(<App />);
 
@@ -1335,7 +1409,7 @@ describe("PortalApp", () => {
       }),
     ).toBeTruthy();
 
-    window.location.hash = "#/usage-billing?nav=customer-admin-usage";
+    window.location.hash = "#/usage";
     fireEvent(window, new HashChangeEvent("hashchange"));
     rerender(<App />);
 

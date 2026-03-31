@@ -1,5 +1,5 @@
 import { Box, NavLink, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -31,9 +31,24 @@ export function AppShellNavigation({
   onNavigationChange,
   sections,
 }: AppShellNavigationProps) {
-  const visibleSections = sections.filter(
-    (section) => section.items.length > 0,
+  const visibleSections = useMemo(
+    () => sections.filter((section) => section.items.length > 0),
+    [sections],
   );
+  const [openedTopLevelBranchKey, setOpenedTopLevelBranchKey] = useState<
+    string | null
+  >(() => resolveInitialTopLevelBranchKey(visibleSections, activeNavigationKey));
+
+  useEffect(() => {
+    const activeBranchKey = resolveInitialTopLevelBranchKey(
+      visibleSections,
+      activeNavigationKey,
+    );
+
+    if (activeBranchKey) {
+      setOpenedTopLevelBranchKey(activeBranchKey);
+    }
+  }, [activeNavigationKey, visibleSections]);
 
   return (
     <Box aria-label={ariaLabel} className="vf-app-shell-nav" component="nav">
@@ -45,6 +60,12 @@ export function AppShellNavigation({
             key={section.key}
             onNavigate={onNavigate}
             onNavigationChange={onNavigationChange}
+            onToggleTopLevelBranch={(branchKey) => {
+              setOpenedTopLevelBranchKey((current) =>
+                current === branchKey ? null : branchKey,
+              );
+            }}
+            openedTopLevelBranchKey={openedTopLevelBranchKey}
             section={section}
           />
         ))}
@@ -58,12 +79,16 @@ function AppShellNavigationSectionView({
   isFirstSection,
   onNavigate,
   onNavigationChange,
+  onToggleTopLevelBranch,
+  openedTopLevelBranchKey,
   section,
 }: {
   activeNavigationKey?: string;
   isFirstSection: boolean;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
+  onToggleTopLevelBranch: (branchKey: string) => void;
+  openedTopLevelBranchKey: string | null;
   section: AppShellNavigationSectionInput;
 }) {
   const sectionLabelId = `navigation-section-${section.key}`;
@@ -111,6 +136,8 @@ function AppShellNavigationSectionView({
               key={item.key}
               onNavigate={onNavigate}
               onNavigationChange={onNavigationChange}
+              onToggleTopLevelBranch={onToggleTopLevelBranch}
+              openedTopLevelBranchKey={openedTopLevelBranchKey}
             />
           ))}
         </Stack>
@@ -125,12 +152,16 @@ function AppShellNavigationItemView({
   item,
   onNavigate,
   onNavigationChange,
+  onToggleTopLevelBranch,
+  openedTopLevelBranchKey,
 }: {
   activeNavigationKey?: string;
   depth?: number;
   item: AppShellNavigationItemInput;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
+  onToggleTopLevelBranch: (branchKey: string) => void;
+  openedTopLevelBranchKey: string | null;
 }) {
   const children = item.children ?? [];
   const hasChildren = children.length > 0;
@@ -141,33 +172,48 @@ function AppShellNavigationItemView({
     hasActiveNavigationItem(child, activeNavigationKey),
   );
   const [opened, setOpened] = useState(() =>
-    shouldItemStartOpened(item, activeNavigationKey),
+    depth === 0
+      ? openedTopLevelBranchKey === item.key
+      : shouldItemStartOpened(item, activeNavigationKey),
   );
   const helpTextId = `${item.key}-navigation-help`;
 
   useEffect(() => {
+    if (depth === 0) {
+      return;
+    }
+
     if (hasActiveDescendant || children.length <= 1) {
       setOpened(true);
     }
-  }, [children.length, hasActiveDescendant]);
+  }, [children.length, depth, hasActiveDescendant]);
 
   const isActive = isSelfActive || hasActiveDescendant;
+  const isTopLevelBranch = depth === 0 && hasChildren;
+  const isOpened = isTopLevelBranch ? openedTopLevelBranchKey === item.key : opened;
 
   if (hasChildren) {
     const branchLink = (
       <NavLink
         active={isActive}
-        aria-expanded={opened}
+        aria-expanded={isOpened}
         aria-describedby={item.helpText ? helpTextId : undefined}
         component="button"
         label={item.label}
         leftSection={item.icon}
-        onClick={() => setOpened((current) => !current)}
+        onClick={() => {
+          if (isTopLevelBranch) {
+            onToggleTopLevelBranch(item.key);
+            return;
+          }
+
+          setOpened((current) => !current);
+        }}
         rightSection={
           <Box
             aria-hidden="true"
             className={
-              opened
+              isOpened
                 ? "vf-app-shell-nav__item-chevron vf-app-shell-nav__item-chevron--opened"
                 : "vf-app-shell-nav__item-chevron"
             }
@@ -179,7 +225,7 @@ function AppShellNavigationItemView({
         className={getNavigationItemClassName({
           depth,
           hasChildren: true,
-          isExpanded: opened,
+          isExpanded: isOpened,
         })}
         classNames={navigationItemClassNames}
         type="button"
@@ -195,7 +241,7 @@ function AppShellNavigationItemView({
           <VisuallyHidden id={helpTextId}>{item.helpText}</VisuallyHidden>
         ) : null}
 
-        {opened ? (
+        {isOpened ? (
           <Stack
             className="vf-app-shell-nav__children"
             gap={4}
@@ -211,6 +257,8 @@ function AppShellNavigationItemView({
                 key={child.key}
                 onNavigate={onNavigate}
                 onNavigationChange={onNavigationChange}
+                onToggleTopLevelBranch={onToggleTopLevelBranch}
+                openedTopLevelBranchKey={openedTopLevelBranchKey}
               />
             ))}
           </Stack>
@@ -286,6 +334,32 @@ function AppShellNavigationItemView({
       />
     </ItemWithTooltip>
   );
+}
+
+function resolveInitialTopLevelBranchKey(
+  sections: readonly AppShellNavigationSectionInput[],
+  activeNavigationKey?: string,
+) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (
+        (item.children ?? []).length > 0 &&
+        hasActiveNavigationItem(item, activeNavigationKey)
+      ) {
+        return item.key;
+      }
+    }
+  }
+
+  for (const section of sections) {
+    for (const item of section.items) {
+      if ((item.children ?? []).length <= 1 && (item.children ?? []).length > 0) {
+        return item.key;
+      }
+    }
+  }
+
+  return null;
 }
 
 function hasActiveNavigationItem(

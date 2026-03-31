@@ -14,9 +14,13 @@ const customerAdminRouteAccess: Partial<
   Record<PortalProtectedRouteKey, CustomerRouteAccessRequirement>
 > = {
   "api-access": "admin",
+  billing: "admin",
   dashboard: "user",
+  search: "user",
   settings: "admin",
+  team: "user",
   "usage-billing": "admin",
+  usage: "admin",
   workspace: "user",
 };
 
@@ -27,6 +31,7 @@ const customerAdminNavigationAccess: Record<
   "customer-admin-api": "admin",
   "customer-admin-billing": "admin",
   "customer-admin-home": "user",
+  "customer-admin-search": "user",
   "customer-admin-settings": "admin",
   "customer-admin-team": "user",
   "customer-admin-usage": "admin",
@@ -35,8 +40,13 @@ const customerAdminNavigationAccess: Record<
 const nearestAllowedCustomerAdminRouteByKey: Partial<
   Record<PortalProtectedRouteKey, string>
 > = {
+  search: "#/search",
+  team: "#/team",
+  billing: "#/billing",
+  usage: "#/usage",
   dashboard: "#/dashboard?nav=customer-admin-home",
-  workspace: "#/workspace?nav=customer-admin-team",
+  workspace: "#/search",
+  "usage-billing": "#/billing",
 };
 
 export function normalizeCustomerMembershipRole(

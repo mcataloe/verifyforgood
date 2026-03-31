@@ -21,6 +21,22 @@ describe("portal route resolution", () => {
       hash: "#/dashboard",
       key: "dashboard",
     });
+    expect(resolvePortalRoute("#/search")).toMatchObject({
+      hash: "#/search",
+      key: "search",
+    });
+    expect(resolvePortalRoute("#/team")).toMatchObject({
+      hash: "#/team",
+      key: "team",
+    });
+    expect(resolvePortalRoute("#/billing")).toMatchObject({
+      hash: "#/billing",
+      key: "billing",
+    });
+    expect(resolvePortalRoute("#/usage")).toMatchObject({
+      hash: "#/usage",
+      key: "usage",
+    });
     expect(resolvePortalRoute("#/usage-billing")).toMatchObject({
       hash: "#/usage-billing",
       key: "usage-billing",
@@ -32,9 +48,9 @@ describe("portal route resolution", () => {
   });
 
   it("ignores query parameters when resolving routes", () => {
-    expect(resolvePortalRoute("#/usage-billing?tab=invoices")).toMatchObject({
-      hash: "#/usage-billing",
-      key: "usage-billing",
+    expect(resolvePortalRoute("#/usage?tab=invoices")).toMatchObject({
+      hash: "#/usage",
+      key: "usage",
     });
   });
 
@@ -51,11 +67,9 @@ describe("portal route resolution", () => {
   it("preserves navigation query aliases in remembered return routes", () => {
     window.sessionStorage.clear();
 
-    rememberPortalReturnTo("#/usage-billing?nav=customer-admin-usage");
+    rememberPortalReturnTo("#/usage?nav=customer-admin-usage");
 
-    expect(consumePortalReturnTo()).toBe(
-      "#/usage-billing?nav=customer-admin-usage",
-    );
+    expect(consumePortalReturnTo()).toBe("#/usage?nav=customer-admin-usage");
   });
 
   it("keeps onboarding routes as protected return targets", () => {

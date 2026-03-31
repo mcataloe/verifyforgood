@@ -39,6 +39,17 @@ const sectionedNavigation: VerifyForGoodAppShellNavSection[] = [
           },
         ],
       },
+      {
+        key: "automation",
+        label: "Automation",
+        children: [
+          {
+            key: "api-keys",
+            label: "API Keys",
+            href: "#/automation/api-keys",
+          },
+        ],
+      },
     ],
   },
   {
@@ -139,6 +150,29 @@ describe("VerifyForGoodAppShell", () => {
     );
     expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Credentials" })).toBeNull();
+  });
+
+  it("keeps only one top-level branch expanded at a time", () => {
+    renderAppShell({
+      navigationSections: sectionedNavigation,
+    });
+
+    const organizationsButton = screen.getByRole("button", {
+      name: /^Organizations\b/i,
+    });
+    const automationButton = screen.getByRole("button", {
+      name: /^Automation\b/i,
+    });
+
+    fireEvent.click(organizationsButton);
+    expect(screen.getByRole("link", { name: "Directory" })).toBeTruthy();
+
+    fireEvent.click(automationButton);
+
+    expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
+    expect(screen.getByRole("link", { name: "API Keys" })).toBeTruthy();
+    expect(automationButton.getAttribute("aria-expanded")).toBe("true");
+    expect(organizationsButton.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("marks the active child and parent states", () => {
