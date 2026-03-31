@@ -6,7 +6,7 @@ import { SectionDivider } from "./SectionDivider";
 
 describe("DetailPageLayout", () => {
   it("renders stacked sections in document order with dividers", () => {
-    const { container } = render(
+    render(
       <DetailPageLayout eyebrow="Profile" intro="Intro copy" title="Profile">
         <SectionBlock title="First">Alpha</SectionBlock>
         <SectionDivider />
@@ -20,12 +20,18 @@ describe("DetailPageLayout", () => {
     expect(screen.getByRole("heading", { name: "First" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Second" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Third" })).toBeTruthy();
-    expect(
-      container.querySelector(".portal-authenticated-container.portal-detail-layout"),
-    ).toBeTruthy();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider"),
-    ).toHaveLength(2);
+    const layout = screen.getByTestId("detail-page-layout");
+    const content = layout.querySelector(".portal-detail-layout__content");
+    const sections = content?.querySelectorAll(".portal-detail-layout__section");
+
+    expect(layout.className).toContain("portal-authenticated-container");
+    expect(layout.className).toContain("portal-detail-layout");
+    expect(content).toBeTruthy();
+    expect(sections).toHaveLength(3);
+    expect(sections?.[0]?.textContent).toContain("Alpha");
+    expect(sections?.[1]?.textContent).toContain("Beta");
+    expect(sections?.[2]?.textContent).toContain("Gamma");
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
   });
 
   it("supports custom header content", () => {

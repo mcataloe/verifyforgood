@@ -17,3 +17,10 @@ Portal and marketing detail bodies now follow one readability rule: once a user 
 - Customer-user organization drill-in on the search page uses an embedded stacked detail body.
 - Customer-user profile and automation panes avoid outlined inner cards and multi-column subsection layouts.
 - Portal organization onboarding, nonprofit review, and settings now use the shared single-column detail layout contract.
+
+## Do Not Regress
+
+- Detail pages must keep major sections in a single-column stacked flow using shared `SectionDivider` separators.
+- Authenticated portal pages must render inside the shared wide responsive container instead of narrow marketing-width shells.
+- Authentication must happen before organization creation or selection UI appears.
+- Organization onboarding is conditional for authenticated accounts with no organization context; it is not the default landing page.

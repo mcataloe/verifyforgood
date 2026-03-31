@@ -66,7 +66,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
           <p>Choose the account flow that fits your current state.</p>
         </div>
 
-        <div className="portal-form__actions">
+        <div className="portal-form__actions" data-testid="public-home-auth-cta">
           <a
             className="portal-shell__action portal-shell__action--primary"
             href="#/sign-in"

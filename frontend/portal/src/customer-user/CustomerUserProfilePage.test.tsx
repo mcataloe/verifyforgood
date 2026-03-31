@@ -45,13 +45,12 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByText("test")).toBeTruthy();
     expect(screen.getByText("User")).toBeTruthy();
     expect(screen.queryByText("Profile details")).toBeNull();
+    expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".vf-detail-field-list")).toBeTruthy();
     expect(
       container.querySelector(".portal-settings-profile__details"),
     ).toBeNull();
-    expect(
-      container.querySelectorAll(".portal-detail-layout__divider"),
-    ).toHaveLength(3);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(3);
   });
 
   it("persists appearance selection through the shared color-scheme storage key", () => {

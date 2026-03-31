@@ -8,5 +8,13 @@ export function SectionDivider({
     ? `portal-detail-layout__divider ${className}`
     : "portal-detail-layout__divider";
 
-  return <hr aria-hidden="true" className={resolvedClassName} role="presentation" {...rest} />;
+  return (
+    <hr
+      aria-hidden="true"
+      className={resolvedClassName}
+      data-testid="section-divider"
+      role="presentation"
+      {...rest}
+    />
+  );
 }

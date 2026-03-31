@@ -112,10 +112,11 @@ describe("NonprofitSearchPanel", () => {
     ).toBeTruthy();
     expect(screen.getByText("irs_eo_bmf_athena")).toBeTruthy();
     expect(screen.getByText("Disabled for this workspace")).toBeTruthy();
+    expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(
-      container.querySelectorAll(".portal-detail-layout__divider").length,
+      screen.getAllByTestId("section-divider").length,
     ).toBeGreaterThanOrEqual(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));

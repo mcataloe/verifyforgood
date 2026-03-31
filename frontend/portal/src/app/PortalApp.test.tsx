@@ -547,6 +547,7 @@ describe("PortalApp", () => {
         name: "Customer portal entry",
       }),
     ).toBeTruthy();
+    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
     expect(window.location.hash).toBe("#/");
@@ -743,6 +744,21 @@ describe("PortalApp", () => {
     expect(
       screen.queryByRole("heading", { name: "Create your first organization" }),
     ).toBeNull();
+    expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
+  });
+
+  it("keeps unknown hashes on the public home before authentication", async () => {
+    window.location.hash = "#/missing";
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Customer portal entry",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
+    expect(window.location.hash).toBe("#/missing");
   });
 
   it("restores existing organization context from backend auth data without local org storage", async () => {
@@ -828,6 +844,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Create your first organization" }),
     ).toBeTruthy();
+    expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(window.location.hash).toBe("#/onboarding/organization");
   });
 
