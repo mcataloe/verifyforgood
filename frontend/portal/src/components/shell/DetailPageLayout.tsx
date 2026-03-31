@@ -17,8 +17,8 @@ export function DetailPageLayout({
   title,
 }: DetailPageLayoutProps) {
   const resolvedClassName = className
-    ? `portal-detail-layout ${className}`
-    : "portal-detail-layout";
+    ? `portal-authenticated-container portal-detail-layout ${className}`
+    : "portal-authenticated-container portal-detail-layout";
 
   return (
     <article className={resolvedClassName}>

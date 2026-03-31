@@ -16,7 +16,7 @@ export function PortalPageShell({
   toolbar,
 }: PortalPageShellProps) {
   return (
-    <div className="portal-dashboard portal-page-shell">
+    <div className="portal-authenticated-container portal-dashboard portal-page-shell">
       <PageHeader
         description={description}
         eyebrow={eyebrow}

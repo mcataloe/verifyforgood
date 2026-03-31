@@ -194,7 +194,10 @@ export function DashboardPage({
   if (pane === "home") {
     return (
       <VerifyForGoodMantineProvider>
-        <div className="portal-dashboard" style={pageStyle}>
+        <div
+          className="portal-authenticated-container portal-dashboard"
+          style={pageStyle}
+        >
           <PageHeader
             eyebrow="Customer admin home"
             title="Organization activity"
@@ -208,7 +211,10 @@ export function DashboardPage({
 
   return (
     <VerifyForGoodMantineProvider>
-      <div className="portal-dashboard" style={pageStyle}>
+      <div
+        className="portal-authenticated-container portal-dashboard"
+        style={pageStyle}
+      >
         <PageHeader
           eyebrow="Operations overview"
           title="Verification dashboard"

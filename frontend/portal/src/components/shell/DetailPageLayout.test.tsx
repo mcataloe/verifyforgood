@@ -21,6 +21,9 @@ describe("DetailPageLayout", () => {
     expect(screen.getByRole("heading", { name: "Second" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Third" })).toBeTruthy();
     expect(
+      container.querySelector(".portal-authenticated-container.portal-detail-layout"),
+    ).toBeTruthy();
+    expect(
       container.querySelectorAll(".portal-detail-layout__divider"),
     ).toHaveLength(2);
   });

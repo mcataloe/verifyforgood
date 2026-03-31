@@ -177,6 +177,13 @@ code {
   gap: var(--vf-space-5);
 }
 
+.portal-authenticated-container {
+  width: min(100%, 88rem);
+  margin-inline: auto;
+  padding-inline: clamp(var(--vf-space-4), 2vw, var(--vf-space-7));
+  min-width: 0;
+}
+
 .portal-page-shell__toolbar,
 .portal-page-shell__content {
   min-width: 0;
@@ -613,7 +620,6 @@ code {
 .portal-detail-view {
   display: grid;
   gap: var(--vf-space-6);
-  width: min(100%, 72rem);
   min-width: 0;
   padding-bottom: var(--vf-space-6);
 }
@@ -650,7 +656,7 @@ code {
 .portal-detail-layout__section-intro,
 .portal-detail-view__intro,
 .portal-detail-view__section-intro {
-  max-width: 52rem;
+  max-width: 60rem;
   color: var(--vf-theme-muted);
   line-height: 1.7;
 }
