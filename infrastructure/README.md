@@ -94,31 +94,44 @@ Phase 24H also adds a nonprofit migration wrapper:
 Use that wrapper to validate PostgreSQL nonprofit backfill before switching
 `platform_nonprofit_query_backend` to `postgres`.
 
-## API Container Runtime
+## Parallel ECS API Runtime
 
-Phase 25B adds a container-oriented API entrypoint without removing the current
-Lambda runtime yet.
+Phase 25C/25D adds ECS Fargate and ALB infrastructure for the backend API and
+cuts the primary custom-domain ingress over to that runtime.
 
-Current container assets:
+Current deployment posture:
 
-- `infrastructure/Dockerfile.api`
-- `infrastructure/requirements-api.txt`
-- ASGI app entrypoint: `charity_status_platform.runtime.api_compat:app`
+- Route53 now points the primary API hostname at the public ALB
+- the ECS API tasks run in private subnets behind that ALB and are the primary
+  HTTP runtime
+- API Gateway and the query Lambda remain deployable only as a deprecated
+  rollback stack
+- the Terraform stack now manages the ECS cluster, API task definition, ECS
+  service, API ECR repository, ALB target group, and API task log group
+- PostgreSQL ingress includes the ECS API task security group when
+  `platform_postgres_enabled=true`
 
-Local build and run example:
+Required environment inputs when `api_ecs_enabled=true`:
 
-1. build the image:
-   - `docker build -f infrastructure/Dockerfile.api -t charity-status-api .`
-2. run the container:
-   - `docker run --rm -p 8080:8080 --env-file <your-env-file> charity-status-api`
-3. probe health:
-   - `GET http://localhost:8080/health`
-   - `GET http://localhost:8080/ready`
+- `api_ecs_vpc_id`
+- `api_ecs_public_subnet_ids`
+- `api_ecs_private_subnet_ids`
+- either:
+  - `api_ecs_image_uri`, or
+  - the managed API ECR repository plus `api_ecs_image_tag`
+- either:
+  - `api_alb_certificate_arn`, or
+  - `enable_custom_domain=true` with the managed ACM certificate flow
 
-Current compatibility posture:
+Sensitive API runtime values can stay out of plaintext Terraform by mapping env
+var names to secret references with `api_ecs_secret_arns`. This is the intended
+path for values such as `PORTAL_AUTH_TOKEN_SECRET` and any other container-only
+secrets that are not yet first-class Terraform variables.
 
-- the FastAPI app adapts HTTP requests into the existing `lambda_query`
-  request contract
-- `lambda_query.handler` still remains the deployed Lambda entrypoint
-- scheduled ingest and worker Lambdas remain Lambda/ECS specific and are not
-  part of the API container runtime yet
+Rollback note:
+
+- the deprecated API Gateway custom-domain and query Lambda packaging remain in
+  Terraform only so the Route53 alias can be restored quickly if the ECS cutover
+  fails
+- later cleanup should remove those API-serving resources once ECS stability is
+  confirmed

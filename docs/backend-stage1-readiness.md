@@ -21,13 +21,17 @@ Shared backend contracts and interfaces:
 
 Split-scaffolding and transition roots:
 
+- `backend/`
 - `public-core/src/charity_status/`
 - `private-platform/src/charity_status_platform/`
 - `infrastructure/`
 
 ## Entrypoint Ownership Map
 
-The live backend entrypoints still run from `infrastructure/lambda_*.py`. That is acceptable for the current phase, but they are now explicitly treated as deploy-time shims and composition roots rather than the long-term home of backend application logic.
+The repo still retains `infrastructure/lambda_*.py` entrypoints, but the
+primary public API ingress has now moved to ECS/ALB. Those Lambda entrypoints
+should be treated as deploy-time shims and composition roots rather than the
+long-term home of backend application logic.
 
 Canonical internal map:
 
@@ -36,7 +40,7 @@ Canonical internal map:
 Current live entrypoints:
 
 - `infrastructure.lambda_query.handler`
-  - HTTP API handler
+  - deprecated rollback HTTP API handler
   - owns routing, response-envelope application, and composition of customer/admin/private-platform services
 - `infrastructure.lambda_refresh.handler`
   - profile refresh job entrypoint
@@ -48,6 +52,45 @@ Current live entrypoints:
   - current Form 990 orchestration shim
 - `infrastructure.lambda_form990_worker.handler`
   - queued Form 990 worker entrypoint
+
+## Runtime Extraction Targets
+
+Current misplaced runtime ownership still stranded in `infrastructure/`:
+
+- `infrastructure/lambda_query.py`
+  - still the main HTTP API composition root for auth, billing, admin, webhook, routing, and response shaping
+- `infrastructure/lambda_refresh.py`
+  - still the profile refresh runtime host
+- `infrastructure/lambda_ingest.py`
+  - still the EO/BMF ingest runtime host
+- `infrastructure/lambda_form990.py`
+  - still the primary Form 990 ingest/discovery/orchestration runtime host
+- `infrastructure/lambda_form990_orchestrator.py`
+  - still a compatibility shim over the Form 990 runtime
+- `infrastructure/lambda_form990_worker.py`
+  - still the Form 990 chunk worker runtime host
+- `infrastructure/charity_status/api/routes.py`, `infrastructure/charity_status/api/responses.py`, and `infrastructure/charity_status/core/interfaces.py`
+  - still hold transport/runtime-facing contracts under the legacy runtime path
+- `infrastructure/charity_status/platform/`
+  - still owns env-driven runtime assembly and bootstrap concerns
+
+Target backend ownership map:
+
+- `backend/api/`
+  - target home for the primary API server runtime host
+  - owns the future extracted successor to `infrastructure.lambda_query`
+- `backend/worker/`
+  - target home for profile refresh and future generic worker runtime hosts
+- `backend/ingest-task/`
+  - target home for EO/BMF ingest and Form 990 ingest/orchestration/worker runtimes
+- `backend/shared/`
+  - target home for runtime-only shared bootstrap, transport helpers, logging/config wiring, and compatibility helpers
+
+Compatibility posture for the transition:
+
+- `charity_status_platform.runtime.entrypoints` remains the canonical map of current live handler imports until extraction phases move the real entrypoints
+- `charity_status_platform.runtime.backend_contracts` remains the compatibility re-export root while shared transport/runtime contracts still live under legacy paths
+- `infrastructure/` remains allowed to host temporary deployment shims, but should stop being the long-term owner of executable runtime logic
 
 ## Shared Contract Guidance
 
@@ -98,6 +141,7 @@ The test layout is now intentionally three-tiered:
   - end-to-end API coverage
   - runtime compatibility shims
   - deployment-adjacent checks
+  - Lambda-first rollback coverage while ECS is the primary runtime
 
 This keeps the repo safe while imports still point at `infrastructure/`.
 
@@ -107,14 +151,17 @@ Until a later migration phase moves live code:
 
 - put reusable deterministic logic in `public-core/` only when it is clearly open-safe
 - put customer/account/auth/billing/admin/backend orchestration in `private-platform/`
+- put executable runtime hosts and transport/runtime bootstrap into `backend/`
 - keep `infrastructure/` limited to deploy-time entrypoints, Terraform, and environment wiring
-- if a new slice needs HTTP handlers, add the service logic under `private-platform` first and keep the `infrastructure/lambda_*.py` layer thin
+- if a new slice needs HTTP handlers, add the service logic under `private-platform`, place runtime ownership under `backend/`, and keep the `infrastructure/lambda_*.py` layer thin
 
 ## Remaining Blockers Before Frontend Scaffolding
 
 The repo is ready for frontend scaffolding at the architecture-boundary level, but a few backend follow-ups still remain:
 
 - `infrastructure/lambda_query.py` is still a large composition root and should keep shrinking over time
+- ECS-hosted HTTP runtime tests and docs still need to replace more of the
+  Lambda-first assumptions over time
 - `infrastructure/charity_status/api/` contracts still live under the legacy runtime path and are only mirrored through compatibility exports today
 - root `tests/` still carries most of the live suite, so near-package tests are scaffolded but not yet widely migrated
 - some mixed infrastructure-heavy modules, especially in `form990/`, `serving/`, and `control_plane/`, still need later seam-fix passes

@@ -88,9 +88,9 @@ resource "aws_iam_role_policy" "monthly_ingest_task" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "MonthlyIngestBucketList"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
+        Sid      = "MonthlyIngestBucketList"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
         Resource = local.monthly_ingest_task_allowed_bucket_arns
       },
       {

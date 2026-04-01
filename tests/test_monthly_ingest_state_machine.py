@@ -143,3 +143,65 @@ def test_monthly_ingest_docs_describe_permanent_ephemeral_and_troubleshooting_pa
     assert "permanent endpoint: S3 gateway endpoint" in runbook
     assert "ephemeral endpoints: `ecr.api`, `ecr.dkr`, and `logs`" in runbook
     assert "Troubleshooting sequence" in runbook
+
+
+def test_api_ecs_terraform_wires_parallel_runtime_resources():
+    content = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+
+    assert 'resource "aws_ecs_cluster" "api"' in content
+    assert 'resource "aws_ecr_repository" "api"' in content
+    assert 'resource "aws_cloudwatch_log_group" "api_task"' in content
+    assert 'resource "aws_security_group" "api_alb"' in content
+    assert 'resource "aws_security_group" "api_task"' in content
+    assert 'resource "aws_lb" "api"' in content
+    assert 'resource "aws_lb_target_group" "api"' in content
+    assert 'resource "aws_lb_listener" "api_http"' in content
+    assert 'resource "aws_lb_listener" "api_https"' in content
+    assert 'resource "aws_iam_role" "api_task_execution"' in content
+    assert 'resource "aws_iam_role" "api_task"' in content
+    assert 'resource "aws_ecs_task_definition" "api"' in content
+    assert 'resource "aws_ecs_service" "api"' in content
+    assert 'requires_compatibilities = ["FARGATE"]' in content
+    assert 'health_check_grace_period_seconds = var.api_ecs_health_check_grace_period_seconds' in content
+    assert 'api_ecs_secret_arns_resolved' in content
+    assert 'containerInsights' in content
+    assert 'awslogs-stream-prefix = "ecs"' in content
+
+
+def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
+    variables_content = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
+    outputs_content = Path("infrastructure/outputs.tf").read_text(encoding="utf-8")
+    rds_content = Path("infrastructure/aws_rds.tf").read_text(encoding="utf-8")
+    route53_content = Path("infrastructure/aws_route53.tf").read_text(encoding="utf-8")
+    gateway_content = Path("infrastructure/aws_api_gateway.tf").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+    infra_readme = Path("infrastructure/README.md").read_text(encoding="utf-8")
+    ecs_blueprint = Path("docs/implementation/ecs-runtime-migration-blueprint.md").read_text(encoding="utf-8")
+
+    assert 'variable "api_ecs_enabled"' in variables_content
+    assert 'variable "api_ecs_vpc_id"' in variables_content
+    assert 'variable "api_ecs_public_subnet_ids"' in variables_content
+    assert 'variable "api_ecs_private_subnet_ids"' in variables_content
+    assert 'variable "api_ecs_image_uri"' in variables_content
+    assert 'variable "api_ecs_secret_arns"' in variables_content
+    assert 'variable "api_alb_certificate_arn"' in variables_content
+
+    assert 'output "api_ecs_cluster_name"' in outputs_content
+    assert 'output "api_ecr_repository_url"' in outputs_content
+    assert 'output "api_ecs_service_name"' in outputs_content
+    assert 'output "api_alb_dns_name"' in outputs_content
+    assert 'output "api_alb_target_group_arn"' in outputs_content
+
+    assert "aws_security_group.api_task[0].id" in rds_content
+    assert 'resource "aws_api_gateway_domain_name" "api_domain"' in route53_content
+    assert 'resource "aws_route53_record" "api_record"' in route53_content
+    assert 'name                   = var.api_ecs_enabled ? aws_lb.api[0].dns_name : aws_api_gateway_domain_name.api_domain[0].cloudfront_domain_name' in route53_content
+    assert 'zone_id                = var.api_ecs_enabled ? aws_lb.api[0].zone_id : aws_api_gateway_domain_name.api_domain[0].cloudfront_zone_id' in route53_content
+    assert 'evaluate_target_health = var.api_ecs_enabled' in route53_content
+    assert 'resource "aws_api_gateway_rest_api" "irs_api"' in gateway_content
+    assert "primary API ingress is now Route53 -> ALB -> ECS Fargate" in readme
+    assert "deprecated rollback path" in readme
+    assert "Parallel ECS API Runtime" in infra_readme
+    assert "Route53 now points the primary API hostname at the public ALB" in infra_readme
+    assert "Phase 25C/25D implementation status" in ecs_blueprint
+    assert "Route53 now points the primary hostname at the ALB" in ecs_blueprint

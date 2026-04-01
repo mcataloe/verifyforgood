@@ -1,7 +1,7 @@
 {
   "name": "verifyforgood-frontend-workspace",
   "private": true,
-  "packageManager": "pnpm@10.24.0",
+  "packageManager": "pnpm@10.33.0",
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @charity-status/marketing build && pnpm --filter @charity-status/portal build && pnpm --filter @charity-status/docs build",

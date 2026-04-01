@@ -33,6 +33,16 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "organization_settings_table_name" in content and "local.resource_names.organization_settings_table" in content
     assert "control_plane_table_name" in content and "local.resource_names.control_plane_table" in content
     assert "ecs_cluster_name" in content and "local.resource_names.ecs_cluster" in content
+    assert "api_ecr_repository_name" in content and "local.resource_names.api_ecr_repository" in content
+    assert "api_ecs_service_name" in content and "local.resource_names.api_ecs_service" in content
+    assert "api_task_definition_family" in content and "local.resource_names.api_task_definition" in content
+    assert "api_task_execution_role_name" in content and "local.resource_names.api_task_execution_role" in content
+    assert "api_task_role_name" in content and "local.resource_names.api_task_role" in content
+    assert "api_task_security_group_name" in content and "local.resource_names.api_task_security_group" in content
+    assert "api_alb_security_group_name" in content and "local.resource_names.api_alb_security_group" in content
+    assert "api_log_group_name" in content and "local.resource_names.api_log_group" in content
+    assert "api_alb_name" in content and "local.resource_names.api_alb" in content
+    assert "api_target_group_name" in content and "local.resource_names.api_target_group" in content
     assert "athena_workgroup_resource_name" in content and "local.resource_names.athena_workgroup" in content
     assert "api_gateway_name" in content and "local.resource_names.api_gateway" in content
     assert "lambda_role_name" in content and "local.resource_names.lambda_role" in content

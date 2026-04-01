@@ -100,6 +100,9 @@ resource "aws_lambda_function" "ingest" {
 # LAMBDA QUERY FUNCTION
 #############################################
 
+# Deprecated rollback path once api_ecs_enabled=true. The query Lambda package
+# remains deployable until the ECS-hosted API runtime has proven stable enough
+# for a later removal phase.
 resource "terraform_data" "query_package_build" {
   triggers_replace = [local.query_package_source_hash]
 
@@ -198,34 +201,34 @@ resource "aws_lambda_function" "query" {
       OAUTH_TOKEN_TTL_SECONDS                          = tostring(var.oauth_token_ttl_seconds)
       ADMIN_KEY_RECORDS_JSON                           = var.admin_key_records_json
       # Public brand settings stay configurable and separate from core platform identity.
-      APP_NAME                               = var.app_name
-      PUBLIC_BRAND_NAME                      = var.public_brand_name
-      SUPPORT_EMAIL                          = var.support_email
-      DOMAIN                                 = var.domain
-      ORGANIZATION_INTEGRATION_SETTINGS_JSON = var.organization_integration_settings_json
-      TENANT_INTEGRATION_SETTINGS_JSON       = var.tenant_integration_settings_json
-      STRIPE_BILLING_ENABLED                 = tostring(var.stripe_billing_enabled)
-      STRIPE_PRICE_IDS                       = var.stripe_price_ids_json
-      STRIPE_SECRET_KEY                      = var.stripe_secret_key
-      STRIPE_WEBHOOK_SECRET                  = var.stripe_webhook_secret
-      FREE_TRIAL_ENABLED                     = tostring(var.free_trial_enabled)
-      FREE_TRIAL_DURATION_DAYS               = tostring(var.free_trial_duration_days)
-      FREE_TRIAL_PLAN_CODE                   = var.free_trial_plan_code
-      FREE_TRIAL_MONTHLY_REQUEST_LIMIT       = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
-      PLATFORM_POSTGRES_ENABLED              = tostring(var.platform_postgres_enabled)
-      PLATFORM_POSTGRES_SECRET_ARN           = local.platform_postgres_secret_arn_resolved
-      PLATFORM_POSTGRES_HOST                 = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].address : ""
-      PLATFORM_POSTGRES_PORT                 = tostring(var.platform_postgres_port)
-      PLATFORM_POSTGRES_DATABASE             = var.platform_postgres_database_name
-      PLATFORM_POSTGRES_SSLMODE              = var.platform_postgres_sslmode
-      PLATFORM_IDENTITY_STORE_BACKEND        = var.platform_identity_store_backend
+      APP_NAME                                     = var.app_name
+      PUBLIC_BRAND_NAME                            = var.public_brand_name
+      SUPPORT_EMAIL                                = var.support_email
+      DOMAIN                                       = var.domain
+      ORGANIZATION_INTEGRATION_SETTINGS_JSON       = var.organization_integration_settings_json
+      TENANT_INTEGRATION_SETTINGS_JSON             = var.tenant_integration_settings_json
+      STRIPE_BILLING_ENABLED                       = tostring(var.stripe_billing_enabled)
+      STRIPE_PRICE_IDS                             = var.stripe_price_ids_json
+      STRIPE_SECRET_KEY                            = var.stripe_secret_key
+      STRIPE_WEBHOOK_SECRET                        = var.stripe_webhook_secret
+      FREE_TRIAL_ENABLED                           = tostring(var.free_trial_enabled)
+      FREE_TRIAL_DURATION_DAYS                     = tostring(var.free_trial_duration_days)
+      FREE_TRIAL_PLAN_CODE                         = var.free_trial_plan_code
+      FREE_TRIAL_MONTHLY_REQUEST_LIMIT             = var.free_trial_monthly_request_limit != null ? tostring(var.free_trial_monthly_request_limit) : ""
+      PLATFORM_POSTGRES_ENABLED                    = tostring(var.platform_postgres_enabled)
+      PLATFORM_POSTGRES_SECRET_ARN                 = local.platform_postgres_secret_arn_resolved
+      PLATFORM_POSTGRES_HOST                       = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].address : ""
+      PLATFORM_POSTGRES_PORT                       = tostring(var.platform_postgres_port)
+      PLATFORM_POSTGRES_DATABASE                   = var.platform_postgres_database_name
+      PLATFORM_POSTGRES_SSLMODE                    = var.platform_postgres_sslmode
+      PLATFORM_IDENTITY_STORE_BACKEND              = var.platform_identity_store_backend
       PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND = var.platform_organization_settings_store_backend
-      PLATFORM_CONTROL_PLANE_STORE_BACKEND   = var.platform_control_plane_store_backend
-      PLATFORM_NONPROFIT_QUERY_BACKEND       = var.platform_nonprofit_query_backend
-      ORGANIZATION_SETTINGS_TABLE_NAME       = aws_dynamodb_table.organization_settings.name
-      OPS_METADATA_BUCKET                    = aws_s3_bucket.irs_data.bucket
-      OPS_METADATA_PREFIX                    = var.ops_metadata_prefix
-      FORM990_ORCHESTRATOR_FUNCTION_NAME     = aws_lambda_function.form990_orchestrator.function_name
+      PLATFORM_CONTROL_PLANE_STORE_BACKEND         = var.platform_control_plane_store_backend
+      PLATFORM_NONPROFIT_QUERY_BACKEND             = var.platform_nonprofit_query_backend
+      ORGANIZATION_SETTINGS_TABLE_NAME             = aws_dynamodb_table.organization_settings.name
+      OPS_METADATA_BUCKET                          = aws_s3_bucket.irs_data.bucket
+      OPS_METADATA_PREFIX                          = var.ops_metadata_prefix
+      FORM990_ORCHESTRATOR_FUNCTION_NAME           = aws_lambda_function.form990_orchestrator.function_name
     }
   }
 }

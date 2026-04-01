@@ -3,6 +3,9 @@
 # API GATEWAY
 #############################################
 
+# Deprecated rollback path once api_ecs_enabled=true. The REST API remains
+# deployable for one phase so Route53 can be restored quickly if the ECS/ALB
+# cutover needs to be reversed.
 resource "aws_api_gateway_rest_api" "irs_api" {
   name = local.api_gateway_name
 }

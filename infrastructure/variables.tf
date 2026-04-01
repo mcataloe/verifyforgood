@@ -277,6 +277,171 @@ variable "monthly_ingest_vpc_id" {
   default     = ""
 }
 
+variable "api_ecs_enabled" {
+  description = "Enable the parallel ECS Fargate API runtime and ALB ingress stack."
+  type        = bool
+  default     = false
+}
+
+variable "api_ecs_vpc_id" {
+  description = "Existing VPC identifier used by the ECS API service, ALB, and related security groups."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.api_ecs_enabled || trim(var.api_ecs_vpc_id, " ") != ""
+    error_message = "api_ecs_vpc_id must be set when api_ecs_enabled=true."
+  }
+}
+
+variable "api_ecs_public_subnet_ids" {
+  description = "Existing public subnet identifiers used by the API ALB."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.api_ecs_enabled || length(var.api_ecs_public_subnet_ids) > 0
+    error_message = "api_ecs_public_subnet_ids must contain at least one subnet when api_ecs_enabled=true."
+  }
+}
+
+variable "api_ecs_private_subnet_ids" {
+  description = "Existing private subnet identifiers used by the ECS API tasks."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.api_ecs_enabled || length(var.api_ecs_private_subnet_ids) > 0
+    error_message = "api_ecs_private_subnet_ids must contain at least one subnet when api_ecs_enabled=true."
+  }
+}
+
+variable "api_ecs_additional_security_group_ids" {
+  description = "Optional additional security groups attached to the ECS API tasks."
+  type        = list(string)
+  default     = []
+}
+
+variable "api_ecs_image_uri" {
+  description = "Optional full container image URI for the API service. Empty uses the managed ECR repository plus api_ecs_image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "api_ecs_image_tag" {
+  description = "Image tag used with the managed API ECR repository when api_ecs_image_uri is empty."
+  type        = string
+  default     = "latest"
+}
+
+variable "api_ecs_container_name" {
+  description = "Container name inside the ECS API task definition."
+  type        = string
+  default     = "api"
+}
+
+variable "api_ecs_container_port" {
+  description = "TCP port exposed by the API container and target group."
+  type        = number
+  default     = 8000
+}
+
+variable "api_ecs_task_cpu" {
+  description = "CPU units for the managed ECS API task definition."
+  type        = number
+  default     = 1024
+}
+
+variable "api_ecs_task_memory" {
+  description = "Memory in MiB for the managed ECS API task definition."
+  type        = number
+  default     = 2048
+}
+
+variable "api_ecs_desired_count" {
+  description = "Desired task count for the ECS API service."
+  type        = number
+  default     = 1
+}
+
+variable "api_ecs_log_retention_days" {
+  description = "Retention in days for the managed CloudWatch log group used by the ECS API service."
+  type        = number
+  default     = 30
+}
+
+variable "api_ecs_health_check_path" {
+  description = "HTTP path used by the ALB target group health check for the ECS API service."
+  type        = string
+  default     = "/ready"
+}
+
+variable "api_ecs_health_check_matcher" {
+  description = "Success HTTP status matcher used by the ALB target group health check for the ECS API service."
+  type        = string
+  default     = "200-399"
+}
+
+variable "api_ecs_health_check_interval_seconds" {
+  description = "Interval in seconds for the ALB target group health check."
+  type        = number
+  default     = 30
+}
+
+variable "api_ecs_health_check_timeout_seconds" {
+  description = "Timeout in seconds for the ALB target group health check."
+  type        = number
+  default     = 5
+}
+
+variable "api_ecs_healthy_threshold" {
+  description = "Healthy threshold count for the ALB target group health check."
+  type        = number
+  default     = 2
+}
+
+variable "api_ecs_unhealthy_threshold" {
+  description = "Unhealthy threshold count for the ALB target group health check."
+  type        = number
+  default     = 2
+}
+
+variable "api_ecs_health_check_grace_period_seconds" {
+  description = "Grace period in seconds before the ECS service applies target group health checks to new API tasks."
+  type        = number
+  default     = 60
+}
+
+variable "api_ecs_target_group_deregistration_delay_seconds" {
+  description = "Deregistration delay in seconds for the ECS API target group."
+  type        = number
+  default     = 30
+}
+
+variable "api_alb_certificate_arn" {
+  description = "Optional ACM certificate ARN for the API ALB HTTPS listener. Empty reuses the managed custom-domain certificate when available."
+  type        = string
+  default     = ""
+}
+
+variable "api_ecs_secret_arns" {
+  description = "Optional Secrets Manager or SSM parameter ARNs keyed by environment variable name for ECS API secret injection."
+  type        = map(string)
+  default     = {}
+}
+
+variable "api_ecs_secret_kms_key_arns" {
+  description = "Optional KMS key ARNs used to decrypt entries referenced by api_ecs_secret_arns."
+  type        = list(string)
+  default     = []
+}
+
+variable "api_alb_ssl_policy" {
+  description = "SSL policy used by the API ALB HTTPS listener."
+  type        = string
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
+
 variable "platform_postgres_enabled" {
   description = "Provision and wire the additive PostgreSQL RDS foundation for platform data."
   type        = bool

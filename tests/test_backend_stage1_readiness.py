@@ -92,22 +92,56 @@ def test_split_plan_tracks_shared_contracts_and_test_layers():
     assert test_layers["private_platform_unit"] == ["private-platform/tests/"]
     assert test_layers["integration_and_compatibility"] == ["tests/"]
 
+    operational_layers = payload["operational_layers"]
+    assert operational_layers["frontend"]["root"] == "frontend/"
+    assert operational_layers["backend"]["root"] == "backend/"
+    assert operational_layers["infrastructure"]["root"] == "infrastructure/"
+
+    backend_targets = payload["backend_runtime_targets"]
+    assert backend_targets["public_api"]["current_handler"] == "infrastructure.lambda_query.handler"
+    assert backend_targets["public_api"]["target_directory"] == "backend/api/"
+    assert backend_targets["profile_refresh_job"]["target_directory"] == "backend/worker/"
+    assert backend_targets["runtime_shared_contracts"]["target_directory"] == "backend/shared/"
+
 
 def test_backend_stage1_docs_and_test_readmes_exist():
     readiness_doc = ROOT / "docs" / "backend-stage1-readiness.md"
+    backend_doc = ROOT / "backend" / "README.md"
+    backend_api_doc = ROOT / "backend" / "api" / "README.md"
+    backend_worker_doc = ROOT / "backend" / "worker" / "README.md"
+    backend_ingest_doc = ROOT / "backend" / "ingest-task" / "README.md"
+    backend_shared_doc = ROOT / "backend" / "shared" / "README.md"
     tests_doc = ROOT / "tests" / "README.md"
     public_tests_doc = ROOT / "public-core" / "tests" / "README.md"
     private_tests_doc = ROOT / "private-platform" / "tests" / "README.md"
 
     assert readiness_doc.exists()
+    assert backend_doc.exists()
+    assert backend_api_doc.exists()
+    assert backend_worker_doc.exists()
+    assert backend_ingest_doc.exists()
+    assert backend_shared_doc.exists()
     assert tests_doc.exists()
     assert public_tests_doc.exists()
     assert private_tests_doc.exists()
 
     readiness_text = readiness_doc.read_text(encoding="utf-8")
     assert "Entrypoint Ownership Map" in readiness_text
+    assert "Runtime Extraction Targets" in readiness_text
+    assert "Current misplaced runtime ownership still stranded in `infrastructure/`" in readiness_text
+    assert "`backend/api/`" in readiness_text
+    assert "`backend/worker/`" in readiness_text
+    assert "`backend/ingest-task/`" in readiness_text
+    assert "`backend/shared/`" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
     assert "Remaining Blockers Before Frontend Scaffolding" in readiness_text
+
+    backend_text = backend_doc.read_text(encoding="utf-8")
+    assert "future executable runtime host layer" in backend_text
+    assert "`backend/api/`" in backend_text
+    assert "`backend/worker/`" in backend_text
+    assert "`backend/ingest-task/`" in backend_text
+    assert "`backend/shared/`" in backend_text
 
     tests_text = tests_doc.read_text(encoding="utf-8")
     assert "public-core/tests/" in tests_text

@@ -1,12 +1,11 @@
 ﻿# Charity Status API
 
-Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
+Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring through an ALB-fronted ECS Fargate API service.
 
-The current checked-in API runtime remains Lambda/API Gateway based, but the
-accepted next-stage runtime direction is an ALB-fronted ECS Fargate API service.
-Phase 25B also adds a FastAPI compatibility app so the same HTTP API can now be
-run under an ASGI container process while Lambda remains temporarily supported.
-See `docs/architecture/ADR-ecs-runtime-pivot.md` and
+The primary API ingress is now Route53 -> ALB -> ECS Fargate. The legacy
+API Gateway + Lambda API path remains in Terraform only as a deprecated
+rollback stack for the cutover window. See
+`docs/architecture/ADR-ecs-runtime-pivot.md` and
 `docs/implementation/ecs-runtime-migration-blueprint.md`.
 
 The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
@@ -52,7 +51,7 @@ Important:
 - Infrastructure: Terraform
 - Compute: AWS Lambda + ECS Fargate
 - Orchestration: EventBridge + Step Functions for monthly private-ingest
-- API: API Gateway today, with ALB + ECS Fargate accepted as the target runtime direction (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: ALB + ECS Fargate primary runtime, with API Gateway + Lambda retained temporarily as a deprecated rollback path (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Relational foundation: Amazon RDS for PostgreSQL (platform/application data plus additive nonprofit schema foundation)
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
@@ -163,10 +162,31 @@ Adapter boundary guidance now used in mixed infrastructure-facing modules:
 - adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
 - runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
 
+## Repository Topology
+
+The repository now uses three operational layers:
+
+- `frontend/`
+- `backend/`
+- `infrastructure/`
+
+Supporting package/code boundaries remain:
+
+- `public-core/`
+- `private-platform/`
+
+How these layers should be interpreted:
+
+- `frontend/` is the dedicated pnpm workspace and browser/runtime UI layer
+- `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
+- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and temporary compatibility shims only
+- `public-core/` and `private-platform/` remain package boundaries, not replacements for `backend/`
+
 ## Stage-1 Backend Readiness
 
 The repository now has first-stage backend split scaffolding in place for:
 
+- `backend/`
 - `public-core/`
 - `private-platform/`
 - `infrastructure/`
@@ -175,11 +195,13 @@ The key practical rules at this point are:
 
 - keep deterministic open-safe logic in `public-core/`
 - keep customer/account/auth/billing/admin/backend orchestration in `private-platform/`
+- keep executable runtime hosts and shared runtime bootstrap in `backend/`
 - keep `infrastructure/` focused on deploy-time entrypoints, Terraform, and runtime wiring
 
 For the current live system:
 
 - `infrastructure/lambda_*.py` remains the deployed handler surface
+- those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
 - `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
 - `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
 
@@ -215,7 +237,8 @@ Important:
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
 2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
-4. `lambda_query.py` handles verification/scoring endpoints.
+4. The ECS-hosted API handles verification/scoring endpoints, while
+   `lambda_query.py` remains the deprecated rollback implementation.
 5. For `GET /v1/nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
    - check materialized profile in DynamoDB
    - return cached profile on hit
@@ -2047,6 +2070,52 @@ Form 990 mode configuration additions:
 - `monthly_ingest_worker_image_uri`: optional external worker image URI; leave empty to use the managed ECR repository plus `monthly_ingest_worker_image_tag`
 - `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
 - `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
+
+Phase 25C/25D adds the ECS Fargate API runtime and completes the Route53
+cutover so the ALB-backed ECS service is now the primary ingress path.
+
+ECS API deployment configuration additions:
+
+- `api_ecs_enabled`: enable the parallel ECS Fargate API runtime
+- `api_ecs_vpc_id`: existing VPC id shared by the ALB, API tasks, and related security groups
+- `api_ecs_public_subnet_ids`: public subnets for the ALB
+- `api_ecs_private_subnet_ids`: private subnets for the ECS API tasks
+- `api_ecs_image_uri`: optional full API image URI; leave empty to use the managed ECR repository plus `api_ecs_image_tag`
+- `api_ecs_image_tag`: tag used with the managed API ECR repository when `api_ecs_image_uri` is empty
+- `api_ecs_container_name`, `api_ecs_container_port`: ECS container identity and ALB target port
+- `api_ecs_task_cpu`, `api_ecs_task_memory`, `api_ecs_desired_count`: initial ECS service sizing controls
+- `api_ecs_log_retention_days`: CloudWatch log retention for the API task log group
+- `api_ecs_health_check_path`, `api_ecs_health_check_matcher`, `api_ecs_health_check_interval_seconds`, `api_ecs_health_check_timeout_seconds`, `api_ecs_healthy_threshold`, `api_ecs_unhealthy_threshold`, `api_ecs_health_check_grace_period_seconds`: explicit ALB and ECS health controls
+- `api_alb_certificate_arn`: optional ACM certificate ARN for the ALB HTTPS listener; leave empty to reuse the managed custom-domain certificate when custom-domain support is enabled
+- `api_ecs_secret_arns`: optional map of env-var names to Secrets Manager or SSM parameter ARNs for ECS secret injection; use this for values such as `PORTAL_AUTH_TOKEN_SECRET` and other sensitive API runtime settings
+- `api_ecs_secret_kms_key_arns`: optional KMS keys needed to decrypt entries referenced by `api_ecs_secret_arns`
+
+Parallel ECS API outputs now include:
+
+- ECS cluster name and ARN
+- API ECR repository URL
+- ECS service name and task definition ARN
+- CloudWatch log group name for the API task
+- ALB DNS name and zone id
+- ALB target group ARN
+
+Current Phase 25D ingress posture:
+
+- Route53 custom-domain alias points to the API ALB
+- ECS/ALB is the primary runtime for the public API hostname
+- Lambda query packaging and API Gateway resources remain deployable only as a deprecated rollback path
+- PostgreSQL ingress allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+
+Rollback guidance for the API cutover:
+
+- restore the Route53 alias to `aws_api_gateway_domain_name.api_domain`
+- redeploy the query Lambda and API Gateway stack if the ECS runtime must be backed out
+- keep the legacy stack only until ECS stability is proven; later cleanup should remove it deliberately rather than let it drift indefinitely
+
+Current CI/CD posture:
+
+- `.gitlab-ci.yml` now validates Terraform in `infrastructure/`
+- API image build/publish is still an external contract in this phase; Terraform can consume either a managed ECR repository plus tag or an explicit image URI
 
 Lambda event examples:
 
