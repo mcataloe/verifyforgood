@@ -93,3 +93,35 @@ Phase 24H also adds a nonprofit migration wrapper:
 
 Use that wrapper to validate PostgreSQL nonprofit backfill before switching
 `platform_nonprofit_query_backend` to `postgres`.
+
+## Parallel ECS API Runtime
+
+Phase 25C adds additive ECS Fargate and ALB infrastructure for the backend API
+without removing the current Lambda/API Gateway path.
+
+Current deployment posture:
+
+- API Gateway and the query Lambda remain the primary public ingress path
+- a parallel public ALB is provisioned for the API service
+- the ECS API tasks run in private subnets behind that ALB
+- the Terraform stack now manages the ECS cluster, API task definition, ECS
+  service, API ECR repository, ALB target group, and API task log group
+- PostgreSQL ingress includes the ECS API task security group when
+  `platform_postgres_enabled=true`
+
+Required environment inputs when `api_ecs_enabled=true`:
+
+- `api_ecs_vpc_id`
+- `api_ecs_public_subnet_ids`
+- `api_ecs_private_subnet_ids`
+- either:
+  - `api_ecs_image_uri`, or
+  - the managed API ECR repository plus `api_ecs_image_tag`
+- either:
+  - `api_alb_certificate_arn`, or
+  - `enable_custom_domain=true` with the managed ACM certificate flow
+
+Sensitive API runtime values can stay out of plaintext Terraform by mapping env
+var names to secret references with `api_ecs_secret_arns`. This is the intended
+path for values such as `PORTAL_AUTH_TOKEN_SECRET` and any other container-only
+secrets that are not yet first-class Terraform variables.

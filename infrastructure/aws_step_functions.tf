@@ -9,8 +9,8 @@ locals {
   monthly_ingest_staging_lambda_arn_resolved = trim(var.monthly_ingest_staging_lambda_arn, " ") != "" ? trim(var.monthly_ingest_staging_lambda_arn, " ") : (
     var.monthly_ingest_state_machine_enabled ? aws_lambda_function.monthly_ingest_staging[0].arn : ""
   )
-  monthly_ingest_staging_lambda_configured = trim(local.monthly_ingest_staging_lambda_arn_resolved, " ") != ""
-  monthly_ingest_pass_role_arns             = compact([trim(local.monthly_ingest_task_execution_role_arn_resolved, " "), trim(local.monthly_ingest_task_role_arn_resolved, " ")])
+  monthly_ingest_staging_lambda_configured     = trim(local.monthly_ingest_staging_lambda_arn_resolved, " ") != ""
+  monthly_ingest_pass_role_arns                = compact([trim(local.monthly_ingest_task_execution_role_arn_resolved, " "), trim(local.monthly_ingest_task_role_arn_resolved, " ")])
   monthly_ingest_schedule_source_key_effective = trim(var.monthly_ingest_schedule_source_key, " ") != "" ? trim(var.monthly_ingest_schedule_source_key, " ") : "monthly-workflows/pending/${local.monthly_ingest_schedule_job_id}/source.zip"
   monthly_ingest_schedule_enabled = (
     var.monthly_ingest_state_machine_enabled

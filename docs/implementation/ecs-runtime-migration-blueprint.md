@@ -21,6 +21,27 @@ The target runtime is:
 - Secrets Manager-backed sensitive config
 - private-subnet task execution with existing PostgreSQL network posture reused
 
+## Phase 25C/25D implementation status
+
+The repo now includes the additive Terraform needed to stand up the parallel
+ECS API runtime:
+
+- managed ECS cluster
+- managed API ECR repository
+- ECS Fargate task definition and service for the API
+- CloudWatch log group for API tasks
+- public ALB, HTTPS listener, and API target group
+- dedicated ALB and task security groups
+- PostgreSQL ingress support for ECS API tasks
+- outputs and tfvars examples for the new deployment contract
+
+The ingress cutover remains intentionally incomplete in this phase:
+
+- Route53 still points the primary hostname at API Gateway
+- Lambda + API Gateway remain the rollback and primary public path
+- the ALB + ECS service are provisioned in parallel for validation and later
+  cutover
+
 ## Current Coupling Inventory
 
 ### Request runtime coupling

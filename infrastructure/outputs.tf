@@ -108,6 +108,51 @@ output "platform_postgres_security_group_id" {
   value       = var.platform_postgres_enabled ? aws_security_group.platform_postgres[0].id : null
 }
 
+output "api_ecs_cluster_name" {
+  description = "ECS cluster name for the parallel API service."
+  value       = var.api_ecs_enabled ? aws_ecs_cluster.api[0].name : null
+}
+
+output "api_ecs_cluster_arn" {
+  description = "ECS cluster ARN for the parallel API service."
+  value       = var.api_ecs_enabled ? aws_ecs_cluster.api[0].arn : null
+}
+
+output "api_ecr_repository_url" {
+  description = "ECR repository URL for the managed API service image."
+  value       = var.api_ecs_enabled ? aws_ecr_repository.api[0].repository_url : null
+}
+
+output "api_ecs_service_name" {
+  description = "ECS service name for the parallel API runtime."
+  value       = var.api_ecs_enabled ? aws_ecs_service.api[0].name : null
+}
+
+output "api_ecs_task_definition_arn" {
+  description = "ECS task definition ARN for the parallel API runtime."
+  value       = var.api_ecs_enabled ? aws_ecs_task_definition.api[0].arn : null
+}
+
+output "api_ecs_task_log_group_name" {
+  description = "CloudWatch log group used by the parallel ECS API service."
+  value       = var.api_ecs_enabled ? aws_cloudwatch_log_group.api_task[0].name : null
+}
+
+output "api_alb_dns_name" {
+  description = "DNS name of the parallel API application load balancer."
+  value       = var.api_ecs_enabled ? aws_lb.api[0].dns_name : null
+}
+
+output "api_alb_zone_id" {
+  description = "Route53 zone id for the parallel API application load balancer alias target."
+  value       = var.api_ecs_enabled ? aws_lb.api[0].zone_id : null
+}
+
+output "api_alb_target_group_arn" {
+  description = "Target group ARN for the parallel ECS API service."
+  value       = var.api_ecs_enabled ? aws_lb_target_group.api[0].arn : null
+}
+
 output "monthly_ingest_state_machine_name" {
   description = "Step Functions state machine name for the monthly private-ingest workflow."
   value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].name : null

@@ -8,6 +8,15 @@
 stages:
 - test
 - secret-detection
+
+terraform_validate:
+  stage: test
+  image: hashicorp/terraform:1.9.8
+  script:
+  - terraform -chdir=infrastructure init -backend=false
+  - terraform -chdir=infrastructure fmt -check
+  - terraform -chdir=infrastructure validate
+
 sast:
   stage: test
 include:

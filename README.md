@@ -2046,6 +2046,46 @@ Form 990 mode configuration additions:
 - `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
 - `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
 
+Phase 25C adds a parallel ECS Fargate API runtime behind an ALB without moving
+the primary Route53 alias away from API Gateway yet.
+
+ECS API deployment configuration additions:
+
+- `api_ecs_enabled`: enable the parallel ECS Fargate API runtime
+- `api_ecs_vpc_id`: existing VPC id shared by the ALB, API tasks, and related security groups
+- `api_ecs_public_subnet_ids`: public subnets for the ALB
+- `api_ecs_private_subnet_ids`: private subnets for the ECS API tasks
+- `api_ecs_image_uri`: optional full API image URI; leave empty to use the managed ECR repository plus `api_ecs_image_tag`
+- `api_ecs_image_tag`: tag used with the managed API ECR repository when `api_ecs_image_uri` is empty
+- `api_ecs_container_name`, `api_ecs_container_port`: ECS container identity and ALB target port
+- `api_ecs_task_cpu`, `api_ecs_task_memory`, `api_ecs_desired_count`: initial ECS service sizing controls
+- `api_ecs_log_retention_days`: CloudWatch log retention for the API task log group
+- `api_ecs_health_check_path`, `api_ecs_health_check_matcher`, `api_ecs_health_check_interval_seconds`, `api_ecs_health_check_timeout_seconds`, `api_ecs_healthy_threshold`, `api_ecs_unhealthy_threshold`, `api_ecs_health_check_grace_period_seconds`: explicit ALB and ECS health controls
+- `api_alb_certificate_arn`: optional ACM certificate ARN for the ALB HTTPS listener; leave empty to reuse the managed custom-domain certificate when custom-domain support is enabled
+- `api_ecs_secret_arns`: optional map of env-var names to Secrets Manager or SSM parameter ARNs for ECS secret injection; use this for values such as `PORTAL_AUTH_TOKEN_SECRET` and other sensitive API runtime settings
+- `api_ecs_secret_kms_key_arns`: optional KMS keys needed to decrypt entries referenced by `api_ecs_secret_arns`
+
+Parallel ECS API outputs now include:
+
+- ECS cluster name and ARN
+- API ECR repository URL
+- ECS service name and task definition ARN
+- CloudWatch log group name for the API task
+- ALB DNS name and zone id
+- ALB target group ARN
+
+Current Phase 25C ingress posture:
+
+- Route53 custom-domain alias remains on API Gateway
+- Lambda query packaging and API Gateway resources remain deployable
+- the ALB + ECS service exists in parallel for validation and later cutover
+- PostgreSQL ingress now allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+
+Current CI/CD posture:
+
+- `.gitlab-ci.yml` now validates Terraform in `infrastructure/`
+- API image build/publish is still an external contract in this phase; Terraform can consume either a managed ECR repository plus tag or an explicit image URI
+
 Lambda event examples:
 
 Default static-manifest mode:
