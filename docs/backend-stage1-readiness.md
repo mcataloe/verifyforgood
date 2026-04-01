@@ -78,7 +78,7 @@ Target backend ownership map:
 
 - `backend/api/`
   - target home for the primary API server runtime host
-  - owns the future extracted successor to `infrastructure.lambda_query`
+  - now owns the extracted successor to `infrastructure.lambda_query` for ASGI app assembly and shared API runtime dispatch
 - `backend/worker/`
   - target home for profile refresh and future generic worker runtime hosts
 - `backend/ingest-task/`
@@ -102,6 +102,8 @@ Compatibility posture for the transition:
 
 - `charity_status_platform.runtime.entrypoints` remains the canonical map of current live handler imports until extraction phases move the real entrypoints
 - `charity_status_platform.runtime.backend_contracts` remains the compatibility re-export root while shared transport/runtime contracts still live under legacy paths
+- `charity_status_platform.runtime.api_compat` remains a compatibility import root and no longer owns FastAPI assembly directly
+- `infrastructure.lambda_query` remains a thin rollback/import shim over the backend-owned API runtime
 - `infrastructure/` remains allowed to host temporary deployment shims, but should stop being the long-term owner of executable runtime logic
 
 ## Shared Contract Guidance

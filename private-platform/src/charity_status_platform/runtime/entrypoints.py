@@ -25,8 +25,8 @@ ENTRYPOINTS = (
         target_service_area="runtime",
         runtime_kind="api_handler",
         notes=(
-            "Owns the public, customer, admin, and webhook HTTP API surface today.",
-            "Should remain a thin composition root while private-platform services continue moving underneath it.",
+            "Retained as the rollback Lambda handler import path for the public, customer, admin, and webhook HTTP API surface.",
+            "Canonical API runtime ownership now lives under backend/api while this path remains a thin compatibility adapter.",
         ),
     ),
     BackendEntrypoint(

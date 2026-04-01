@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src
+ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/api/src:/app/backend/shared/src
 
 WORKDIR /app
 
@@ -14,7 +14,9 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
 
 COPY infrastructure /app/infrastructure
 COPY private-platform/src /app/private-platform/src
+COPY backend/api/src /app/backend/api/src
+COPY backend/shared/src /app/backend/shared/src
 
 EXPOSE 8080
 
-CMD ["uvicorn", "charity_status_platform.runtime.api_compat:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "charity_status_backend.api.app:app", "--host", "0.0.0.0", "--port", "8080"]

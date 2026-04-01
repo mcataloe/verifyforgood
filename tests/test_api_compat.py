@@ -10,14 +10,16 @@ from fastapi.testclient import TestClient
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
 INFRASTRUCTURE_SRC = ROOT / "infrastructure"
+BACKEND_API_SRC = ROOT / "backend" / "api" / "src"
+BACKEND_SHARED_SRC = ROOT / "backend" / "shared" / "src"
 
-for path in (PRIVATE_PLATFORM_SRC, INFRASTRUCTURE_SRC):
+for path in (PRIVATE_PLATFORM_SRC, INFRASTRUCTURE_SRC, BACKEND_API_SRC, BACKEND_SHARED_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 
 def test_health_and_ready_endpoints():
-    from charity_status_platform.runtime.api_compat import create_app
+    from charity_status_backend.api.app import create_app
 
     client = TestClient(create_app())
 
@@ -31,8 +33,8 @@ def test_health_and_ready_endpoints():
 
 
 def test_compat_route_preserves_path_headers_and_query(monkeypatch):
-    from charity_status_platform.runtime.api_compat import create_app
-    from infrastructure import lambda_query
+    from charity_status_backend.api.app import create_app
+    from charity_status_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -49,7 +51,7 @@ def test_compat_route_preserves_path_headers_and_query(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(lambda_query, "handle_api_event", fake_handle_api_event)
+    monkeypatch.setattr(api_runtime, "handle_api_event", fake_handle_api_event)
 
     client = TestClient(create_app())
     response = client.get(
@@ -70,8 +72,8 @@ def test_compat_route_preserves_path_headers_and_query(monkeypatch):
 
 
 def test_compat_route_preserves_json_body_for_portal_auth(monkeypatch):
-    from charity_status_platform.runtime.api_compat import create_app
-    from infrastructure import lambda_query
+    from charity_status_backend.api.app import create_app
+    from charity_status_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -86,7 +88,7 @@ def test_compat_route_preserves_json_body_for_portal_auth(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(lambda_query, "handle_api_event", fake_handle_api_event)
+    monkeypatch.setattr(api_runtime, "handle_api_event", fake_handle_api_event)
 
     client = TestClient(create_app())
     response = client.post(
@@ -103,8 +105,8 @@ def test_compat_route_preserves_json_body_for_portal_auth(monkeypatch):
 
 
 def test_webhook_route_preserves_raw_body_and_signature_header(monkeypatch):
-    from charity_status_platform.runtime.api_compat import create_app
-    from infrastructure import lambda_query
+    from charity_status_backend.api.app import create_app
+    from charity_status_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -120,7 +122,7 @@ def test_webhook_route_preserves_raw_body_and_signature_header(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(lambda_query, "handle_api_event", fake_handle_api_event)
+    monkeypatch.setattr(api_runtime, "handle_api_event", fake_handle_api_event)
 
     client = TestClient(create_app())
     payload = "{\"id\":\"evt_123\"}"
@@ -137,3 +139,10 @@ def test_webhook_route_preserves_raw_body_and_signature_header(monkeypatch):
         "rawBody": payload,
         "signature": "sig_test",
     }
+
+
+def test_private_platform_api_compat_reexports_backend_owned_app():
+    from charity_status_backend.api.app import create_app as backend_create_app
+    from charity_status_platform.runtime.api_compat import create_app as compat_create_app
+
+    assert compat_create_app is backend_create_app

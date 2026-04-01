@@ -43,3 +43,10 @@ def test_query_lambda_packaging_includes_private_platform_sources():
     assert "--platform manylinux2014_x86_64" in script
     assert "--python-version 311" in script
     assert "--only-binary=:all:" in script
+
+
+def test_lambda_query_shim_points_to_backend_runtime_source():
+    source = Path("infrastructure/lambda_query.py").read_text(encoding="utf-8")
+
+    assert "Compatibility shim for the backend-owned API runtime" in source
+    assert "charity_status_backend.api" in source

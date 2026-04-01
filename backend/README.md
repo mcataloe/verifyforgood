@@ -55,11 +55,16 @@ python -m pip install -e .\public-core -e .\private-platform -e .\backend
 Scaffold runtime commands:
 
 ```powershell
-python -m charity_status_backend.api.entrypoint
 python -m charity_status_backend.worker.entrypoint
 python -m charity_status_backend.ingest_task.entrypoint
 ```
 
-Those commands intentionally exit with a scaffold-only message. They establish
-the future runtime homes and local import paths without cutting live behavior
-over from `infrastructure/` yet.
+API local run:
+
+```powershell
+python -m charity_status_backend.api.entrypoint
+```
+
+Worker and ingest commands still intentionally exit with scaffold-only
+messages. The API command now starts the backend-owned ASGI runtime while
+`infrastructure.lambda_query` remains a narrow rollback adapter.

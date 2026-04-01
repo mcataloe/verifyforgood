@@ -114,6 +114,7 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "python -m charity_status_backend.ingest_task.entrypoint" in backend_text
 
     assert "backend/api/src/charity_status_backend/api/" in backend_api_text
+    assert "charity_status_backend.api.app:app" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text

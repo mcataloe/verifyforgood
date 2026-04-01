@@ -159,6 +159,12 @@ traffic without turning every health probe into a full dependency sweep.
 - keep Lambda as a compatibility adapter over the same core app
 - begin shifting tests toward request-contract coverage
 
+Current posture after Phase 26C:
+
+- `backend/api` owns the FastAPI app, route registration, and shared API runtime dispatch
+- `infrastructure.lambda_query` remains as a thin rollback adapter and compatibility import path
+- `charity_status_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
+
 ### Phase 25C: Containerize the API
 
 - add an API Dockerfile

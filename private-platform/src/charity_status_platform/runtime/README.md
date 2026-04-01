@@ -29,6 +29,8 @@ Current transition helpers:
 
 - `backend_contracts.py`
   - canonical private-platform import root for API response-envelope and route-version helpers that still live under `charity_status.api`
+- `api_compat.py`
+  - compatibility import root that now re-exports the backend-owned FastAPI app from `backend/api`
 - `entrypoints.py`
   - machine-readable map of the current live backend entrypoints in `infrastructure/lambda_*.py`
   - keeps the future private-platform ownership visible without forcing a handler move yet
