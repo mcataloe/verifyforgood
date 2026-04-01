@@ -1509,7 +1509,7 @@ def _handle_admin_request(event: dict[str, Any], response_context: ResponseConte
     return error_response(404, "Admin route not found", response_context=response_context, code="not_found")
 
 
-def handler(event, context):
+def handle_api_event(event, context=None):
     api_context = build_response_context(event, context)
     route_key = _route_key(event or {})
     
@@ -2130,6 +2130,10 @@ def handler(event, context):
         response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
+
+
+def handler(event, context):
+    return handle_api_event(event, context)
 
 
 def _parse_get_request(event: dict) -> VerificationInput:

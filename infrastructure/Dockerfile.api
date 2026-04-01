@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src
+
+WORKDIR /app
+
+COPY infrastructure/requirements.txt /app/infrastructure/requirements.txt
+COPY infrastructure/requirements-api.txt /app/infrastructure/requirements-api.txt
+
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir -r /app/infrastructure/requirements-api.txt
+
+COPY infrastructure /app/infrastructure
+COPY private-platform/src /app/private-platform/src
+
+EXPOSE 8080
+
+CMD ["uvicorn", "charity_status_platform.runtime.api_compat:app", "--host", "0.0.0.0", "--port", "8080"]

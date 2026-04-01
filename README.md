@@ -4,6 +4,8 @@ Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derive
 
 The current checked-in API runtime remains Lambda/API Gateway based, but the
 accepted next-stage runtime direction is an ALB-fronted ECS Fargate API service.
+Phase 25B also adds a FastAPI compatibility app so the same HTTP API can now be
+run under an ASGI container process while Lambda remains temporarily supported.
 See `docs/architecture/ADR-ecs-runtime-pivot.md` and
 `docs/implementation/ecs-runtime-migration-blueprint.md`.
 

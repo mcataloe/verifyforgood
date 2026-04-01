@@ -120,18 +120,21 @@ traffic without turning every health probe into a full dependency sweep.
 
 ## Phased Migration Sequence
 
-### Phase 25B: Extract the application boundary
+### Phase 25B: Container compatibility app
+
+- add a real FastAPI/ASGI app boundary
+- keep it as a compatibility wrapper over `lambda_query` rather than a full
+  route rewrite
+- add `/health` and `/ready` endpoints for container runtime checks
+- add Docker packaging for local and ECS-style execution
+- keep Lambda as a supported transport temporarily
+
+### Phase 25C: Continue extracting the application boundary
 
 - carve routing and service composition out of `lambda_query.py`
 - introduce a real ASGI-capable app factory and entrypoint
 - keep Lambda as a compatibility adapter over the same core app
 - begin shifting tests toward request-contract coverage
-
-### Phase 25C: Containerize the API
-
-- add an API Dockerfile
-- add container startup and local run instructions
-- preserve the current runtime env-var contract
 
 ### Phase 25D: Provision ECS API infrastructure
 

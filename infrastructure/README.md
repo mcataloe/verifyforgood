@@ -93,3 +93,32 @@ Phase 24H also adds a nonprofit migration wrapper:
 
 Use that wrapper to validate PostgreSQL nonprofit backfill before switching
 `platform_nonprofit_query_backend` to `postgres`.
+
+## API Container Runtime
+
+Phase 25B adds a container-oriented API entrypoint without removing the current
+Lambda runtime yet.
+
+Current container assets:
+
+- `infrastructure/Dockerfile.api`
+- `infrastructure/requirements-api.txt`
+- ASGI app entrypoint: `charity_status_platform.runtime.api_compat:app`
+
+Local build and run example:
+
+1. build the image:
+   - `docker build -f infrastructure/Dockerfile.api -t charity-status-api .`
+2. run the container:
+   - `docker run --rm -p 8080:8080 --env-file <your-env-file> charity-status-api`
+3. probe health:
+   - `GET http://localhost:8080/health`
+   - `GET http://localhost:8080/ready`
+
+Current compatibility posture:
+
+- the FastAPI app adapts HTTP requests into the existing `lambda_query`
+  request contract
+- `lambda_query.handler` still remains the deployed Lambda entrypoint
+- scheduled ingest and worker Lambdas remain Lambda/ECS specific and are not
+  part of the API container runtime yet
