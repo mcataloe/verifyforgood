@@ -162,10 +162,31 @@ Adapter boundary guidance now used in mixed infrastructure-facing modules:
 - adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
 - runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
 
+## Repository Topology
+
+The repository now uses three operational layers:
+
+- `frontend/`
+- `backend/`
+- `infrastructure/`
+
+Supporting package/code boundaries remain:
+
+- `public-core/`
+- `private-platform/`
+
+How these layers should be interpreted:
+
+- `frontend/` is the dedicated pnpm workspace and browser/runtime UI layer
+- `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
+- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and temporary compatibility shims only
+- `public-core/` and `private-platform/` remain package boundaries, not replacements for `backend/`
+
 ## Stage-1 Backend Readiness
 
 The repository now has first-stage backend split scaffolding in place for:
 
+- `backend/`
 - `public-core/`
 - `private-platform/`
 - `infrastructure/`
@@ -174,11 +195,13 @@ The key practical rules at this point are:
 
 - keep deterministic open-safe logic in `public-core/`
 - keep customer/account/auth/billing/admin/backend orchestration in `private-platform/`
+- keep executable runtime hosts and shared runtime bootstrap in `backend/`
 - keep `infrastructure/` focused on deploy-time entrypoints, Terraform, and runtime wiring
 
 For the current live system:
 
 - `infrastructure/lambda_*.py` remains the deployed handler surface
+- those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
 - `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
 - `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
 

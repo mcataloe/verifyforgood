@@ -1,4 +1,36 @@
 {
+  "operational_layers": {
+    "frontend": {
+      "root": "frontend/",
+      "role": "browser/runtime UI layer",
+      "notes": [
+        "Owns the pnpm workspace and frontend-only shared packages.",
+        "Must not import Python runtime code from backend, private-platform, or infrastructure."
+      ]
+    },
+    "backend": {
+      "root": "backend/",
+      "role": "executable runtime host layer",
+      "subdirectories": [
+        "backend/api/",
+        "backend/worker/",
+        "backend/ingest-task/",
+        "backend/shared/"
+      ],
+      "notes": [
+        "Owns runtime hosts, transport/bootstrap assembly, and runtime-shared concerns.",
+        "May depend on public-core and private-platform, but does not replace them."
+      ]
+    },
+    "infrastructure": {
+      "root": "infrastructure/",
+      "role": "deployment/config/wiring layer",
+      "notes": [
+        "May package and deploy backend entrypoints.",
+        "Should converge on Terraform, env wiring, scripts, and temporary compatibility shims only."
+      ]
+    }
+  },
   "public_repo": {
     "package_root": "public-core/src/charity_status",
     "include": [
@@ -123,6 +155,64 @@
     "private-platform/src/charity_status_platform/runtime/backend_contracts.py",
     "private-platform/src/charity_status_platform/runtime/entrypoints.py"
   ],
+  "backend_runtime_targets": {
+    "public_api": {
+      "current_handler": "infrastructure.lambda_query.handler",
+      "target_directory": "backend/api/",
+      "notes": [
+        "Primary API server runtime host.",
+        "Owns ASGI/bootstrap, request composition, and health/readiness ownership."
+      ]
+    },
+    "profile_refresh_job": {
+      "current_handler": "infrastructure.lambda_refresh.handler",
+      "target_directory": "backend/worker/",
+      "notes": [
+        "Non-HTTP refresh runtime host."
+      ]
+    },
+    "eo_ingest_job": {
+      "current_handler": "infrastructure.lambda_ingest.handler",
+      "target_directory": "backend/ingest-task/",
+      "notes": [
+        "EO/BMF ingest runtime host."
+      ]
+    },
+    "form990_ingest_job": {
+      "current_handler": "infrastructure.lambda_form990.handler",
+      "target_directory": "backend/ingest-task/",
+      "notes": [
+        "Primary Form 990 ingest/discovery runtime host."
+      ]
+    },
+    "form990_orchestrator": {
+      "current_handler": "infrastructure.lambda_form990_orchestrator.handler",
+      "target_directory": "backend/ingest-task/",
+      "notes": [
+        "Temporary compatibility shim today, future ingest-task runtime host."
+      ]
+    },
+    "form990_worker": {
+      "current_handler": "infrastructure.lambda_form990_worker.handler",
+      "target_directory": "backend/ingest-task/",
+      "notes": [
+        "Queued Form 990 worker runtime host."
+      ]
+    },
+    "runtime_shared_contracts": {
+      "current_paths": [
+        "infrastructure/charity_status/api/routes.py",
+        "infrastructure/charity_status/api/responses.py",
+        "infrastructure/charity_status/core/interfaces.py",
+        "infrastructure/charity_status/platform/"
+      ],
+      "target_directory": "backend/shared/",
+      "notes": [
+        "Shared runtime-facing transport, bootstrap, and compatibility helpers.",
+        "private-platform runtime compatibility exports remain during the transition."
+      ]
+    }
+  },
   "test_layers": {
     "public_core_unit": [
       "public-core/tests/"
@@ -144,14 +234,19 @@
     "infrastructure/charity_status/serving/"
   ],
   "dependency_rules": [
+    "frontend must not import Python runtime code from backend, private-platform, or infrastructure",
+    "backend may depend on public-core and private-platform",
     "charity_status_platform may depend on charity_status",
     "charity_status must not depend on charity_status_platform",
+    "private-platform must not depend on backend or infrastructure",
     "infrastructure may package and deploy entrypoints but must not contain business logic",
     "all billing stays private-platform",
     "shared backend transport contracts stay private-platform/runtime until explicitly extracted elsewhere"
   ],
   "migration_sequence": [
-    "document target architecture and tighten split scaffolding",
+    "document backend operational layers and tighten split scaffolding",
+    "introduce backend/shared compatibility wrappers and runtime bootstrap seams",
+    "extract runtime hosts from infrastructure into backend",
     "remove core-to-billing dependency and split mixed adapters from domain logic",
     "extract low-risk deterministic public-core packages",
     "extract private-platform orchestration, billing, auth, control-plane, and adapters",

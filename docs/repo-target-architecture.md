@@ -2,9 +2,14 @@
 
 This document records the current repository assessment and the recommended target-state split between:
 
+1. `frontend/`
+2. `backend/`
+3. `infrastructure/`
+
+while preserving the code/package boundaries:
+
 1. `public-core/`
 2. `private-platform/`
-3. `infrastructure/`
 
 It is intentionally grounded in the code that exists today under `infrastructure/charity_status/` and the current Lambda/Terraform layout. This phase does not move code; it defines the target map and the migration order.
 
@@ -126,6 +131,18 @@ These are the highest-priority seam fixes before extraction:
 Recommended target tree:
 
 ```text
+frontend/
+  marketing/
+  portal/
+  shared/
+  docs/
+
+backend/
+  api/
+  worker/
+  ingest-task/
+  shared/
+
 public-core/
   src/charity_status/
     core/
@@ -163,12 +180,53 @@ infrastructure/
 
 Key design decisions:
 
+- `frontend/` remains the browser/runtime UI layer and should stay separate from Python runtime tooling.
+- `backend/` becomes the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap concerns.
 - `public-core` remains the canonical home for reusable deterministic domain logic.
 - `private-platform` owns all platform billing. Nothing billing-related should live in public-core.
 - All billing stays private-platform.
 - `private-platform` uses a distinct package root, `charity_status_platform`, to avoid namespace confusion with `charity_status`.
 - a neutral capability-oriented namespace, `verification_platform`, may be used as a compatibility abstraction layer while legacy `charity_status` imports remain in place
 - `infrastructure/` should end in a deployment-only role. It should package and wire entrypoints, not own business logic.
+- `backend/` is not a replacement for `public-core` or `private-platform`; it is the runtime host layer above them.
+
+## Backend Runtime Ownership Targets
+
+Current runtime ownership still stranded in `infrastructure/`:
+
+- `infrastructure/lambda_query.py`
+  - current HTTP API composition root
+- `infrastructure/lambda_refresh.py`
+  - current profile refresh job runtime host
+- `infrastructure/lambda_ingest.py`
+  - current EO/BMF ingest runtime host
+- `infrastructure/lambda_form990.py`
+  - current Form 990 ingest/discovery/orchestration runtime host
+- `infrastructure/lambda_form990_orchestrator.py`
+  - current Form 990 orchestration shim
+- `infrastructure/lambda_form990_worker.py`
+  - current Form 990 worker runtime host
+- `infrastructure/charity_status/api/routes.py`
+- `infrastructure/charity_status/api/responses.py`
+- `infrastructure/charity_status/core/interfaces.py`
+- `infrastructure/charity_status/platform/`
+
+Target runtime placement:
+
+- `backend/api/`
+  - successor to `infrastructure.lambda_query`
+  - owns ASGI/bootstrap, request composition, and health/readiness ownership
+- `backend/worker/`
+  - successor to `infrastructure.lambda_refresh` and future general worker hosts
+- `backend/ingest-task/`
+  - successor to `infrastructure.lambda_ingest`, `infrastructure.lambda_form990`, `infrastructure.lambda_form990_orchestrator`, and `infrastructure.lambda_form990_worker`
+- `backend/shared/`
+  - future home for runtime bootstrap helpers, shared transport/runtime compatibility helpers, logging/config assembly, and other runtime-only concerns
+
+Transition rule:
+
+- `private-platform/src/charity_status_platform/runtime/backend_contracts.py` remains the compatibility re-export root until shared runtime contracts move out of the legacy infrastructure path
+- `infrastructure/` may keep temporary deployment shims while packaging and deploy wiring catch up, but it should stop accumulating runtime ownership
 
 Private-platform service areas now defined in the repo:
 
@@ -190,6 +248,10 @@ Private runtime transition helpers now defined:
 
 Required dependency direction:
 
+- `frontend/` depends on HTTP contracts and frontend shared packages only
+- `frontend/` must not import Python runtime code from `backend/`, `private-platform/`, or `infrastructure/`
+- `backend/` may depend on `charity_status` and `charity_status_platform`
+- `private-platform/` must not depend on `backend/` or `infrastructure/`
 - `charity_status_platform` may depend on `charity_status`
 - `charity_status` must not depend on `charity_status_platform`
 - `infrastructure/` may depend on packaged entrypoints, but not the reverse
@@ -273,7 +335,7 @@ Concrete infrastructure/platform leakage found during assessment:
 - keep all runtime imports intact
 - document the current-state assessment and target tree
 - tighten `split-plan.json` to reflect actual boundaries
-- update scaffold READMEs so future extraction has a consistent direction
+- add `backend/` scaffold READMEs so future extraction has a consistent direction
 
 ### Stage 2: seam fixes before extraction
 
@@ -295,12 +357,20 @@ Concrete infrastructure/platform leakage found during assessment:
   - state registry domain logic
   - Form 990 parser/domain modules
 
-### Stage 4: extract private-platform
+### Stage 4: extract backend runtime hosts
+
+- move API runtime hosting and request composition from `infrastructure/lambda_query.py` into `backend/api`
+- move refresh and general non-HTTP runtime hosts into `backend/worker`
+- move EO/BMF and Form 990 task hosts into `backend/ingest-task`
+- move runtime-shared bootstrap/config/logging helpers into `backend/shared`
+- keep temporary compatibility shims in current runtime locations until packaging and deploy wiring are switched
+
+### Stage 5: extract private-platform
 
 - move auth, billing, control-plane, ops, runtime builders, adapters, and entrypoint orchestration into `private-platform`
 - keep temporary compatibility shims in current runtime locations until packaging and deploy wiring are switched
 
-### Stage 5: reduce infrastructure
+### Stage 6: reduce infrastructure
 
 - move Terraform/environment files toward `infrastructure/terraform/` and `infrastructure/env/`
 - leave only deployment assets, scripts, and temporary Lambda shims in `infrastructure/`
