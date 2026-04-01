@@ -96,14 +96,16 @@ Use that wrapper to validate PostgreSQL nonprofit backfill before switching
 
 ## Parallel ECS API Runtime
 
-Phase 25C adds additive ECS Fargate and ALB infrastructure for the backend API
-without removing the current Lambda/API Gateway path.
+Phase 25C/25D adds ECS Fargate and ALB infrastructure for the backend API and
+cuts the primary custom-domain ingress over to that runtime.
 
 Current deployment posture:
 
-- API Gateway and the query Lambda remain the primary public ingress path
-- a parallel public ALB is provisioned for the API service
-- the ECS API tasks run in private subnets behind that ALB
+- Route53 now points the primary API hostname at the public ALB
+- the ECS API tasks run in private subnets behind that ALB and are the primary
+  HTTP runtime
+- API Gateway and the query Lambda remain deployable only as a deprecated
+  rollback stack
 - the Terraform stack now manages the ECS cluster, API task definition, ECS
   service, API ECR repository, ALB target group, and API task log group
 - PostgreSQL ingress includes the ECS API task security group when
@@ -125,3 +127,11 @@ Sensitive API runtime values can stay out of plaintext Terraform by mapping env
 var names to secret references with `api_ecs_secret_arns`. This is the intended
 path for values such as `PORTAL_AUTH_TOKEN_SECRET` and any other container-only
 secrets that are not yet first-class Terraform variables.
+
+Rollback note:
+
+- the deprecated API Gateway custom-domain and query Lambda packaging remain in
+  Terraform only so the Route53 alias can be restored quickly if the ECS cutover
+  fails
+- later cleanup should remove those API-serving resources once ECS stability is
+  confirmed

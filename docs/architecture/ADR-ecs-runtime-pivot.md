@@ -111,3 +111,9 @@ later phases justify a change:
 - WAF is not currently provisioned in Terraform, so WAF support should be
   designed as a future-compatible ingress option rather than assumed as an
   existing platform feature.
+
+## Implementation Note
+
+Phase 25D now treats ALB + ECS as the primary API ingress in Terraform by
+pointing Route53 at the ALB while keeping API Gateway + Lambda in a deprecated
+rollback posture for one additional phase.

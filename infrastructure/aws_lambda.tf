@@ -100,6 +100,9 @@ resource "aws_lambda_function" "ingest" {
 # LAMBDA QUERY FUNCTION
 #############################################
 
+# Deprecated rollback path once api_ecs_enabled=true. The query Lambda package
+# remains deployable until the ECS-hosted API runtime has proven stable enough
+# for a later removal phase.
 resource "terraform_data" "query_package_build" {
   triggers_replace = [local.query_package_source_hash]
 

@@ -34,13 +34,15 @@ ECS API runtime:
 - dedicated ALB and task security groups
 - PostgreSQL ingress support for ECS API tasks
 - outputs and tfvars examples for the new deployment contract
+- Route53 cutover from API Gateway custom-domain ingress to the ALB
 
-The ingress cutover remains intentionally incomplete in this phase:
+Current cutover posture:
 
-- Route53 still points the primary hostname at API Gateway
-- Lambda + API Gateway remain the rollback and primary public path
-- the ALB + ECS service are provisioned in parallel for validation and later
-  cutover
+- Route53 now points the primary hostname at the ALB
+- ECS + ALB is the primary runtime for the backend API
+- Lambda + API Gateway remain deployable only as a deprecated rollback path
+- API Gateway custom-domain resources are no longer the production ingress
+  mechanism
 
 ## Current Coupling Inventory
 
@@ -154,14 +156,7 @@ traffic without turning every health probe into a full dependency sweep.
 - add container startup and local run instructions
 - preserve the current runtime env-var contract
 
-### Phase 25D: Provision ECS API infrastructure
-
-- add ALB, listener, target group, ECS service, and ECS task definition
-- add CloudWatch log groups and service roles
-- wire existing secret/config inputs into the ECS task
-- keep API Gateway/Lambda alive in parallel
-
-### Phase 25E: Controlled cutover
+### Phase 25D: Controlled cutover
 
 - validate response parity between Lambda and ECS
 - move public ingress from API Gateway custom domain to ALB
@@ -197,7 +192,8 @@ Recommended cutover order:
 3. deploy ECS service behind ALB in parallel
 4. validate route, auth, CORS, and webhook parity
 5. move Route53/custom-domain ingress to ALB
-6. keep Lambda/API Gateway as a rollback target until ECS stability is proven
+6. keep Lambda/API Gateway as a deprecated rollback target until ECS stability
+   is proven
 
 Rollback rule:
 

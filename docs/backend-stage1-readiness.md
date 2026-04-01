@@ -27,7 +27,10 @@ Split-scaffolding and transition roots:
 
 ## Entrypoint Ownership Map
 
-The live backend entrypoints still run from `infrastructure/lambda_*.py`. That is acceptable for the current phase, but they are now explicitly treated as deploy-time shims and composition roots rather than the long-term home of backend application logic.
+The repo still retains `infrastructure/lambda_*.py` entrypoints, but the
+primary public API ingress has now moved to ECS/ALB. Those Lambda entrypoints
+should be treated as deploy-time shims and composition roots rather than the
+long-term home of backend application logic.
 
 Canonical internal map:
 
@@ -36,7 +39,7 @@ Canonical internal map:
 Current live entrypoints:
 
 - `infrastructure.lambda_query.handler`
-  - HTTP API handler
+  - deprecated rollback HTTP API handler
   - owns routing, response-envelope application, and composition of customer/admin/private-platform services
 - `infrastructure.lambda_refresh.handler`
   - profile refresh job entrypoint
@@ -98,6 +101,7 @@ The test layout is now intentionally three-tiered:
   - end-to-end API coverage
   - runtime compatibility shims
   - deployment-adjacent checks
+  - Lambda-first rollback coverage while ECS is the primary runtime
 
 This keeps the repo safe while imports still point at `infrastructure/`.
 
@@ -115,6 +119,8 @@ Until a later migration phase moves live code:
 The repo is ready for frontend scaffolding at the architecture-boundary level, but a few backend follow-ups still remain:
 
 - `infrastructure/lambda_query.py` is still a large composition root and should keep shrinking over time
+- ECS-hosted HTTP runtime tests and docs still need to replace more of the
+  Lambda-first assumptions over time
 - `infrastructure/charity_status/api/` contracts still live under the legacy runtime path and are only mirrored through compatibility exports today
 - root `tests/` still carries most of the live suite, so near-package tests are scaffolded but not yet widely migrated
 - some mixed infrastructure-heavy modules, especially in `form990/`, `serving/`, and `control_plane/`, still need later seam-fix passes

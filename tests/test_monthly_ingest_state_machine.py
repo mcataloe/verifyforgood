@@ -195,7 +195,13 @@ def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
     assert "aws_security_group.api_task[0].id" in rds_content
     assert 'resource "aws_api_gateway_domain_name" "api_domain"' in route53_content
     assert 'resource "aws_route53_record" "api_record"' in route53_content
+    assert 'name                   = var.api_ecs_enabled ? aws_lb.api[0].dns_name : aws_api_gateway_domain_name.api_domain[0].cloudfront_domain_name' in route53_content
+    assert 'zone_id                = var.api_ecs_enabled ? aws_lb.api[0].zone_id : aws_api_gateway_domain_name.api_domain[0].cloudfront_zone_id' in route53_content
+    assert 'evaluate_target_health = var.api_ecs_enabled' in route53_content
     assert 'resource "aws_api_gateway_rest_api" "irs_api"' in gateway_content
-    assert "parallel ECS Fargate API runtime" in readme
+    assert "primary API ingress is now Route53 -> ALB -> ECS Fargate" in readme
+    assert "deprecated rollback path" in readme
     assert "Parallel ECS API Runtime" in infra_readme
+    assert "Route53 now points the primary API hostname at the public ALB" in infra_readme
     assert "Phase 25C/25D implementation status" in ecs_blueprint
+    assert "Route53 now points the primary hostname at the ALB" in ecs_blueprint

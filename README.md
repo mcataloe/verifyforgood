@@ -1,10 +1,11 @@
 ﻿# Charity Status API
 
-Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
+Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring through an ALB-fronted ECS Fargate API service.
 
-The current checked-in API runtime remains Lambda/API Gateway based, but the
-accepted next-stage runtime direction is an ALB-fronted ECS Fargate API service.
-See `docs/architecture/ADR-ecs-runtime-pivot.md` and
+The primary API ingress is now Route53 -> ALB -> ECS Fargate. The legacy
+API Gateway + Lambda API path remains in Terraform only as a deprecated
+rollback stack for the cutover window. See
+`docs/architecture/ADR-ecs-runtime-pivot.md` and
 `docs/implementation/ecs-runtime-migration-blueprint.md`.
 
 The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
@@ -50,7 +51,7 @@ Important:
 - Infrastructure: Terraform
 - Compute: AWS Lambda + ECS Fargate
 - Orchestration: EventBridge + Step Functions for monthly private-ingest
-- API: API Gateway today, with ALB + ECS Fargate accepted as the target runtime direction (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: ALB + ECS Fargate primary runtime, with API Gateway + Lambda retained temporarily as a deprecated rollback path (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Relational foundation: Amazon RDS for PostgreSQL (platform/application data plus additive nonprofit schema foundation)
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
@@ -213,7 +214,8 @@ Important:
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
 2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
-4. `lambda_query.py` handles verification/scoring endpoints.
+4. The ECS-hosted API handles verification/scoring endpoints, while
+   `lambda_query.py` remains the deprecated rollback implementation.
 5. For `GET /v1/nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
    - check materialized profile in DynamoDB
    - return cached profile on hit
@@ -2046,8 +2048,8 @@ Form 990 mode configuration additions:
 - `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
 - `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
 
-Phase 25C adds a parallel ECS Fargate API runtime behind an ALB without moving
-the primary Route53 alias away from API Gateway yet.
+Phase 25C/25D adds the ECS Fargate API runtime and completes the Route53
+cutover so the ALB-backed ECS service is now the primary ingress path.
 
 ECS API deployment configuration additions:
 
@@ -2074,12 +2076,18 @@ Parallel ECS API outputs now include:
 - ALB DNS name and zone id
 - ALB target group ARN
 
-Current Phase 25C ingress posture:
+Current Phase 25D ingress posture:
 
-- Route53 custom-domain alias remains on API Gateway
-- Lambda query packaging and API Gateway resources remain deployable
-- the ALB + ECS service exists in parallel for validation and later cutover
-- PostgreSQL ingress now allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+- Route53 custom-domain alias points to the API ALB
+- ECS/ALB is the primary runtime for the public API hostname
+- Lambda query packaging and API Gateway resources remain deployable only as a deprecated rollback path
+- PostgreSQL ingress allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+
+Rollback guidance for the API cutover:
+
+- restore the Route53 alias to `aws_api_gateway_domain_name.api_domain`
+- redeploy the query Lambda and API Gateway stack if the ECS runtime must be backed out
+- keep the legacy stack only until ECS stability is proven; later cleanup should remove it deliberately rather than let it drift indefinitely
 
 Current CI/CD posture:
 
