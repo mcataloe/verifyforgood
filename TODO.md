@@ -582,3 +582,46 @@ current deployment posture is still mixed:
 Keep the new nonprofit ingest persistence hook additive so environments can
 enable PostgreSQL-backed nonprofit writes deliberately without breaking the
 existing S3 manifest and artifact flow.
+
+## TODO-ARCH-026
+
+### Title
+
+Execute the staged API runtime migration from API Gateway/Lambda to ALB + ECS.
+
+### Rationale
+
+Phase 25A confirms the current HTTP API is still strongly coupled to:
+
+- `infrastructure/lambda_query.py`
+- API Gateway REST resources and integrations
+- API Gateway custom-domain routing
+- Lambda ZIP packaging and handler-oriented tests
+
+The repo already has ECS/Fargate worker patterns, but it does not yet have a
+real ASGI application boundary for the main HTTP API. The runtime pivot
+therefore requires a staged extraction and cutover plan rather than a direct
+infrastructure swap.
+
+### Migration Triggers
+
+- ASGI-capable application extraction from `lambda_query.py`
+- API containerization
+- ECS API service and ALB provisioning
+- route and auth parity validation
+- ingress cutover readiness
+
+### Constraint
+
+Keep `/v1/...` route contracts stable and preserve Lambda/API Gateway as a
+rollback path until ECS parity is validated.
+
+### Follow-On Sequence
+
+1. extract a framework-neutral application boundary from `lambda_query.py`
+2. introduce an ASGI app factory and keep Lambda as a compatibility adapter
+3. add API container packaging and local run support
+4. provision ALB + ECS Fargate infrastructure for the API
+5. run Lambda/ECS parity validation for routes, auth, CORS, and webhooks
+6. cut ingress over from API Gateway custom domain to ALB
+7. remove obsolete API-serving Lambda/API Gateway resources after validation

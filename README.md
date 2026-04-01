@@ -2,6 +2,11 @@
 
 Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring via Lambda + API Gateway.
 
+The current checked-in API runtime remains Lambda/API Gateway based, but the
+accepted next-stage runtime direction is an ALB-fronted ECS Fargate API service.
+See `docs/architecture/ADR-ecs-runtime-pivot.md` and
+`docs/implementation/ecs-runtime-migration-blueprint.md`.
+
 The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
 
 Customer-facing overview:
@@ -45,7 +50,7 @@ Important:
 - Infrastructure: Terraform
 - Compute: AWS Lambda + ECS Fargate
 - Orchestration: EventBridge + Step Functions for monthly private-ingest
-- API: API Gateway (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
+- API: API Gateway today, with ALB + ECS Fargate accepted as the target runtime direction (`GET /v1/nonprofit/{ein}`, `GET /v1/nonprofit/{ein}/filings`, `GET /v1/nonprofits/search`, `GET /v1/nonprofits/{ein}/sources`, `GET /v1/nonprofits/{ein}/sources/{source_name}`, `GET /v1/nonprofits/{ein}/compliance`, `GET /v1/nonprofits/{ein}/federal-awards`, `GET /v1/organization/settings`, `PUT /v1/organization/settings`, `POST /v1/organization/billing/checkout-session`, `POST /v1/organization/billing/plan-change`, `POST /v1/organization/billing/portal-session`, `GET /v1/organization/billing/subscription`, `POST /v1/webhooks/stripe`, `POST /v1/verify`, `POST /v1/verify/batch`, `POST /v1/oauth/token`, admin control-plane routes under `/v1/admin/...`)
 - Data lake: S3 + Glue Catalog + Athena
 - Relational foundation: Amazon RDS for PostgreSQL (platform/application data plus additive nonprofit schema foundation)
 - Serving cache: DynamoDB materialized nonprofit profiles (lazy read-through)
