@@ -35,6 +35,7 @@ Dependency direction:
 Migration note:
 
 - this boundary is documented now so later refactors can move code out incrementally without breaking current deployment assumptions
+- `backend/` now provides the first-class Python runtime workspace layer; `infrastructure/` should keep packaging or deploy-time references pointed there as extraction phases proceed
 - naming is decoupled from product branding so infrastructure identity does not have to change when customer-facing names do
 - use `docs/contributor-naming-rules.md` for the short naming rules shared across runtime and infrastructure work
 - the current normalization rules, compatibility aliases, and legacy exceptions are documented in `docs/infrastructure-naming-normalization.md`

@@ -7,6 +7,11 @@ Target ownership for `backend/worker/`:
 - future generic worker/background-job entrypoints
 - shared worker bootstrap that is not specific to ingest-task execution
 
+Python package root:
+
+- `backend/worker/src/charity_status_backend/worker/`
+- local scaffold entrypoint: `python -m charity_status_backend.worker.entrypoint`
+
 Planned inbound migration:
 
 - `infrastructure.lambda_refresh`

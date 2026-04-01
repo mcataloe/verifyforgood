@@ -7,6 +7,11 @@ Target ownership for `backend/ingest-task/`:
 - Form 990 orchestration and chunk-processing task hosts
 - ECS task entrypoints and queue/chunk-processing runtime assembly for ingest workloads
 
+Python package root:
+
+- `backend/ingest-task/src/charity_status_backend/ingest_task/`
+- local scaffold entrypoint: `python -m charity_status_backend.ingest_task.entrypoint`
+
 Planned inbound migration:
 
 - `infrastructure.lambda_ingest`

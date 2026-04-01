@@ -179,6 +179,7 @@ How these layers should be interpreted:
 
 - `frontend/` is the dedicated pnpm workspace and browser/runtime UI layer
 - `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
+- `backend/` now uses a dedicated Python workspace scaffold rooted at `backend/pyproject.toml`
 - `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and temporary compatibility shims only
 - `public-core/` and `private-platform/` remain package boundaries, not replacements for `backend/`
 

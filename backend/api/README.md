@@ -8,6 +8,11 @@ Target ownership for `backend/api/`:
 - health and readiness endpoint ownership
 - the eventual source of truth for the public API runtime once legacy Lambda rollback shims are retired
 
+Python package root:
+
+- `backend/api/src/charity_status_backend/api/`
+- local scaffold entrypoint: `python -m charity_status_backend.api.entrypoint`
+
 Planned inbound migration:
 
 - `infrastructure.lambda_query`

@@ -182,6 +182,7 @@ Key design decisions:
 
 - `frontend/` remains the browser/runtime UI layer and should stay separate from Python runtime tooling.
 - `backend/` becomes the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap concerns.
+- `backend/` should use a pragmatic Python workspace layout so local runtime development can happen without introducing a repo-wide Python monorepo toolchain.
 - `public-core` remains the canonical home for reusable deterministic domain logic.
 - `private-platform` owns all platform billing. Nothing billing-related should live in public-core.
 - All billing stays private-platform.
@@ -227,6 +228,12 @@ Transition rule:
 
 - `private-platform/src/charity_status_platform/runtime/backend_contracts.py` remains the compatibility re-export root until shared runtime contracts move out of the legacy infrastructure path
 - `infrastructure/` may keep temporary deployment shims while packaging and deploy wiring catch up, but it should stop accumulating runtime ownership
+
+Current workspace posture:
+
+- `backend/` now carries a single setuptools project rooted at `backend/pyproject.toml`
+- runtime-owned source roots remain explicit under `backend/api/src/`, `backend/worker/src/`, `backend/ingest-task/src/`, and `backend/shared/src/`
+- this keeps runtime ownership visible while still allowing one editable backend install for local development
 
 Private-platform service areas now defined in the repo:
 

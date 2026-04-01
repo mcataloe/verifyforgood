@@ -86,6 +86,18 @@ Target backend ownership map:
 - `backend/shared/`
   - target home for runtime-only shared bootstrap, transport helpers, logging/config wiring, and compatibility helpers
 
+Backend Python workspace posture:
+
+- `backend/` now has a first-class setuptools workspace in `backend/pyproject.toml`
+- runtime-owned source roots now live under:
+  - `backend/api/src/`
+  - `backend/worker/src/`
+  - `backend/ingest-task/src/`
+  - `backend/shared/src/`
+- the installed runtime import root is `charity_status_backend`
+- local scaffold entrypoints exist for API, worker, and ingest-task runtime homes
+- live runtime behavior still remains under `infrastructure/lambda_*.py` until later extraction phases move execution over deliberately
+
 Compatibility posture for the transition:
 
 - `charity_status_platform.runtime.entrypoints` remains the canonical map of current live handler imports until extraction phases move the real entrypoints

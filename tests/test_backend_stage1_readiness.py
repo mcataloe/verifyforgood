@@ -107,20 +107,26 @@ def test_split_plan_tracks_shared_contracts_and_test_layers():
 def test_backend_stage1_docs_and_test_readmes_exist():
     readiness_doc = ROOT / "docs" / "backend-stage1-readiness.md"
     backend_doc = ROOT / "backend" / "README.md"
+    backend_pyproject = ROOT / "backend" / "pyproject.toml"
     backend_api_doc = ROOT / "backend" / "api" / "README.md"
     backend_worker_doc = ROOT / "backend" / "worker" / "README.md"
     backend_ingest_doc = ROOT / "backend" / "ingest-task" / "README.md"
     backend_shared_doc = ROOT / "backend" / "shared" / "README.md"
+    backend_tests_doc = ROOT / "backend" / "tests" / "README.md"
+    private_platform_pyproject = ROOT / "private-platform" / "pyproject.toml"
     tests_doc = ROOT / "tests" / "README.md"
     public_tests_doc = ROOT / "public-core" / "tests" / "README.md"
     private_tests_doc = ROOT / "private-platform" / "tests" / "README.md"
 
     assert readiness_doc.exists()
     assert backend_doc.exists()
+    assert backend_pyproject.exists()
     assert backend_api_doc.exists()
     assert backend_worker_doc.exists()
     assert backend_ingest_doc.exists()
     assert backend_shared_doc.exists()
+    assert backend_tests_doc.exists()
+    assert private_platform_pyproject.exists()
     assert tests_doc.exists()
     assert public_tests_doc.exists()
     assert private_tests_doc.exists()
@@ -133,15 +139,18 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/worker/`" in readiness_text
     assert "`backend/ingest-task/`" in readiness_text
     assert "`backend/shared/`" in readiness_text
+    assert "first-class setuptools workspace" in readiness_text
+    assert "the installed runtime import root is `charity_status_backend`" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
     assert "Remaining Blockers Before Frontend Scaffolding" in readiness_text
 
     backend_text = backend_doc.read_text(encoding="utf-8")
-    assert "future executable runtime host layer" in backend_text
+    assert "executable backend runtime host layer" in backend_text
     assert "`backend/api/`" in backend_text
     assert "`backend/worker/`" in backend_text
     assert "`backend/ingest-task/`" in backend_text
     assert "`backend/shared/`" in backend_text
+    assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
 
     tests_text = tests_doc.read_text(encoding="utf-8")
     assert "public-core/tests/" in tests_text

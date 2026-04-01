@@ -8,6 +8,11 @@ Target ownership for `backend/shared/`:
 - request/response compatibility helpers that do not belong in deployment-only paths
 - health/readiness helpers and other shared runtime concerns
 
+Python package root:
+
+- `backend/shared/src/charity_status_backend/shared/`
+- current scaffold helpers should stay intentionally small and runtime-focused
+
 Planned inbound migration:
 
 - runtime bootstrap helpers currently assembled under `infrastructure/charity_status/platform/`

@@ -1,10 +1,13 @@
 # Backend Runtime Layer
 
-This directory is the future executable runtime host layer for the repository.
+This directory is the executable backend runtime host layer for the repository.
+It remains the future executable runtime host layer for runtime code that still
+needs to move out of `infrastructure/`.
 
 Current role:
 
-- define where long-lived backend runtimes will live as code moves out of `infrastructure/`
+- define where long-lived backend runtimes live as code moves out of `infrastructure/`
+- provide a first-class Python workspace for backend runtime scaffolding and local development
 - document ownership boundaries for API, worker, ingest-task, and shared runtime concerns
 - keep the runtime topology explicit without forcing a full handler migration yet
 
@@ -19,6 +22,15 @@ Target subdirectories:
 - `backend/shared/`
   - runtime-only shared bootstrap/config/logging/request helpers and compatibility exports
 
+Python workspace layout:
+
+- `backend/pyproject.toml`
+  - single setuptools project for backend runtime scaffolding
+- `backend/api/src/charity_status_backend/api/`
+- `backend/worker/src/charity_status_backend/worker/`
+- `backend/ingest-task/src/charity_status_backend/ingest_task/`
+- `backend/shared/src/charity_status_backend/shared/`
+
 Dependency direction:
 
 - `backend/` may depend on `public-core/` and `private-platform/`
@@ -30,3 +42,24 @@ Migration note:
 
 - live runtime entrypoints still remain under `infrastructure/lambda_*.py` in this phase
 - those modules should shrink into compatibility shims as backend runtime hosts are introduced in later phases
+
+Local development:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .\public-core -e .\private-platform -e .\backend
+```
+
+Scaffold runtime commands:
+
+```powershell
+python -m charity_status_backend.api.entrypoint
+python -m charity_status_backend.worker.entrypoint
+python -m charity_status_backend.ingest_task.entrypoint
+```
+
+Those commands intentionally exit with a scaffold-only message. They establish
+the future runtime homes and local import paths without cutting live behavior
+over from `infrastructure/` yet.

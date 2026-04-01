@@ -36,32 +36,55 @@ def test_repo_target_architecture_doc_exists():
 
 def test_package_scaffolding_roots_exist():
     backend_root = Path("backend")
+    backend_pyproject = backend_root / "pyproject.toml"
     backend_api = Path("backend/api")
     backend_worker = Path("backend/worker")
     backend_ingest = Path("backend/ingest-task")
     backend_shared = Path("backend/shared")
+    backend_tests = backend_root / "tests" / "README.md"
+    backend_api_package = backend_api / "src" / "charity_status_backend" / "api"
+    backend_worker_package = backend_worker / "src" / "charity_status_backend" / "worker"
+    backend_ingest_package = backend_ingest / "src" / "charity_status_backend" / "ingest_task"
+    backend_shared_package = backend_shared / "src" / "charity_status_backend" / "shared"
     public_root = Path("public-core/src/charity_status")
     private_root = Path("private-platform/src/charity_status_platform")
+    private_pyproject = Path("private-platform/pyproject.toml")
     infrastructure_doc = Path("infrastructure/README.md")
     public_tests = Path("public-core/tests/README.md")
     private_tests = Path("private-platform/tests/README.md")
     root_tests = Path("tests/README.md")
 
     assert backend_root.exists()
+    assert backend_pyproject.exists()
     assert (backend_root / "README.md").exists()
+    assert backend_tests.exists()
     assert backend_api.exists()
     assert (backend_api / "README.md").exists()
+    assert backend_api_package.exists()
+    assert (backend_api_package / "__init__.py").exists()
+    assert (backend_api_package / "entrypoint.py").exists()
     assert backend_worker.exists()
     assert (backend_worker / "README.md").exists()
+    assert backend_worker_package.exists()
+    assert (backend_worker_package / "__init__.py").exists()
+    assert (backend_worker_package / "entrypoint.py").exists()
     assert backend_ingest.exists()
     assert (backend_ingest / "README.md").exists()
+    assert backend_ingest_package.exists()
+    assert (backend_ingest_package / "__init__.py").exists()
+    assert (backend_ingest_package / "entrypoint.py").exists()
     assert backend_shared.exists()
     assert (backend_shared / "README.md").exists()
+    assert backend_shared_package.exists()
+    assert (backend_shared_package / "__init__.py").exists()
+    assert (backend_shared_package / "runtime_identity.py").exists()
+    assert (backend_shared_package / "cli.py").exists()
 
     assert public_root.exists()
     assert (public_root / "__init__.py").exists()
     assert (public_root / "README.md").exists()
 
+    assert private_pyproject.exists()
     assert private_root.exists()
     assert (private_root / "__init__.py").exists()
     assert (private_root / "README.md").exists()
@@ -74,6 +97,10 @@ def test_package_scaffolding_roots_exist():
 
 def test_package_scaffolding_docs_define_boundaries():
     backend_text = Path("backend/README.md").read_text(encoding="utf-8")
+    backend_api_text = Path("backend/api/README.md").read_text(encoding="utf-8")
+    backend_worker_text = Path("backend/worker/README.md").read_text(encoding="utf-8")
+    backend_ingest_text = Path("backend/ingest-task/README.md").read_text(encoding="utf-8")
+    backend_shared_text = Path("backend/shared/README.md").read_text(encoding="utf-8")
     public_text = Path("public-core/src/charity_status/README.md").read_text(encoding="utf-8")
     private_text = Path("private-platform/src/charity_status_platform/README.md").read_text(encoding="utf-8")
     infrastructure_text = Path("infrastructure/README.md").read_text(encoding="utf-8")
@@ -81,6 +108,15 @@ def test_package_scaffolding_docs_define_boundaries():
 
     assert "future executable runtime host layer" in backend_text
     assert "backend/` may depend on `public-core/` and `private-platform/`" in backend_text
+    assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
+    assert "python -m charity_status_backend.api.entrypoint" in backend_text
+    assert "python -m charity_status_backend.worker.entrypoint" in backend_text
+    assert "python -m charity_status_backend.ingest_task.entrypoint" in backend_text
+
+    assert "backend/api/src/charity_status_backend/api/" in backend_api_text
+    assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
+    assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
+    assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
 
     assert "Forbidden contents" in public_text
     assert "Dependency direction" in public_text
@@ -96,6 +132,28 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "public-core/tests/" in tests_text
     assert "private-platform/tests/" in tests_text
     assert "compatibility" in tests_text.lower()
+
+
+def test_backend_workspace_metadata_and_frontend_boundaries_remain_stable():
+    backend_pyproject = Path("backend/pyproject.toml").read_text(encoding="utf-8")
+    private_pyproject = Path("private-platform/pyproject.toml").read_text(encoding="utf-8")
+    frontend_package = Path("frontend/package.json").read_text(encoding="utf-8")
+    frontend_workspace = Path("frontend/pnpm-workspace.yaml").read_text(encoding="utf-8")
+
+    assert 'name = "charity-status-backend"' in backend_pyproject
+    assert '"charity_status_backend.api" = "api/src/charity_status_backend/api"' in backend_pyproject
+    assert '"charity_status_backend.worker" = "worker/src/charity_status_backend/worker"' in backend_pyproject
+    assert '"charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"' in backend_pyproject
+    assert '"charity_status_backend.shared" = "shared/src/charity_status_backend/shared"' in backend_pyproject
+    assert 'packages = [' in backend_pyproject
+    assert '"charity_status_backend.ingest_task"' in backend_pyproject
+
+    assert 'name = "charity-status-private-platform"' in private_pyproject
+    assert 'package-dir = {"" = "src"}' in private_pyproject
+
+    assert '"name": "verifyforgood-frontend-workspace"' in frontend_package
+    assert "docs:" not in frontend_workspace.lower()
+    assert "shared/*" in frontend_workspace
 
 
 def test_split_plan_records_operational_layers_and_backend_targets():
