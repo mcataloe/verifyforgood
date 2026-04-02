@@ -79,3 +79,6 @@ venv
 
 # Downloads
 downloads
+
+# Local backend workspaces
+.workspace/

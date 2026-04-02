@@ -83,6 +83,9 @@ Target backend ownership map:
   - target home for profile refresh and future generic worker runtime hosts
 - `backend/ingest-task/`
   - current home for Form 990 ingest/orchestration/worker runtime ownership and monthly ingest runtime entrypoints
+  - now also owns the local-first Form 990 workspace architecture contract:
+    archive-at-a-time processing, deterministic workspace directories, and
+    ECS-compatible ephemeral-disk expectations
 - `backend/shared/`
   - target home for runtime-only shared bootstrap, transport helpers, logging/config wiring, and compatibility helpers
 
@@ -102,6 +105,10 @@ Backend Python workspace posture:
   `PLATFORM_POSTGRES_URL`, not AWS secret-backed wiring
 - backend-owned Dockerfiles now live under `backend/api/`, `backend/worker/`,
   and `backend/ingest-task/` as the canonical runtime image contracts
+- `backend/ingest-task` now defines a local-first Form 990 workspace model
+  rooted at `FORM990_WORKSPACE_DIR`, with deterministic `archives/`,
+  `extracted/`, `logs/`, and `state/` subdirectories. The canonical
+  local-first workspace contract explicitly uses `archives/`, `extracted/`, `logs/`, and `state/`. In short: `archives/`, `extracted/`, `logs/`, and `state/` are the required workspace directories so local runs can match future ECS ephemeral-storage layout more closely
 - Terraform now maps those runtime boundaries explicitly:
   - `backend/api` -> ALB-backed ECS service
   - `backend/worker` -> private ECS service placeholder, disabled by default

@@ -22,7 +22,20 @@ CURRENT_COMPATIBILITY_SOURCES = (
     "infrastructure.lambda_form990_worker.handler",
 )
 
+FORM990_WORKSPACE_MODULES = (
+    "charity_status_backend.ingest_task.discovery",
+    "charity_status_backend.ingest_task.metadata",
+    "charity_status_backend.ingest_task.download",
+    "charity_status_backend.ingest_task.extract",
+    "charity_status_backend.ingest_task.hashing",
+    "charity_status_backend.ingest_task.parse",
+    "charity_status_backend.ingest_task.persist",
+    "charity_status_backend.ingest_task.cleanup",
+    "charity_status_backend.ingest_task.orchestration",
+)
+
 __all__ = [
     "RUNTIME_NAME",
     "CURRENT_COMPATIBILITY_SOURCES",
+    "FORM990_WORKSPACE_MODULES",
 ]

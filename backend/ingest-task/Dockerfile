@@ -2,6 +2,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV FORM990_WORKSPACE_DIR=/tmp/charity-status/form990
+ENV FORM990_WORKSPACE_MAX_BYTES=34359738368
 ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/ingest-task/src:/app/backend/shared/src
 
 WORKDIR /app

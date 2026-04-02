@@ -59,6 +59,64 @@ Backend-owned runtime modules:
 - `persistence.py`
   - shared nonprofit ingest persistence runtime helper
 
+Local-first Form 990 workspace model:
+
+- canonical workspace root comes from `FORM990_WORKSPACE_DIR`
+- default local example: `./.workspace/form990`
+- default container example: `/tmp/charity-status/form990`
+- workspace layout:
+
+```text
+workspace/
+  archives/
+    {archive_name}.zip
+  extracted/
+    {archive_name}/
+      *.xml
+  logs/
+  state/
+```
+
+- only one archive should be processed at a time inside a given workspace
+- extracted XML files are expected to be deleted immediately after archive-scoped processing completes
+- ZIP files are expected to be deleted after archive processing completes
+- the runtime keeps this model local-first so the same logic can run on a developer machine or inside ECS ephemeral storage
+- current workspace helpers live under:
+  - `orchestration/workspace.py`
+  - `cleanup/`
+  - `metadata/`
+
+Form 990 local-first module map:
+
+- `discovery/`
+  - source discovery and archive-selection seams
+- `metadata/`
+  - archive-scoped runtime metadata and workspace retention contracts
+- `download/`
+  - archive acquisition into workspace `archives/`
+- `extract/`
+  - ZIP extraction into workspace `extracted/`
+- `hashing/`
+  - archive and payload fingerprint helpers
+- `parse/`
+  - XML parsing seams layered over reusable `charity_status.form990` logic
+- `persist/`
+  - PostgreSQL-backed nonprofit persistence entrypoints and adapters
+- `cleanup/`
+  - deterministic deletion of extracted XML and processed ZIP files
+- `orchestration/`
+  - workspace lifecycle, archive-at-a-time execution, and runtime coordination
+- `cli.py`
+  - local developer command surface
+- `entrypoint.py`
+  - env-aware local execution bootstrap
+
+Current migration boundary:
+
+- `backend/ingest-task` is now the canonical runtime architecture home for the local-first Form 990 workspace model
+- reusable parser and batch-processing logic under `infrastructure/charity_status/form990/` still remains in place while the runtime migrates toward the new module seams
+- `form990/runtime.py` and `form990/worker.py` still own the live compatibility behavior today, but future refactors should move archive download, extraction, parsing, persistence, and cleanup responsibilities through the new module map rather than adding more logic directly to the runtime hosts
+
 Planned inbound migration:
 
 - `infrastructure.lambda_ingest`

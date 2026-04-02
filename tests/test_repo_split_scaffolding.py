@@ -19,12 +19,21 @@ def test_split_plan_has_expected_sections():
 
 def test_repo_target_architecture_doc_exists():
     doc = Path("docs/repo-target-architecture.md")
+    workspace_doc = Path("docs/architecture/form990-local-workspace-architecture.md")
     assert doc.exists()
+    assert workspace_doc.exists()
     text = doc.read_text(encoding="utf-8")
+    workspace_text = workspace_doc.read_text(encoding="utf-8")
     assert "All billing stays private-platform" in text
     assert "Backend Runtime Ownership Targets" in text
     assert "`backend/` becomes the executable runtime host layer" in text
     assert "What Should Be Done First" in text
+    assert "local-first workspace execution model" in text
+
+    assert "Workspace Contract" in workspace_text
+    assert "process one archive at a time inside a workspace" in workspace_text
+    assert "32 GiB ECS ephemeral storage" in workspace_text
+    assert "charity_status_backend.ingest_task.orchestration.workspace" in workspace_text
 
     readiness = Path("docs/backend-stage1-readiness.md")
     assert readiness.exists()
@@ -48,6 +57,16 @@ def test_package_scaffolding_roots_exist():
     backend_ingest_package = backend_ingest / "src" / "charity_status_backend" / "ingest_task"
     backend_ingest_form990 = backend_ingest_package / "form990"
     backend_ingest_monthly = backend_ingest_package / "monthly"
+    backend_ingest_discovery = backend_ingest_package / "discovery"
+    backend_ingest_metadata = backend_ingest_package / "metadata"
+    backend_ingest_download = backend_ingest_package / "download"
+    backend_ingest_extract = backend_ingest_package / "extract"
+    backend_ingest_hashing = backend_ingest_package / "hashing"
+    backend_ingest_parse = backend_ingest_package / "parse"
+    backend_ingest_persist = backend_ingest_package / "persist"
+    backend_ingest_cleanup = backend_ingest_package / "cleanup"
+    backend_ingest_orchestration = backend_ingest_package / "orchestration"
+    backend_ingest_entrypoints = backend_ingest_package / "entrypoints"
     backend_shared_package = backend_shared / "src" / "charity_status_backend" / "shared"
     public_root = Path("public-core/src/charity_status")
     private_root = Path("private-platform/src/charity_status_platform")
@@ -90,6 +109,27 @@ def test_package_scaffolding_roots_exist():
     assert (backend_ingest_monthly / "__init__.py").exists()
     assert (backend_ingest_monthly / "staging.py").exists()
     assert (backend_ingest_monthly / "worker.py").exists()
+    assert backend_ingest_discovery.exists()
+    assert (backend_ingest_discovery / "__init__.py").exists()
+    assert backend_ingest_metadata.exists()
+    assert (backend_ingest_metadata / "__init__.py").exists()
+    assert backend_ingest_download.exists()
+    assert (backend_ingest_download / "__init__.py").exists()
+    assert backend_ingest_extract.exists()
+    assert (backend_ingest_extract / "__init__.py").exists()
+    assert backend_ingest_hashing.exists()
+    assert (backend_ingest_hashing / "__init__.py").exists()
+    assert backend_ingest_parse.exists()
+    assert (backend_ingest_parse / "__init__.py").exists()
+    assert backend_ingest_persist.exists()
+    assert (backend_ingest_persist / "__init__.py").exists()
+    assert backend_ingest_cleanup.exists()
+    assert (backend_ingest_cleanup / "__init__.py").exists()
+    assert backend_ingest_orchestration.exists()
+    assert (backend_ingest_orchestration / "__init__.py").exists()
+    assert (backend_ingest_orchestration / "workspace.py").exists()
+    assert backend_ingest_entrypoints.exists()
+    assert (backend_ingest_entrypoints / "__init__.py").exists()
     assert (backend_ingest_package / "persistence.py").exists()
     assert backend_shared.exists()
     assert (backend_shared / "README.md").exists()
@@ -156,6 +196,10 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "monthly/worker.py" in backend_ingest_text
     assert "backend/ingest-task/Dockerfile" in backend_ingest_text
     assert "ECS task definition invoked by schedules or one-off runs" in backend_ingest_text
+    assert "FORM990_WORKSPACE_DIR" in backend_ingest_text
+    assert "workspace/" in backend_ingest_text
+    assert "orchestration/workspace.py" in backend_ingest_text
+    assert "archive download, extraction, parsing, persistence, and cleanup responsibilities" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
     assert "backend/.env.local" in backend_shared_text
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_shared_text
@@ -213,11 +257,14 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     assert "PLATFORM_NONPROFIT_STORE_BACKEND=postgres" in backend_env_example
     assert "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres" in backend_env_example
     assert "PORTAL_AUTH_TOKEN_SECRET=dev-portal-auth-secret" in backend_env_example
+    assert "FORM990_WORKSPACE_DIR=./.workspace/form990" in backend_env_example
+    assert "FORM990_WORKSPACE_MAX_BYTES=34359738368" in backend_env_example
 
     assert "load_backend_local_env" in api_entrypoint
     assert "load_backend_local_env" in worker_entrypoint
     assert "load_backend_local_env" in ingest_entrypoint
     assert 'choices=("db-upgrade", "db-current")' in local_dev
+    assert "from .cli import main as cli_main" in ingest_entrypoint
 
 
 def test_split_plan_records_operational_layers_and_backend_targets():

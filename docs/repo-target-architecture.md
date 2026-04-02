@@ -226,6 +226,9 @@ Target runtime placement:
   - intended long-term deployment target: ECS task-style execution for
     scheduled and one-off ingest runs
   - current home for Form 990 and monthly ingest-task runtime ownership, while infrastructure retains thin deployment adapters
+  - should converge on a local-first workspace execution model so one archive
+    runs at a time inside a deterministic workspace that can map equally well
+    to developer disk or ECS ephemeral storage
 - `backend/shared/`
   - future home for runtime bootstrap helpers, shared transport/runtime compatibility helpers, logging/config assembly, and other runtime-only concerns
 

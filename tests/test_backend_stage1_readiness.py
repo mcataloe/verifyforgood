@@ -152,6 +152,9 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/api` -> ALB-backed ECS service" in readiness_text
     assert "`backend/worker` -> private ECS service placeholder" in readiness_text
     assert "`backend/ingest-task` -> ECS task-style runtime" in readiness_text
+    assert "local-first Form 990 workspace architecture contract" in readiness_text
+    assert "`FORM990_WORKSPACE_DIR`" in readiness_text
+    assert "`archives/`, `extracted/`, `logs/`, and `state/`" in readiness_text
     assert "thin rollback/import shim" in readiness_text
     assert "thin compatibility/import shims over backend-owned ingest runtime modules" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
@@ -170,6 +173,8 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "backend/api/Dockerfile" in backend_text
     assert "provisionable ECS service slot" in backend_text
     assert "backend/ingest-task/Dockerfile" in backend_text
+    assert "FORM990_WORKSPACE_DIR" in backend_ingest_doc.read_text(encoding="utf-8")
+    assert "local-first Form 990 workspace model" in backend_ingest_doc.read_text(encoding="utf-8")
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
     assert "charity_status_backend.api.runtime" in backend_api_text
