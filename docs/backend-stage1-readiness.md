@@ -100,6 +100,8 @@ Backend Python workspace posture:
   backend-owned `charity_status_backend.shared.local_dev` migration wrapper
 - the canonical local database path is a direct PostgreSQL endpoint via
   `PLATFORM_POSTGRES_URL`, not AWS secret-backed wiring
+- backend-owned Dockerfiles now live under `backend/api/`, `backend/worker/`,
+  and `backend/ingest-task/` as the canonical runtime image contracts
 - live runtime behavior still remains under `infrastructure/lambda_*.py` until later extraction phases move execution over deliberately
 
 Compatibility posture for the transition:

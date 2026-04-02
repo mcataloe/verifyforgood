@@ -17,5 +17,9 @@ frontend/**/dist
 frontend/**/coverage
 infrastructure/build
 infrastructure/*.zip
+.env
+.env.*
+backend/.env.local
+backend/.env.local.example
 venv
 .venv

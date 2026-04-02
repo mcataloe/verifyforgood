@@ -64,16 +64,19 @@ def test_package_scaffolding_roots_exist():
     assert backend_tests.exists()
     assert backend_api.exists()
     assert (backend_api / "README.md").exists()
+    assert (backend_api / "Dockerfile").exists()
     assert backend_api_package.exists()
     assert (backend_api_package / "__init__.py").exists()
     assert (backend_api_package / "entrypoint.py").exists()
     assert backend_worker.exists()
     assert (backend_worker / "README.md").exists()
+    assert (backend_worker / "Dockerfile").exists()
     assert backend_worker_package.exists()
     assert (backend_worker_package / "__init__.py").exists()
     assert (backend_worker_package / "entrypoint.py").exists()
     assert backend_ingest.exists()
     assert (backend_ingest / "README.md").exists()
+    assert (backend_ingest / "Dockerfile").exists()
     assert backend_ingest_package.exists()
     assert (backend_ingest_package / "__init__.py").exists()
     assert (backend_ingest_package / "entrypoint.py").exists()
@@ -134,16 +137,22 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "python -m charity_status_backend.api.entrypoint" in backend_text
     assert "python -m charity_status_backend.worker.entrypoint" in backend_text
     assert "python -m charity_status_backend.ingest_task.entrypoint" in backend_text
+    assert "docker build -f backend/api/Dockerfile ." in backend_text
+    assert "docker build -f backend/worker/Dockerfile ." in backend_text
+    assert "docker build -f backend/ingest-task/Dockerfile ." in backend_text
 
     assert "backend/api/src/charity_status_backend/api/" in backend_api_text
     assert "charity_status_backend.api.app:app" in backend_api_text
     assert "backend/.env.local" in backend_api_text
     assert "PLATFORM_POSTGRES_URL" in backend_api_text
+    assert "backend/api/Dockerfile" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
+    assert "backend/worker/Dockerfile" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
     assert "python -m charity_status_backend.ingest_task.cli form990" in backend_ingest_text
     assert "monthly/staging.py" in backend_ingest_text
     assert "monthly/worker.py" in backend_ingest_text
+    assert "backend/ingest-task/Dockerfile" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
     assert "backend/.env.local" in backend_shared_text
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_shared_text

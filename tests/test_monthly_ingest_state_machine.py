@@ -109,7 +109,8 @@ def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
     assert 'ephemeral_storage {' in content
     assert 'monthly_ingest_worker_image_uri_resolved' in content
     assert 'monthly_ingest_task_definition_arn_resolved' in content
-    assert 'command   = ["python", "monthly_ingest_worker.py"]' in content
+    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in content
+    assert 'command    = ["monthly-worker"]' in content
     assert 'FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES' in content
 
 

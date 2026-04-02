@@ -317,4 +317,4 @@ That separation supports future additions such as:
 - TODO: provision or connect the target ECS task definition, cluster, subnet, and security-group references per environment
 - TODO: connect task output artifacts to downstream dataset-specific manifests
 - TODO: add workflow-specific schedule builders if future monthly sources need stronger typed schedule_context helpers
-- TODO: add CI or release automation to build and push `Dockerfile.monthly-ingest` images into the managed ECR repository
+- TODO: add CI or release automation to build and push `backend/ingest-task/Dockerfile` images into the managed ECR repository

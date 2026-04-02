@@ -185,5 +185,5 @@ Troubleshooting sequence:
 ## Remaining Follow-Up
 
 - connect expected job artifacts (`manifest.json`, `artifacts.json`, `summary.json`) to downstream dataset-specific processing
-- add image build/push automation for the managed ECR repository
+- add image build/push automation for the backend-owned `backend/ingest-task/Dockerfile`
 - decide whether later phases should emit a customer-safe summary record outside Step Functions execution history

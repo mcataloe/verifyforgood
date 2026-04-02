@@ -18,6 +18,30 @@ Python package root:
   - `python -m charity_status_backend.ingest_task.cli monthly-staging`
   - `python -m charity_status_backend.ingest_task.cli monthly-worker`
 
+Container build/run:
+
+```powershell
+docker build -f backend/ingest-task/Dockerfile .
+docker run --env-file backend/.env.local <ingest-image>
+docker run --env-file backend/.env.local <ingest-image> form990
+docker run --env-file backend/.env.local <ingest-image> form990-worker
+docker run --env-file backend/.env.local <ingest-image> form990-orchestrator
+```
+
+Container contract:
+
+- canonical ECS-aligned task image for ingest runtimes
+- image entrypoint: `python -m charity_status_backend.ingest_task.cli`
+- default command: `monthly-worker`
+- supported command overrides:
+  - `form990`
+  - `form990-worker`
+  - `form990-orchestrator`
+  - `monthly-staging`
+  - `monthly-worker`
+- monthly staging remains Lambda-oriented even though the CLI supports local
+  invocation of the staging runtime shape
+
 Backend-owned runtime modules:
 
 - `form990/runtime.py`
@@ -45,3 +69,5 @@ Temporary compatibility note:
 - checked-in runtime assets such as `infrastructure/charity_status/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
 - infrastructure-owned deployment wiring may continue to reference compatibility shims during the transition
 - `infrastructure.lambda_form990`, `infrastructure.lambda_form990_worker`, `infrastructure.lambda_form990_orchestrator`, `infrastructure.lambda_monthly_ingest_staging`, `infrastructure.monthly_ingest_worker`, and `infrastructure.nonprofit_ingest_persistence` now remain as thin compatibility adapters
+- the ECS task definition should now align to this backend-owned image contract
+  rather than an infrastructure-owned Dockerfile path

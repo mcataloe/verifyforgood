@@ -119,6 +119,9 @@ Current deployment posture:
   service, API ECR repository, ALB target group, and API task log group
 - PostgreSQL ingress includes the ECS API task security group when
   `platform_postgres_enabled=true`
+- container ownership now lives under `backend/api/Dockerfile` and
+  `backend/ingest-task/Dockerfile`; infrastructure consumes image URIs and ECS
+  task definitions rather than owning the runtime Dockerfiles
 
 Required environment inputs when `api_ecs_enabled=true`:
 
@@ -144,3 +147,10 @@ Rollback note:
   fails
 - later cleanup should remove those API-serving resources once ECS stability is
   confirmed
+
+Container build guidance:
+
+- `backend/api/Dockerfile` is the canonical API image contract
+- `backend/worker/Dockerfile` is the future worker-service image contract
+- `backend/ingest-task/Dockerfile` is the canonical ECS task image contract for
+  monthly and Form 990 task execution

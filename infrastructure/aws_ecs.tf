@@ -132,7 +132,8 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
       name      = trim(var.monthly_ingest_container_name, " ")
       image     = local.monthly_ingest_worker_image_uri_resolved
       essential = true
-      command   = ["python", "monthly_ingest_worker.py"]
+      entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]
+      command    = ["monthly-worker"]
       environment = [
         {
           name  = "AWS_REGION"

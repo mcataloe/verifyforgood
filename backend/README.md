@@ -83,6 +83,23 @@ API local run:
 python -m charity_status_backend.api.entrypoint
 ```
 
+Container build contracts:
+
+```powershell
+docker build -f backend/api/Dockerfile .
+docker build -f backend/worker/Dockerfile .
+docker build -f backend/ingest-task/Dockerfile .
+```
+
+Runtime mapping:
+
+- `backend/api/Dockerfile`
+  - ECS-aligned long-lived API service image
+- `backend/worker/Dockerfile`
+  - ECS-aligned long-lived worker service placeholder
+- `backend/ingest-task/Dockerfile`
+  - ECS-aligned task image with command-based ingest runtime selection
+
 Worker and ingest commands still intentionally exit with scaffold-only
 messages. The API command now starts the backend-owned ASGI runtime while
 `infrastructure.lambda_query` remains a narrow rollback adapter.
@@ -108,3 +125,11 @@ Migration/source-of-truth note:
 - local backfill/cutover utilities still run from `private-platform`:
   - `python -m charity_status_platform.runtime.customer_accounts_migration`
   - `python -m charity_status_platform.runtime.nonprofit_migration`
+
+Container notes:
+
+- use the repo root as the Docker build context
+- keep image ownership in `backend/`, not `infrastructure/`
+- the ingest-task image defaults to `monthly-worker` and supports later ECS
+  command overrides such as `form990`, `form990-worker`, and
+  `form990-orchestrator`

@@ -205,6 +205,8 @@ For the current live system:
 - `backend/api` now owns the primary FastAPI app and shared HTTP runtime dispatch for the API service
 - `backend/ingest-task` now owns the Form 990 and monthly ingest-task runtime implementations behind compatibility wrapper entrypoints
 - those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
+- backend-owned Dockerfiles now define the canonical runtime image contracts for
+  API, worker, and ingest-task execution
 - `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
 - `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
 
@@ -2141,6 +2143,8 @@ Current CI/CD posture:
 
 - `.gitlab-ci.yml` now validates Terraform in `infrastructure/`
 - API image build/publish is still an external contract in this phase; Terraform can consume either a managed ECR repository plus tag or an explicit image URI
+- the canonical Dockerfiles now live under `backend/api/`, `backend/worker/`,
+  and `backend/ingest-task/`
 
 Lambda event examples:
 

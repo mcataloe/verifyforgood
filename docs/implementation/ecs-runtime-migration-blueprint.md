@@ -88,6 +88,7 @@ The repo already has ECS/Fargate conventions through the monthly ingest worker:
 - ECS task definition pattern
 - CloudWatch log-group pattern
 - task execution/task role split
+- backend-owned runtime Dockerfiles for API and ingest-task packaging
 
 The API ECS implementation should extend those conventions rather than invent a
 separate container stack style.
@@ -167,7 +168,7 @@ Current posture after Phase 26C:
 
 ### Phase 25C: Containerize the API
 
-- add an API Dockerfile
+- add an API Dockerfile under `backend/api/`
 - add container startup and local run instructions
 - preserve the current runtime env-var contract
 

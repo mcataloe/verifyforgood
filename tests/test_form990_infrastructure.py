@@ -44,11 +44,13 @@ def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
 
 
 def test_monthly_ingest_worker_packaging_and_task_access_exist():
-    dockerfile = Path("infrastructure/Dockerfile.monthly-ingest").read_text(encoding="utf-8")
+    dockerfile = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
-    assert "monthly_ingest_worker.py" in dockerfile
-    assert "charity_status" in dockerfile
+    assert "charity_status_backend.ingest_task.cli" in dockerfile
+    assert 'CMD ["monthly-worker"]' in dockerfile
+    assert 'command    = ["monthly-worker"]' in ecs_content
+    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in ecs_content
     assert '"s3:GetObject"' in ecs_content
     assert '"s3:PutObject"' in ecs_content
     assert '"s3:ListBucket"' in ecs_content

@@ -112,6 +112,9 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     backend_worker_doc = ROOT / "backend" / "worker" / "README.md"
     backend_ingest_doc = ROOT / "backend" / "ingest-task" / "README.md"
     backend_shared_doc = ROOT / "backend" / "shared" / "README.md"
+    backend_api_dockerfile = ROOT / "backend" / "api" / "Dockerfile"
+    backend_worker_dockerfile = ROOT / "backend" / "worker" / "Dockerfile"
+    backend_ingest_dockerfile = ROOT / "backend" / "ingest-task" / "Dockerfile"
     backend_tests_doc = ROOT / "backend" / "tests" / "README.md"
     private_platform_pyproject = ROOT / "private-platform" / "pyproject.toml"
     tests_doc = ROOT / "tests" / "README.md"
@@ -125,6 +128,9 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert backend_worker_doc.exists()
     assert backend_ingest_doc.exists()
     assert backend_shared_doc.exists()
+    assert backend_api_dockerfile.exists()
+    assert backend_worker_dockerfile.exists()
+    assert backend_ingest_dockerfile.exists()
     assert backend_tests_doc.exists()
     assert private_platform_pyproject.exists()
     assert tests_doc.exists()
@@ -158,11 +164,14 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "python -m charity_status_backend.ingest_task.cli form990" in backend_text
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_text
     assert "verification_platform" in backend_text
+    assert "backend/api/Dockerfile" in backend_text
+    assert "backend/ingest-task/Dockerfile" in backend_text
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
     assert "charity_status_backend.api.runtime" in backend_api_text
     assert "thin rollback and compatibility import path" in backend_api_text
     assert "backend/.env.local" in backend_api_text
+    assert "Container build/run" in backend_api_text
 
     tests_text = tests_doc.read_text(encoding="utf-8")
     assert "public-core/tests/" in tests_text
