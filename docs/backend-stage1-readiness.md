@@ -102,6 +102,10 @@ Backend Python workspace posture:
   `PLATFORM_POSTGRES_URL`, not AWS secret-backed wiring
 - backend-owned Dockerfiles now live under `backend/api/`, `backend/worker/`,
   and `backend/ingest-task/` as the canonical runtime image contracts
+- Terraform now maps those runtime boundaries explicitly:
+  - `backend/api` -> ALB-backed ECS service
+  - `backend/worker` -> private ECS service placeholder, disabled by default
+  - `backend/ingest-task` -> ECS task-style runtime for scheduled and one-off ingest execution
 - live runtime behavior still remains under `infrastructure/lambda_*.py` until later extraction phases move execution over deliberately
 
 Compatibility posture for the transition:

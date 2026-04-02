@@ -96,9 +96,13 @@ Runtime mapping:
 - `backend/api/Dockerfile`
   - ECS-aligned long-lived API service image
 - `backend/worker/Dockerfile`
-  - ECS-aligned long-lived worker service placeholder
+  - ECS-aligned long-lived worker service image
+  - provisionable ECS service slot, defaulted off until the refresh runtime
+    fully moves out of `infrastructure.lambda_refresh`
 - `backend/ingest-task/Dockerfile`
   - ECS-aligned task image with command-based ingest runtime selection
+  - ECS task-style runtime for scheduled and one-off ingest execution, distinct
+    from the general worker service
 
 Worker and ingest commands still intentionally exit with scaffold-only
 messages. The API command now starts the backend-owned ASGI runtime while

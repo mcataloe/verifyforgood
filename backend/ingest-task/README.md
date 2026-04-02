@@ -33,6 +33,8 @@ Container contract:
 - canonical ECS-aligned task image for ingest runtimes
 - image entrypoint: `python -m charity_status_backend.ingest_task.cli`
 - default command: `monthly-worker`
+- deployment model: ECS task definition invoked by schedules or one-off runs,
+  not a long-lived worker service
 - supported command overrides:
   - `form990`
   - `form990-worker`

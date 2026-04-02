@@ -53,13 +53,14 @@ resource "aws_security_group" "platform_postgres" {
   vpc_id      = var.platform_postgres_vpc_id
 
   ingress {
-    description = "Allow PostgreSQL access from the query Lambda and ECS API tasks."
+    description = "Allow PostgreSQL access from the query Lambda and ECS backend tasks."
     from_port   = var.platform_postgres_port
     to_port     = var.platform_postgres_port
     protocol    = "tcp"
     security_groups = concat(
       [aws_security_group.query_lambda_postgres[0].id],
       var.api_ecs_enabled ? [aws_security_group.api_task[0].id] : [],
+      var.worker_ecs_enabled ? [aws_security_group.worker_task[0].id] : [],
     )
   }
 

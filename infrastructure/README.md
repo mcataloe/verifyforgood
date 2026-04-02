@@ -103,22 +103,42 @@ Phase 24H also adds a nonprofit migration wrapper:
 Use that wrapper to validate PostgreSQL nonprofit backfill before switching
 `platform_nonprofit_query_backend` to `postgres`.
 
-## Parallel ECS API Runtime
+## ECS Runtime Mapping
 
-Phase 25C/25D adds ECS Fargate and ALB infrastructure for the backend API and
-cuts the primary custom-domain ingress over to that runtime.
+The Terraform stack now maps the backend runtime directories onto explicit ECS
+deployment roles:
+
+- `backend/api`
+  - live ALB-backed ECS Fargate service
+- `backend/worker`
+  - provisionable ECS Fargate service slot for the future general worker
+    runtime; disabled by default until runtime extraction lands
+- `backend/ingest-task`
+  - ECS task-style runtime used by scheduled and one-off ingest execution
+
+Phase 25C/25D added the live API service cutover. Phase 27C extends that
+mapping so the worker service boundary is provisionable and the shared ECS
+cluster is explicitly treated as the backend service cluster rather than an
+API-only concern.
 
 Current deployment posture:
 
 - Route53 now points the primary API hostname at the public ALB
 - the ECS API tasks run in private subnets behind that ALB and are the primary
   HTTP runtime
+- the API and worker services now share one backend ECS cluster
+- the worker service has no ALB and stays in private subnets only
+- the worker service defaults to a placeholder, zero-scale deployment contract
 - API Gateway and the query Lambda remain deployable only as a deprecated
   rollback stack
 - the Terraform stack now manages the ECS cluster, API task definition, ECS
   service, API ECR repository, ALB target group, and API task log group
+- the Terraform stack can also manage a worker ECR repository, task
+  definition, service, task role, and task log group when
+  `worker_ecs_enabled=true`
 - PostgreSQL ingress includes the ECS API task security group when
-  `platform_postgres_enabled=true`
+  `platform_postgres_enabled=true`; the worker task security group is also
+  allowed when the worker service is enabled
 - container ownership now lives under `backend/api/Dockerfile` and
   `backend/ingest-task/Dockerfile`; infrastructure consumes image URIs and ECS
   task definitions rather than owning the runtime Dockerfiles
@@ -140,6 +160,28 @@ var names to secret references with `api_ecs_secret_arns`. This is the intended
 path for values such as `PORTAL_AUTH_TOKEN_SECRET` and any other container-only
 secrets that are not yet first-class Terraform variables.
 
+Worker service inputs when `worker_ecs_enabled=true`:
+
+- `worker_ecs_vpc_id`
+- `worker_ecs_private_subnet_ids`
+- either:
+  - `worker_ecs_image_uri`, or
+  - the managed worker ECR repository plus `worker_ecs_image_tag`
+- optional sizing and rollout controls:
+  - `worker_ecs_task_cpu`
+  - `worker_ecs_task_memory`
+  - `worker_ecs_desired_count`
+- optional secret wiring:
+  - `worker_ecs_secret_arns`
+  - `worker_ecs_secret_kms_key_arns`
+
+Worker placeholder note:
+
+- the worker ECS service is intentionally provisionable before the runtime is
+  fully migrated out of `infrastructure.lambda_refresh`
+- defaulting `worker_ecs_desired_count` to `0` keeps the deployment slot
+  explicit without pretending the service is production-ready
+
 Rollback note:
 
 - the deprecated API Gateway custom-domain and query Lambda packaging remain in
@@ -151,6 +193,9 @@ Rollback note:
 Container build guidance:
 
 - `backend/api/Dockerfile` is the canonical API image contract
-- `backend/worker/Dockerfile` is the future worker-service image contract
+- `backend/worker/Dockerfile` is the canonical worker-service image contract,
+  even while the runtime remains scaffold-only
 - `backend/ingest-task/Dockerfile` is the canonical ECS task image contract for
   monthly and Form 990 task execution
+- scheduled and one-off ingest execution should keep using ECS tasks, not the
+  general worker service

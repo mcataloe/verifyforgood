@@ -149,6 +149,9 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "the installed runtime import root is `charity_status_backend`" in readiness_text
     assert "`backend/.env.local`" in readiness_text
     assert "`PLATFORM_POSTGRES_URL`" in readiness_text
+    assert "`backend/api` -> ALB-backed ECS service" in readiness_text
+    assert "`backend/worker` -> private ECS service placeholder" in readiness_text
+    assert "`backend/ingest-task` -> ECS task-style runtime" in readiness_text
     assert "thin rollback/import shim" in readiness_text
     assert "thin compatibility/import shims over backend-owned ingest runtime modules" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
@@ -165,6 +168,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_text
     assert "verification_platform" in backend_text
     assert "backend/api/Dockerfile" in backend_text
+    assert "provisionable ECS service slot" in backend_text
     assert "backend/ingest-task/Dockerfile" in backend_text
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
@@ -172,6 +176,10 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "thin rollback and compatibility import path" in backend_api_text
     assert "backend/.env.local" in backend_api_text
     assert "Container build/run" in backend_api_text
+
+    backend_worker_text = backend_worker_doc.read_text(encoding="utf-8")
+    assert "private-subnet ECS service" in backend_worker_text
+    assert "disabled-by-default service slot" in backend_worker_text
 
     tests_text = tests_doc.read_text(encoding="utf-8")
     assert "public-core/tests/" in tests_text

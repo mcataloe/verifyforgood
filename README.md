@@ -2101,6 +2101,14 @@ Form 990 mode configuration additions:
 Phase 25C/25D adds the ECS Fargate API runtime and completes the Route53
 cutover so the ALB-backed ECS service is now the primary ingress path.
 
+Phase 27C aligns the Terraform deployment model to the backend runtime
+directories:
+
+- `backend/api` -> live ECS service behind the ALB
+- `backend/worker` -> private ECS service placeholder, disabled by default
+- `backend/ingest-task` -> ECS task-style runtime for scheduled and one-off
+  ingest execution
+
 ECS API deployment configuration additions:
 
 - `api_ecs_enabled`: enable the parallel ECS Fargate API runtime
@@ -2117,6 +2125,20 @@ ECS API deployment configuration additions:
 - `api_ecs_secret_arns`: optional map of env-var names to Secrets Manager or SSM parameter ARNs for ECS secret injection; use this for values such as `PORTAL_AUTH_TOKEN_SECRET` and other sensitive API runtime settings
 - `api_ecs_secret_kms_key_arns`: optional KMS keys needed to decrypt entries referenced by `api_ecs_secret_arns`
 
+Worker ECS deployment configuration additions:
+
+- `worker_ecs_enabled`: enable the backend worker ECS service scaffold
+- `worker_ecs_vpc_id`: existing VPC id used by the worker tasks and worker task
+  security group
+- `worker_ecs_private_subnet_ids`: private subnets for the worker tasks
+- `worker_ecs_image_uri`: optional full worker image URI; leave empty to use
+  the managed ECR repository plus `worker_ecs_image_tag`
+- `worker_ecs_task_cpu`, `worker_ecs_task_memory`, `worker_ecs_desired_count`:
+  worker service sizing controls; desired count defaults to `0` while the
+  runtime remains scaffold-only
+- `worker_ecs_secret_arns`: optional map of env-var names to Secrets Manager or
+  SSM parameter ARNs for ECS worker secret injection
+
 Parallel ECS API outputs now include:
 
 - ECS cluster name and ARN
@@ -2125,6 +2147,13 @@ Parallel ECS API outputs now include:
 - CloudWatch log group name for the API task
 - ALB DNS name and zone id
 - ALB target group ARN
+
+Additional ECS runtime outputs now include:
+
+- shared backend runtime cluster name and ARN
+- worker ECR repository URL
+- worker ECS service name and task definition ARN
+- worker ECS task log group name
 
 Current Phase 25D ingress posture:
 

@@ -140,6 +140,7 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "docker build -f backend/api/Dockerfile ." in backend_text
     assert "docker build -f backend/worker/Dockerfile ." in backend_text
     assert "docker build -f backend/ingest-task/Dockerfile ." in backend_text
+    assert "provisionable ECS service slot" in backend_text
 
     assert "backend/api/src/charity_status_backend/api/" in backend_api_text
     assert "charity_status_backend.api.app:app" in backend_api_text
@@ -148,11 +149,13 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "backend/api/Dockerfile" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
     assert "backend/worker/Dockerfile" in backend_worker_text
+    assert "private-subnet ECS service" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
     assert "python -m charity_status_backend.ingest_task.cli form990" in backend_ingest_text
     assert "monthly/staging.py" in backend_ingest_text
     assert "monthly/worker.py" in backend_ingest_text
     assert "backend/ingest-task/Dockerfile" in backend_ingest_text
+    assert "ECS task definition invoked by schedules or one-off runs" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
     assert "backend/.env.local" in backend_shared_text
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_shared_text
