@@ -34,6 +34,11 @@ The staging Lambda is responsible only for:
 - writing the ZIP unchanged to S3 under the raw-source key contract
 - returning staged object metadata (`bucket`, `key`, `size`, `checksum`, `source_timestamp`, `job_id`, `correlation_id`)
 
+Ownership note:
+
+- the staging runtime implementation now lives under `backend/ingest-task`
+- the infrastructure Lambda handler path is a compatibility wrapper only
+
 The staging Lambda does not:
 
 - extract ZIP members
@@ -58,6 +63,11 @@ The ECS worker reads the shared monthly-ingest contract from environment variabl
 It also uses:
 
 - `FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES`
+
+Ownership note:
+
+- the ECS worker implementation now lives under `backend/ingest-task`
+- the `infrastructure/monthly_ingest_worker.py` file remains only as a compatibility entrypoint for deployment wiring
 
 Expected source object:
 

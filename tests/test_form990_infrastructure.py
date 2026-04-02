@@ -54,6 +54,28 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
     assert '"s3:ListBucket"' in ecs_content
 
 
+def test_form990_and_monthly_runtime_entrypoints_are_backend_owned_behind_shims():
+    lambda_form990 = Path("infrastructure/lambda_form990.py").read_text(encoding="utf-8")
+    lambda_form990_worker = Path("infrastructure/lambda_form990_worker.py").read_text(encoding="utf-8")
+    lambda_form990_orchestrator = Path("infrastructure/lambda_form990_orchestrator.py").read_text(encoding="utf-8")
+    monthly_staging = Path("infrastructure/lambda_monthly_ingest_staging.py").read_text(encoding="utf-8")
+    monthly_worker = Path("infrastructure/monthly_ingest_worker.py").read_text(encoding="utf-8")
+    persistence = Path("infrastructure/nonprofit_ingest_persistence.py").read_text(encoding="utf-8")
+
+    assert "backend-owned Form 990 runtime" in lambda_form990
+    assert "charity_status_backend.ingest_task.form990" in lambda_form990
+    assert "backend-owned Form 990 worker runtime" in lambda_form990_worker
+    assert "charity_status_backend.ingest_task.form990" in lambda_form990_worker
+    assert "backend-owned Form 990 orchestrator entrypoint" in lambda_form990_orchestrator
+    assert "charity_status_backend.ingest_task.form990.orchestrator" in lambda_form990_orchestrator
+    assert "backend-owned monthly staging runtime" in monthly_staging
+    assert "charity_status_backend.ingest_task.monthly.staging" in monthly_staging
+    assert "backend-owned monthly ECS worker runtime" in monthly_worker
+    assert "charity_status_backend.ingest_task.monthly.worker" in monthly_worker
+    assert "backend-owned nonprofit ingest persistence" in persistence
+    assert "charity_status_backend.ingest_task.persistence" in persistence
+
+
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():
     content = Path("infrastructure/terraform-dev.tfvars").read_text(encoding="utf-8")
     assert 'form990_execution_mode' in content

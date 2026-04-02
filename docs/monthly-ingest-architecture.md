@@ -71,6 +71,12 @@ The staging Lambda is intentionally narrow:
 - return the resolved S3 bucket/key plus metadata for downstream processing
 - avoid ZIP extraction or record-level digestion
 
+Current runtime ownership:
+
+- backend-owned runtime modules now live under `backend/ingest-task`
+- `infrastructure/lambda_monthly_ingest_staging.py` is now a deployment-compatible shim over the backend-owned staging runtime
+- `infrastructure/monthly_ingest_worker.py` is now a deployment-compatible shim over the backend-owned ECS worker runtime
+
 ## Why ECS RunTask Owns Heavy Processing
 
 The ZIP digestion step is a poor fit for Lambda because it can require larger ephemeral storage, longer-running CPU-heavy work, and isolated private-subnet execution. ECS Fargate `RunTask` is the right boundary because it provides:
@@ -89,6 +95,11 @@ The ECS worker now:
 - reuses the existing Form 990 ingest service to write normalized artifacts back to S3
 - emits job-scoped `manifest.json`, `artifacts.json`, and `summary.json` control artifacts
 - exits non-zero when the overall processing result is fully failed or the archive/input is invalid
+
+Runtime ownership note:
+
+- executable monthly ingest behavior now belongs to `backend/ingest-task`
+- Terraform and Step Functions may continue to invoke infrastructure wrapper files during the transition, but those wrappers should not accumulate runtime logic
 
 ## Why The S3 Gateway Endpoint Is Permanent
 

@@ -142,6 +142,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "first-class setuptools workspace" in readiness_text
     assert "the installed runtime import root is `charity_status_backend`" in readiness_text
     assert "thin rollback/import shim" in readiness_text
+    assert "thin compatibility/import shims over backend-owned ingest runtime modules" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
     assert "Remaining Blockers Before Frontend Scaffolding" in readiness_text
 
@@ -152,6 +153,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/ingest-task/`" in backend_text
     assert "`backend/shared/`" in backend_text
     assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
+    assert "python -m charity_status_backend.ingest_task.cli form990" in backend_text
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
     assert "charity_status_backend.api.runtime" in backend_api_text

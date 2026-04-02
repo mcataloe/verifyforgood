@@ -45,6 +45,8 @@ def test_package_scaffolding_roots_exist():
     backend_api_package = backend_api / "src" / "charity_status_backend" / "api"
     backend_worker_package = backend_worker / "src" / "charity_status_backend" / "worker"
     backend_ingest_package = backend_ingest / "src" / "charity_status_backend" / "ingest_task"
+    backend_ingest_form990 = backend_ingest_package / "form990"
+    backend_ingest_monthly = backend_ingest_package / "monthly"
     backend_shared_package = backend_shared / "src" / "charity_status_backend" / "shared"
     public_root = Path("public-core/src/charity_status")
     private_root = Path("private-platform/src/charity_status_platform")
@@ -73,6 +75,17 @@ def test_package_scaffolding_roots_exist():
     assert backend_ingest_package.exists()
     assert (backend_ingest_package / "__init__.py").exists()
     assert (backend_ingest_package / "entrypoint.py").exists()
+    assert (backend_ingest_package / "cli.py").exists()
+    assert backend_ingest_form990.exists()
+    assert (backend_ingest_form990 / "__init__.py").exists()
+    assert (backend_ingest_form990 / "runtime.py").exists()
+    assert (backend_ingest_form990 / "worker.py").exists()
+    assert (backend_ingest_form990 / "orchestrator.py").exists()
+    assert backend_ingest_monthly.exists()
+    assert (backend_ingest_monthly / "__init__.py").exists()
+    assert (backend_ingest_monthly / "staging.py").exists()
+    assert (backend_ingest_monthly / "worker.py").exists()
+    assert (backend_ingest_package / "persistence.py").exists()
     assert backend_shared.exists()
     assert (backend_shared / "README.md").exists()
     assert backend_shared_package.exists()
@@ -117,6 +130,9 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "charity_status_backend.api.app:app" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
+    assert "python -m charity_status_backend.ingest_task.cli form990" in backend_ingest_text
+    assert "monthly/staging.py" in backend_ingest_text
+    assert "monthly/worker.py" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
 
     assert "Forbidden contents" in public_text
@@ -145,6 +161,8 @@ def test_backend_workspace_metadata_and_frontend_boundaries_remain_stable():
     assert '"charity_status_backend.api" = "api/src/charity_status_backend/api"' in backend_pyproject
     assert '"charity_status_backend.worker" = "worker/src/charity_status_backend/worker"' in backend_pyproject
     assert '"charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"' in backend_pyproject
+    assert '"charity_status_backend.ingest_task.form990"' in backend_pyproject
+    assert '"charity_status_backend.ingest_task.monthly"' in backend_pyproject
     assert '"charity_status_backend.shared" = "shared/src/charity_status_backend/shared"' in backend_pyproject
     assert 'packages = [' in backend_pyproject
     assert '"charity_status_backend.ingest_task"' in backend_pyproject

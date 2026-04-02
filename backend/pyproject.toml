@@ -23,6 +23,8 @@ packages = [
   "charity_status_backend.api",
   "charity_status_backend.worker",
   "charity_status_backend.ingest_task",
+  "charity_status_backend.ingest_task.form990",
+  "charity_status_backend.ingest_task.monthly",
   "charity_status_backend.shared",
 ]
 
@@ -30,4 +32,6 @@ packages = [
 "charity_status_backend.api" = "api/src/charity_status_backend/api"
 "charity_status_backend.worker" = "worker/src/charity_status_backend/worker"
 "charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"
+"charity_status_backend.ingest_task.form990" = "ingest-task/src/charity_status_backend/ingest_task/form990"
+"charity_status_backend.ingest_task.monthly" = "ingest-task/src/charity_status_backend/ingest_task/monthly"
 "charity_status_backend.shared" = "shared/src/charity_status_backend/shared"

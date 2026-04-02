@@ -203,6 +203,7 @@ For the current live system:
 
 - `infrastructure/lambda_*.py` remains the deployed handler surface
 - `backend/api` now owns the primary FastAPI app and shared HTTP runtime dispatch for the API service
+- `backend/ingest-task` now owns the Form 990 and monthly ingest-task runtime implementations behind compatibility wrapper entrypoints
 - those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
 - `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
 - `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers

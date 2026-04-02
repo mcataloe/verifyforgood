@@ -221,6 +221,7 @@ Target runtime placement:
   - successor to `infrastructure.lambda_refresh` and future general worker hosts
 - `backend/ingest-task/`
   - successor to `infrastructure.lambda_ingest`, `infrastructure.lambda_form990`, `infrastructure.lambda_form990_orchestrator`, and `infrastructure.lambda_form990_worker`
+  - current home for Form 990 and monthly ingest-task runtime ownership, while infrastructure retains thin deployment adapters
 - `backend/shared/`
   - future home for runtime bootstrap helpers, shared transport/runtime compatibility helpers, logging/config assembly, and other runtime-only concerns
 

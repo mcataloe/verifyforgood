@@ -68,3 +68,12 @@ python -m charity_status_backend.api.entrypoint
 Worker and ingest commands still intentionally exit with scaffold-only
 messages. The API command now starts the backend-owned ASGI runtime while
 `infrastructure.lambda_query` remains a narrow rollback adapter.
+
+Ingest-task local run examples:
+
+```powershell
+python -m charity_status_backend.ingest_task.cli form990
+python -m charity_status_backend.ingest_task.cli form990-worker
+python -m charity_status_backend.ingest_task.cli monthly-staging
+python -m charity_status_backend.ingest_task.cli monthly-worker
+```
