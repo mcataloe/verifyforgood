@@ -141,6 +141,8 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/shared/`" in readiness_text
     assert "first-class setuptools workspace" in readiness_text
     assert "the installed runtime import root is `charity_status_backend`" in readiness_text
+    assert "`backend/.env.local`" in readiness_text
+    assert "`PLATFORM_POSTGRES_URL`" in readiness_text
     assert "thin rollback/import shim" in readiness_text
     assert "thin compatibility/import shims over backend-owned ingest runtime modules" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
@@ -154,10 +156,13 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/shared/`" in backend_text
     assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
     assert "python -m charity_status_backend.ingest_task.cli form990" in backend_text
+    assert "charity_status_backend.shared.local_dev db-upgrade" in backend_text
+    assert "verification_platform" in backend_text
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
     assert "charity_status_backend.api.runtime" in backend_api_text
     assert "thin rollback and compatibility import path" in backend_api_text
+    assert "backend/.env.local" in backend_api_text
 
     tests_text = tests_doc.read_text(encoding="utf-8")
     assert "public-core/tests/" in tests_text

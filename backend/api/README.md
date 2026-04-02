@@ -33,6 +33,17 @@ Local run:
 python -m charity_status_backend.api.entrypoint
 ```
 
+Local backend API development should use the shared backend-local env contract:
+
+- copy `backend/.env.local.example` to `backend/.env.local`
+- point `PLATFORM_POSTGRES_URL` at a direct local PostgreSQL 16 endpoint
+- run `python -m charity_status_backend.shared.local_dev db-upgrade`
+- then run `python -m charity_status_backend.api.entrypoint`
+
+The API entrypoint loads `backend/.env.local` automatically before importing
+env-driven runtime modules, so local PostgreSQL-backed API execution does not
+require AWS secret resolution just to start the runtime.
+
 Not owned here:
 
 - deterministic nonprofit/domain logic from `public-core/`

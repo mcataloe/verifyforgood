@@ -80,6 +80,14 @@ Runtime env wiring added for the query Lambda:
   control-plane storage
 - `PLATFORM_NONPROFIT_QUERY_BACKEND` for nonprofit lookup/search/filings reads
 
+For local backend development, prefer the backend-owned workflow instead of the
+deployed secret-backed wiring:
+
+- copy `backend/.env.local.example` to `backend/.env.local`
+- set `PLATFORM_POSTGRES_URL` to a direct local PostgreSQL endpoint
+- run `python -m charity_status_backend.shared.local_dev db-upgrade`
+- run `python -m charity_status_backend.api.entrypoint`
+
 Phase 24D rollout order for the identity domain:
 
 1. run `alembic upgrade head`

@@ -37,6 +37,7 @@ def test_repo_target_architecture_doc_exists():
 def test_package_scaffolding_roots_exist():
     backend_root = Path("backend")
     backend_pyproject = backend_root / "pyproject.toml"
+    backend_env_example = backend_root / ".env.local.example"
     backend_api = Path("backend/api")
     backend_worker = Path("backend/worker")
     backend_ingest = Path("backend/ingest-task")
@@ -58,6 +59,7 @@ def test_package_scaffolding_roots_exist():
 
     assert backend_root.exists()
     assert backend_pyproject.exists()
+    assert backend_env_example.exists()
     assert (backend_root / "README.md").exists()
     assert backend_tests.exists()
     assert backend_api.exists()
@@ -92,6 +94,7 @@ def test_package_scaffolding_roots_exist():
     assert (backend_shared_package / "__init__.py").exists()
     assert (backend_shared_package / "runtime_identity.py").exists()
     assert (backend_shared_package / "cli.py").exists()
+    assert (backend_shared_package / "local_dev.py").exists()
 
     assert public_root.exists()
     assert (public_root / "__init__.py").exists()
@@ -122,18 +125,28 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "future executable runtime host layer" in backend_text
     assert "backend/` may depend on `public-core/` and `private-platform/`" in backend_text
     assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
+    assert "backend/.env.local" in backend_text
+    assert "backend/.env.local.example" in backend_text
+    assert "PostgreSQL 16" in backend_text
+    assert "createdb verification_platform" in backend_text
+    assert "python -m charity_status_backend.shared.local_dev db-upgrade" in backend_text
+    assert "python -m charity_status_backend.shared.local_dev db-current" in backend_text
     assert "python -m charity_status_backend.api.entrypoint" in backend_text
     assert "python -m charity_status_backend.worker.entrypoint" in backend_text
     assert "python -m charity_status_backend.ingest_task.entrypoint" in backend_text
 
     assert "backend/api/src/charity_status_backend/api/" in backend_api_text
     assert "charity_status_backend.api.app:app" in backend_api_text
+    assert "backend/.env.local" in backend_api_text
+    assert "PLATFORM_POSTGRES_URL" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
     assert "python -m charity_status_backend.ingest_task.cli form990" in backend_ingest_text
     assert "monthly/staging.py" in backend_ingest_text
     assert "monthly/worker.py" in backend_ingest_text
     assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
+    assert "backend/.env.local" in backend_shared_text
+    assert "charity_status_backend.shared.local_dev db-upgrade" in backend_shared_text
 
     assert "Forbidden contents" in public_text
     assert "Dependency direction" in public_text
@@ -173,6 +186,26 @@ def test_backend_workspace_metadata_and_frontend_boundaries_remain_stable():
     assert '"name": "verifyforgood-frontend-workspace"' in frontend_package
     assert "docs:" not in frontend_workspace.lower()
     assert "shared/*" in frontend_workspace
+
+
+def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
+    backend_env_example = Path("backend/.env.local.example").read_text(encoding="utf-8")
+    api_entrypoint = Path("backend/api/src/charity_status_backend/api/entrypoint.py").read_text(encoding="utf-8")
+    worker_entrypoint = Path("backend/worker/src/charity_status_backend/worker/entrypoint.py").read_text(encoding="utf-8")
+    ingest_entrypoint = Path("backend/ingest-task/src/charity_status_backend/ingest_task/entrypoint.py").read_text(encoding="utf-8")
+    local_dev = Path("backend/shared/src/charity_status_backend/shared/local_dev.py").read_text(encoding="utf-8")
+
+    assert "PLATFORM_POSTGRES_ENABLED=true" in backend_env_example
+    assert "PLATFORM_POSTGRES_URL=postgresql+psycopg://" in backend_env_example
+    assert "PLATFORM_IDENTITY_STORE_BACKEND=postgres" in backend_env_example
+    assert "PLATFORM_NONPROFIT_STORE_BACKEND=postgres" in backend_env_example
+    assert "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres" in backend_env_example
+    assert "PORTAL_AUTH_TOKEN_SECRET=dev-portal-auth-secret" in backend_env_example
+
+    assert "load_backend_local_env" in api_entrypoint
+    assert "load_backend_local_env" in worker_entrypoint
+    assert "load_backend_local_env" in ingest_entrypoint
+    assert 'choices=("db-upgrade", "db-current")' in local_dev
 
 
 def test_split_plan_records_operational_layers_and_backend_targets():

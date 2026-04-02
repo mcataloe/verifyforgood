@@ -96,6 +96,10 @@ Backend Python workspace posture:
   - `backend/shared/src/`
 - the installed runtime import root is `charity_status_backend`
 - local scaffold entrypoints exist for API, worker, and ingest-task runtime homes
+- backend local development now centers on `backend/.env.local` plus the
+  backend-owned `charity_status_backend.shared.local_dev` migration wrapper
+- the canonical local database path is a direct PostgreSQL endpoint via
+  `PLATFORM_POSTGRES_URL`, not AWS secret-backed wiring
 - live runtime behavior still remains under `infrastructure/lambda_*.py` until later extraction phases move execution over deliberately
 
 Compatibility posture for the transition:

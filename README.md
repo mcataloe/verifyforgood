@@ -1959,6 +1959,26 @@ The platform relational foundation now uses SQLAlchemy models under
 `private-platform/src/charity_status_platform/customer_accounts/` and Alembic
 for schema evolution.
 
+Backend-local developer workflow:
+
+- use PostgreSQL 16 locally until infrastructure pins the deployed engine
+  version explicitly
+- use `backend/.env.local` as the canonical backend local env file
+- use `PLATFORM_POSTGRES_URL` as the primary local database endpoint setting
+
+Example local bootstrap:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r infrastructure/requirements.txt -r infrastructure/requirements-dev.txt
+python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend
+cp backend/.env.local.example backend/.env.local
+createdb verification_platform
+python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.api.entrypoint
+```
+
 Set one of the following before running migrations locally:
 
 - `PLATFORM_POSTGRES_URL=postgresql+psycopg://...`
@@ -1972,6 +1992,8 @@ Set one of the following before running migrations locally:
 Common commands:
 
 ```bash
+python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.shared.local_dev db-current
 alembic upgrade head
 alembic revision -m "describe change"
 python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity

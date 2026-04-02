@@ -64,6 +64,24 @@ def test_load_platform_persistence_config_accepts_secret_backed_postgres_setting
     assert config.nonprofit_query_backend == "postgres"
 
 
+def test_load_platform_persistence_config_accepts_local_url_driven_postgres_settings():
+    config = load_platform_persistence_config(
+        {
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform",
+            "PLATFORM_IDENTITY_STORE_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+        }
+    )
+
+    assert config.postgres.enabled is True
+    assert config.postgres.url == "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform"
+    assert config.identity_store_backend == "postgres"
+    assert config.nonprofit_store_backend == "postgres"
+    assert config.nonprofit_query_backend == "postgres"
+
+
 def test_resolve_postgres_credentials_reads_secret_backed_username_and_password():
     class _SecretsClient:
         def get_secret_value(self, *, SecretId):
