@@ -12,6 +12,10 @@ api_ecs_private_subnet_ids  = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
 api_alb_certificate_arn     = ""
 api_ecs_image_uri           = ""
 api_ecs_secret_arns         = {}
+worker_ecs_vpc_id           = "vpc-xxxxxxxx"
+worker_ecs_private_subnet_ids = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+worker_ecs_image_uri        = ""
+worker_ecs_secret_arns      = {}
 enable_custom_domain        = true
 cors_allowed_origins = [
   "http://localhost:5173",

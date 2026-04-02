@@ -2170,8 +2170,31 @@ Rollback guidance for the API cutover:
 
 Current CI/CD posture:
 
-- `.gitlab-ci.yml` now validates Terraform in `infrastructure/`
-- API image build/publish is still an external contract in this phase; Terraform can consume either a managed ECR repository plus tag or an explicit image URI
+- `.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline for backend
+  image build, ECR publish, Terraform plan, and manual ECS rollout
+- the pipeline builds and publishes:
+  - `backend/api`
+  - `backend/worker`
+  - `backend/ingest-task`
+- image versioning now defaults to immutable commit-SHA tags instead of a
+  mutable `latest` rollout contract
+- Terraform remains the deploy authority; deploy jobs pass:
+  - `api_ecs_image_tag=$CI_COMMIT_SHA`
+  - `worker_ecs_image_tag=$CI_COMMIT_SHA`
+  - `monthly_ingest_worker_image_tag=$CI_COMMIT_SHA`
+- dev rollout is exposed as a manual GitLab job on the default branch using
+  `backend-dev.hcl` plus the dev tfvars files
+- prod rollout is exposed as a manual GitLab job on tags using
+  `backend-prod.hcl` plus the prod tfvars files
+- the current ingest-task compatibility contract remains:
+  `monthly_ingest_worker_image_tag` still selects the `backend/ingest-task`
+  image for the monthly ECS task definition
+- CI requires standard AWS auth variables plus environment-specific secrets
+  content for:
+  - `TERRAFORM_DEV_SECRETS_TFVARS`
+  - `TERRAFORM_PROD_SECRETS_TFVARS`
+- the initial Terraform bootstrap still has to create the managed ECR
+  repositories before CI publish jobs can push successfully
 - the canonical Dockerfiles now live under `backend/api/`, `backend/worker/`,
   and `backend/ingest-task/`
 

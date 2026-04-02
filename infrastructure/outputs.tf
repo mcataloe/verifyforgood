@@ -120,7 +120,7 @@ output "api_ecs_cluster_arn" {
 
 output "api_ecr_repository_url" {
   description = "ECR repository URL for the managed API service image."
-  value       = var.api_ecs_enabled ? aws_ecr_repository.api[0].repository_url : null
+  value       = local.api_ecs_managed_image_enabled ? aws_ecr_repository.api[0].repository_url : null
 }
 
 output "api_ecs_service_name" {
@@ -165,7 +165,7 @@ output "backend_runtime_ecs_cluster_arn" {
 
 output "worker_ecr_repository_url" {
   description = "ECR repository URL for the managed worker service image."
-  value       = var.worker_ecs_enabled && trim(var.worker_ecs_image_uri, " ") == "" ? aws_ecr_repository.worker[0].repository_url : null
+  value       = local.worker_ecs_managed_image_enabled ? aws_ecr_repository.worker[0].repository_url : null
 }
 
 output "worker_ecs_service_name" {
@@ -195,7 +195,7 @@ output "monthly_ingest_state_machine_arn" {
 
 output "monthly_ingest_worker_ecr_repository_url" {
   description = "ECR repository URL for the managed monthly private-ingest ECS worker image."
-  value       = local.monthly_ingest_managed_task_definition_enabled ? aws_ecr_repository.monthly_ingest_worker[0].repository_url : null
+  value       = local.monthly_ingest_managed_image_enabled ? aws_ecr_repository.monthly_ingest_worker[0].repository_url : null
 }
 
 output "monthly_ingest_task_definition_arn" {

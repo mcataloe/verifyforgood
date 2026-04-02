@@ -182,6 +182,44 @@ Worker placeholder note:
 - defaulting `worker_ecs_desired_count` to `0` keeps the deployment slot
   explicit without pretending the service is production-ready
 
+GitLab CI/CD rollout baseline:
+
+- `.gitlab-ci.yml` builds `backend/api`, `backend/worker`, and
+  `backend/ingest-task`
+- runtime images publish to the managed ECR repositories exposed by Terraform
+  outputs
+- image versioning should use immutable commit-SHA tags, not `latest`
+- Terraform deploy jobs remain the source of truth for ECS rollout by passing:
+  - `api_ecs_image_tag=$CI_COMMIT_SHA`
+  - `worker_ecs_image_tag=$CI_COMMIT_SHA`
+  - `monthly_ingest_worker_image_tag=$CI_COMMIT_SHA`
+- dev deploy jobs use:
+  - `backend-dev.hcl`
+  - `terraform.shared.tfvars`
+  - `terraform-dev.tfvars`
+  - CI-provided `terraform-dev.secrets.tfvars` content
+- prod deploy jobs use:
+  - `backend-prod.hcl`
+  - `terraform.shared.tfvars`
+  - `terraform-prod.tfvars`
+  - CI-provided `terraform-prod.secrets.tfvars` content
+- `monthly_ingest_worker_image_tag` remains the current deploy-time Terraform
+  variable for the `backend/ingest-task` image so the existing task definition
+  contract stays backward compatible
+
+Required CI variables:
+
+- AWS authentication variables understood by the AWS CLI and Terraform provider
+- `TERRAFORM_DEV_SECRETS_TFVARS`
+- `TERRAFORM_PROD_SECRETS_TFVARS`
+
+Bootstrap note:
+
+- the managed ECR repositories must exist in Terraform state before CI publish
+  jobs can push images
+- this phase keeps repository creation in Terraform instead of creating ECR
+  repositories ad hoc from CI
+
 Rollback note:
 
 - the deprecated API Gateway custom-domain and query Lambda packaging remain in

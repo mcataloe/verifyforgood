@@ -134,6 +134,8 @@ Container notes:
 
 - use the repo root as the Docker build context
 - keep image ownership in `backend/`, not `infrastructure/`
+- GitLab CI now builds all three backend runtime images and publishes them to
+  the Terraform-managed ECR repositories using commit-SHA tags
 - the ingest-task image defaults to `monthly-worker` and supports later ECS
   command overrides such as `form990`, `form990-worker`, and
   `form990-orchestrator`

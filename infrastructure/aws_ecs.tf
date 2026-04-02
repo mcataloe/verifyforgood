@@ -1,5 +1,5 @@
 locals {
-  worker_ecs_managed_image_enabled = var.worker_ecs_enabled && trim(var.worker_ecs_image_uri, " ") == ""
+  worker_ecs_managed_image_enabled = trim(var.worker_ecs_image_uri, " ") == ""
   worker_ecs_image_uri_resolved = trim(var.worker_ecs_image_uri, " ") != "" ? trim(var.worker_ecs_image_uri, " ") : (
     local.worker_ecs_managed_image_enabled ? "${aws_ecr_repository.worker[0].repository_url}:${var.worker_ecs_image_tag}" : ""
   )
@@ -73,6 +73,7 @@ locals {
     name => value if !contains(keys(local.worker_ecs_secret_arns_resolved), name)
   }
 
+  monthly_ingest_managed_image_enabled = trim(var.monthly_ingest_worker_image_uri, " ") == ""
   monthly_ingest_managed_task_definition_enabled = var.monthly_ingest_state_machine_enabled && trim(var.monthly_ingest_task_definition_arn, " ") == ""
   monthly_ingest_task_execution_role_arn_resolved = trim(var.monthly_ingest_task_execution_role_arn, " ") != "" ? trim(var.monthly_ingest_task_execution_role_arn, " ") : (
     local.monthly_ingest_managed_task_definition_enabled ? aws_iam_role.monthly_ingest_task_execution[0].arn : ""
@@ -81,7 +82,7 @@ locals {
     local.monthly_ingest_managed_task_definition_enabled ? aws_iam_role.monthly_ingest_task[0].arn : ""
   )
   monthly_ingest_worker_image_uri_resolved = trim(var.monthly_ingest_worker_image_uri, " ") != "" ? trim(var.monthly_ingest_worker_image_uri, " ") : (
-    local.monthly_ingest_managed_task_definition_enabled ? "${aws_ecr_repository.monthly_ingest_worker[0].repository_url}:${var.monthly_ingest_worker_image_tag}" : ""
+    local.monthly_ingest_managed_image_enabled ? "${aws_ecr_repository.monthly_ingest_worker[0].repository_url}:${var.monthly_ingest_worker_image_tag}" : ""
   )
   monthly_ingest_task_definition_arn_resolved = trim(var.monthly_ingest_task_definition_arn, " ") != "" ? trim(var.monthly_ingest_task_definition_arn, " ") : (
     local.monthly_ingest_managed_task_definition_enabled ? aws_ecs_task_definition.monthly_ingest_worker[0].arn : ""
@@ -311,7 +312,7 @@ resource "aws_ecs_service" "worker" {
 }
 
 resource "aws_ecr_repository" "monthly_ingest_worker" {
-  count = local.monthly_ingest_managed_task_definition_enabled ? 1 : 0
+  count = local.monthly_ingest_managed_image_enabled ? 1 : 0
 
   name                 = local.monthly_ingest_worker_repository_name
   image_tag_mutability = "MUTABLE"

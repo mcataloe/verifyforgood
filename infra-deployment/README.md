@@ -7,6 +7,7 @@ Current deployment assets remain under:
 - `infrastructure/*.tf`
 - `infrastructure/*.tfvars`
 - `infrastructure/backend-*.hcl`
+- `.gitlab-ci.yml`
 - Lambda packaging scripts and zip outputs
 
 Current in-repo boundary note:
