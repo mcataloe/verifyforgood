@@ -2,13 +2,15 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/ingest-task/src
 
 WORKDIR /app
 
-COPY requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY infrastructure/requirements.txt /app/infrastructure/requirements.txt
+RUN pip install --no-cache-dir -r /app/infrastructure/requirements.txt
 
-COPY charity_status ./charity_status
-COPY monthly_ingest_worker.py ./monthly_ingest_worker.py
+COPY infrastructure /app/infrastructure
+COPY private-platform/src /app/private-platform/src
+COPY backend/ingest-task/src /app/backend/ingest-task/src
 
-CMD ["python", "monthly_ingest_worker.py"]
+CMD ["python", "/app/infrastructure/monthly_ingest_worker.py"]

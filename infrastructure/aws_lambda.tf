@@ -39,6 +39,47 @@ locals {
   ]))
 }
 
+locals {
+  form990_package_dir = "${path.module}/build/form990_package"
+  form990_package_source_files = concat(
+    [
+      "${path.module}/lambda_form990.py",
+      "${path.module}/lambda_form990_orchestrator.py",
+      "${path.module}/lambda_form990_worker.py",
+      "${path.module}/lambda_monthly_ingest_staging.py",
+      "${path.module}/build_form990_package.ps1",
+    ],
+    [
+      for file in fileset("${path.module}/charity_status", "**") :
+      "${path.module}/charity_status/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+    [
+      for file in fileset("${path.root}/private-platform/src/charity_status_platform", "**") :
+      "${path.root}/private-platform/src/charity_status_platform/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+    [
+      for file in fileset("${path.root}/backend/ingest-task/src/charity_status_backend", "**") :
+      "${path.root}/backend/ingest-task/src/charity_status_backend/${file}"
+      if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
+    ],
+  )
+  form990_package_source_hash = sha1(join("", [
+    for file in sort(local.form990_package_source_files) :
+    "${file}:${filesha1(file)}"
+  ]))
+}
+
+resource "terraform_data" "form990_package_build" {
+  triggers_replace = [local.form990_package_source_hash]
+
+  provisioner "local-exec" {
+    interpreter = ["PowerShell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+    command     = "& '${path.module}/build_form990_package.ps1'"
+  }
+}
+
 data "archive_file" "ingest_zip_from_dir" {
   count       = local.use_ingest_build_dir ? 1 : 0
   type        = "zip"
@@ -347,31 +388,10 @@ resource "aws_lambda_function" "refresh" {
 #############################################
 
 data "archive_file" "form990_zip" {
+  depends_on  = [terraform_data.form990_package_build]
   type        = "zip"
-  source_dir  = path.module
+  source_dir  = local.form990_package_dir
   output_path = "${path.module}/build/form990.zip"
-  excludes = [
-    ".terraform/**",
-    "build/**",
-    "__pycache__/**",
-    "terraform.tfstate",
-    "terraform.tfstate.*",
-    ".terraform.tfstate.lock.info",
-    "charity_status/query/**",
-    "charity_status/normalization/**",
-    "charity_status/scoring/**",
-    "charity_status/future/**",
-    "lambda_ingest.py",
-    "lambda_query.py",
-    "ingest.zip",
-    "query.zip",
-    "form990.zip",
-    "*.tf",
-    "*.tfvars",
-    "*.hcl",
-    "*.ps1",
-    "requirements*.txt",
-  ]
 }
 
 resource "aws_lambda_function" "form990_ingest" {

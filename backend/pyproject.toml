@@ -23,6 +23,12 @@ packages = [
   "charity_status_backend.api",
   "charity_status_backend.worker",
   "charity_status_backend.ingest_task",
+  "charity_status_backend.ingest_task.cli",
+  "charity_status_backend.ingest_task.config",
+  "charity_status_backend.ingest_task.downloads",
+  "charity_status_backend.ingest_task.entrypoints",
+  "charity_status_backend.ingest_task.orchestration",
+  "charity_status_backend.ingest_task.persistence",
   "charity_status_backend.shared",
 ]
 
@@ -30,4 +36,10 @@ packages = [
 "charity_status_backend.api" = "api/src/charity_status_backend/api"
 "charity_status_backend.worker" = "worker/src/charity_status_backend/worker"
 "charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"
+"charity_status_backend.ingest_task.cli" = "ingest-task/src/charity_status_backend/ingest_task/cli"
+"charity_status_backend.ingest_task.config" = "ingest-task/src/charity_status_backend/ingest_task/config"
+"charity_status_backend.ingest_task.downloads" = "ingest-task/src/charity_status_backend/ingest_task/downloads"
+"charity_status_backend.ingest_task.entrypoints" = "ingest-task/src/charity_status_backend/ingest_task/entrypoints"
+"charity_status_backend.ingest_task.orchestration" = "ingest-task/src/charity_status_backend/ingest_task/orchestration"
+"charity_status_backend.ingest_task.persistence" = "ingest-task/src/charity_status_backend/ingest_task/persistence"
 "charity_status_backend.shared" = "shared/src/charity_status_backend/shared"

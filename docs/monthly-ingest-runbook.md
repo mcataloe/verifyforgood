@@ -41,6 +41,11 @@ The staging Lambda does not:
 - run the heavy monthly processing job
 - manage endpoint lifecycle
 
+Ownership note:
+
+- executable staging and task runtime ownership now lives under `backend/ingest-task/src/charity_status_backend/ingest_task/`
+- `infrastructure/lambda_monthly_ingest_staging.py` and `infrastructure/monthly_ingest_worker.py` remain temporary compatibility adapters for deployment wiring
+
 ## ECS Worker Runtime Contract
 
 The ECS worker reads the shared monthly-ingest contract from environment variables:

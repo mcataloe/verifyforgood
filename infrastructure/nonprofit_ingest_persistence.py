@@ -1,23 +1,25 @@
+"""Compatibility shim for backend-owned nonprofit ingest persistence helpers."""
+
 from __future__ import annotations
 
-import os
-from typing import Any, Mapping
-
-from charity_status_platform.nonprofits import Form990NonprofitPersistenceService
-from charity_status_platform.runtime import build_nonprofit_postgres_repository
+import importlib
+from pathlib import Path
+import sys
 
 
-def build_form990_nonprofit_persistence_service(
-    env: Mapping[str, str] | None = None,
-    *,
-    sqlalchemy_url: str | None = None,
-    secrets_client: Any | None = None,
-) -> Form990NonprofitPersistenceService | None:
-    repository = build_nonprofit_postgres_repository(
-        env or os.environ,
-        sqlalchemy_url=sqlalchemy_url,
-        secrets_client=secrets_client,
-    )
-    if repository is None:
-        return None
-    return Form990NonprofitPersistenceService(repository)
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND_INGEST_SRC = ROOT / "backend" / "ingest-task" / "src"
+PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
+
+for path in (BACKEND_INGEST_SRC, PRIVATE_PLATFORM_SRC):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+
+sys.modules.pop("charity_status_backend.ingest_task.persistence.nonprofit_persistence", None)
+_runtime = importlib.import_module("charity_status_backend.ingest_task.persistence.nonprofit_persistence")  # noqa: E402
+
+
+_runtime.__name__ = __name__
+_runtime.__package__ = __package__
+sys.modules[__name__] = _runtime

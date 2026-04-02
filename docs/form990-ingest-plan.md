@@ -176,6 +176,7 @@ Known filename examples the design must support:
 
 ## 9. Files to Change
 
+- `backend/ingest-task/src/charity_status_backend/ingest_task/`
 - `infrastructure/lambda_form990.py`
 - `infrastructure/lambda_form990_worker.py`
 - `infrastructure/charity_status/form990/irs_page_discovery.py`

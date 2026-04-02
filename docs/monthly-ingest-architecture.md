@@ -90,6 +90,11 @@ The ECS worker now:
 - emits job-scoped `manifest.json`, `artifacts.json`, and `summary.json` control artifacts
 - exits non-zero when the overall processing result is fully failed or the archive/input is invalid
 
+Runtime ownership note:
+
+- `backend/ingest-task/src/charity_status_backend/ingest_task/` is now the canonical home for the monthly staging Lambda runtime, Form 990 ingest runtime, Form 990 worker runtime, and monthly ECS task CLI
+- infrastructure-side files remain only as deployment compatibility adapters while Terraform, Lambda, and container wiring continue to reference those stable entrypoint names
+
 ## Why The S3 Gateway Endpoint Is Permanent
 
 S3 is used on every ingest run and is also a foundational dependency for the broader platform. Keeping the gateway endpoint permanent is intentional because it:

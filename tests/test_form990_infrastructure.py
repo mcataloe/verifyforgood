@@ -48,10 +48,24 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
     assert "monthly_ingest_worker.py" in dockerfile
-    assert "charity_status" in dockerfile
+    assert "backend/ingest-task/src" in dockerfile
+    assert "private-platform/src" in dockerfile
     assert '"s3:GetObject"' in ecs_content
     assert '"s3:PutObject"' in ecs_content
     assert '"s3:ListBucket"' in ecs_content
+
+
+def test_form990_lambda_packaging_builds_backend_owned_runtime_package():
+    content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+    build_script = Path("infrastructure/build_form990_package.ps1").read_text(encoding="utf-8")
+
+    assert 'resource "terraform_data" "form990_package_build"' in content
+    assert 'depends_on  = [terraform_data.form990_package_build]' in content
+    assert 'source_dir  = local.form990_package_dir' in content
+    assert "backend/ingest-task/src/charity_status_backend" in content
+    assert "private-platform/src/charity_status_platform" in content
+    assert "charity_status_backend" in build_script
+    assert "charity_status_platform" in build_script
 
 
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():

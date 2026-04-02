@@ -1,24 +1,9 @@
-"""Scaffold entrypoint for the future backend ingest-task runtime."""
+"""Local backend ingest-task entrypoint."""
 
 from __future__ import annotations
 
-from charity_status_backend.shared.cli import scaffold_only_message
-
-
-def main() -> None:
-    raise SystemExit(
-        scaffold_only_message(
-            runtime_name="ingest-task",
-            current_source=(
-                "infrastructure.lambda_ingest.handler, "
-                "infrastructure.lambda_form990.handler, "
-                "infrastructure.lambda_form990_orchestrator.handler, "
-                "and infrastructure.lambda_form990_worker.handler"
-            ),
-            target_directory="backend/ingest-task/",
-        )
-    )
+from charity_status_backend.ingest_task.cli.monthly_ingest_task import main
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

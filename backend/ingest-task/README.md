@@ -10,7 +10,8 @@ Target ownership for `backend/ingest-task/`:
 Python package root:
 
 - `backend/ingest-task/src/charity_status_backend/ingest_task/`
-- local scaffold entrypoint: `python -m charity_status_backend.ingest_task.entrypoint`
+- canonical local task entrypoint: `python -m charity_status_backend.ingest_task.cli.monthly_ingest_task`
+- compatibility local wrapper: `python -m charity_status_backend.ingest_task.entrypoint`
 
 Planned inbound migration:
 
@@ -23,3 +24,9 @@ Temporary compatibility note:
 
 - checked-in runtime assets such as `infrastructure/charity_status/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
 - infrastructure-owned deployment wiring may continue to reference compatibility shims during the transition
+- current temporary shims remain at:
+  - `infrastructure/lambda_form990.py`
+  - `infrastructure/lambda_form990_orchestrator.py`
+  - `infrastructure/lambda_form990_worker.py`
+  - `infrastructure/lambda_monthly_ingest_staging.py`
+  - `infrastructure/monthly_ingest_worker.py`

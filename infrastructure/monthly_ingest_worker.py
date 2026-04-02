@@ -1,23 +1,26 @@
+"""Compatibility shim for the backend-owned monthly ingest task CLI."""
+
 from __future__ import annotations
 
-import json
-import logging
+from pathlib import Path
 import sys
 
-from charity_status.form990.monthly_processing import run_form990_monthly_processing_task
-from nonprofit_ingest_persistence import build_form990_nonprofit_persistence_service
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND_INGEST_SRC = ROOT / "backend" / "ingest-task" / "src"
+PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
+
+for path in (BACKEND_INGEST_SRC, PRIVATE_PLATFORM_SRC):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 
-def main() -> int:
-    result = run_form990_monthly_processing_task(
-        nonprofit_persistence_service=build_form990_nonprofit_persistence_service(),
-    )
-    print(json.dumps(result, sort_keys=True))
-    return 0
+from charity_status_backend.ingest_task.cli.monthly_ingest_task import main  # noqa: E402,F401
+
+
+__all__ = ["main"]
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
