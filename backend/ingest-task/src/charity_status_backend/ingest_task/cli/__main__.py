@@ -1,10 +1,8 @@
-"""Compatibility shim for the package-backed ingest-task CLI."""
-
 from __future__ import annotations
 
 import sys
 
-from .cli import main
+from . import main
 
 
 if __name__ == "__main__":

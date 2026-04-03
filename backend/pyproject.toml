@@ -20,6 +20,7 @@ classifiers = [
 
 [tool.setuptools]
 packages = [
+  "ingest_task",
   "charity_status_backend.api",
   "charity_status_backend.worker",
   "charity_status_backend.ingest_task",
@@ -29,6 +30,7 @@ packages = [
 ]
 
 [tool.setuptools.package-dir]
+"ingest_task" = "ingest-task/src/ingest_task"
 "charity_status_backend.api" = "api/src/charity_status_backend/api"
 "charity_status_backend.worker" = "worker/src/charity_status_backend/worker"
 "charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"

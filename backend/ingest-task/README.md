@@ -12,17 +12,32 @@ Python package root:
 - `backend/ingest-task/src/charity_status_backend/ingest_task/`
 - local entrypoint module: `python -m charity_status_backend.ingest_task.entrypoint`
 - local CLI:
+  - `python -m ingest_task.cli run`
+  - `python -m ingest_task.cli run --archive-url <url>`
+  - `python -m charity_status_backend.ingest_task.cli run`
   - `python -m charity_status_backend.ingest_task.cli form990`
   - `python -m charity_status_backend.ingest_task.cli form990-worker`
   - `python -m charity_status_backend.ingest_task.cli form990-orchestrator`
   - `python -m charity_status_backend.ingest_task.cli monthly-staging`
   - `python -m charity_status_backend.ingest_task.cli monthly-worker`
 
+Local Form 990 debug runner:
+
+- `run` executes the archive-at-a-time monthly worker processing path locally
+- `--archive-url <url>` processes one ZIP archive directly without discovery
+- `--single-archive` stops after the first selected ZIP archive
+- `--limit <n>` caps the number of selected ZIP archives
+- `--strict` stops on the first archive or XML failure and includes stack traces
+- `--keep-temp` preserves the downloaded ZIP and extracted XML in the workspace
+- `--workspace <path>` overrides `FORM990_WORKSPACE_DIR` for that run only
+- the local runner is a thin wrapper over the monthly ECS worker processing core, not a separate ingest implementation
+
 Container build/run:
 
 ```powershell
 docker build -f backend/ingest-task/Dockerfile .
 docker run --env-file backend/.env.local <ingest-image>
+docker run --env-file backend/.env.local <ingest-image> run --archive-url https://example.org/2026_TEOS_XML_02A.zip
 docker run --env-file backend/.env.local <ingest-image> form990
 docker run --env-file backend/.env.local <ingest-image> form990-worker
 docker run --env-file backend/.env.local <ingest-image> form990-orchestrator

@@ -115,11 +115,18 @@ should reuse that same `backend/.env.local` contract for local execution.
 Ingest-task local run examples:
 
 ```powershell
+python -m ingest_task.cli run
+python -m ingest_task.cli run --archive-url https://example.org/2026_TEOS_XML_02A.zip --strict --keep-temp
+python -m charity_status_backend.ingest_task.cli run --limit 1
 python -m charity_status_backend.ingest_task.cli form990
 python -m charity_status_backend.ingest_task.cli form990-worker
 python -m charity_status_backend.ingest_task.cli monthly-staging
 python -m charity_status_backend.ingest_task.cli monthly-worker
 ```
+
+The local `run` command uses the monthly ECS worker archive-processing core and
+the `FORM990_WORKSPACE_DIR` workspace contract. By default it cleans up the ZIP
+and extracted XML after each archive unless `--keep-temp` is supplied.
 
 Migration/source-of-truth note:
 

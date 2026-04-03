@@ -4,7 +4,7 @@ import json
 import urllib.request
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 import boto3
 
@@ -101,6 +101,7 @@ def ingest_form990_records(
     downloader: Any | None = None,
     record_downloader: Any | None = None,
     nonprofit_persistence_service: Any | None = None,
+    record_error_handler: Callable[[Form990IndexRecord, Exception, str], None] | None = None,
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
@@ -179,6 +180,8 @@ def ingest_form990_records(
             relationship_records.extend(extract_relationship_edges(parsed, merged_filing))
 
         except XmlParseError as exc:
+            if record_error_handler is not None:
+                record_error_handler(record, exc, Form990ParseStatus.MALFORMED_XML.value)
             filing_records.append(
                 replace(
                     metadata,
@@ -187,6 +190,8 @@ def ingest_form990_records(
                 ).to_dict()
             )
         except Exception as exc:
+            if record_error_handler is not None:
+                record_error_handler(record, exc, Form990ParseStatus.PARSE_ERROR.value)
             filing_records.append(
                 replace(
                     metadata,

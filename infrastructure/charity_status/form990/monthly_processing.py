@@ -9,7 +9,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import boto3
 from botocore.exceptions import ClientError
@@ -73,6 +73,17 @@ class _RuntimeArchiveProbe:
     method_used: str
 
 
+@dataclass(frozen=True)
+class _ArchiveProcessingContext:
+    source_bucket: str
+    source_key: str
+    destination_bucket: str
+    destination_prefix: str
+    job_id: str
+    correlation_id: str
+    workflow_version: str
+
+
 def run_form990_monthly_processing_task(
     *,
     env: Mapping[str, str] | None = None,
@@ -90,12 +101,20 @@ def run_form990_monthly_processing_task(
         raise MonthlyIngestTaskInputError("; ".join(config_errors))
     source_object = parse_form990_source_object(input_payload.source_key)
     s3 = s3_client or boto3.client("s3")
-    job_prefix = workflow_job_prefix(input_payload.destination_prefix, input_payload.job_id)
     artifact_keys = {
         "manifest_s3_key": workflow_manifest_key(input_payload.destination_prefix, input_payload.job_id),
         "artifact_index_s3_key": workflow_artifact_index_key(input_payload.destination_prefix, input_payload.job_id),
         "summary_s3_key": workflow_summary_key(input_payload.destination_prefix, input_payload.job_id),
     }
+    processing_context = _ArchiveProcessingContext(
+        source_bucket=input_payload.source_bucket,
+        source_key=input_payload.source_key,
+        destination_bucket=input_payload.destination_bucket,
+        destination_prefix=input_payload.destination_prefix,
+        job_id=input_payload.job_id,
+        correlation_id=input_payload.correlation_id,
+        workflow_version=input_payload.workflow_version,
+    )
     _log_structured(
         "monthly_ingest.worker.start",
         job_id=input_payload.job_id,
@@ -153,179 +172,37 @@ def run_form990_monthly_processing_task(
         )
         raise
 
+    if archive_metadata_service is not None and archive_record is None:
+        archive_record = archive_metadata_service.ensure_archive_record(
+            source_url=archive_source_url or f"s3://{input_payload.source_bucket}/{input_payload.source_key}",
+            filename=source_object.source_filename,
+            checked_at=started_at,
+        )
+
     try:
         with tempfile.TemporaryDirectory(prefix="monthly-ingest-xml-") as workdir:
-            extracted_members = extract_zip_xml_members_to_workdir(
+            result = process_form990_archive(
                 archive_path=archive_path,
-                workdir=workdir,
+                archive_checksum=archive_checksum,
+                archive_size=archive_size,
+                extracted_workdir=workdir,
+                processing_context=processing_context,
+                source_object=source_object,
+                artifact_keys=artifact_keys,
+                started_at=started_at,
+                s3_client=s3,
+                archive_metadata_service=archive_metadata_service,
+                archive_record=archive_record,
+                nonprofit_persistence_service=nonprofit_persistence_service,
                 max_xml_file_size_bytes=int(source.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES") or DEFAULT_MAX_XML_FILE_SIZE_BYTES),
             )
-            if not extracted_members:
-                raise MonthlyIngestMalformedArchiveError("zip archive did not contain any processable XML members")
-            if archive_metadata_service is not None and archive_record is None:
-                archive_record = archive_metadata_service.ensure_archive_record(
-                    source_url=archive_source_url or f"s3://{input_payload.source_bucket}/{input_payload.source_key}",
-                    filename=source_object.source_filename,
-                    checked_at=started_at,
-                )
-            selected_members = extracted_members
-            skipped_unchanged_members = 0
-            member_hashes: dict[str, str] = {}
+            if str(result.get("status") or "").strip().lower() == "failed":
+                raise RuntimeError(f"monthly ingest processing failed with {int(result.get('failed_count') or 0)} failed record(s)")
             if archive_metadata_service is not None and archive_record is not None:
-                selected_members = []
-                for member in extracted_members:
-                    content_hash = _hash_local_xml_file(member.local_path)
-                    member_hashes[member.member_name] = content_hash
-                    existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
-                    if existing is not None and str(existing.content_hash or "").strip() == content_hash:
-                        skipped_unchanged_members += 1
-                        continue
-                    selected_members.append(member)
-            _log_structured(
-                "monthly_ingest.worker.extracted",
-                job_id=input_payload.job_id,
-                extracted_member_count=len(extracted_members),
-                selected_member_count=len(selected_members),
-                skipped_unchanged_member_count=skipped_unchanged_members,
-                archive_checksum=archive_checksum,
-                archive_size_bytes=archive_size,
-            )
-
-            records, local_file_lookup = build_local_index_records(
-                extracted_members=selected_members,
-                source_bucket=input_payload.source_bucket,
-                source_key=input_payload.source_key,
-                source_object=source_object,
-                archive_checksum=archive_checksum,
-            )
-            if records:
-                ingest_result = ingest_form990_records(
-                    records=records,
-                    bucket=input_payload.destination_bucket,
-                    raw_prefix=f"{job_prefix}/raw-xml/",
-                    metadata_prefix=f"{job_prefix}/datasets/metadata/",
-                    manifest_prefix=f"{job_prefix}/processing/",
-                    metrics_prefix=f"{job_prefix}/datasets/metrics/",
-                    governance_prefix=f"{job_prefix}/datasets/governance/",
-                    quality_prefix=f"{job_prefix}/datasets/quality/",
-                    relationships_prefix=f"{job_prefix}/datasets/relationships/",
-                    s3_client=s3,
-                    download_raw=True,
-                    record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
-                    nonprofit_persistence_service=nonprofit_persistence_service,
-                ).to_dict()
-            else:
-                ingest_result = {
-                    "status": "success",
-                    "records_processed": 0,
-                    "parsed_count": 0,
-                    "failed_count": 0,
-                    "records": [],
-                    "manifest_s3_key": None,
-                    "filing_records_s3_key": None,
-                    "metrics_s3_key": None,
-                    "governance_s3_key": None,
-                    "quality_s3_key": None,
-                    "relationships_s3_key": None,
-                    "nonprofit_persistence": None,
-                }
-            if archive_metadata_service is not None and archive_record is not None:
-                _persist_extracted_file_results(
-                    archive_metadata_service=archive_metadata_service,
-                    archive_id=archive_record.archive_id,
-                    selected_members=selected_members,
-                    member_hashes=member_hashes,
-                    ingest_result=ingest_result,
+                archive_metadata_service.mark_archive_processed(
+                    archive_record.archive_id,
+                    processed_at=_datetime_or_now(result.get("completed_at")),
                 )
-            completed_at = datetime.now(timezone.utc)
-            artifacts_payload = {
-                "job_id": input_payload.job_id,
-                "correlation_id": input_payload.correlation_id,
-                "archive_s3_bucket": input_payload.source_bucket,
-                "archive_s3_key": input_payload.source_key,
-                "archive_size_bytes": archive_size,
-                "archive_checksum_sha256": archive_checksum,
-                "extracted_member_count": len(extracted_members),
-                "selected_member_count": len(selected_members),
-                "skipped_unchanged_member_count": skipped_unchanged_members,
-                "artifacts": {
-                    **artifact_keys,
-                    "raw_xml_prefix": f"{job_prefix}/raw-xml/",
-                    "filing_records_s3_key": ingest_result.get("filing_records_s3_key"),
-                    "metrics_s3_key": ingest_result.get("metrics_s3_key"),
-                    "governance_s3_key": ingest_result.get("governance_s3_key"),
-                    "quality_s3_key": ingest_result.get("quality_s3_key"),
-                    "relationships_s3_key": ingest_result.get("relationships_s3_key"),
-                    "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
-                },
-            }
-            manifest_payload = {
-                "status": str(ingest_result.get("status") or "failed"),
-                "job_id": input_payload.job_id,
-                "correlation_id": input_payload.correlation_id,
-                "workflow_version": input_payload.workflow_version,
-                "started_at": started_at.isoformat(),
-                "completed_at": completed_at.isoformat(),
-                "input": input_payload.to_dict(),
-                "source_object": {
-                    "bucket": input_payload.source_bucket,
-                    "key": input_payload.source_key,
-                    "archive_size_bytes": archive_size,
-                    "archive_checksum_sha256": archive_checksum,
-                    "source_year": source_object.source_year,
-                    "source_kind": source_object.source_kind,
-                    "source_archive_key": source_object.source_archive_key,
-                    "source_signature": source_object.source_signature,
-                    "source_filename": source_object.source_filename,
-                },
-                "extraction": {
-                    "extracted_member_count": len(extracted_members),
-                    "selected_member_count": len(selected_members),
-                    "skipped_unchanged_member_count": skipped_unchanged_members,
-                    "members": [item.member_name for item in extracted_members[:25]],
-                },
-                "result": ingest_result,
-                "artifacts": artifacts_payload["artifacts"],
-            }
-            summary_payload = {
-                "status": str(ingest_result.get("status") or "failed"),
-                "job_id": input_payload.job_id,
-                "correlation_id": input_payload.correlation_id,
-                "workflow_version": input_payload.workflow_version,
-                "records_processed": int(ingest_result.get("records_processed") or 0),
-                "parsed_count": int(ingest_result.get("parsed_count") or 0),
-                "failed_count": int(ingest_result.get("failed_count") or 0),
-                "archive_size_bytes": archive_size,
-                "archive_checksum_sha256": archive_checksum,
-                "extracted_member_count": len(extracted_members),
-                "selected_member_count": len(selected_members),
-                "skipped_unchanged_member_count": skipped_unchanged_members,
-                "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
-                "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
-                "completed_at": completed_at.isoformat(),
-            }
-            _put_json_artifact(s3, input_payload.destination_bucket, artifact_keys["artifact_index_s3_key"], artifacts_payload)
-            _put_json_artifact(s3, input_payload.destination_bucket, artifact_keys["manifest_s3_key"], manifest_payload)
-            _put_json_artifact(s3, input_payload.destination_bucket, artifact_keys["summary_s3_key"], summary_payload)
-            if str(ingest_result.get("status") or "").strip().lower() == "failed":
-                raise RuntimeError(
-                    f"monthly ingest processing failed with {int(ingest_result.get('failed_count') or 0)} failed record(s)"
-                )
-            result = {
-                "status": str(ingest_result.get("status") or "failed"),
-                "job_id": input_payload.job_id,
-                "correlation_id": input_payload.correlation_id,
-                "manifest_s3_key": artifact_keys["manifest_s3_key"],
-                "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
-                "summary_s3_key": artifact_keys["summary_s3_key"],
-                "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
-                "records_processed": int(ingest_result.get("records_processed") or 0),
-                "parsed_count": int(ingest_result.get("parsed_count") or 0),
-                "failed_count": int(ingest_result.get("failed_count") or 0),
-                "skipped_unchanged_member_count": skipped_unchanged_members,
-            }
-            if archive_metadata_service is not None and archive_record is not None:
-                archive_metadata_service.mark_archive_processed(archive_record.archive_id, processed_at=completed_at)
             _log_structured(
                 "monthly_ingest.worker.completed",
                 job_id=input_payload.job_id,
@@ -388,6 +265,7 @@ def extract_zip_xml_members_to_workdir(
     max_xml_file_size_bytes: int,
 ) -> list[LocalExtractedXmlMember]:
     extracted: list[LocalExtractedXmlMember] = []
+    Path(workdir).mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(archive_path, mode="r") as archive:
             for index, member in enumerate(archive.infolist()):
@@ -458,6 +336,217 @@ def build_local_index_records(
             )
         )
     return records, local_file_lookup
+
+
+def process_form990_archive(
+    *,
+    archive_path: str,
+    extracted_workdir: str,
+    processing_context: Mapping[str, str],
+    source_object: MonthlyIngestSourceObject,
+    artifact_keys: Mapping[str, str],
+    archive_checksum: str | None = None,
+    archive_size: int | None = None,
+    started_at: datetime | None = None,
+    s3_client: Any | None = None,
+    archive_metadata_service: Any | None = None,
+    archive_record: Any | None = None,
+    nonprofit_persistence_service: Any | None = None,
+    max_xml_file_size_bytes: int = DEFAULT_MAX_XML_FILE_SIZE_BYTES,
+    xml_error_handler: Callable[[str | None, Exception, str], None] | None = None,
+) -> dict[str, Any]:
+    if isinstance(processing_context, _ArchiveProcessingContext):
+        context = processing_context
+    else:
+        context = _ArchiveProcessingContext(
+            source_bucket=str(processing_context.get("source_bucket") or "").strip(),
+            source_key=str(processing_context.get("source_key") or "").strip(),
+            destination_bucket=str(processing_context.get("destination_bucket") or "").strip(),
+            destination_prefix=str(processing_context.get("destination_prefix") or "").strip(),
+            job_id=str(processing_context.get("job_id") or "").strip(),
+            correlation_id=str(processing_context.get("correlation_id") or "").strip(),
+            workflow_version=str(processing_context.get("workflow_version") or "").strip(),
+        )
+    started = started_at or datetime.now(timezone.utc)
+    s3 = s3_client or boto3.client("s3")
+    checksum = archive_checksum or _hash_file(archive_path)
+    size = int(archive_size) if archive_size is not None else Path(archive_path).stat().st_size
+    if archive_metadata_service is not None and archive_record is None:
+        archive_record = archive_metadata_service.ensure_archive_record(
+            source_url=f"s3://{context.source_bucket}/{context.source_key}",
+            filename=source_object.source_filename,
+            checked_at=started,
+        )
+
+    extracted_members = extract_zip_xml_members_to_workdir(
+        archive_path=archive_path,
+        workdir=extracted_workdir,
+        max_xml_file_size_bytes=max_xml_file_size_bytes,
+    )
+    if not extracted_members:
+        raise MonthlyIngestMalformedArchiveError("zip archive did not contain any processable XML members")
+
+    selected_members = extracted_members
+    skipped_unchanged_members = 0
+    member_hashes: dict[str, str] = {}
+    if archive_metadata_service is not None and archive_record is not None:
+        selected_members = []
+        for member in extracted_members:
+            content_hash = _hash_local_xml_file(member.local_path)
+            member_hashes[member.member_name] = content_hash
+            existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
+            if existing is not None and str(existing.content_hash or "").strip() == content_hash:
+                skipped_unchanged_members += 1
+                continue
+            selected_members.append(member)
+    _log_structured(
+        "monthly_ingest.worker.extracted",
+        job_id=context.job_id,
+        extracted_member_count=len(extracted_members),
+        selected_member_count=len(selected_members),
+        skipped_unchanged_member_count=skipped_unchanged_members,
+        archive_checksum=checksum,
+        archive_size_bytes=size,
+    )
+
+    records, local_file_lookup = build_local_index_records(
+        extracted_members=selected_members,
+        source_bucket=context.source_bucket,
+        source_key=context.source_key,
+        source_object=source_object,
+        archive_checksum=checksum,
+    )
+    job_prefix = workflow_job_prefix(context.destination_prefix, context.job_id)
+    if records:
+        ingest_result = ingest_form990_records(
+            records=records,
+            bucket=context.destination_bucket,
+            raw_prefix=f"{job_prefix}/raw-xml/",
+            metadata_prefix=f"{job_prefix}/datasets/metadata/",
+            manifest_prefix=f"{job_prefix}/processing/",
+            metrics_prefix=f"{job_prefix}/datasets/metrics/",
+            governance_prefix=f"{job_prefix}/datasets/governance/",
+            quality_prefix=f"{job_prefix}/datasets/quality/",
+            relationships_prefix=f"{job_prefix}/datasets/relationships/",
+            s3_client=s3,
+            download_raw=True,
+            record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
+            nonprofit_persistence_service=nonprofit_persistence_service,
+            record_error_handler=(
+                (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
+                if xml_error_handler is not None
+                else None
+            ),
+        ).to_dict()
+    else:
+        ingest_result = {
+            "status": "success",
+            "records_processed": 0,
+            "parsed_count": 0,
+            "failed_count": 0,
+            "records": [],
+            "manifest_s3_key": None,
+            "filing_records_s3_key": None,
+            "metrics_s3_key": None,
+            "governance_s3_key": None,
+            "quality_s3_key": None,
+            "relationships_s3_key": None,
+            "nonprofit_persistence": None,
+        }
+
+    if archive_metadata_service is not None and archive_record is not None:
+        _persist_extracted_file_results(
+            archive_metadata_service=archive_metadata_service,
+            archive_id=archive_record.archive_id,
+            selected_members=selected_members,
+            member_hashes=member_hashes,
+            ingest_result=ingest_result,
+        )
+
+    completed_at = datetime.now(timezone.utc)
+    artifacts_payload = {
+        "job_id": context.job_id,
+        "correlation_id": context.correlation_id,
+        "archive_s3_bucket": context.source_bucket,
+        "archive_s3_key": context.source_key,
+        "archive_size_bytes": size,
+        "archive_checksum_sha256": checksum,
+        "extracted_member_count": len(extracted_members),
+        "selected_member_count": len(selected_members),
+        "skipped_unchanged_member_count": skipped_unchanged_members,
+        "artifacts": {
+            **artifact_keys,
+            "raw_xml_prefix": f"{job_prefix}/raw-xml/",
+            "filing_records_s3_key": ingest_result.get("filing_records_s3_key"),
+            "metrics_s3_key": ingest_result.get("metrics_s3_key"),
+            "governance_s3_key": ingest_result.get("governance_s3_key"),
+            "quality_s3_key": ingest_result.get("quality_s3_key"),
+            "relationships_s3_key": ingest_result.get("relationships_s3_key"),
+            "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
+        },
+    }
+    manifest_payload = {
+        "status": str(ingest_result.get("status") or "failed"),
+        "job_id": context.job_id,
+        "correlation_id": context.correlation_id,
+        "workflow_version": context.workflow_version,
+        "started_at": started.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "input": dict(processing_context) if not isinstance(processing_context, _ArchiveProcessingContext) else vars(context),
+        "source_object": {
+            "bucket": context.source_bucket,
+            "key": context.source_key,
+            "archive_size_bytes": size,
+            "archive_checksum_sha256": checksum,
+            "source_year": source_object.source_year,
+            "source_kind": source_object.source_kind,
+            "source_archive_key": source_object.source_archive_key,
+            "source_signature": source_object.source_signature,
+            "source_filename": source_object.source_filename,
+        },
+        "extraction": {
+            "extracted_member_count": len(extracted_members),
+            "selected_member_count": len(selected_members),
+            "skipped_unchanged_member_count": skipped_unchanged_members,
+            "members": [item.member_name for item in extracted_members[:25]],
+        },
+        "result": ingest_result,
+        "artifacts": artifacts_payload["artifacts"],
+    }
+    summary_payload = {
+        "status": str(ingest_result.get("status") or "failed"),
+        "job_id": context.job_id,
+        "correlation_id": context.correlation_id,
+        "workflow_version": context.workflow_version,
+        "records_processed": int(ingest_result.get("records_processed") or 0),
+        "parsed_count": int(ingest_result.get("parsed_count") or 0),
+        "failed_count": int(ingest_result.get("failed_count") or 0),
+        "archive_size_bytes": size,
+        "archive_checksum_sha256": checksum,
+        "extracted_member_count": len(extracted_members),
+        "selected_member_count": len(selected_members),
+        "skipped_unchanged_member_count": skipped_unchanged_members,
+        "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
+        "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
+        "completed_at": completed_at.isoformat(),
+    }
+    _put_json_artifact(s3, context.destination_bucket, artifact_keys["artifact_index_s3_key"], artifacts_payload)
+    _put_json_artifact(s3, context.destination_bucket, artifact_keys["manifest_s3_key"], manifest_payload)
+    _put_json_artifact(s3, context.destination_bucket, artifact_keys["summary_s3_key"], summary_payload)
+    return {
+        "status": str(ingest_result.get("status") or "failed"),
+        "job_id": context.job_id,
+        "correlation_id": context.correlation_id,
+        "manifest_s3_key": artifact_keys["manifest_s3_key"],
+        "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
+        "summary_s3_key": artifact_keys["summary_s3_key"],
+        "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
+        "records_processed": int(ingest_result.get("records_processed") or 0),
+        "parsed_count": int(ingest_result.get("parsed_count") or 0),
+        "failed_count": int(ingest_result.get("failed_count") or 0),
+        "skipped_unchanged_member_count": skipped_unchanged_members,
+        "completed_at": completed_at.isoformat(),
+    }
 
 
 def _load_workflow_input(source: Mapping[str, str], contract: EcsTaskRuntimeContract) -> MonthlyIngestWorkflowInput:
@@ -609,6 +698,40 @@ def _hash_local_xml_file(path: str) -> str:
     if pending:
         digest.update(pending.rstrip(b" \t\r\n\f\v"))
     return digest.hexdigest()
+
+
+def _hash_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        while True:
+            chunk = handle.read(64 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _notify_xml_error(
+    *,
+    record: Form990IndexRecord,
+    exc: Exception,
+    status: str,
+    handler: Callable[[str | None, Exception, str], None] | None,
+) -> None:
+    if handler is None:
+        return
+    reference = str(record.xml_url or "").strip()
+    member_name = reference.split("#", 1)[1] if "#" in reference else None
+    handler(member_name or record.irs_object_id, exc, status)
+
+
+def _datetime_or_now(value: Any) -> datetime:
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
 
 
 def _persist_extracted_file_results(
@@ -818,5 +941,6 @@ __all__ = [
     "build_local_index_records",
     "extract_zip_xml_members_to_workdir",
     "parse_form990_source_object",
+    "process_form990_archive",
     "run_form990_monthly_processing_task",
 ]
