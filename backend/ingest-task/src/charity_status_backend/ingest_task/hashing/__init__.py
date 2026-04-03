@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from .xml_content_hash import sha256_xml_content_hash
+
 
 def sha256_digest_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     digest = hashlib.sha256()
@@ -17,4 +19,4 @@ def sha256_digest_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-__all__ = ["sha256_digest_file"]
+__all__ = ["sha256_digest_file", "sha256_xml_content_hash"]

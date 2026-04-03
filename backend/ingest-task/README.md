@@ -92,16 +92,19 @@ Form 990 local-first module map:
   - source discovery and archive-selection seams
 - `metadata/`
   - archive-scoped runtime metadata and workspace retention contracts
+  - archive `HEAD` probe normalization and change-detection helpers
 - `download/`
   - archive acquisition into workspace `archives/`
 - `extract/`
   - ZIP extraction into workspace `extracted/`
 - `hashing/`
   - archive and payload fingerprint helpers
+  - deterministic normalized XML SHA-256 hashing for extracted-file change detection
 - `parse/`
   - XML parsing seams layered over reusable `charity_status.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence entrypoints and adapters
+  - archive metadata and extracted-file hash state used to skip unchanged work
 - `cleanup/`
   - deterministic deletion of extracted XML and processed ZIP files
 - `orchestration/`
@@ -116,6 +119,7 @@ Current migration boundary:
 - `backend/ingest-task` is now the canonical runtime architecture home for the local-first Form 990 workspace model
 - reusable parser and batch-processing logic under `infrastructure/charity_status/form990/` still remains in place while the runtime migrates toward the new module seams
 - `form990/runtime.py` and `form990/worker.py` still own the live compatibility behavior today, but future refactors should move archive download, extraction, parsing, persistence, and cleanup responsibilities through the new module map rather than adding more logic directly to the runtime hosts
+- PostgreSQL-backed archive/file change tracking is now owned here for the monthly task path; broader TEOS manifest retirement remains an incremental follow-on step while compatibility shims still exist
 
 Planned inbound migration:
 

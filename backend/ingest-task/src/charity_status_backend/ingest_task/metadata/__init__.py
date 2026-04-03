@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .archive_change_detection import ArchiveProcessingDecision, should_process_archive
+from .archive_probe import ArchiveProbeResult, normalize_etag, probe_archive_metadata
+
 
 @dataclass(frozen=True)
 class ArchiveProcessingMetadata:
@@ -15,4 +18,11 @@ class ArchiveProcessingMetadata:
     correlation_id: str | None = None
 
 
-__all__ = ["ArchiveProcessingMetadata"]
+__all__ = [
+    "ArchiveProbeResult",
+    "ArchiveProcessingDecision",
+    "ArchiveProcessingMetadata",
+    "normalize_etag",
+    "probe_archive_metadata",
+    "should_process_archive",
+]

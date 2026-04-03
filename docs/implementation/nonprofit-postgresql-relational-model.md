@@ -89,3 +89,21 @@ Phase 24F adds an opt-in PostgreSQL ingest persistence path for normalized Form
 - upserts filing provenance/source rows with archive and signature metadata
 - leaves discovery manifests, raw-source storage, Athena reads, and the
   materialized serving cache unchanged
+
+Phase 27F extends the nonprofit PostgreSQL slice with Form 990 ingest execution
+metadata:
+
+- `form990_archives`
+  - one row per canonical archive source URL
+  - stores normalized `ETag`, `Last-Modified`, `Content-Length`, response
+    status, last checked timestamp, last processed timestamp, and runtime
+    status
+- `form990_extracted_files`
+  - one row per extracted XML member per archive
+  - stores deterministic normalized content hash, parse status, parsed
+    timestamp, and optional error text
+
+That metadata is now used by the monthly Form 990 task runtime to skip
+unchanged remote archives when `schedule_context.source_url` is available and
+to skip unchanged extracted XML files deterministically across local and ECS
+execution.

@@ -26,7 +26,6 @@ from charity_status.ingest.workflow import (
     workflow_manifest_key,
     workflow_summary_key,
 )
-
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
@@ -61,11 +60,25 @@ class LocalExtractedXmlMember:
     content_length: int
 
 
+@dataclass(frozen=True)
+class _RuntimeArchiveProbe:
+    source_url: str
+    resolved_source_url: str | None
+    etag: str | None
+    normalized_etag: str | None
+    last_modified: str | None
+    content_length: int | None
+    response_status: int
+    checked_at: str
+    method_used: str
+
+
 def run_form990_monthly_processing_task(
     *,
     env: Mapping[str, str] | None = None,
     s3_client: Any | None = None,
     now: datetime | None = None,
+    archive_metadata_service: Any | None = None,
     nonprofit_persistence_service: Any | None = None,
 ) -> dict[str, Any]:
     source = dict(os.environ) if env is None else dict(env)
@@ -92,6 +105,37 @@ def run_form990_monthly_processing_task(
         destination_bucket=input_payload.destination_bucket,
         destination_prefix=input_payload.destination_prefix,
     )
+    archive_source_url = _resolve_archive_source_url(input_payload)
+    archive_record = None
+    archive_probe_outcome = None
+    if archive_metadata_service is not None and archive_source_url and archive_source_url.startswith(("http://", "https://")):
+        probe_outcome = _probe_archive_metadata(
+            archive_source_url,
+            checked_at=started_at,
+        )
+        archive_probe_outcome = archive_metadata_service.record_archive_probe(
+            source_url=archive_source_url,
+            filename=source_object.source_filename,
+            probe=probe_outcome,
+        )
+        archive_record = archive_probe_outcome.archive
+        if not archive_probe_outcome.should_process:
+            skipped_result = _write_skipped_artifacts(
+                s3_client=s3,
+                workflow_input=input_payload,
+                artifact_keys=artifact_keys,
+                started_at=started_at,
+                source_object=source_object,
+                archive_reason=archive_probe_outcome.reason,
+            )
+            _log_structured(
+                "monthly_ingest.worker.skipped_archive",
+                job_id=input_payload.job_id,
+                correlation_id=input_payload.correlation_id,
+                source_url=archive_source_url,
+                reason=archive_probe_outcome.reason,
+            )
+            return skipped_result
 
     try:
         archive_path, archive_checksum, archive_size = _download_source_archive(
@@ -118,36 +162,81 @@ def run_form990_monthly_processing_task(
             )
             if not extracted_members:
                 raise MonthlyIngestMalformedArchiveError("zip archive did not contain any processable XML members")
+            if archive_metadata_service is not None and archive_record is None:
+                archive_record = archive_metadata_service.ensure_archive_record(
+                    source_url=archive_source_url or f"s3://{input_payload.source_bucket}/{input_payload.source_key}",
+                    filename=source_object.source_filename,
+                    checked_at=started_at,
+                )
+            selected_members = extracted_members
+            skipped_unchanged_members = 0
+            member_hashes: dict[str, str] = {}
+            if archive_metadata_service is not None and archive_record is not None:
+                selected_members = []
+                for member in extracted_members:
+                    content_hash = _hash_local_xml_file(member.local_path)
+                    member_hashes[member.member_name] = content_hash
+                    existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
+                    if existing is not None and str(existing.content_hash or "").strip() == content_hash:
+                        skipped_unchanged_members += 1
+                        continue
+                    selected_members.append(member)
             _log_structured(
                 "monthly_ingest.worker.extracted",
                 job_id=input_payload.job_id,
                 extracted_member_count=len(extracted_members),
+                selected_member_count=len(selected_members),
+                skipped_unchanged_member_count=skipped_unchanged_members,
                 archive_checksum=archive_checksum,
                 archive_size_bytes=archive_size,
             )
 
             records, local_file_lookup = build_local_index_records(
-                extracted_members=extracted_members,
+                extracted_members=selected_members,
                 source_bucket=input_payload.source_bucket,
                 source_key=input_payload.source_key,
                 source_object=source_object,
                 archive_checksum=archive_checksum,
             )
-            ingest_result = ingest_form990_records(
-                records=records,
-                bucket=input_payload.destination_bucket,
-                raw_prefix=f"{job_prefix}/raw-xml/",
-                metadata_prefix=f"{job_prefix}/datasets/metadata/",
-                manifest_prefix=f"{job_prefix}/processing/",
-                metrics_prefix=f"{job_prefix}/datasets/metrics/",
-                governance_prefix=f"{job_prefix}/datasets/governance/",
-                quality_prefix=f"{job_prefix}/datasets/quality/",
-                relationships_prefix=f"{job_prefix}/datasets/relationships/",
-                s3_client=s3,
-                download_raw=True,
-                record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
-                nonprofit_persistence_service=nonprofit_persistence_service,
-            ).to_dict()
+            if records:
+                ingest_result = ingest_form990_records(
+                    records=records,
+                    bucket=input_payload.destination_bucket,
+                    raw_prefix=f"{job_prefix}/raw-xml/",
+                    metadata_prefix=f"{job_prefix}/datasets/metadata/",
+                    manifest_prefix=f"{job_prefix}/processing/",
+                    metrics_prefix=f"{job_prefix}/datasets/metrics/",
+                    governance_prefix=f"{job_prefix}/datasets/governance/",
+                    quality_prefix=f"{job_prefix}/datasets/quality/",
+                    relationships_prefix=f"{job_prefix}/datasets/relationships/",
+                    s3_client=s3,
+                    download_raw=True,
+                    record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
+                    nonprofit_persistence_service=nonprofit_persistence_service,
+                ).to_dict()
+            else:
+                ingest_result = {
+                    "status": "success",
+                    "records_processed": 0,
+                    "parsed_count": 0,
+                    "failed_count": 0,
+                    "records": [],
+                    "manifest_s3_key": None,
+                    "filing_records_s3_key": None,
+                    "metrics_s3_key": None,
+                    "governance_s3_key": None,
+                    "quality_s3_key": None,
+                    "relationships_s3_key": None,
+                    "nonprofit_persistence": None,
+                }
+            if archive_metadata_service is not None and archive_record is not None:
+                _persist_extracted_file_results(
+                    archive_metadata_service=archive_metadata_service,
+                    archive_id=archive_record.archive_id,
+                    selected_members=selected_members,
+                    member_hashes=member_hashes,
+                    ingest_result=ingest_result,
+                )
             completed_at = datetime.now(timezone.utc)
             artifacts_payload = {
                 "job_id": input_payload.job_id,
@@ -157,6 +246,8 @@ def run_form990_monthly_processing_task(
                 "archive_size_bytes": archive_size,
                 "archive_checksum_sha256": archive_checksum,
                 "extracted_member_count": len(extracted_members),
+                "selected_member_count": len(selected_members),
+                "skipped_unchanged_member_count": skipped_unchanged_members,
                 "artifacts": {
                     **artifact_keys,
                     "raw_xml_prefix": f"{job_prefix}/raw-xml/",
@@ -189,6 +280,8 @@ def run_form990_monthly_processing_task(
                 },
                 "extraction": {
                     "extracted_member_count": len(extracted_members),
+                    "selected_member_count": len(selected_members),
+                    "skipped_unchanged_member_count": skipped_unchanged_members,
                     "members": [item.member_name for item in extracted_members[:25]],
                 },
                 "result": ingest_result,
@@ -205,6 +298,8 @@ def run_form990_monthly_processing_task(
                 "archive_size_bytes": archive_size,
                 "archive_checksum_sha256": archive_checksum,
                 "extracted_member_count": len(extracted_members),
+                "selected_member_count": len(selected_members),
+                "skipped_unchanged_member_count": skipped_unchanged_members,
                 "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
                 "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
                 "completed_at": completed_at.isoformat(),
@@ -227,7 +322,10 @@ def run_form990_monthly_processing_task(
                 "records_processed": int(ingest_result.get("records_processed") or 0),
                 "parsed_count": int(ingest_result.get("parsed_count") or 0),
                 "failed_count": int(ingest_result.get("failed_count") or 0),
+                "skipped_unchanged_member_count": skipped_unchanged_members,
             }
+            if archive_metadata_service is not None and archive_record is not None:
+                archive_metadata_service.mark_archive_processed(archive_record.archive_id, processed_at=completed_at)
             _log_structured(
                 "monthly_ingest.worker.completed",
                 job_id=input_payload.job_id,
@@ -255,6 +353,8 @@ def run_form990_monthly_processing_task(
             error_type=classify_error(exc),
             error=str(exc),
         )
+        if archive_metadata_service is not None and archive_record is not None:
+            archive_metadata_service.mark_archive_processed(archive_record.archive_id, processed_at=datetime.now(timezone.utc), status="failed")
         raise
     finally:
         try:
@@ -418,6 +518,202 @@ def _load_local_xml(record: Form990IndexRecord, local_file_lookup: Mapping[str, 
     if not local_path:
         raise FileNotFoundError(f"local XML payload not found for {reference or record.irs_object_id}")
     return Path(local_path).read_bytes(), reference
+
+
+def _resolve_archive_source_url(workflow_input: MonthlyIngestWorkflowInput) -> str | None:
+    schedule_context = workflow_input.schedule_context
+    if isinstance(schedule_context, Mapping):
+        value = str(schedule_context.get("source_url") or "").strip()
+        if value:
+            return value
+    return f"s3://{workflow_input.source_bucket}/{workflow_input.source_key}"
+
+
+def _probe_archive_metadata(source_url: str, *, checked_at: datetime) -> Any:
+    import urllib.request
+    from urllib.error import HTTPError
+
+    request = urllib.request.Request(source_url, method="HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return _archive_probe_payload(response=response, source_url=source_url, checked_at=checked_at, method="HEAD")
+    except HTTPError as exc:
+        if int(exc.code) not in {403, 405, 501}:
+            raise
+    request = urllib.request.Request(source_url, method="GET")
+    request.add_header("Range", "bytes=0-0")
+    with urllib.request.urlopen(request, timeout=60) as response:
+        response.read(1)
+        return _archive_probe_payload(response=response, source_url=source_url, checked_at=checked_at, method="GET")
+
+
+def _archive_probe_payload(*, response: Any, source_url: str, checked_at: datetime, method: str) -> Any:
+    headers = response.headers
+    etag = _as_text(headers.get("ETag"))
+    return _RuntimeArchiveProbe(
+        source_url=source_url,
+        resolved_source_url=_as_text(getattr(response, "geturl", lambda: source_url)()),
+        etag=etag,
+        normalized_etag=_normalize_etag(etag),
+        last_modified=_as_text(headers.get("Last-Modified")),
+        content_length=_optional_int(headers.get("Content-Length")),
+        response_status=int(getattr(response, "status", 200)),
+        checked_at=checked_at.isoformat(),
+        method_used=method,
+    )
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_etag(value: Any) -> str | None:
+    text = _as_text(value)
+    if not text:
+        return None
+    if text.startswith("W/"):
+        text = text[2:].strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        text = text[1:-1]
+    text = text.strip()
+    return text or None
+
+
+def _hash_local_xml_file(path: str) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    pending = b""
+    first_chunk = True
+    with Path(path).open("rb") as handle:
+        while True:
+            chunk = handle.read(64 * 1024)
+            if not chunk:
+                break
+            if first_chunk:
+                first_chunk = False
+                if chunk.startswith(b"\xef\xbb\xbf"):
+                    chunk = chunk[3:]
+            pending += chunk
+            pending = pending.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+            lines = pending.split(b"\n")
+            pending = lines.pop()
+            for line in lines:
+                digest.update(line.rstrip(b" \t\r\n\f\v"))
+                digest.update(b"\n")
+    if pending:
+        digest.update(pending.rstrip(b" \t\r\n\f\v"))
+    return digest.hexdigest()
+
+
+def _persist_extracted_file_results(
+    *,
+    archive_metadata_service: Any,
+    archive_id: str,
+    selected_members: list[LocalExtractedXmlMember],
+    member_hashes: Mapping[str, str],
+    ingest_result: Mapping[str, Any],
+) -> None:
+    result_lookup: dict[str, dict[str, Any]] = {}
+    for item in ingest_result.get("records", []):
+        if not isinstance(item, dict):
+            continue
+        reference = str(item.get("xml_source_reference") or "").strip()
+        member_name = reference.split("#", 1)[1] if "#" in reference else ""
+        if member_name:
+            result_lookup[member_name] = item
+    now = datetime.now(timezone.utc)
+    for member in selected_members:
+        filing = result_lookup.get(member.member_name, {})
+        parse_status = str(filing.get("parse_status") or "parsed").strip() or "parsed"
+        error_message = _as_text(filing.get("parse_error"))
+        archive_metadata_service.upsert_extracted_file(
+            archive_id=archive_id,
+            filename=member.member_name,
+            content_hash=member_hashes.get(member.member_name),
+            parse_status=parse_status,
+            parsed_at=now,
+            error_message=error_message,
+        )
+
+
+def _write_skipped_artifacts(
+    *,
+    s3_client: Any,
+    workflow_input: MonthlyIngestWorkflowInput,
+    artifact_keys: Mapping[str, str],
+    started_at: datetime,
+    source_object: MonthlyIngestSourceObject,
+    archive_reason: str,
+) -> dict[str, Any]:
+    completed_at = datetime.now(timezone.utc)
+    payload = {
+        "status": "success",
+        "job_id": workflow_input.job_id,
+        "correlation_id": workflow_input.correlation_id,
+        "workflow_version": workflow_input.workflow_version,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "input": workflow_input.to_dict(),
+        "source_object": {
+            "source_year": source_object.source_year,
+            "source_kind": source_object.source_kind,
+            "source_archive_key": source_object.source_archive_key,
+            "source_signature": source_object.source_signature,
+            "source_filename": source_object.source_filename,
+        },
+        "result": {
+            "status": "success",
+            "records_processed": 0,
+            "parsed_count": 0,
+            "failed_count": 0,
+            "skipped_archive": True,
+            "skip_reason": archive_reason,
+        },
+    }
+    summary = {
+        "status": "success",
+        "job_id": workflow_input.job_id,
+        "correlation_id": workflow_input.correlation_id,
+        "workflow_version": workflow_input.workflow_version,
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "skipped_archive": True,
+        "skip_reason": archive_reason,
+        "completed_at": completed_at.isoformat(),
+    }
+    artifacts = {
+        "job_id": workflow_input.job_id,
+        "correlation_id": workflow_input.correlation_id,
+        "artifacts": {
+            **artifact_keys,
+        },
+        "skipped_archive": True,
+        "skip_reason": archive_reason,
+    }
+    _put_json_artifact(s3_client, workflow_input.destination_bucket, artifact_keys["artifact_index_s3_key"], artifacts)
+    _put_json_artifact(s3_client, workflow_input.destination_bucket, artifact_keys["manifest_s3_key"], payload)
+    _put_json_artifact(s3_client, workflow_input.destination_bucket, artifact_keys["summary_s3_key"], summary)
+    return {
+        "status": "success",
+        "job_id": workflow_input.job_id,
+        "correlation_id": workflow_input.correlation_id,
+        "manifest_s3_key": artifact_keys["manifest_s3_key"],
+        "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
+        "summary_s3_key": artifact_keys["summary_s3_key"],
+        "processing_manifest_s3_key": None,
+        "records_processed": 0,
+        "parsed_count": 0,
+        "failed_count": 0,
+        "skipped_archive": True,
+        "skip_reason": archive_reason,
+    }
 
 
 def _write_failure_artifacts(

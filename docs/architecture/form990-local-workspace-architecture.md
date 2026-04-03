@@ -57,16 +57,19 @@ Canonical backend-owned module seams:
   - source discovery, archive selection, and future diff-aware source policies
 - `metadata/`
   - archive descriptors, processing metadata, and retention contracts
+  - remote archive `HEAD` metadata normalization and persisted change-detection decisions
 - `download/`
   - archive acquisition into `workspace/archives/`
 - `extract/`
   - archive expansion into `workspace/extracted/{archive_name}/`
 - `hashing/`
   - archive and artifact fingerprints for idempotency and integrity checks
+  - deterministic XML content hashes used to skip unchanged extracted files
 - `parse/`
   - XML parsing seams layered over reusable `charity_status.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence and write-facing adapters
+  - PostgreSQL-backed archive metadata and extracted-file hash state
 - `cleanup/`
   - deterministic cleanup of extracted XML and processed ZIP files
 - `orchestration/`
@@ -90,6 +93,17 @@ Current live logic still relies heavily on:
 That is acceptable for now. New runtime work should move responsibilities into
 the workspace-oriented seams instead of adding more archive lifecycle behavior
 directly into the legacy runtime hosts.
+
+Current Phase 27F note:
+
+- archive metadata and extracted-file hash tracking now live in PostgreSQL for
+  the monthly task runtime
+- unchanged archives can be skipped from remote `HEAD` metadata when the
+  upstream source URL is available in schedule context
+- unchanged extracted XML members can be skipped from deterministic normalized
+  file hashes
+- the older TEOS S3 manifest remains in compatibility use for parts of the
+  broader discovery runtime and is not yet fully retired
 
 ## Local And ECS Mapping
 

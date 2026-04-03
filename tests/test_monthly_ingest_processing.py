@@ -1,6 +1,7 @@
 import io
 import json
 import zipfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +33,45 @@ class _Body:
 
     def read(self, size=-1):
         return self._stream.read(size)
+
+
+class FakeArchiveMetadataService:
+    def __init__(self, *, skip_archive: bool = False):
+        self.skip_archive = skip_archive
+        self.archives = {}
+        self.files = {}
+
+    def record_archive_probe(self, *, source_url, filename, probe):
+        archive = self.archives.get(source_url)
+        if archive is None:
+            archive = SimpleNamespace(archive_id=f"arc-{len(self.archives) + 1}", source_url=source_url, filename=filename)
+            self.archives[source_url] = archive
+        return SimpleNamespace(archive=archive, should_process=not self.skip_archive, reason="unchanged_archive" if self.skip_archive else "new_archive")
+
+    def ensure_archive_record(self, *, source_url, filename, checked_at, status="pending"):
+        archive = self.archives.get(source_url)
+        if archive is None:
+            archive = SimpleNamespace(archive_id=f"arc-{len(self.archives) + 1}", source_url=source_url, filename=filename)
+            self.archives[source_url] = archive
+        return archive
+
+    def get_extracted_file(self, archive_id, filename):
+        return self.files.get((archive_id, filename))
+
+    def upsert_extracted_file(self, *, archive_id, filename, content_hash, parse_status, parsed_at=None, error_message=None):
+        record = SimpleNamespace(
+            archive_id=archive_id,
+            filename=filename,
+            content_hash=content_hash,
+            parse_status=parse_status,
+            parsed_at=parsed_at,
+            error_message=error_message,
+        )
+        self.files[(archive_id, filename)] = record
+        return record
+
+    def mark_archive_processed(self, archive_id, *, processed_at=None, status="processed"):
+        return None
 
 
 def _worker_env(**overrides):
@@ -177,3 +217,67 @@ def test_worker_fails_when_zip_contains_no_processable_xml_members():
 
     with pytest.raises(MonthlyIngestMalformedArchiveError, match="processable XML members"):
         run_form990_monthly_processing_task(env=_worker_env(), s3_client=fake_s3)
+
+
+def test_worker_skips_archive_when_head_metadata_is_unchanged(monkeypatch):
+    fake_s3 = FakeS3()
+    metadata_service = FakeArchiveMetadataService(skip_archive=True)
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._probe_archive_metadata",
+        lambda source_url, checked_at: SimpleNamespace(
+            source_url=source_url,
+            resolved_source_url=source_url,
+            etag='"etag-1"',
+            normalized_etag="etag-1",
+            last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+            content_length=1234,
+            response_status=200,
+            checked_at=checked_at.isoformat(),
+            method_used="HEAD",
+        ),
+    )
+
+    result = run_form990_monthly_processing_task(
+        env=_worker_env(
+            payload_overrides={
+                "schedule_context": {
+                    "source_url": "https://example.org/2026_TEOS_XML_02A.zip",
+                }
+            }
+        ),
+        s3_client=fake_s3,
+        archive_metadata_service=metadata_service,
+    )
+
+    assert result["status"] == "success"
+    assert result["skipped_archive"] is True
+    summary = json.loads(fake_s3.store[("dest-bucket", result["summary_s3_key"])]["Body"].decode("utf-8"))
+    assert summary["skipped_archive"] is True
+    assert summary["skip_reason"] == "unchanged_archive"
+
+
+def test_worker_skips_unchanged_xml_files_when_hash_matches():
+    fake_s3 = FakeS3()
+    metadata_service = FakeArchiveMetadataService()
+    source_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip"
+    fake_s3.put_object(
+        Bucket="source-bucket",
+        Key=source_key,
+        Body=_make_zip(("folder/obj-1.xml", _valid_xml())),
+    )
+
+    first = run_form990_monthly_processing_task(
+        env=_worker_env(),
+        s3_client=fake_s3,
+        archive_metadata_service=metadata_service,
+    )
+    second = run_form990_monthly_processing_task(
+        env=_worker_env(),
+        s3_client=fake_s3,
+        archive_metadata_service=metadata_service,
+    )
+
+    assert first["parsed_count"] == 1
+    assert second["parsed_count"] == 0
+    assert second["records_processed"] == 0
+    assert second["skipped_unchanged_member_count"] == 1

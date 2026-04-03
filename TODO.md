@@ -259,6 +259,32 @@ Phase 20F adds structured audit logging for tenant-aware nonprofit reads and sto
 
 ### Migration Triggers
 
+## TODO-ARCH-012
+
+### Title
+
+Retire the legacy TEOS S3 manifest as authoritative processing state once the
+remaining Form 990 discovery/runtime paths fully use PostgreSQL archive
+metadata.
+
+### Rationale
+
+Phase 27F introduces PostgreSQL-backed archive metadata and extracted-file hash
+tracking for the monthly Form 990 task runtime, but broader TEOS discovery and
+source-batch orchestration still retain compatibility use of the older S3
+manifest state.
+
+### Migration Triggers
+
+- full PostgreSQL-backed TEOS discovery cutover
+- removal of manifest-driven TEOS source-batch scheduling
+- confirmation that rollback no longer depends on the S3 manifest state
+
+### Constraint
+
+Keep current monthly-task archive/file change detection stable while the TEOS
+runtime finishes moving off the compatibility manifest.
+
 - audit log export to a data warehouse or lake
 - BI dashboards built on nonprofit access activity
 - compliance or customer reporting that depends on stable audit dimensions

@@ -10,12 +10,16 @@ from charity_status_platform.customer_accounts import CustomerAccountsBase, buil
 from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
 from charity_status_platform.nonprofits import (
     ComplianceCheckRecord,
+    Form990ArchiveRecord,
+    Form990ExtractedFileRecord,
     NonprofitFilingRecord,
     NonprofitModel,
     NonprofitRecord,
     PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
+    build_form990_archive_id,
+    build_form990_extracted_file_id,
     build_nonprofit_id,
     make_record_id,
 )
@@ -36,6 +40,51 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
     assert "nonprofit_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
+    assert "form990_archives" in table_names
+    assert "form990_extracted_files" in table_names
+
+
+def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    archive = Form990ArchiveRecord(
+        archive_id=build_form990_archive_id("https://example.org/2025_TEOS_XML_01A.zip"),
+        source_url="https://example.org/2025_TEOS_XML_01A.zip",
+        filename="2025_TEOS_XML_01A.zip",
+        etag="etag-1",
+        last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+        content_length=1234,
+        response_status=200,
+        last_checked_at="2026-04-03T00:00:00+00:00",
+        status="pending",
+        created_at="2026-04-03T00:00:00+00:00",
+        updated_at="2026-04-03T00:00:00+00:00",
+    )
+    repository.upsert_archive_probe(archive)
+    repository.upsert_extracted_file(
+        Form990ExtractedFileRecord(
+            file_id=build_form990_extracted_file_id(archive.archive_id, "folder/object-1.xml"),
+            archive_id=archive.archive_id,
+            filename="folder/object-1.xml",
+            content_hash="abc123",
+            parse_status="parsed",
+            parsed_at="2026-04-03T00:05:00+00:00",
+            created_at="2026-04-03T00:05:00+00:00",
+            updated_at="2026-04-03T00:05:00+00:00",
+        )
+    )
+
+    fetched_archive = repository.get_archive_by_source_url("https://example.org/2025_TEOS_XML_01A.zip")
+    fetched_file = repository.get_extracted_file(archive.archive_id, "folder/object-1.xml")
+    archive_files = repository.list_extracted_files_for_archive(archive.archive_id)
+    processed = repository.mark_archive_processed(archive.archive_id, "2026-04-03T00:10:00+00:00", "processed")
+
+    assert fetched_archive is not None
+    assert fetched_archive.etag == "etag-1"
+    assert fetched_file is not None
+    assert fetched_file.content_hash == "abc123"
+    assert len(archive_files) == 1
+    assert processed is not None
+    assert processed.status == "processed"
 
 
 def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_path: Path):

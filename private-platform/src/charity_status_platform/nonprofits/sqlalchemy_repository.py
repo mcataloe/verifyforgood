@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
 
-from .sqlalchemy_models import ComplianceCheckModel, NonprofitFilingModel, NonprofitModel, NonprofitSourceModel
+from .sqlalchemy_models import (
+    ComplianceCheckModel,
+    Form990ArchiveModel,
+    Form990ExtractedFileModel,
+    NonprofitFilingModel,
+    NonprofitModel,
+    NonprofitSourceModel,
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +117,35 @@ class ComplianceCheckRecord:
     summary_json: dict[str, Any] | None = None
     metadata_json: dict[str, Any] | None = None
     created_at: str = ""
+
+
+@dataclass(frozen=True)
+class Form990ArchiveRecord:
+    archive_id: str
+    source_url: str
+    filename: str | None = None
+    etag: str | None = None
+    last_modified: str | None = None
+    content_length: int | None = None
+    response_status: int | None = None
+    last_checked_at: str | None = None
+    last_processed_at: str | None = None
+    status: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass(frozen=True)
+class Form990ExtractedFileRecord:
+    file_id: str
+    archive_id: str
+    filename: str
+    content_hash: str | None = None
+    parse_status: str | None = None
+    parsed_at: str | None = None
+    error_message: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
 
 
 class SqlAlchemyNonprofitRepository:
@@ -346,6 +382,108 @@ class SqlAlchemyNonprofitRepository:
                 statement = statement.where(NonprofitModel.ein > normalized_start)
             return [str(value) for value in session.scalars(statement).all()]
 
+    def get_archive_by_source_url(self, source_url: str) -> Form990ArchiveRecord | None:
+        normalized_source_url = _normalize_source_url(source_url)
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(Form990ArchiveModel).where(Form990ArchiveModel.source_url == normalized_source_url).limit(1)
+            )
+            return None if model is None else _archive_record(model)
+
+    def get_archive_by_id(self, archive_id: str) -> Form990ArchiveRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
+            return None if model is None else _archive_record(model)
+
+    def upsert_archive_probe(self, record: Form990ArchiveRecord) -> Form990ArchiveRecord:
+        normalized_record = Form990ArchiveRecord(
+            archive_id=record.archive_id,
+            source_url=_normalize_source_url(record.source_url),
+            filename=record.filename,
+            etag=_normalize_optional_text(record.etag),
+            last_modified=_normalize_optional_text(record.last_modified),
+            content_length=record.content_length,
+            response_status=record.response_status,
+            last_checked_at=record.last_checked_at,
+            last_processed_at=record.last_processed_at,
+            status=record.status,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(Form990ArchiveModel)
+                .where(Form990ArchiveModel.source_url == normalized_record.source_url)
+                .limit(1)
+            )
+            if model is None:
+                session.add(_archive_model(normalized_record))
+            else:
+                _apply_archive_record(model, normalized_record)
+            session.flush()
+        return normalized_record
+
+    def mark_archive_processed(self, archive_id: str, processed_at: str, status: str) -> Form990ArchiveRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
+            if model is None:
+                return None
+            model.last_processed_at = _parse_timestamp(processed_at) or datetime.now(timezone.utc)
+            model.status = status
+            model.updated_at = _parse_timestamp(processed_at) or datetime.now(timezone.utc)
+            session.flush()
+            return _archive_record(model)
+
+    def get_extracted_file(self, archive_id: str, filename: str) -> Form990ExtractedFileRecord | None:
+        normalized_filename = _normalize_optional_text(filename) or ""
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(Form990ExtractedFileModel)
+                .where(
+                    Form990ExtractedFileModel.archive_id == archive_id,
+                    Form990ExtractedFileModel.filename == normalized_filename,
+                )
+                .limit(1)
+            )
+            return None if model is None else _extracted_file_record(model)
+
+    def list_extracted_files_for_archive(self, archive_id: str) -> list[Form990ExtractedFileRecord]:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(Form990ExtractedFileModel)
+                .where(Form990ExtractedFileModel.archive_id == archive_id)
+                .order_by(Form990ExtractedFileModel.filename.asc())
+            )
+            return [_extracted_file_record(model) for model in session.scalars(statement).all()]
+
+    def upsert_extracted_file(self, record: Form990ExtractedFileRecord) -> Form990ExtractedFileRecord:
+        normalized_record = Form990ExtractedFileRecord(
+            file_id=record.file_id,
+            archive_id=record.archive_id,
+            filename=_normalize_optional_text(record.filename) or "",
+            content_hash=_normalize_optional_text(record.content_hash),
+            parse_status=_normalize_optional_text(record.parse_status),
+            parsed_at=record.parsed_at,
+            error_message=_normalize_optional_text(record.error_message),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(Form990ExtractedFileModel)
+                .where(
+                    Form990ExtractedFileModel.archive_id == normalized_record.archive_id,
+                    Form990ExtractedFileModel.filename == normalized_record.filename,
+                )
+                .limit(1)
+            )
+            if model is None:
+                session.add(_extracted_file_model(normalized_record))
+            else:
+                _apply_extracted_file_record(model, normalized_record)
+            session.flush()
+        return normalized_record
+
 
 def build_nonprofit_id(ein: str) -> str:
     return f"npo_{_normalize_ein(ein)}"
@@ -355,8 +493,29 @@ def make_record_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:24]}"
 
 
+def build_form990_archive_id(source_url: str) -> str:
+    normalized = _normalize_source_url(source_url)
+    return f"arc_{uuid.uuid5(uuid.NAMESPACE_URL, normalized).hex[:24]}"
+
+
+def build_form990_extracted_file_id(archive_id: str, filename: str) -> str:
+    payload = f"{archive_id}|{_normalize_optional_text(filename) or ''}"
+    return f"fx_{uuid.uuid5(uuid.NAMESPACE_URL, payload).hex[:24]}"
+
+
 def _normalize_ein(ein: str) -> str:
     return "".join(ch for ch in str(ein or "") if ch.isdigit())[:9]
+
+
+def _normalize_source_url(source_url: str) -> str:
+    return str(source_url or "").strip()
+
+
+def _normalize_optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -733,4 +892,86 @@ def _check_record(model: ComplianceCheckModel) -> ComplianceCheckRecord:
         summary_json=model.summary_json,
         metadata_json=model.metadata_json,
         created_at=_format_timestamp(model.created_at) or "",
+    )
+
+
+def _archive_model(record: Form990ArchiveRecord) -> Form990ArchiveModel:
+    return Form990ArchiveModel(
+        archive_id=record.archive_id,
+        source_url=_normalize_source_url(record.source_url),
+        filename=record.filename,
+        etag=record.etag,
+        last_modified=record.last_modified,
+        content_length=record.content_length,
+        response_status=record.response_status,
+        last_checked_at=_parse_timestamp(record.last_checked_at),
+        last_processed_at=_parse_timestamp(record.last_processed_at),
+        status=record.status,
+        created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    )
+
+
+def _apply_archive_record(model: Form990ArchiveModel, record: Form990ArchiveRecord) -> None:
+    model.filename = record.filename
+    model.etag = record.etag
+    model.last_modified = record.last_modified
+    model.content_length = record.content_length
+    model.response_status = record.response_status
+    model.last_checked_at = _parse_timestamp(record.last_checked_at)
+    model.last_processed_at = _parse_timestamp(record.last_processed_at)
+    model.status = record.status
+    model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
+
+
+def _archive_record(model: Form990ArchiveModel) -> Form990ArchiveRecord:
+    return Form990ArchiveRecord(
+        archive_id=model.archive_id,
+        source_url=model.source_url,
+        filename=model.filename,
+        etag=model.etag,
+        last_modified=model.last_modified,
+        content_length=model.content_length,
+        response_status=model.response_status,
+        last_checked_at=_format_timestamp(model.last_checked_at),
+        last_processed_at=_format_timestamp(model.last_processed_at),
+        status=model.status,
+        created_at=_format_timestamp(model.created_at) or "",
+        updated_at=_format_timestamp(model.updated_at) or "",
+    )
+
+
+def _extracted_file_model(record: Form990ExtractedFileRecord) -> Form990ExtractedFileModel:
+    return Form990ExtractedFileModel(
+        file_id=record.file_id,
+        archive_id=record.archive_id,
+        filename=record.filename,
+        content_hash=record.content_hash,
+        parse_status=record.parse_status,
+        parsed_at=_parse_timestamp(record.parsed_at),
+        error_message=record.error_message,
+        created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    )
+
+
+def _apply_extracted_file_record(model: Form990ExtractedFileModel, record: Form990ExtractedFileRecord) -> None:
+    model.content_hash = record.content_hash
+    model.parse_status = record.parse_status
+    model.parsed_at = _parse_timestamp(record.parsed_at)
+    model.error_message = record.error_message
+    model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
+
+
+def _extracted_file_record(model: Form990ExtractedFileModel) -> Form990ExtractedFileRecord:
+    return Form990ExtractedFileRecord(
+        file_id=model.file_id,
+        archive_id=model.archive_id,
+        filename=model.filename,
+        content_hash=model.content_hash,
+        parse_status=model.parse_status,
+        parsed_at=_format_timestamp(model.parsed_at),
+        error_message=model.error_message,
+        created_at=_format_timestamp(model.created_at) or "",
+        updated_at=_format_timestamp(model.updated_at) or "",
     )

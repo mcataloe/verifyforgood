@@ -1,5 +1,5 @@
 """Persistence seams for backend-owned Form 990 ingest runtime writes."""
 
-from ..persistence import build_form990_nonprofit_persistence_service
+from .archive_metadata import ArchiveProbeOutcome, Form990ArchiveMetadataService
 
-__all__ = ["build_form990_nonprofit_persistence_service"]
+__all__ = ["ArchiveProbeOutcome", "Form990ArchiveMetadataService"]

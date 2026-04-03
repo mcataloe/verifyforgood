@@ -161,3 +161,49 @@ class ComplianceCheckModel(CustomerAccountsBase):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     nonprofit: Mapped[NonprofitModel] = relationship(back_populates="compliance_checks")
+
+
+class Form990ArchiveModel(CustomerAccountsBase):
+    __tablename__ = "form990_archives"
+    __table_args__ = (
+        UniqueConstraint("source_url", name="uq_form990_archives_source_url"),
+        Index("ix_form990_archives_last_checked_at", "last_checked_at"),
+    )
+
+    archive_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    extracted_files: Mapped[list["Form990ExtractedFileModel"]] = relationship(
+        back_populates="archive",
+        cascade="all, delete-orphan",
+    )
+
+
+class Form990ExtractedFileModel(CustomerAccountsBase):
+    __tablename__ = "form990_extracted_files"
+    __table_args__ = (
+        UniqueConstraint("archive_id", "filename", name="uq_form990_extracted_files_archive_filename"),
+        Index("ix_form990_extracted_files_archive_status", "archive_id", "parse_status"),
+    )
+
+    file_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    archive_id: Mapped[str] = mapped_column(ForeignKey("form990_archives.archive_id"), nullable=False)
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    parse_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    parsed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    archive: Mapped[Form990ArchiveModel] = relationship(back_populates="extracted_files")
