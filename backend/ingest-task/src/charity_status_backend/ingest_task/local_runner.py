@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import traceback
 import urllib.request
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -33,11 +35,33 @@ from .persistence import build_form990_archive_metadata_service, build_form990_n
 
 DEFAULT_SOURCE_MODE = "static_manifest"
 DEFAULT_IRS_DOWNLOADS_PAGE_URL = "https://www.irs.gov/charities-non-profits/form-990-series-downloads"
+DEFAULT_LOG_LEVEL = "INFO"
+
+
+@dataclass(frozen=True)
+class LocalIngestRunConfig:
+    archive_url: str | None = None
+    single_archive: bool = False
+    strict: bool = False
+    keep_temp: bool = False
+    workspace: str | None = None
+    limit: int | None = None
+    log_level: str = DEFAULT_LOG_LEVEL
 
 
 class _ConsoleStructuredLogger:
-    def __init__(self, *, strict: bool):
+    _LEVELS = {
+        "DEBUG": 10,
+        "INFO": 20,
+        "WARNING": 30,
+        "ERROR": 40,
+        "CRITICAL": 50,
+    }
+
+    def __init__(self, *, strict: bool, level: str = DEFAULT_LOG_LEVEL):
         self._strict = strict
+        normalized = str(level or DEFAULT_LOG_LEVEL).strip().upper() or DEFAULT_LOG_LEVEL
+        self._min_level = self._LEVELS.get(normalized, self._LEVELS[DEFAULT_LOG_LEVEL])
 
     def log(
         self,
@@ -49,6 +73,9 @@ class _ConsoleStructuredLogger:
         file_name: str = "",
         error: Exception | None = None,
     ) -> None:
+        current_level = self._LEVELS.get(str(level or "INFO").strip().upper(), self._LEVELS["INFO"])
+        if current_level < self._min_level:
+            return
         payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "component": component,
@@ -65,6 +92,47 @@ class _ConsoleStructuredLogger:
         print(json.dumps(payload, sort_keys=True))
 
 
+def resolve_runtime_environment_aliases(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    source_env = dict(os.environ if env is None else env)
+    resolved = dict(source_env)
+
+    if not str(resolved.get("PLATFORM_POSTGRES_URL") or "").strip():
+        database_url = str(source_env.get("DATABASE_URL") or "").strip()
+        if database_url:
+            resolved["PLATFORM_POSTGRES_URL"] = database_url
+            resolved.setdefault("PLATFORM_POSTGRES_ENABLED", "true")
+
+    if not str(resolved.get("FORM990_WORKSPACE_DIR") or "").strip():
+        workspace_path = str(source_env.get("WORKSPACE_PATH") or "").strip()
+        if workspace_path:
+            resolved["FORM990_WORKSPACE_DIR"] = workspace_path
+
+    return resolved
+
+
+def build_local_ingest_run_config(
+    *,
+    env: Mapping[str, str] | None = None,
+    archive_url: str | None = None,
+    single_archive: bool | None = None,
+    strict: bool | None = None,
+    keep_temp: bool | None = None,
+    workspace: str | None = None,
+    limit: int | None = None,
+    log_level: str | None = None,
+) -> LocalIngestRunConfig:
+    source_env = resolve_runtime_environment_aliases(env)
+    return LocalIngestRunConfig(
+        archive_url=archive_url,
+        single_archive=bool(single_archive) if single_archive is not None else False,
+        strict=_env_bool(source_env, "STRICT_MODE", default=False) if strict is None else bool(strict),
+        keep_temp=bool(keep_temp) if keep_temp is not None else False,
+        workspace=workspace or _env_text(source_env, "FORM990_WORKSPACE_DIR") or None,
+        limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
+        log_level=log_level or _env_text(source_env, "LOG_LEVEL", DEFAULT_LOG_LEVEL) or DEFAULT_LOG_LEVEL,
+    )
+
+
 def run_local_form990_ingest(
     *,
     archive_url: str | None,
@@ -75,10 +143,28 @@ def run_local_form990_ingest(
     limit: int | None,
     env: Mapping[str, str] | None = None,
 ) -> int:
-    source_env = dict(os.environ if env is None else env)
-    logger = _ConsoleStructuredLogger(strict=strict)
+    config = build_local_ingest_run_config(
+        env=env,
+        archive_url=archive_url,
+        single_archive=single_archive,
+        strict=strict,
+        keep_temp=keep_temp,
+        workspace=workspace,
+        limit=limit,
+    )
+    return run_local_form990_ingest_config(config=config, env=env)
+
+
+def run_local_form990_ingest_config(
+    config: LocalIngestRunConfig,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> int:
+    source_env = resolve_runtime_environment_aliases(env)
+    logging.getLogger().setLevel(_logging_level(config.log_level))
+    logger = _ConsoleStructuredLogger(strict=config.strict, level=config.log_level)
     layout = build_workspace_layout(
-        {**source_env, **({"FORM990_WORKSPACE_DIR": workspace} if workspace else {})}
+        {**source_env, **({"FORM990_WORKSPACE_DIR": config.workspace} if config.workspace else {})}
     ).ensure()
     logger.log(
         component="form990.cli",
@@ -93,12 +179,12 @@ def run_local_form990_ingest(
 
     archive_metadata_service = _build_archive_metadata_service(env=source_env, logger=logger)
     nonprofit_persistence_service = build_form990_nonprofit_persistence_service(env=source_env)
-    artifacts = _resolve_archive_sources(source_env, archive_url=archive_url)
+    artifacts = _resolve_archive_sources(source_env, archive_url=config.archive_url)
     zip_artifacts = [artifact for artifact in artifacts if artifact.source_kind == SOURCE_KIND_ZIP_ARCHIVE]
-    if single_archive:
+    if config.single_archive:
         zip_artifacts = zip_artifacts[:1]
-    if limit is not None and limit >= 0:
-        zip_artifacts = zip_artifacts[:limit]
+    if config.limit is not None and config.limit >= 0:
+        zip_artifacts = zip_artifacts[: config.limit]
     if not zip_artifacts:
         logger.log(
             component="form990.cli",
@@ -178,7 +264,7 @@ def run_local_form990_ingest(
             )
             if str(result.get("status") or "").strip().lower() == "failed":
                 failure_count += 1
-                if strict:
+                if config.strict:
                     raise RuntimeError(
                         f"archive {archive_name} failed with {int(result.get('failed_count') or 0)} failed file(s)"
                     )
@@ -191,10 +277,10 @@ def run_local_form990_ingest(
                 archive=archive_name,
                 error=exc,
             )
-            if strict:
+            if config.strict:
                 raise
         finally:
-            if not keep_temp:
+            if not config.keep_temp:
                 archive_workspace.finalize_processed_archive()
 
     logger.log(
@@ -279,3 +365,25 @@ def _build_archive_metadata_service(*, env: Mapping[str, str], logger: _ConsoleS
             error=exc,
         )
     return None
+
+
+def _env_text(source_env: Mapping[str, str], key: str, default: str = "") -> str:
+    return str(source_env.get(key) or default).strip()
+
+
+def _env_bool(source_env: Mapping[str, str], key: str, *, default: bool) -> bool:
+    raw = source_env.get(key)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() == "true"
+
+
+def _env_optional_int(source_env: Mapping[str, str], key: str) -> int | None:
+    raw = _env_text(source_env, key)
+    if not raw:
+        return None
+    return int(raw)
+
+
+def _logging_level(level: str) -> int:
+    return getattr(logging, str(level or DEFAULT_LOG_LEVEL).strip().upper(), logging.INFO)

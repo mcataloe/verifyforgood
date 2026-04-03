@@ -75,6 +75,10 @@ def main(argv: list[str] | None = None) -> int:
             workspace=run_args.workspace,
             limit=run_args.limit,
         )
+    if args_list and args_list[0] == "ecs-run":
+        from ..ecs_runtime import main as ecs_main
+
+        return ecs_main(args_list[1:])
 
     parser = argparse.ArgumentParser(
         prog="charity_status_backend.ingest_task.cli",
@@ -82,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("form990", "form990-worker", "form990-orchestrator", "monthly-staging", "monthly-worker"),
+        choices=("ecs-run", "form990", "form990-worker", "form990-orchestrator", "monthly-staging", "monthly-worker"),
     )
     parser.add_argument("--event-json")
     parser.add_argument("--event-file")

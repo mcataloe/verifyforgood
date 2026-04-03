@@ -73,6 +73,18 @@ Ownership note:
 
 - the ECS worker implementation now lives under `backend/ingest-task`
 - the `infrastructure/monthly_ingest_worker.py` file remains only as a compatibility entrypoint for deployment wiring
+- the managed ECS task now uses the backend-owned `ecs-run` parity command so
+  task execution shares the same archive-at-a-time orchestration path as local
+  `python -m ingest_task.cli run`
+
+ECS parity env aliases supported by the runtime:
+
+- `WORKSPACE_PATH` -> `FORM990_WORKSPACE_DIR`
+- `STRICT_MODE` -> strict stop-on-first-failure behavior
+- `MAX_ARCHIVES` -> archive-processing limit
+- `LOG_LEVEL` -> runtime logging level
+- `DATABASE_URL` -> `PLATFORM_POSTGRES_URL` when a direct URL-style Postgres
+  configuration is provided externally
 
 Expected source object:
 

@@ -428,7 +428,7 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
       image     = local.monthly_ingest_worker_image_uri_resolved
       essential = true
       entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]
-      command    = ["monthly-worker"]
+      command    = ["ecs-run"]
       environment = [
         {
           name  = "AWS_REGION"
@@ -441,6 +441,22 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
         {
           name  = "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES"
           value = tostring(var.form990_zip_max_xml_file_size_bytes)
+        },
+        {
+          name  = "WORKSPACE_PATH"
+          value = "/tmp/charity-status/form990"
+        },
+        {
+          name  = "STRICT_MODE"
+          value = "false"
+        },
+        {
+          name  = "MAX_ARCHIVES"
+          value = ""
+        },
+        {
+          name  = "LOG_LEVEL"
+          value = "INFO"
         }
       ]
       logConfiguration = {

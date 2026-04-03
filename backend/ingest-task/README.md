@@ -15,6 +15,7 @@ Python package root:
   - `python -m ingest_task.cli run`
   - `python -m ingest_task.cli run --archive-url <url>`
   - `python -m charity_status_backend.ingest_task.cli run`
+  - `python -m charity_status_backend.ingest_task.cli ecs-run`
   - `python -m charity_status_backend.ingest_task.cli form990`
   - `python -m charity_status_backend.ingest_task.cli form990-worker`
   - `python -m charity_status_backend.ingest_task.cli form990-orchestrator`
@@ -24,6 +25,7 @@ Python package root:
 Local Form 990 debug runner:
 
 - `run` executes the archive-at-a-time monthly worker processing path locally
+- `ecs-run` executes the same archive-at-a-time orchestration path for ECS task entrypoints using env-driven options
 - `--archive-url <url>` processes one ZIP archive directly without discovery
 - `--single-archive` stops after the first selected ZIP archive
 - `--limit <n>` caps the number of selected ZIP archives
@@ -51,6 +53,7 @@ Container contract:
 - deployment model: ECS task definition invoked by schedules or one-off runs,
   not a long-lived worker service
 - supported command overrides:
+  - `ecs-run`
   - `form990`
   - `form990-worker`
   - `form990-orchestrator`
@@ -58,6 +61,16 @@ Container contract:
   - `monthly-worker`
 - monthly staging remains Lambda-oriented even though the CLI supports local
   invocation of the staging runtime shape
+- managed ECS parity path now routes through `ecs-run`, which reuses the same
+  orchestration core as local `run`
+
+ECS/local parity env aliases:
+
+- `DATABASE_URL` maps to `PLATFORM_POSTGRES_URL` when the native env is absent
+- `WORKSPACE_PATH` maps to `FORM990_WORKSPACE_DIR` when the native env is absent
+- `STRICT_MODE` maps to strict failure behavior
+- `MAX_ARCHIVES` maps to the archive-processing limit
+- `LOG_LEVEL` controls runtime log verbosity for the parity path
 
 Backend-owned runtime modules:
 

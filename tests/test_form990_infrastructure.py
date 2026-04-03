@@ -49,8 +49,12 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
 
     assert "charity_status_backend.ingest_task.cli" in dockerfile
     assert 'CMD ["monthly-worker"]' in dockerfile
-    assert 'command    = ["monthly-worker"]' in ecs_content
+    assert 'command    = ["ecs-run"]' in ecs_content
     assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in ecs_content
+    assert 'WORKSPACE_PATH' in ecs_content
+    assert 'STRICT_MODE' in ecs_content
+    assert 'MAX_ARCHIVES' in ecs_content
+    assert 'LOG_LEVEL' in ecs_content
     assert '"s3:GetObject"' in ecs_content
     assert '"s3:PutObject"' in ecs_content
     assert '"s3:ListBucket"' in ecs_content
