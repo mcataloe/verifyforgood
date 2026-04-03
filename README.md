@@ -203,7 +203,10 @@ For the current live system:
 
 - `infrastructure/lambda_*.py` remains the deployed handler surface
 - `backend/api` now owns the primary FastAPI app and shared HTTP runtime dispatch for the API service
+- `backend/ingest-task` now owns the Form 990 and monthly ingest-task runtime implementations behind compatibility wrapper entrypoints
 - those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
+- backend-owned Dockerfiles now define the canonical runtime image contracts for
+  API, worker, and ingest-task execution
 - `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
 - `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
 
@@ -1958,6 +1961,26 @@ The platform relational foundation now uses SQLAlchemy models under
 `private-platform/src/charity_status_platform/customer_accounts/` and Alembic
 for schema evolution.
 
+Backend-local developer workflow:
+
+- use PostgreSQL 16 locally until infrastructure pins the deployed engine
+  version explicitly
+- use `backend/.env.local` as the canonical backend local env file
+- use `PLATFORM_POSTGRES_URL` as the primary local database endpoint setting
+
+Example local bootstrap:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r infrastructure/requirements.txt -r infrastructure/requirements-dev.txt
+python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend
+cp backend/.env.local.example backend/.env.local
+createdb verification_platform
+python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.api.entrypoint
+```
+
 Set one of the following before running migrations locally:
 
 - `PLATFORM_POSTGRES_URL=postgresql+psycopg://...`
@@ -1971,6 +1994,8 @@ Set one of the following before running migrations locally:
 Common commands:
 
 ```bash
+python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.shared.local_dev db-current
 alembic upgrade head
 alembic revision -m "describe change"
 python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity
@@ -2076,6 +2101,14 @@ Form 990 mode configuration additions:
 Phase 25C/25D adds the ECS Fargate API runtime and completes the Route53
 cutover so the ALB-backed ECS service is now the primary ingress path.
 
+Phase 27C aligns the Terraform deployment model to the backend runtime
+directories:
+
+- `backend/api` -> live ECS service behind the ALB
+- `backend/worker` -> private ECS service placeholder, disabled by default
+- `backend/ingest-task` -> ECS task-style runtime for scheduled and one-off
+  ingest execution
+
 ECS API deployment configuration additions:
 
 - `api_ecs_enabled`: enable the parallel ECS Fargate API runtime
@@ -2092,6 +2125,20 @@ ECS API deployment configuration additions:
 - `api_ecs_secret_arns`: optional map of env-var names to Secrets Manager or SSM parameter ARNs for ECS secret injection; use this for values such as `PORTAL_AUTH_TOKEN_SECRET` and other sensitive API runtime settings
 - `api_ecs_secret_kms_key_arns`: optional KMS keys needed to decrypt entries referenced by `api_ecs_secret_arns`
 
+Worker ECS deployment configuration additions:
+
+- `worker_ecs_enabled`: enable the backend worker ECS service scaffold
+- `worker_ecs_vpc_id`: existing VPC id used by the worker tasks and worker task
+  security group
+- `worker_ecs_private_subnet_ids`: private subnets for the worker tasks
+- `worker_ecs_image_uri`: optional full worker image URI; leave empty to use
+  the managed ECR repository plus `worker_ecs_image_tag`
+- `worker_ecs_task_cpu`, `worker_ecs_task_memory`, `worker_ecs_desired_count`:
+  worker service sizing controls; desired count defaults to `0` while the
+  runtime remains scaffold-only
+- `worker_ecs_secret_arns`: optional map of env-var names to Secrets Manager or
+  SSM parameter ARNs for ECS worker secret injection
+
 Parallel ECS API outputs now include:
 
 - ECS cluster name and ARN
@@ -2100,6 +2147,13 @@ Parallel ECS API outputs now include:
 - CloudWatch log group name for the API task
 - ALB DNS name and zone id
 - ALB target group ARN
+
+Additional ECS runtime outputs now include:
+
+- shared backend runtime cluster name and ARN
+- worker ECR repository URL
+- worker ECS service name and task definition ARN
+- worker ECS task log group name
 
 Current Phase 25D ingress posture:
 
@@ -2116,8 +2170,33 @@ Rollback guidance for the API cutover:
 
 Current CI/CD posture:
 
-- `.gitlab-ci.yml` now validates Terraform in `infrastructure/`
-- API image build/publish is still an external contract in this phase; Terraform can consume either a managed ECR repository plus tag or an explicit image URI
+- `.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline for backend
+  image build, ECR publish, Terraform plan, and manual ECS rollout
+- the pipeline builds and publishes:
+  - `backend/api`
+  - `backend/worker`
+  - `backend/ingest-task`
+- image versioning now defaults to immutable commit-SHA tags instead of a
+  mutable `latest` rollout contract
+- Terraform remains the deploy authority; deploy jobs pass:
+  - `api_ecs_image_tag=$CI_COMMIT_SHA`
+  - `worker_ecs_image_tag=$CI_COMMIT_SHA`
+  - `monthly_ingest_worker_image_tag=$CI_COMMIT_SHA`
+- dev rollout is exposed as a manual GitLab job on the default branch using
+  `backend-dev.hcl` plus the dev tfvars files
+- prod rollout is exposed as a manual GitLab job on tags using
+  `backend-prod.hcl` plus the prod tfvars files
+- the current ingest-task compatibility contract remains:
+  `monthly_ingest_worker_image_tag` still selects the `backend/ingest-task`
+  image for the monthly ECS task definition
+- CI requires standard AWS auth variables plus environment-specific secrets
+  content for:
+  - `TERRAFORM_DEV_SECRETS_TFVARS`
+  - `TERRAFORM_PROD_SECRETS_TFVARS`
+- the initial Terraform bootstrap still has to create the managed ECR
+  repositories before CI publish jobs can push successfully
+- the canonical Dockerfiles now live under `backend/api/`, `backend/worker/`,
+  and `backend/ingest-task/`
 
 Lambda event examples:
 

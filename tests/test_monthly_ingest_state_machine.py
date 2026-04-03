@@ -109,7 +109,8 @@ def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
     assert 'ephemeral_storage {' in content
     assert 'monthly_ingest_worker_image_uri_resolved' in content
     assert 'monthly_ingest_task_definition_arn_resolved' in content
-    assert 'command   = ["python", "monthly_ingest_worker.py"]' in content
+    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in content
+    assert 'command    = ["monthly-worker"]' in content
     assert 'FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES' in content
 
 
@@ -147,8 +148,10 @@ def test_monthly_ingest_docs_describe_permanent_ephemeral_and_troubleshooting_pa
 
 def test_api_ecs_terraform_wires_parallel_runtime_resources():
     content = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+    worker_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
     assert 'resource "aws_ecs_cluster" "api"' in content
+    assert "backend_runtime_ecs_cluster_enabled" in content
     assert 'resource "aws_ecr_repository" "api"' in content
     assert 'resource "aws_cloudwatch_log_group" "api_task"' in content
     assert 'resource "aws_security_group" "api_alb"' in content
@@ -166,6 +169,20 @@ def test_api_ecs_terraform_wires_parallel_runtime_resources():
     assert 'api_ecs_secret_arns_resolved' in content
     assert 'containerInsights' in content
     assert 'awslogs-stream-prefix = "ecs"' in content
+
+    assert 'resource "aws_ecr_repository" "worker"' in worker_content
+    assert 'resource "aws_cloudwatch_log_group" "worker_task"' in worker_content
+    assert 'resource "aws_security_group" "worker_task"' in worker_content
+    assert 'resource "aws_iam_role" "worker_task_execution"' in worker_content
+    assert 'resource "aws_iam_role" "worker_task"' in worker_content
+    assert 'resource "aws_ecs_task_definition" "worker"' in worker_content
+    assert 'resource "aws_ecs_service" "worker"' in worker_content
+    assert 'cluster                = aws_ecs_cluster.api[0].id' in worker_content
+    assert 'assign_public_ip = false' in worker_content
+    assert 'worker_ecs_container_plaintext_environment' in worker_content
+    assert 'worker_ecs_secret_arns_resolved' in worker_content
+    assert 'deployment_minimum_healthy_percent = 0' in worker_content
+    assert 'deployment_maximum_percent         = 100' in worker_content
 
 
 def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
@@ -185,14 +202,26 @@ def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
     assert 'variable "api_ecs_image_uri"' in variables_content
     assert 'variable "api_ecs_secret_arns"' in variables_content
     assert 'variable "api_alb_certificate_arn"' in variables_content
+    assert 'variable "worker_ecs_enabled"' in variables_content
+    assert 'variable "worker_ecs_vpc_id"' in variables_content
+    assert 'variable "worker_ecs_private_subnet_ids"' in variables_content
+    assert 'variable "worker_ecs_image_uri"' in variables_content
+    assert 'variable "worker_ecs_desired_count"' in variables_content
+    assert 'variable "worker_ecs_secret_arns"' in variables_content
 
     assert 'output "api_ecs_cluster_name"' in outputs_content
     assert 'output "api_ecr_repository_url"' in outputs_content
     assert 'output "api_ecs_service_name"' in outputs_content
     assert 'output "api_alb_dns_name"' in outputs_content
     assert 'output "api_alb_target_group_arn"' in outputs_content
+    assert 'output "backend_runtime_ecs_cluster_name"' in outputs_content
+    assert 'output "worker_ecr_repository_url"' in outputs_content
+    assert 'output "worker_ecs_service_name"' in outputs_content
+    assert 'output "worker_ecs_task_definition_arn"' in outputs_content
+    assert 'output "worker_ecs_task_log_group_name"' in outputs_content
 
     assert "aws_security_group.api_task[0].id" in rds_content
+    assert "aws_security_group.worker_task[0].id" in rds_content
     assert 'resource "aws_api_gateway_domain_name" "api_domain"' in route53_content
     assert 'resource "aws_route53_record" "api_record"' in route53_content
     assert 'name                   = var.api_ecs_enabled ? aws_lb.api[0].dns_name : aws_api_gateway_domain_name.api_domain[0].cloudfront_domain_name' in route53_content
@@ -200,8 +229,12 @@ def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
     assert 'evaluate_target_health = var.api_ecs_enabled' in route53_content
     assert 'resource "aws_api_gateway_rest_api" "irs_api"' in gateway_content
     assert "primary API ingress is now Route53 -> ALB -> ECS Fargate" in readme
+    assert "`backend/worker` -> private ECS service placeholder" in readme
     assert "deprecated rollback path" in readme
-    assert "Parallel ECS API Runtime" in infra_readme
+    assert "ECS Runtime Mapping" in infra_readme
+    assert "`backend/worker`" in infra_readme
+    assert "disabled by default" in infra_readme
     assert "Route53 now points the primary API hostname at the public ALB" in infra_readme
     assert "Phase 25C/25D implementation status" in ecs_blueprint
+    assert "`backend/worker` -> provisionable ECS Fargate service slot" in ecs_blueprint
     assert "Route53 now points the primary hostname at the ALB" in ecs_blueprint

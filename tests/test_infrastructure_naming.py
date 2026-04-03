@@ -43,6 +43,13 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "api_log_group_name" in content and "local.resource_names.api_log_group" in content
     assert "api_alb_name" in content and "local.resource_names.api_alb" in content
     assert "api_target_group_name" in content and "local.resource_names.api_target_group" in content
+    assert "worker_ecr_repository_name" in content and "local.resource_names.worker_ecr_repository" in content
+    assert "worker_ecs_service_name" in content and "local.resource_names.worker_ecs_service" in content
+    assert "worker_task_definition_family" in content and "local.resource_names.worker_task_definition" in content
+    assert "worker_task_execution_role_name" in content and "local.resource_names.worker_task_execution_role" in content
+    assert "worker_task_role_name" in content and "local.resource_names.worker_task_role" in content
+    assert "worker_task_security_group_name" in content and "local.resource_names.worker_task_security_group" in content
+    assert "worker_log_group_name" in content and "local.resource_names.worker_log_group" in content
     assert "athena_workgroup_resource_name" in content and "local.resource_names.athena_workgroup" in content
     assert "api_gateway_name" in content and "local.resource_names.api_gateway" in content
     assert "lambda_role_name" in content and "local.resource_names.lambda_role" in content
@@ -70,6 +77,8 @@ def test_lambda_and_schedule_resources_use_neutral_capability_maps():
     assert "local.lambda_function_names.regulatory_filing_worker" in content
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
     assert "local.monthly_ingest_worker_repository_name" in ecs_content
+    assert "local.worker_ecr_repository_name" in ecs_content
+    assert "local.worker_ecs_service_name" in ecs_content
     assert "local.queue_names.regulatory_filing_work_dead_letter" in content
     assert "local.queue_names.regulatory_filing_work" in content
     assert "local.scheduled_workflow_names.regulatory_data_ingestion" in content

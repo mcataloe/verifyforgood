@@ -1,9 +1,15 @@
-"""Local backend ingest-task entrypoint."""
+"""Entry module for backend ingest-task local execution."""
 
 from __future__ import annotations
 
-from charity_status_backend.ingest_task.cli.monthly_ingest_task import main
+from charity_status_backend.shared.local_dev import load_backend_local_env
 
+
+def main(argv: list[str] | None = None) -> int:
+    load_backend_local_env()
+    from .cli import main as cli_main
+
+    return cli_main(argv)
 
 if __name__ == "__main__":
     raise SystemExit(main())

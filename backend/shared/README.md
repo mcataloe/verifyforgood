@@ -13,6 +13,13 @@ Python package root:
 - `backend/shared/src/charity_status_backend/shared/`
 - current scaffold helpers should stay intentionally small and runtime-focused
 
+Current local-dev helpers:
+
+- `local_dev.py`
+  - loads `backend/.env.local` without overriding already-exported shell vars
+  - provides `python -m charity_status_backend.shared.local_dev db-upgrade`
+  - provides `python -m charity_status_backend.shared.local_dev db-current`
+
 Planned inbound migration:
 
 - runtime bootstrap helpers currently assembled under `infrastructure/charity_status/platform/`

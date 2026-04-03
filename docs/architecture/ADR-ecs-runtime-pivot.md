@@ -41,7 +41,7 @@ The repo already contains ECS/Fargate patterns, but only for worker-style
 processing:
 
 - `infrastructure/aws_ecs.tf`
-- `infrastructure/Dockerfile.monthly-ingest`
+- `backend/ingest-task/Dockerfile`
 - Step Functions + ECS workflow documentation for monthly ingest
 
 There is currently no actual FastAPI or general ASGI application entrypoint

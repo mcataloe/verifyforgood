@@ -49,8 +49,26 @@ Local development:
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+python -m pip install -r .\infrastructure\requirements.txt -r .\infrastructure\requirements-dev.txt
 python -m pip install -e .\public-core -e .\private-platform -e .\backend
 ```
+
+Local PostgreSQL workflow:
+
+- use PostgreSQL 16 locally until infrastructure pins a deployed engine version
+- use `backend/.env.local` as the canonical backend local env file
+- start from `backend/.env.local.example` and keep `PLATFORM_POSTGRES_URL` as the primary local database setting
+
+```powershell
+Copy-Item .\backend\.env.local.example .\backend\.env.local
+createdb verification_platform
+python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.shared.local_dev db-current
+```
+
+The documented local database name is `verification_platform`. For a full local
+reset, use `dropdb verification_platform`, `createdb verification_platform`,
+then rerun `python -m charity_status_backend.shared.local_dev db-upgrade`.
 
 Scaffold runtime commands:
 
@@ -65,6 +83,59 @@ API local run:
 python -m charity_status_backend.api.entrypoint
 ```
 
+Container build contracts:
+
+```powershell
+docker build -f backend/api/Dockerfile .
+docker build -f backend/worker/Dockerfile .
+docker build -f backend/ingest-task/Dockerfile .
+```
+
+Runtime mapping:
+
+- `backend/api/Dockerfile`
+  - ECS-aligned long-lived API service image
+- `backend/worker/Dockerfile`
+  - ECS-aligned long-lived worker service image
+  - provisionable ECS service slot, defaulted off until the refresh runtime
+    fully moves out of `infrastructure.lambda_refresh`
+- `backend/ingest-task/Dockerfile`
+  - ECS-aligned task image with command-based ingest runtime selection
+  - ECS task-style runtime for scheduled and one-off ingest execution, distinct
+    from the general worker service
+
 Worker and ingest commands still intentionally exit with scaffold-only
 messages. The API command now starts the backend-owned ASGI runtime while
 `infrastructure.lambda_query` remains a narrow rollback adapter.
+
+The shared local env file is loaded automatically by backend entrypoints before
+their env-driven runtime modules initialize. Future worker and ingest runtimes
+should reuse that same `backend/.env.local` contract for local execution.
+
+Ingest-task local run examples:
+
+```powershell
+python -m charity_status_backend.ingest_task.cli form990
+python -m charity_status_backend.ingest_task.cli form990-worker
+python -m charity_status_backend.ingest_task.cli monthly-staging
+python -m charity_status_backend.ingest_task.cli monthly-worker
+```
+
+Migration/source-of-truth note:
+
+- `python -m charity_status_backend.shared.local_dev db-upgrade` is the
+  backend-owned wrapper for local development
+- `alembic upgrade head` remains the underlying schema source-of-truth command
+- local backfill/cutover utilities still run from `private-platform`:
+  - `python -m charity_status_platform.runtime.customer_accounts_migration`
+  - `python -m charity_status_platform.runtime.nonprofit_migration`
+
+Container notes:
+
+- use the repo root as the Docker build context
+- keep image ownership in `backend/`, not `infrastructure/`
+- GitLab CI now builds all three backend runtime images and publishes them to
+  the Terraform-managed ECR repositories using commit-SHA tags
+- the ingest-task image defaults to `monthly-worker` and supports later ECS
+  command overrides such as `form990`, `form990-worker`, and
+  `form990-orchestrator`

@@ -10,8 +10,112 @@ Target ownership for `backend/ingest-task/`:
 Python package root:
 
 - `backend/ingest-task/src/charity_status_backend/ingest_task/`
-- canonical local task entrypoint: `python -m charity_status_backend.ingest_task.cli.monthly_ingest_task`
-- compatibility local wrapper: `python -m charity_status_backend.ingest_task.entrypoint`
+- local entrypoint module: `python -m charity_status_backend.ingest_task.entrypoint`
+- local CLI:
+  - `python -m charity_status_backend.ingest_task.cli form990`
+  - `python -m charity_status_backend.ingest_task.cli form990-worker`
+  - `python -m charity_status_backend.ingest_task.cli form990-orchestrator`
+  - `python -m charity_status_backend.ingest_task.cli monthly-staging`
+  - `python -m charity_status_backend.ingest_task.cli monthly-worker`
+
+Container build/run:
+
+```powershell
+docker build -f backend/ingest-task/Dockerfile .
+docker run --env-file backend/.env.local <ingest-image>
+docker run --env-file backend/.env.local <ingest-image> form990
+docker run --env-file backend/.env.local <ingest-image> form990-worker
+docker run --env-file backend/.env.local <ingest-image> form990-orchestrator
+```
+
+Container contract:
+
+- canonical ECS-aligned task image for ingest runtimes
+- image entrypoint: `python -m charity_status_backend.ingest_task.cli`
+- default command: `monthly-worker`
+- deployment model: ECS task definition invoked by schedules or one-off runs,
+  not a long-lived worker service
+- supported command overrides:
+  - `form990`
+  - `form990-worker`
+  - `form990-orchestrator`
+  - `monthly-staging`
+  - `monthly-worker`
+- monthly staging remains Lambda-oriented even though the CLI supports local
+  invocation of the staging runtime shape
+
+Backend-owned runtime modules:
+
+- `form990/runtime.py`
+  - primary Form 990 discovery and orchestration runtime
+- `form990/worker.py`
+  - Form 990 chunk-processing worker runtime
+- `form990/orchestrator.py`
+  - compatibility orchestrator entrypoint
+- `monthly/staging.py`
+  - monthly staging Lambda runtime ownership
+- `monthly/worker.py`
+  - monthly ECS worker runtime ownership
+- `persistence.py`
+  - shared nonprofit ingest persistence runtime helper
+
+Local-first Form 990 workspace model:
+
+- canonical workspace root comes from `FORM990_WORKSPACE_DIR`
+- default local example: `./.workspace/form990`
+- default container example: `/tmp/charity-status/form990`
+- workspace layout:
+
+```text
+workspace/
+  archives/
+    {archive_name}.zip
+  extracted/
+    {archive_name}/
+      *.xml
+  logs/
+  state/
+```
+
+- only one archive should be processed at a time inside a given workspace
+- extracted XML files are expected to be deleted immediately after archive-scoped processing completes
+- ZIP files are expected to be deleted after archive processing completes
+- the runtime keeps this model local-first so the same logic can run on a developer machine or inside ECS ephemeral storage
+- current workspace helpers live under:
+  - `orchestration/workspace.py`
+  - `cleanup/`
+  - `metadata/`
+
+Form 990 local-first module map:
+
+- `discovery/`
+  - source discovery and archive-selection seams
+- `metadata/`
+  - archive-scoped runtime metadata and workspace retention contracts
+- `download/`
+  - archive acquisition into workspace `archives/`
+- `extract/`
+  - ZIP extraction into workspace `extracted/`
+- `hashing/`
+  - archive and payload fingerprint helpers
+- `parse/`
+  - XML parsing seams layered over reusable `charity_status.form990` logic
+- `persist/`
+  - PostgreSQL-backed nonprofit persistence entrypoints and adapters
+- `cleanup/`
+  - deterministic deletion of extracted XML and processed ZIP files
+- `orchestration/`
+  - workspace lifecycle, archive-at-a-time execution, and runtime coordination
+- `cli.py`
+  - local developer command surface
+- `entrypoint.py`
+  - env-aware local execution bootstrap
+
+Current migration boundary:
+
+- `backend/ingest-task` is now the canonical runtime architecture home for the local-first Form 990 workspace model
+- reusable parser and batch-processing logic under `infrastructure/charity_status/form990/` still remains in place while the runtime migrates toward the new module seams
+- `form990/runtime.py` and `form990/worker.py` still own the live compatibility behavior today, but future refactors should move archive download, extraction, parsing, persistence, and cleanup responsibilities through the new module map rather than adding more logic directly to the runtime hosts
 
 Planned inbound migration:
 
@@ -24,9 +128,6 @@ Temporary compatibility note:
 
 - checked-in runtime assets such as `infrastructure/charity_status/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
 - infrastructure-owned deployment wiring may continue to reference compatibility shims during the transition
-- current temporary shims remain at:
-  - `infrastructure/lambda_form990.py`
-  - `infrastructure/lambda_form990_orchestrator.py`
-  - `infrastructure/lambda_form990_worker.py`
-  - `infrastructure/lambda_monthly_ingest_staging.py`
-  - `infrastructure/monthly_ingest_worker.py`
+- `infrastructure.lambda_form990`, `infrastructure.lambda_form990_worker`, `infrastructure.lambda_form990_orchestrator`, `infrastructure.lambda_monthly_ingest_staging`, `infrastructure.monthly_ingest_worker`, and `infrastructure.nonprofit_ingest_persistence` now remain as thin compatibility adapters
+- the ECS task definition should now align to this backend-owned image contract
+  rather than an infrastructure-owned Dockerfile path

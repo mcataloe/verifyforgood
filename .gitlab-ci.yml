@@ -1,28 +1,240 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
-- test
+- validate
+- build-images
+- publish-images
+- terraform-plan
+- terraform-deploy
 - secret-detection
 
+variables:
+  AWS_REGION: "us-east-1"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  RUNTIME_IMAGE_TAG: "$CI_COMMIT_SHA"
+  SECRET_DETECTION_ENABLED: "true"
+  TF_IN_AUTOMATION: "true"
+
 terraform_validate:
-  stage: test
+  stage: validate
   image: hashicorp/terraform:1.9.8
   script:
   - terraform -chdir=infrastructure init -backend=false
   - terraform -chdir=infrastructure fmt -check
   - terraform -chdir=infrastructure validate
 
+.deployable_default_branch:
+  rules:
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+.deployable_tags:
+  rules:
+  - if: '$CI_COMMIT_TAG'
+
+.docker_build_template:
+  stage: build-images
+  image: docker:27.0.3
+  services:
+  - name: docker:27.0.3-dind
+  script:
+  - mkdir -p build/ci
+  - docker build -f "$RUNTIME_DOCKERFILE" -t "$LOCAL_IMAGE_NAME:$RUNTIME_IMAGE_TAG" .
+  - docker save "$LOCAL_IMAGE_NAME:$RUNTIME_IMAGE_TAG" -o "$IMAGE_ARTIFACT_PATH"
+  - printf "RUNTIME_IMAGE_TAG=%s\n" "$RUNTIME_IMAGE_TAG" > build/ci/runtime-images.env
+  artifacts:
+    paths:
+    - build/ci/
+    reports:
+      dotenv: build/ci/runtime-images.env
+
+build_backend_api_image:
+  extends:
+  - .docker_build_template
+  - .deployable_default_branch
+  variables:
+    RUNTIME_DOCKERFILE: backend/api/Dockerfile
+    LOCAL_IMAGE_NAME: backend-api
+    IMAGE_ARTIFACT_PATH: build/ci/backend-api-image.tar
+
+build_backend_worker_image:
+  extends:
+  - .docker_build_template
+  - .deployable_default_branch
+  variables:
+    RUNTIME_DOCKERFILE: backend/worker/Dockerfile
+    LOCAL_IMAGE_NAME: backend-worker
+    IMAGE_ARTIFACT_PATH: build/ci/backend-worker-image.tar
+
+build_backend_ingest_task_image:
+  extends:
+  - .docker_build_template
+  - .deployable_default_branch
+  variables:
+    RUNTIME_DOCKERFILE: backend/ingest-task/Dockerfile
+    LOCAL_IMAGE_NAME: backend-ingest-task
+    IMAGE_ARTIFACT_PATH: build/ci/backend-ingest-task-image.tar
+
+build_backend_api_image_prod:
+  extends:
+  - .docker_build_template
+  - .deployable_tags
+  variables:
+    RUNTIME_DOCKERFILE: backend/api/Dockerfile
+    LOCAL_IMAGE_NAME: backend-api
+    IMAGE_ARTIFACT_PATH: build/ci/backend-api-image.tar
+
+build_backend_worker_image_prod:
+  extends:
+  - .docker_build_template
+  - .deployable_tags
+  variables:
+    RUNTIME_DOCKERFILE: backend/worker/Dockerfile
+    LOCAL_IMAGE_NAME: backend-worker
+    IMAGE_ARTIFACT_PATH: build/ci/backend-worker-image.tar
+
+build_backend_ingest_task_image_prod:
+  extends:
+  - .docker_build_template
+  - .deployable_tags
+  variables:
+    RUNTIME_DOCKERFILE: backend/ingest-task/Dockerfile
+    LOCAL_IMAGE_NAME: backend-ingest-task
+    IMAGE_ARTIFACT_PATH: build/ci/backend-ingest-task-image.tar
+
+.terraform_runtime_template:
+  image: hashicorp/terraform:1.9.8
+  before_script:
+  - terraform version
+  - mkdir -p build/ci
+
+.publish_runtime_images_template:
+  stage: publish-images
+  image: docker:27.0.3
+  services:
+  - name: docker:27.0.3-dind
+  before_script:
+  - apk add --no-cache bash curl unzip python3 py3-pip
+  - pip install --no-cache-dir awscli
+  - curl -fsSL "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip" -o /tmp/terraform.zip
+  - unzip -q /tmp/terraform.zip -d /usr/local/bin
+  - terraform version
+  - aws --version
+  script:
+  - terraform -chdir=infrastructure init -reconfigure -backend-config="$TF_BACKEND_CONFIG"
+  - API_ECR_REPOSITORY_URL="$(terraform -chdir=infrastructure output -raw api_ecr_repository_url)"
+  - WORKER_ECR_REPOSITORY_URL="$(terraform -chdir=infrastructure output -raw worker_ecr_repository_url)"
+  - INGEST_TASK_ECR_REPOSITORY_URL="$(terraform -chdir=infrastructure output -raw monthly_ingest_worker_ecr_repository_url)"
+  - ECR_REGISTRY_HOST="$(echo "$API_ECR_REPOSITORY_URL" | cut -d/ -f1)"
+  - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY_HOST"
+  - docker load -i build/ci/backend-api-image.tar
+  - docker load -i build/ci/backend-worker-image.tar
+  - docker load -i build/ci/backend-ingest-task-image.tar
+  - docker tag "backend-api:$RUNTIME_IMAGE_TAG" "$API_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - docker tag "backend-worker:$RUNTIME_IMAGE_TAG" "$WORKER_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - docker tag "backend-ingest-task:$RUNTIME_IMAGE_TAG" "$INGEST_TASK_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - docker push "$API_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - docker push "$WORKER_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - docker push "$INGEST_TASK_ECR_REPOSITORY_URL:$RUNTIME_IMAGE_TAG"
+  - printf "API_ECR_REPOSITORY_URL=%s\nWORKER_ECR_REPOSITORY_URL=%s\nINGEST_TASK_ECR_REPOSITORY_URL=%s\nAPI_IMAGE_URI=%s:%s\nWORKER_IMAGE_URI=%s:%s\nINGEST_TASK_IMAGE_URI=%s:%s\nRUNTIME_IMAGE_TAG=%s\n" "$API_ECR_REPOSITORY_URL" "$WORKER_ECR_REPOSITORY_URL" "$INGEST_TASK_ECR_REPOSITORY_URL" "$API_ECR_REPOSITORY_URL" "$RUNTIME_IMAGE_TAG" "$WORKER_ECR_REPOSITORY_URL" "$RUNTIME_IMAGE_TAG" "$INGEST_TASK_ECR_REPOSITORY_URL" "$RUNTIME_IMAGE_TAG" "$RUNTIME_IMAGE_TAG" > build/ci/published-images.env
+  artifacts:
+    paths:
+    - build/ci/
+    reports:
+      dotenv: build/ci/published-images.env
+
+publish_runtime_images_dev:
+  extends: .publish_runtime_images_template
+  needs:
+  - build_backend_api_image
+  - build_backend_worker_image
+  - build_backend_ingest_task_image
+  rules:
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  variables:
+    TF_BACKEND_CONFIG: backend-dev.hcl
+
+publish_runtime_images_prod:
+  extends: .publish_runtime_images_template
+  needs:
+  - build_backend_api_image_prod
+  - build_backend_worker_image_prod
+  - build_backend_ingest_task_image_prod
+  rules:
+  - if: '$CI_COMMIT_TAG'
+  variables:
+    TF_BACKEND_CONFIG: backend-prod.hcl
+
+terraform_plan_dev:
+  extends: .terraform_runtime_template
+  stage: terraform-plan
+  needs:
+  - publish_runtime_images_dev
+  rules:
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    when: manual
+  script:
+  - printf "%s" "$TERRAFORM_DEV_SECRETS_TFVARS" > infrastructure/terraform-dev.secrets.tfvars
+  - terraform -chdir=infrastructure init -reconfigure -backend-config=backend-dev.hcl
+  - terraform -chdir=infrastructure plan -out=tfplan-dev -var-file=terraform.shared.tfvars -var-file=terraform-dev.tfvars -var-file=terraform-dev.secrets.tfvars -var "api_ecs_image_tag=$RUNTIME_IMAGE_TAG" -var "worker_ecs_image_tag=$RUNTIME_IMAGE_TAG" -var "monthly_ingest_worker_image_tag=$RUNTIME_IMAGE_TAG"
+  artifacts:
+    paths:
+    - infrastructure/tfplan-dev
+
+terraform_apply_dev:
+  extends: .terraform_runtime_template
+  stage: terraform-deploy
+  needs:
+  - terraform_plan_dev
+  - publish_runtime_images_dev
+  rules:
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    when: manual
+  environment:
+    name: dev
+  resource_group: terraform-dev
+  script:
+  - printf "%s" "$TERRAFORM_DEV_SECRETS_TFVARS" > infrastructure/terraform-dev.secrets.tfvars
+  - terraform -chdir=infrastructure init -reconfigure -backend-config=backend-dev.hcl
+  - terraform -chdir=infrastructure apply -auto-approve tfplan-dev
+
+terraform_plan_prod:
+  extends: .terraform_runtime_template
+  stage: terraform-plan
+  needs:
+  - publish_runtime_images_prod
+  rules:
+  - if: '$CI_COMMIT_TAG'
+    when: manual
+  script:
+  - printf "%s" "$TERRAFORM_PROD_SECRETS_TFVARS" > infrastructure/terraform-prod.secrets.tfvars
+  - terraform -chdir=infrastructure init -reconfigure -backend-config=backend-prod.hcl
+  - terraform -chdir=infrastructure plan -out=tfplan-prod -var-file=terraform.shared.tfvars -var-file=terraform-prod.tfvars -var-file=terraform-prod.secrets.tfvars -var "api_ecs_image_tag=$RUNTIME_IMAGE_TAG" -var "worker_ecs_image_tag=$RUNTIME_IMAGE_TAG" -var "monthly_ingest_worker_image_tag=$RUNTIME_IMAGE_TAG"
+  artifacts:
+    paths:
+    - infrastructure/tfplan-prod
+
+terraform_apply_prod:
+  extends: .terraform_runtime_template
+  stage: terraform-deploy
+  needs:
+  - terraform_plan_prod
+  - publish_runtime_images_prod
+  rules:
+  - if: '$CI_COMMIT_TAG'
+    when: manual
+  environment:
+    name: prod
+  resource_group: terraform-prod
+  script:
+  - printf "%s" "$TERRAFORM_PROD_SECRETS_TFVARS" > infrastructure/terraform-prod.secrets.tfvars
+  - terraform -chdir=infrastructure init -reconfigure -backend-config=backend-prod.hcl
+  - terraform -chdir=infrastructure apply -auto-approve tfplan-prod
+
 sast:
-  stage: test
+  stage: validate
+
 include:
 - template: Security/SAST.gitlab-ci.yml
 - template: Security/Secret-Detection.gitlab-ci.yml
-variables:
-  SECRET_DETECTION_ENABLED: 'true'
+
 secret_detection:
   stage: secret-detection

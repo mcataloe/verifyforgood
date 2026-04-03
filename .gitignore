@@ -56,6 +56,7 @@ dist-ssr
 *.sw?
 .env**
 .env_**
+!backend/.env.local.example
 venv
 .venv**
 .venv
@@ -78,3 +79,6 @@ venv
 
 # Downloads
 downloads
+
+# Local backend workspaces
+.workspace/

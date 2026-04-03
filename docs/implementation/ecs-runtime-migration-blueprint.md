@@ -88,6 +88,8 @@ The repo already has ECS/Fargate conventions through the monthly ingest worker:
 - ECS task definition pattern
 - CloudWatch log-group pattern
 - task execution/task role split
+- backend-owned runtime Dockerfiles for API and ingest-task packaging
+- a backend-owned worker-service image contract under `backend/worker/`
 
 The API ECS implementation should extend those conventions rather than invent a
 separate container stack style.
@@ -167,7 +169,7 @@ Current posture after Phase 26C:
 
 ### Phase 25C: Containerize the API
 
-- add an API Dockerfile
+- add an API Dockerfile under `backend/api/`
 - add container startup and local run instructions
 - preserve the current runtime env-var contract
 
@@ -193,6 +195,14 @@ Keep these paths separate for now:
 - Step Functions orchestration
 - monthly ingest ECS worker workflow
 - background or batch handlers that are not synchronous HTTP ingress
+
+Current runtime-to-deployment map after Phase 27C:
+
+- `backend/api` -> live ECS Fargate service behind the ALB
+- `backend/worker` -> provisionable ECS Fargate service slot, disabled by
+  default until the refresh runtime extraction lands
+- `backend/ingest-task` -> ECS task-style runtime used by schedules and one-off
+  ingest execution
 
 Webhook routes are different: because they are part of the HTTP ingress surface,
 they should move with the API service even if other event-driven compute remains

@@ -625,3 +625,34 @@ rollback path until ECS parity is validated.
 5. run Lambda/ECS parity validation for routes, auth, CORS, and webhooks
 6. cut ingress over from API Gateway custom domain to ALB
 7. remove obsolete API-serving Lambda/API Gateway resources after validation
+
+## TODO-ARCH-027
+
+### Title
+
+Refactor Form 990 ingest runtime hosts onto the new workspace-based module seams.
+
+### Rationale
+
+Phase 27E establishes a local-first Form 990 ingest architecture under
+`backend/ingest-task` with explicit module seams for discovery, download,
+extract, parse, persist, cleanup, and orchestration plus a deterministic
+workspace rooted at `FORM990_WORKSPACE_DIR`.
+
+The live runtime behavior still primarily flows through:
+
+- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/runtime.py`
+- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/worker.py`
+- `infrastructure/charity_status/form990/`
+
+### Migration Triggers
+
+- archive-at-a-time local execution refactor
+- richer Form 990 ECS task orchestration
+- removal of infrastructure-era batch-processing seams from runtime hosts
+
+### Constraint
+
+Keep current Form 990 payload contracts, S3 manifest behavior, and PostgreSQL
+persistence hooks stable while moving archive lifecycle responsibilities behind
+the new workspace-oriented modules.

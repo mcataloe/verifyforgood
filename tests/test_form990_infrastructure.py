@@ -44,28 +44,38 @@ def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
 
 
 def test_monthly_ingest_worker_packaging_and_task_access_exist():
-    dockerfile = Path("infrastructure/Dockerfile.monthly-ingest").read_text(encoding="utf-8")
+    dockerfile = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
-    assert "monthly_ingest_worker.py" in dockerfile
-    assert "backend/ingest-task/src" in dockerfile
-    assert "private-platform/src" in dockerfile
+    assert "charity_status_backend.ingest_task.cli" in dockerfile
+    assert 'CMD ["monthly-worker"]' in dockerfile
+    assert 'command    = ["monthly-worker"]' in ecs_content
+    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in ecs_content
     assert '"s3:GetObject"' in ecs_content
     assert '"s3:PutObject"' in ecs_content
     assert '"s3:ListBucket"' in ecs_content
 
 
-def test_form990_lambda_packaging_builds_backend_owned_runtime_package():
-    content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
-    build_script = Path("infrastructure/build_form990_package.ps1").read_text(encoding="utf-8")
+def test_form990_and_monthly_runtime_entrypoints_are_backend_owned_behind_shims():
+    lambda_form990 = Path("infrastructure/lambda_form990.py").read_text(encoding="utf-8")
+    lambda_form990_worker = Path("infrastructure/lambda_form990_worker.py").read_text(encoding="utf-8")
+    lambda_form990_orchestrator = Path("infrastructure/lambda_form990_orchestrator.py").read_text(encoding="utf-8")
+    monthly_staging = Path("infrastructure/lambda_monthly_ingest_staging.py").read_text(encoding="utf-8")
+    monthly_worker = Path("infrastructure/monthly_ingest_worker.py").read_text(encoding="utf-8")
+    persistence = Path("infrastructure/nonprofit_ingest_persistence.py").read_text(encoding="utf-8")
 
-    assert 'resource "terraform_data" "form990_package_build"' in content
-    assert 'depends_on  = [terraform_data.form990_package_build]' in content
-    assert 'source_dir  = local.form990_package_dir' in content
-    assert "backend/ingest-task/src/charity_status_backend" in content
-    assert "private-platform/src/charity_status_platform" in content
-    assert "charity_status_backend" in build_script
-    assert "charity_status_platform" in build_script
+    assert "backend-owned Form 990 runtime" in lambda_form990
+    assert "charity_status_backend.ingest_task.form990" in lambda_form990
+    assert "backend-owned Form 990 worker runtime" in lambda_form990_worker
+    assert "charity_status_backend.ingest_task.form990" in lambda_form990_worker
+    assert "backend-owned Form 990 orchestrator entrypoint" in lambda_form990_orchestrator
+    assert "charity_status_backend.ingest_task.form990.orchestrator" in lambda_form990_orchestrator
+    assert "backend-owned monthly staging runtime" in monthly_staging
+    assert "charity_status_backend.ingest_task.monthly.staging" in monthly_staging
+    assert "backend-owned monthly ECS worker runtime" in monthly_worker
+    assert "charity_status_backend.ingest_task.monthly.worker" in monthly_worker
+    assert "backend-owned nonprofit ingest persistence" in persistence
+    assert "charity_status_backend.ingest_task.persistence" in persistence
 
 
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():

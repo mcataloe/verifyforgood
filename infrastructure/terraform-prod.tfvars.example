@@ -11,6 +11,10 @@ api_ecs_private_subnet_ids  = ["subnet-private-xxxxxxxx", "subnet-private-yyyyyy
 api_alb_certificate_arn     = ""
 api_ecs_image_uri           = ""
 api_ecs_secret_arns         = {}
+worker_ecs_vpc_id           = "vpc-xxxxxxxx"
+worker_ecs_private_subnet_ids = ["subnet-private-xxxxxxxx", "subnet-private-yyyyyyyy"]
+worker_ecs_image_uri        = ""
+worker_ecs_secret_arns      = {}
 enable_custom_domain        = false
 cors_allowed_origins = [
   "https://charitystatusapi.com",

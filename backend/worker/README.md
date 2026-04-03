@@ -12,6 +12,23 @@ Python package root:
 - `backend/worker/src/charity_status_backend/worker/`
 - local scaffold entrypoint: `python -m charity_status_backend.worker.entrypoint`
 
+Container build/run:
+
+```powershell
+docker build -f backend/worker/Dockerfile .
+docker run --env-file backend/.env.local <worker-image>
+```
+
+Container contract:
+
+- long-lived non-HTTP worker/service image shape
+- default command: `python -m charity_status_backend.worker.entrypoint`
+- intended Terraform/ECS mapping: private-subnet ECS service with no ALB
+- Terraform now exposes a disabled-by-default service slot so the deployment
+  boundary exists before runtime ownership fully moves here
+- intentionally scaffold-only until `infrastructure.lambda_refresh` runtime
+  ownership moves into `backend/worker`
+
 Planned inbound migration:
 
 - `infrastructure.lambda_refresh`

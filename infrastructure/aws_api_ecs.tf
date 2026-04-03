@@ -1,5 +1,6 @@
 locals {
-  api_ecs_managed_image_enabled = var.api_ecs_enabled && trim(var.api_ecs_image_uri, " ") == ""
+  backend_runtime_ecs_cluster_enabled = var.api_ecs_enabled || var.worker_ecs_enabled
+  api_ecs_managed_image_enabled = trim(var.api_ecs_image_uri, " ") == ""
   api_ecs_image_uri_resolved = trim(var.api_ecs_image_uri, " ") != "" ? trim(var.api_ecs_image_uri, " ") : (
     local.api_ecs_managed_image_enabled ? "${aws_ecr_repository.api[0].repository_url}:${var.api_ecs_image_tag}" : ""
   )
@@ -107,7 +108,7 @@ locals {
 }
 
 resource "aws_ecs_cluster" "api" {
-  count = var.api_ecs_enabled ? 1 : 0
+  count = local.backend_runtime_ecs_cluster_enabled ? 1 : 0
 
   name = local.ecs_cluster_name
 
@@ -120,7 +121,7 @@ resource "aws_ecs_cluster" "api" {
 }
 
 resource "aws_ecr_repository" "api" {
-  count = var.api_ecs_enabled ? 1 : 0
+  count = local.api_ecs_managed_image_enabled ? 1 : 0
 
   name                 = local.api_ecr_repository_name
   image_tag_mutability = "MUTABLE"

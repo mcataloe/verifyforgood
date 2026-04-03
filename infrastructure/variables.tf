@@ -442,6 +442,94 @@ variable "api_alb_ssl_policy" {
   default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 }
 
+variable "worker_ecs_enabled" {
+  description = "Enable the placeholder ECS Fargate worker service scaffold for backend/worker."
+  type        = bool
+  default     = false
+}
+
+variable "worker_ecs_vpc_id" {
+  description = "Existing VPC identifier used by the ECS worker service and related security groups."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.worker_ecs_enabled || trim(var.worker_ecs_vpc_id, " ") != ""
+    error_message = "worker_ecs_vpc_id must be set when worker_ecs_enabled=true."
+  }
+}
+
+variable "worker_ecs_private_subnet_ids" {
+  description = "Existing private subnet identifiers used by the ECS worker tasks."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !var.worker_ecs_enabled || length(var.worker_ecs_private_subnet_ids) > 0
+    error_message = "worker_ecs_private_subnet_ids must contain at least one subnet when worker_ecs_enabled=true."
+  }
+}
+
+variable "worker_ecs_additional_security_group_ids" {
+  description = "Optional additional security groups attached to the ECS worker tasks."
+  type        = list(string)
+  default     = []
+}
+
+variable "worker_ecs_image_uri" {
+  description = "Optional full container image URI for the worker service. Empty uses the managed ECR repository plus worker_ecs_image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "worker_ecs_image_tag" {
+  description = "Image tag used with the managed worker ECR repository when worker_ecs_image_uri is empty."
+  type        = string
+  default     = "latest"
+}
+
+variable "worker_ecs_container_name" {
+  description = "Container name inside the ECS worker task definition."
+  type        = string
+  default     = "worker"
+}
+
+variable "worker_ecs_task_cpu" {
+  description = "CPU units for the managed ECS worker task definition."
+  type        = number
+  default     = 1024
+}
+
+variable "worker_ecs_task_memory" {
+  description = "Memory in MiB for the managed ECS worker task definition."
+  type        = number
+  default     = 2048
+}
+
+variable "worker_ecs_desired_count" {
+  description = "Desired task count for the ECS worker service. Defaults to 0 while the runtime remains scaffold-only."
+  type        = number
+  default     = 0
+}
+
+variable "worker_ecs_log_retention_days" {
+  description = "Retention in days for the managed CloudWatch log group used by the ECS worker service."
+  type        = number
+  default     = 30
+}
+
+variable "worker_ecs_secret_arns" {
+  description = "Optional Secrets Manager or SSM parameter ARNs keyed by environment variable name for ECS worker secret injection."
+  type        = map(string)
+  default     = {}
+}
+
+variable "worker_ecs_secret_kms_key_arns" {
+  description = "Optional KMS key ARNs used to decrypt entries referenced by worker_ecs_secret_arns."
+  type        = list(string)
+  default     = []
+}
+
 variable "platform_postgres_enabled" {
   description = "Provision and wire the additive PostgreSQL RDS foundation for platform data."
   type        = bool

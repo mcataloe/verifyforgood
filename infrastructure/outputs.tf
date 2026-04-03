@@ -120,7 +120,7 @@ output "api_ecs_cluster_arn" {
 
 output "api_ecr_repository_url" {
   description = "ECR repository URL for the managed API service image."
-  value       = var.api_ecs_enabled ? aws_ecr_repository.api[0].repository_url : null
+  value       = local.api_ecs_managed_image_enabled ? aws_ecr_repository.api[0].repository_url : null
 }
 
 output "api_ecs_service_name" {
@@ -153,6 +153,36 @@ output "api_alb_target_group_arn" {
   value       = var.api_ecs_enabled ? aws_lb_target_group.api[0].arn : null
 }
 
+output "backend_runtime_ecs_cluster_name" {
+  description = "Shared ECS cluster name for backend API and worker services."
+  value       = (var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].name : null
+}
+
+output "backend_runtime_ecs_cluster_arn" {
+  description = "Shared ECS cluster ARN for backend API and worker services."
+  value       = (var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].arn : null
+}
+
+output "worker_ecr_repository_url" {
+  description = "ECR repository URL for the managed worker service image."
+  value       = local.worker_ecs_managed_image_enabled ? aws_ecr_repository.worker[0].repository_url : null
+}
+
+output "worker_ecs_service_name" {
+  description = "ECS service name for the backend worker runtime placeholder."
+  value       = var.worker_ecs_enabled ? aws_ecs_service.worker[0].name : null
+}
+
+output "worker_ecs_task_definition_arn" {
+  description = "ECS task definition ARN for the backend worker runtime placeholder."
+  value       = var.worker_ecs_enabled ? aws_ecs_task_definition.worker[0].arn : null
+}
+
+output "worker_ecs_task_log_group_name" {
+  description = "CloudWatch log group used by the backend worker ECS service."
+  value       = var.worker_ecs_enabled ? aws_cloudwatch_log_group.worker_task[0].name : null
+}
+
 output "monthly_ingest_state_machine_name" {
   description = "Step Functions state machine name for the monthly private-ingest workflow."
   value       = var.monthly_ingest_state_machine_enabled ? aws_sfn_state_machine.monthly_ingest[0].name : null
@@ -165,7 +195,7 @@ output "monthly_ingest_state_machine_arn" {
 
 output "monthly_ingest_worker_ecr_repository_url" {
   description = "ECR repository URL for the managed monthly private-ingest ECS worker image."
-  value       = local.monthly_ingest_managed_task_definition_enabled ? aws_ecr_repository.monthly_ingest_worker[0].repository_url : null
+  value       = local.monthly_ingest_managed_image_enabled ? aws_ecr_repository.monthly_ingest_worker[0].repository_url : null
 }
 
 output "monthly_ingest_task_definition_arn" {
