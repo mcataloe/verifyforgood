@@ -27,7 +27,6 @@ from charity_status.form990.source_catalog import (
     normalize_configured_sources,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
-from charity_status.ingest.workflow import workflow_artifact_index_key, workflow_manifest_key, workflow_summary_key
 
 from .orchestration import build_workspace_layout
 from .persistence import build_form990_archive_metadata_service, build_form990_nonprofit_persistence_service
@@ -173,9 +172,6 @@ def run_local_form990_ingest_config(
         archive="",
         file_name="",
     )
-    bucket = str(source_env.get("BUCKET") or "").strip()
-    if not bucket:
-        raise ValueError("BUCKET is required for local Form 990 ingest")
 
     archive_metadata_service = _build_archive_metadata_service(env=source_env, logger=logger)
     nonprofit_persistence_service = build_form990_nonprofit_persistence_service(env=source_env)
@@ -211,20 +207,15 @@ def run_local_form990_ingest_config(
             )
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             processing_context = {
-                "source_bucket": bucket,
+                "source_bucket": "",
                 "source_key": _local_source_key(artifact),
-                "destination_bucket": bucket,
-                "destination_prefix": str(source_env.get("FORM990_MANIFEST_PREFIX") or "form990/normalized/manifests/"),
+                "destination_bucket": "",
+                "destination_prefix": "",
                 "job_id": f"local-cli-{run_id}-{archive_name}",
                 "correlation_id": f"local-cli-{run_id}",
                 "workflow_version": "local-cli",
                 "source_url": artifact.source_url,
                 "workspace_root": str(layout.root),
-            }
-            artifact_keys = {
-                "manifest_s3_key": workflow_manifest_key(processing_context["destination_prefix"], processing_context["job_id"]),
-                "artifact_index_s3_key": workflow_artifact_index_key(processing_context["destination_prefix"], processing_context["job_id"]),
-                "summary_s3_key": workflow_summary_key(processing_context["destination_prefix"], processing_context["job_id"]),
             }
             source_object = MonthlyIngestSourceObject(
                 source_year=artifact.source_year,
@@ -238,7 +229,7 @@ def run_local_form990_ingest_config(
                 extracted_workdir=str(archive_workspace.extracted_dir),
                 processing_context=processing_context,
                 source_object=source_object,
-                artifact_keys=artifact_keys,
+                artifact_keys=None,
                 started_at=datetime.now(timezone.utc),
                 archive_metadata_service=archive_metadata_service,
                 nonprofit_persistence_service=nonprofit_persistence_service,

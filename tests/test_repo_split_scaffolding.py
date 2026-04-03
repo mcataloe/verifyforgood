@@ -267,6 +267,18 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     assert "from .cli import main as cli_main" in ingest_entrypoint
 
 
+def test_vscode_launch_config_preserves_node_entry_and_adds_form990_python_profiles():
+    launch_text = Path(".vscode/launch.json").read_text(encoding="utf-8")
+
+    assert '"type": "node"' in launch_text
+    assert '"name": "Launch Program"' in launch_text
+    assert '"name": "Form990 Local Run"' in launch_text
+    assert '"module": "ingest_task.cli"' in launch_text
+    assert '"name": "Form990 ECS Parity"' in launch_text
+    assert '"module": "charity_status_backend.ingest_task.cli"' in launch_text
+    assert '"WORKSPACE_PATH": "${workspaceFolder}/.workspace/form990"' in launch_text
+
+
 def test_split_plan_records_operational_layers_and_backend_targets():
     payload = json.loads(Path("split-plan.json").read_text(encoding="utf-8"))
 

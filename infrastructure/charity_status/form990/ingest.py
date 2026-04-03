@@ -88,7 +88,7 @@ class Form990DownloadedXml:
 
 def ingest_form990_records(
     records: list[Form990IndexRecord],
-    bucket: str,
+    bucket: str | None,
     raw_prefix: str,
     metadata_prefix: str,
     manifest_prefix: str,
@@ -96,12 +96,14 @@ def ingest_form990_records(
     governance_prefix: str,
     quality_prefix: str,
     relationships_prefix: str,
-    s3_client: Any,
+    s3_client: Any | None,
     download_raw: bool = False,
     downloader: Any | None = None,
     record_downloader: Any | None = None,
     nonprofit_persistence_service: Any | None = None,
     record_error_handler: Callable[[Form990IndexRecord, Exception, str], None] | None = None,
+    record_cleanup_handler: Callable[[Form990IndexRecord], None] | None = None,
+    persist_artifacts: bool = True,
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
@@ -120,12 +122,16 @@ def ingest_form990_records(
         if not _is_supported_return_type(record.return_type):
             filing = replace(metadata, parse_status=Form990ParseStatus.UNSUPPORTED_RETURN_TYPE).to_dict()
             filing_records.append(filing)
+            if record_cleanup_handler is not None:
+                record_cleanup_handler(record)
             continue
 
         if not download_raw or not record.xml_url:
             filing = metadata.to_dict()
             filing_records.append(filing)
             grouped_filings.setdefault(metadata.ein or "unknown", []).append(filing)
+            if record_cleanup_handler is not None:
+                record_cleanup_handler(record)
             continue
 
         try:
@@ -142,14 +148,18 @@ def ingest_form990_records(
                     xml_bytes = downloaded
             else:
                 xml_bytes = downloader(record.xml_url)
-            raw_key = raw_xml_key(
-                raw_prefix,
-                metadata.ein,
-                metadata.tax_year,
-                metadata.irs_object_id,
-                source_batch=record.source_archive,
-            )
-            s3_client.put_object(Bucket=bucket, Key=raw_key, Body=xml_bytes)
+            raw_key = None
+            if persist_artifacts:
+                raw_key = raw_xml_key(
+                    raw_prefix,
+                    metadata.ein,
+                    metadata.tax_year,
+                    metadata.irs_object_id,
+                    source_batch=record.source_archive,
+                )
+                if s3_client is None or not bucket:
+                    raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
+                s3_client.put_object(Bucket=bucket, Key=raw_key, Body=xml_bytes)
 
             parsed = parse_xml(xml_bytes)
             extracted_meta = extract_metadata_fields(parsed)
@@ -199,6 +209,9 @@ def ingest_form990_records(
                     parse_error=str(exc),
                 ).to_dict()
             )
+        finally:
+            if record_cleanup_handler is not None:
+                record_cleanup_handler(record)
 
     for ein, filings in grouped_filings.items():
         sorted_filings = sorted(filings, key=lambda item: item.get("tax_year") or "")
@@ -235,17 +248,25 @@ def ingest_form990_records(
             governance_records.append(governance_record)
             quality_records.append(quality_record)
 
-    filing_key = normalized_dataset_key(metadata_prefix, "filings", now=started)
-    metrics_key = normalized_dataset_key(metrics_prefix, "metrics", now=started)
-    governance_key = normalized_dataset_key(governance_prefix, "governance", now=started)
-    quality_key = normalized_dataset_key(quality_prefix, "quality", now=started)
-    relationships_key = normalized_dataset_key(relationships_prefix, "relationships", now=started)
+    filing_key = None
+    metrics_key = None
+    governance_key = None
+    quality_key = None
+    relationships_key = None
+    if persist_artifacts:
+        if s3_client is None or not bucket:
+            raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
+        filing_key = normalized_dataset_key(metadata_prefix, "filings", now=started)
+        metrics_key = normalized_dataset_key(metrics_prefix, "metrics", now=started)
+        governance_key = normalized_dataset_key(governance_prefix, "governance", now=started)
+        quality_key = normalized_dataset_key(quality_prefix, "quality", now=started)
+        relationships_key = normalized_dataset_key(relationships_prefix, "relationships", now=started)
 
-    s3_client.put_object(Bucket=bucket, Key=filing_key, Body=to_jsonl(filing_records))
-    s3_client.put_object(Bucket=bucket, Key=metrics_key, Body=to_jsonl(metrics_records))
-    s3_client.put_object(Bucket=bucket, Key=governance_key, Body=to_jsonl(governance_records))
-    s3_client.put_object(Bucket=bucket, Key=quality_key, Body=to_jsonl(quality_records))
-    s3_client.put_object(Bucket=bucket, Key=relationships_key, Body=to_jsonl(relationship_records))
+        s3_client.put_object(Bucket=bucket, Key=filing_key, Body=to_jsonl(filing_records))
+        s3_client.put_object(Bucket=bucket, Key=metrics_key, Body=to_jsonl(metrics_records))
+        s3_client.put_object(Bucket=bucket, Key=governance_key, Body=to_jsonl(governance_records))
+        s3_client.put_object(Bucket=bucket, Key=quality_key, Body=to_jsonl(quality_records))
+        s3_client.put_object(Bucket=bucket, Key=relationships_key, Body=to_jsonl(relationship_records))
 
     parsed_count = sum(1 for item in filing_records if item.get("parse_status") == Form990ParseStatus.PARSED.value)
     failed_count = sum(
@@ -267,8 +288,12 @@ def ingest_form990_records(
         "quality_s3_key": quality_key,
         "relationships_s3_key": relationships_key,
     }
-    manifest_s3 = manifest_key(manifest_prefix, now=started)
-    s3_client.put_object(Bucket=bucket, Key=manifest_s3, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
+    manifest_s3 = None
+    if persist_artifacts:
+        if s3_client is None or not bucket:
+            raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
+        manifest_s3 = manifest_key(manifest_prefix, now=started)
+        s3_client.put_object(Bucket=bucket, Key=manifest_s3, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
 
     nonprofit_persistence = None
     if nonprofit_persistence_service is not None:

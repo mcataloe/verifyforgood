@@ -53,12 +53,12 @@ class Form990IngestResult:
     records_processed: int
     parsed_count: int
     failed_count: int
-    manifest_s3_key: str
-    filing_records_s3_key: str
-    metrics_s3_key: str
-    governance_s3_key: str
-    quality_s3_key: str
-    relationships_s3_key: str
+    manifest_s3_key: str | None
+    filing_records_s3_key: str | None
+    metrics_s3_key: str | None
+    governance_s3_key: str | None
+    quality_s3_key: str | None
+    relationships_s3_key: str | None
     records: list[dict[str, Any]]
     nonprofit_persistence: dict[str, Any] | None = None
 

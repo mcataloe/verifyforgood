@@ -82,6 +82,7 @@ class _ArchiveProcessingContext:
     job_id: str
     correlation_id: str
     workflow_version: str
+    source_url: str | None = None
 
 
 def run_form990_monthly_processing_task(
@@ -306,7 +307,7 @@ def build_local_index_records(
     local_file_lookup: dict[str, str] = {}
     for member in extracted_members:
         xml_bytes = Path(member.local_path).read_bytes()
-        xml_reference = f"s3://{source_bucket}/{source_key}#{member.member_name}"
+        xml_reference = _xml_reference(source_bucket=source_bucket, source_key=source_key, member_name=member.member_name)
         local_file_lookup[xml_reference] = member.local_path
         irs_object_id = _object_id_from_member_name(member.member_name)
         if not irs_object_id:
@@ -344,7 +345,7 @@ def process_form990_archive(
     extracted_workdir: str,
     processing_context: Mapping[str, str],
     source_object: MonthlyIngestSourceObject,
-    artifact_keys: Mapping[str, str],
+    artifact_keys: Mapping[str, str] | None = None,
     archive_checksum: str | None = None,
     archive_size: int | None = None,
     started_at: datetime | None = None,
@@ -366,14 +367,22 @@ def process_form990_archive(
             job_id=str(processing_context.get("job_id") or "").strip(),
             correlation_id=str(processing_context.get("correlation_id") or "").strip(),
             workflow_version=str(processing_context.get("workflow_version") or "").strip(),
+            source_url=_as_text(processing_context.get("source_url")),
         )
     started = started_at or datetime.now(timezone.utc)
-    s3 = s3_client or boto3.client("s3")
+    persist_runtime_artifacts = bool(
+        artifact_keys
+        and context.destination_bucket
+        and artifact_keys.get("manifest_s3_key")
+        and artifact_keys.get("artifact_index_s3_key")
+        and artifact_keys.get("summary_s3_key")
+    )
+    s3 = (s3_client or boto3.client("s3")) if persist_runtime_artifacts else None
     checksum = archive_checksum or _hash_file(archive_path)
     size = int(archive_size) if archive_size is not None else Path(archive_path).stat().st_size
     if archive_metadata_service is not None and archive_record is None:
         archive_record = archive_metadata_service.ensure_archive_record(
-            source_url=f"s3://{context.source_bucket}/{context.source_key}",
+            source_url=context.source_url or f"s3://{context.source_bucket}/{context.source_key}",
             filename=source_object.source_filename,
             checked_at=started,
         )
@@ -397,6 +406,7 @@ def process_form990_archive(
             existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
             if existing is not None and str(existing.content_hash or "").strip() == content_hash:
                 skipped_unchanged_members += 1
+                _delete_local_xml_file(member.local_path)
                 continue
             selected_members.append(member)
     _log_structured(
@@ -418,26 +428,31 @@ def process_form990_archive(
     )
     job_prefix = workflow_job_prefix(context.destination_prefix, context.job_id)
     if records:
-        ingest_result = ingest_form990_records(
-            records=records,
-            bucket=context.destination_bucket,
-            raw_prefix=f"{job_prefix}/raw-xml/",
-            metadata_prefix=f"{job_prefix}/datasets/metadata/",
-            manifest_prefix=f"{job_prefix}/processing/",
-            metrics_prefix=f"{job_prefix}/datasets/metrics/",
-            governance_prefix=f"{job_prefix}/datasets/governance/",
-            quality_prefix=f"{job_prefix}/datasets/quality/",
-            relationships_prefix=f"{job_prefix}/datasets/relationships/",
-            s3_client=s3,
-            download_raw=True,
-            record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
-            nonprofit_persistence_service=nonprofit_persistence_service,
-            record_error_handler=(
-                (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
-                if xml_error_handler is not None
-                else None
-            ),
-        ).to_dict()
+        try:
+            ingest_result = ingest_form990_records(
+                records=records,
+                bucket=context.destination_bucket or None,
+                raw_prefix=f"{job_prefix}/raw-xml/",
+                metadata_prefix=f"{job_prefix}/datasets/metadata/",
+                manifest_prefix=f"{job_prefix}/processing/",
+                metrics_prefix=f"{job_prefix}/datasets/metrics/",
+                governance_prefix=f"{job_prefix}/datasets/governance/",
+                quality_prefix=f"{job_prefix}/datasets/quality/",
+                relationships_prefix=f"{job_prefix}/datasets/relationships/",
+                s3_client=s3,
+                download_raw=True,
+                record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
+                record_cleanup_handler=lambda record: _delete_local_xml_for_record(record, local_file_lookup),
+                nonprofit_persistence_service=nonprofit_persistence_service,
+                record_error_handler=(
+                    (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
+                    if xml_error_handler is not None
+                    else None
+                ),
+                persist_artifacts=persist_runtime_artifacts,
+            ).to_dict()
+        finally:
+            _cleanup_remaining_local_xml(local_file_lookup)
     else:
         ingest_result = {
             "status": "success",
@@ -453,6 +468,7 @@ def process_form990_archive(
             "relationships_s3_key": None,
             "nonprofit_persistence": None,
         }
+        _cleanup_remaining_local_xml(local_file_lookup)
 
     if archive_metadata_service is not None and archive_record is not None:
         _persist_extracted_file_results(
@@ -467,15 +483,15 @@ def process_form990_archive(
     artifacts_payload = {
         "job_id": context.job_id,
         "correlation_id": context.correlation_id,
-        "archive_s3_bucket": context.source_bucket,
-        "archive_s3_key": context.source_key,
+        "archive_source_bucket": context.source_bucket,
+        "archive_source_key": context.source_key,
         "archive_size_bytes": size,
         "archive_checksum_sha256": checksum,
         "extracted_member_count": len(extracted_members),
         "selected_member_count": len(selected_members),
         "skipped_unchanged_member_count": skipped_unchanged_members,
         "artifacts": {
-            **artifact_keys,
+            **(dict(artifact_keys or {})),
             "raw_xml_prefix": f"{job_prefix}/raw-xml/",
             "filing_records_s3_key": ingest_result.get("filing_records_s3_key"),
             "metrics_s3_key": ingest_result.get("metrics_s3_key"),
@@ -496,6 +512,7 @@ def process_form990_archive(
         "source_object": {
             "bucket": context.source_bucket,
             "key": context.source_key,
+            "source_url": context.source_url,
             "archive_size_bytes": size,
             "archive_checksum_sha256": checksum,
             "source_year": source_object.source_year,
@@ -527,19 +544,20 @@ def process_form990_archive(
         "selected_member_count": len(selected_members),
         "skipped_unchanged_member_count": skipped_unchanged_members,
         "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
-        "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
+        "artifact_index_s3_key": (artifact_keys or {}).get("artifact_index_s3_key"),
         "completed_at": completed_at.isoformat(),
     }
-    _put_json_artifact(s3, context.destination_bucket, artifact_keys["artifact_index_s3_key"], artifacts_payload)
-    _put_json_artifact(s3, context.destination_bucket, artifact_keys["manifest_s3_key"], manifest_payload)
-    _put_json_artifact(s3, context.destination_bucket, artifact_keys["summary_s3_key"], summary_payload)
+    if persist_runtime_artifacts and s3 is not None and artifact_keys is not None:
+        _put_json_artifact(s3, context.destination_bucket, artifact_keys["artifact_index_s3_key"], artifacts_payload)
+        _put_json_artifact(s3, context.destination_bucket, artifact_keys["manifest_s3_key"], manifest_payload)
+        _put_json_artifact(s3, context.destination_bucket, artifact_keys["summary_s3_key"], summary_payload)
     return {
         "status": str(ingest_result.get("status") or "failed"),
         "job_id": context.job_id,
         "correlation_id": context.correlation_id,
-        "manifest_s3_key": artifact_keys["manifest_s3_key"],
-        "artifact_index_s3_key": artifact_keys["artifact_index_s3_key"],
-        "summary_s3_key": artifact_keys["summary_s3_key"],
+        "manifest_s3_key": (artifact_keys or {}).get("manifest_s3_key"),
+        "artifact_index_s3_key": (artifact_keys or {}).get("artifact_index_s3_key"),
+        "summary_s3_key": (artifact_keys or {}).get("summary_s3_key"),
         "processing_manifest_s3_key": ingest_result.get("manifest_s3_key"),
         "records_processed": int(ingest_result.get("records_processed") or 0),
         "parsed_count": int(ingest_result.get("parsed_count") or 0),
@@ -607,6 +625,33 @@ def _load_local_xml(record: Form990IndexRecord, local_file_lookup: Mapping[str, 
     if not local_path:
         raise FileNotFoundError(f"local XML payload not found for {reference or record.irs_object_id}")
     return Path(local_path).read_bytes(), reference
+
+
+def _delete_local_xml_for_record(record: Form990IndexRecord, local_file_lookup: Mapping[str, str]) -> None:
+    reference = str(record.xml_url or "").strip()
+    local_path = local_file_lookup.get(reference)
+    if local_path:
+        _delete_local_xml_file(local_path)
+
+
+def _cleanup_remaining_local_xml(local_file_lookup: Mapping[str, str]) -> None:
+    for local_path in dict(local_file_lookup).values():
+        _delete_local_xml_file(local_path)
+
+
+def _delete_local_xml_file(path: str) -> None:
+    try:
+        Path(path).unlink(missing_ok=True)
+    except TypeError:
+        target = Path(path)
+        if target.exists():
+            target.unlink()
+
+
+def _xml_reference(*, source_bucket: str, source_key: str, member_name: str) -> str:
+    if source_bucket:
+        return f"s3://{source_bucket}/{source_key}#{member_name}"
+    return f"local://{source_key}#{member_name}"
 
 
 def _resolve_archive_source_url(workflow_input: MonthlyIngestWorkflowInput) -> str | None:

@@ -129,6 +129,10 @@ The local `run` command uses the monthly ECS worker archive-processing core and
 the `FORM990_WORKSPACE_DIR` workspace contract. By default it cleans up the ZIP
 and extracted XML after each archive unless `--keep-temp` is supplied.
 
+The local `run` and ECS `ecs-run` paths now keep downloaded IRS ZIP/XML
+artifacts in the ephemeral workspace only. Normalized persistence remains in
+PostgreSQL, while raw IRS artifacts are no longer uploaded to S3 on that path.
+
 The ECS parity path now uses `ecs-run`, which reuses the same orchestration
 core as local `run` and accepts env aliases such as `WORKSPACE_PATH`,
 `STRICT_MODE`, `MAX_ARCHIVES`, `LOG_LEVEL`, and `DATABASE_URL`.

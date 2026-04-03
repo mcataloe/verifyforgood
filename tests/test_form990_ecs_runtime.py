@@ -57,7 +57,6 @@ def test_ecs_runtime_creates_workspace_and_calls_shared_local_runner(monkeypatch
     workspace = tmp_path / "ecs-workspace"
     exit_code = ecs_runtime.main(
         env={
-            "BUCKET": "test-bucket",
             "WORKSPACE_PATH": str(workspace),
             "STRICT_MODE": "true",
             "MAX_ARCHIVES": "3",

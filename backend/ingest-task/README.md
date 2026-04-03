@@ -33,6 +33,7 @@ Local Form 990 debug runner:
 - `--keep-temp` preserves the downloaded ZIP and extracted XML in the workspace
 - `--workspace <path>` overrides `FORM990_WORKSPACE_DIR` for that run only
 - the local runner is a thin wrapper over the monthly ECS worker processing core, not a separate ingest implementation
+- the `run` and `ecs-run` paths now keep IRS ZIP/XML handling off S3 and use only the local workspace plus PostgreSQL-backed persistence
 
 Container build/run:
 
@@ -106,7 +107,7 @@ workspace/
 ```
 
 - only one archive should be processed at a time inside a given workspace
-- extracted XML files are expected to be deleted immediately after archive-scoped processing completes
+- extracted XML files are expected to be deleted immediately after each XML has been parsed or skipped
 - ZIP files are expected to be deleted after archive processing completes
 - the runtime keeps this model local-first so the same logic can run on a developer machine or inside ECS ephemeral storage
 - current workspace helpers live under:

@@ -76,6 +76,8 @@ Ownership note:
 - the managed ECS task now uses the backend-owned `ecs-run` parity command so
   task execution shares the same archive-at-a-time orchestration path as local
   `python -m ingest_task.cli run`
+- on the parity path, IRS ZIP downloads and extracted XML stay inside the
+  task workspace and are not uploaded to S3 as runtime artifacts
 
 ECS parity env aliases supported by the runtime:
 
@@ -97,6 +99,13 @@ Expected outputs:
 - `{destination_prefix}/monthly-workflows/jobs/{job_id}/artifacts.json`
 - `{destination_prefix}/monthly-workflows/jobs/{job_id}/summary.json`
 - dataset and raw XML outputs under the same job-scoped prefix
+
+Compatibility note:
+
+- those S3 outputs still describe the legacy `monthly-worker` contract
+- the local/ECS parity `run` and `ecs-run` path now keeps raw IRS ZIP/XML
+  artifacts in ephemeral workspace storage and persists only normalized
+  PostgreSQL data plus archive/file metadata
 
 ## Managed ECS Resources
 

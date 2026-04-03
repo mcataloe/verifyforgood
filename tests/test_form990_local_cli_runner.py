@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from charity_status.form990 import monthly_processing
 from charity_status.form990.monthly_processing import MonthlyIngestSourceObject, process_form990_archive
 from charity_status.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, build_source_artifact
 from charity_status_backend.ingest_task import local_runner
@@ -27,6 +28,19 @@ def _make_zip(*members: tuple[str, bytes]) -> bytes:
         for name, body in members:
             archive.writestr(name, body)
     return stream.getvalue()
+
+
+def _valid_xml(ein="123456789", tax_year="2024") -> bytes:
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<Return xmlns="http://www.irs.gov/efile">
+  <ReturnHeader><TaxYr>{tax_year}</TaxYr></ReturnHeader>
+  <ReturnData>
+    <IRS990>
+      <Filer><EIN>{ein}</EIN></Filer>
+    </IRS990>
+  </ReturnData>
+</Return>
+""".encode("utf-8")
 
 
 def _artifact_from_file(path: Path, *, archive_key: str, year: str = "2026"):
@@ -73,7 +87,7 @@ def test_cli_archive_url_processes_one_archive_and_cleans_workspace(tmp_path, mo
         keep_temp=False,
         workspace=str(workspace),
         limit=None,
-        env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+        env={},
     )
 
     assert exit_code == 0
@@ -108,7 +122,7 @@ def test_cli_keep_temp_preserves_workspace_files(tmp_path, monkeypatch):
         keep_temp=True,
         workspace=str(workspace),
         limit=None,
-        env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+        env={},
     )
 
     assert exit_code == 0
@@ -140,7 +154,7 @@ def test_cli_single_archive_and_limit_bound_selected_archives(tmp_path, monkeypa
         keep_temp=False,
         workspace=str(tmp_path / "workspace-single"),
         limit=None,
-        env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+        env={},
     )
     assert single_exit == 0
     assert len(processed) == 1
@@ -153,7 +167,7 @@ def test_cli_single_archive_and_limit_bound_selected_archives(tmp_path, monkeypa
         keep_temp=False,
         workspace=str(tmp_path / "workspace-limit"),
         limit=2,
-        env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+        env={},
     )
     assert limited_exit == 0
     assert len(processed) == 2
@@ -188,7 +202,7 @@ def test_cli_non_strict_logs_archive_failure_and_continues(tmp_path, monkeypatch
         keep_temp=False,
         workspace=str(tmp_path / "workspace"),
         limit=None,
-        env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+        env={},
     )
 
     assert exit_code == 1
@@ -217,15 +231,14 @@ def test_cli_strict_stops_on_first_failure_and_includes_traceback(tmp_path, monk
             keep_temp=False,
             workspace=str(tmp_path / "workspace"),
             limit=None,
-            env={"BUCKET": "test-bucket", "FORM990_MANIFEST_PREFIX": "form990/normalized/manifests/"},
+            env={},
         )
 
     logged = capsys.readouterr().out
     assert '"traceback":' in logged
 
 
-def test_process_form990_archive_reports_xml_failures_with_file_context(tmp_path):
-    fake_s3 = FakeS3()
+def test_process_form990_archive_reports_xml_failures_with_file_context_without_s3_artifacts(tmp_path):
     archive_path = tmp_path / "2026_TEOS_XML_05A.zip"
     archive_path.write_bytes(_make_zip(("bad-object.xml", b"<Return>")))
     xml_errors: list[tuple[str | None, str]] = []
@@ -234,13 +247,14 @@ def test_process_form990_archive_reports_xml_failures_with_file_context(tmp_path
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted"),
         processing_context={
-            "source_bucket": "source-bucket",
+            "source_bucket": "",
             "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_05a/sig-1/2026_TEOS_XML_05A.zip",
-            "destination_bucket": "dest-bucket",
-            "destination_prefix": "form990/normalized/manifests/",
+            "destination_bucket": "",
+            "destination_prefix": "",
             "job_id": "local-cli-job",
             "correlation_id": "local-cli-corr",
             "workflow_version": "local-cli",
+            "source_url": "https://www.irs.gov/pub/irs-soi/2026_TEOS_XML_05A.zip",
         },
         source_object=MonthlyIngestSourceObject(
             source_year="2026",
@@ -249,15 +263,77 @@ def test_process_form990_archive_reports_xml_failures_with_file_context(tmp_path
             source_signature="sig-1",
             source_filename="2026_TEOS_XML_05A.zip",
         ),
-        artifact_keys={
-            "manifest_s3_key": "form990/normalized/manifests/monthly-workflows/jobs/local-cli-job/manifest.json",
-            "artifact_index_s3_key": "form990/normalized/manifests/monthly-workflows/jobs/local-cli-job/artifacts.json",
-            "summary_s3_key": "form990/normalized/manifests/monthly-workflows/jobs/local-cli-job/summary.json",
-        },
-        s3_client=fake_s3,
+        artifact_keys=None,
+        s3_client=None,
         xml_error_handler=lambda file_name, exc, status: xml_errors.append((file_name, status)),
     )
 
     assert result["status"] == "failed"
     assert xml_errors == [("bad-object.xml", "malformed_xml")]
-    assert ("dest-bucket", "form990/normalized/manifests/monthly-workflows/jobs/local-cli-job/summary.json") in fake_s3.store
+    assert result["manifest_s3_key"] is None
+    assert result["artifact_index_s3_key"] is None
+    assert result["summary_s3_key"] is None
+
+
+def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_path):
+    archive_path = tmp_path / "2026_TEOS_XML_05B.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", _valid_xml())))
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "extracted-cleanup"),
+        processing_context={
+            "source_bucket": "",
+            "source_key": "local/archive.zip",
+            "destination_bucket": "",
+            "destination_prefix": "",
+            "job_id": "cleanup-job",
+            "correlation_id": "cleanup-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind=SOURCE_KIND_ZIP_ARCHIVE,
+            source_archive_key="2026_teos_xml_05b",
+            source_signature="sig-2",
+            source_filename="2026_TEOS_XML_05B.zip",
+        ),
+        artifact_keys=None,
+        s3_client=None,
+        nonprofit_persistence_service=None,
+    )
+
+    assert result["status"] == "success"
+    assert list((tmp_path / "extracted-cleanup").glob("*.xml")) == []
+
+
+def test_process_form990_archive_no_s3_mode_does_not_create_s3_client(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_05C.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", _valid_xml())))
+
+    monkeypatch.setattr(monthly_processing.boto3, "client", lambda service: (_ for _ in ()).throw(AssertionError(service)))
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "extracted-no-s3"),
+        processing_context={
+            "source_bucket": "",
+            "source_key": "local/archive.zip",
+            "destination_bucket": "",
+            "destination_prefix": "",
+            "job_id": "no-s3-job",
+            "correlation_id": "no-s3-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind=SOURCE_KIND_ZIP_ARCHIVE,
+            source_archive_key="2026_teos_xml_05c",
+            source_signature="sig-3",
+            source_filename="2026_TEOS_XML_05C.zip",
+        ),
+        artifact_keys=None,
+        s3_client=None,
+    )
+
+    assert result["status"] == "success"
