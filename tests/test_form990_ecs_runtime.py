@@ -46,6 +46,18 @@ def test_build_local_ingest_run_config_reads_ecs_alias_envs():
     assert config.log_stack_traces is True
 
 
+def test_build_local_ingest_run_config_defaults_to_debug_in_dev_without_override():
+    config = local_runner.build_local_ingest_run_config(
+        env={
+            "APP_ENV": "dev",
+            "WORKSPACE_PATH": "/tmp/dev-workspace",
+        }
+    )
+
+    assert config.workspace == "/tmp/dev-workspace"
+    assert config.log_level == "DEBUG"
+
+
 def test_ecs_runtime_creates_workspace_and_calls_shared_local_runner(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 

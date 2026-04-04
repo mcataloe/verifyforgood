@@ -27,7 +27,7 @@ from charity_status.form990.source_catalog import (
     normalize_configured_sources,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
-from charity_status.runtime_logging import configure_runtime_logging, sanitize_log_value
+from charity_status.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
 from .orchestration import build_workspace_layout
 from .persistence import build_form990_archive_metadata_service, build_form990_nonprofit_persistence_service
@@ -124,6 +124,13 @@ def build_local_ingest_run_config(
     log_level: str | None = None,
 ) -> LocalIngestRunConfig:
     source_env = resolve_runtime_environment_aliases(env)
+    resolved_log_level = (
+        str(log_level).strip().upper()
+        if log_level is not None and str(log_level).strip()
+        else str(source_env.get("LOG_LEVEL") or "").strip().upper()
+    )
+    if not resolved_log_level:
+        resolved_log_level = resolve_runtime_logging_config(source_env).log_level_name
     return LocalIngestRunConfig(
         archive_url=archive_url,
         single_archive=bool(single_archive) if single_archive is not None else False,
@@ -131,7 +138,7 @@ def build_local_ingest_run_config(
         keep_temp=bool(keep_temp) if keep_temp is not None else False,
         workspace=workspace or _env_text(source_env, "FORM990_WORKSPACE_DIR") or None,
         limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
-        log_level=log_level or _env_text(source_env, "LOG_LEVEL", DEFAULT_LOG_LEVEL) or DEFAULT_LOG_LEVEL,
+        log_level=resolved_log_level,
         log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
 
