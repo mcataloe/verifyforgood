@@ -29,7 +29,12 @@ def upgrade() -> None:
     op.drop_table("nonprofit_filings")
     op.drop_table("nonprofits")
 
-    _create_nonprofit_domain_tables(nonprofit_id_type=sa.BigInteger(), financial_type=sa.BigInteger())
+    _create_nonprofit_domain_tables(
+        nonprofit_id_type=_pk_type_for_dialect(dialect_name),
+        nonprofit_id_fk_type=_fk_type_for_dialect(dialect_name),
+        financial_type=sa.BigInteger(),
+        include_identity=dialect_name == "postgresql",
+    )
 
     if dialect_name == "postgresql":
         op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
@@ -51,7 +56,12 @@ def downgrade() -> None:
     op.drop_table("nonprofit_filings")
     op.drop_table("nonprofits")
 
-    _create_nonprofit_domain_tables(nonprofit_id_type=sa.String(length=64), financial_type=sa.BigInteger())
+    _create_nonprofit_domain_tables(
+        nonprofit_id_type=sa.String(length=64),
+        nonprofit_id_fk_type=sa.String(length=64),
+        financial_type=sa.BigInteger(),
+        include_identity=False,
+    )
 
     if dialect_name == "postgresql":
         op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
@@ -61,10 +71,20 @@ def downgrade() -> None:
         )
 
 
-def _create_nonprofit_domain_tables(*, nonprofit_id_type: sa.types.TypeEngine, financial_type: sa.types.TypeEngine) -> None:
+def _create_nonprofit_domain_tables(
+    *,
+    nonprofit_id_type: sa.types.TypeEngine,
+    nonprofit_id_fk_type: sa.types.TypeEngine,
+    financial_type: sa.types.TypeEngine,
+    include_identity: bool,
+) -> None:
+    nonprofit_pk = sa.Column("nonprofit_id", nonprofit_id_type, primary_key=True, nullable=False)
+    if include_identity:
+        nonprofit_pk = sa.Column("nonprofit_id", nonprofit_id_type, sa.Identity(start=1), primary_key=True, nullable=False)
+
     op.create_table(
         "nonprofits",
-        sa.Column("nonprofit_id", nonprofit_id_type, primary_key=True, nullable=False),
+        nonprofit_pk,
         sa.Column("ein", sa.String(length=9), nullable=False),
         sa.Column("canonical_name", sa.String(length=255), nullable=False),
         sa.Column("normalized_name", sa.String(length=255), nullable=False),
@@ -90,7 +110,7 @@ def _create_nonprofit_domain_tables(*, nonprofit_id_type: sa.types.TypeEngine, f
     op.create_table(
         "nonprofit_filings",
         sa.Column("filing_id", sa.String(length=64), primary_key=True, nullable=False),
-        sa.Column("nonprofit_id", nonprofit_id_type, nullable=False),
+        sa.Column("nonprofit_id", nonprofit_id_fk_type, nullable=False),
         sa.Column("tax_year", sa.Integer(), nullable=True),
         sa.Column("tax_period", sa.String(length=16), nullable=True),
         sa.Column("form_type", sa.String(length=32), nullable=False),
@@ -125,7 +145,7 @@ def _create_nonprofit_domain_tables(*, nonprofit_id_type: sa.types.TypeEngine, f
     op.create_table(
         "nonprofit_sources",
         sa.Column("nonprofit_source_id", sa.String(length=64), primary_key=True, nullable=False),
-        sa.Column("nonprofit_id", nonprofit_id_type, nullable=False),
+        sa.Column("nonprofit_id", nonprofit_id_fk_type, nullable=False),
         sa.Column("source_id", sa.String(length=128), nullable=False),
         sa.Column("provider_name", sa.String(length=128), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
@@ -157,7 +177,7 @@ def _create_nonprofit_domain_tables(*, nonprofit_id_type: sa.types.TypeEngine, f
     op.create_table(
         "compliance_checks",
         sa.Column("compliance_check_id", sa.String(length=64), primary_key=True, nullable=False),
-        sa.Column("nonprofit_id", nonprofit_id_type, nullable=False),
+        sa.Column("nonprofit_id", nonprofit_id_fk_type, nullable=False),
         sa.Column("check_type", sa.String(length=64), nullable=False),
         sa.Column("status", sa.String(length=64), nullable=False),
         sa.Column("evaluated_at", sa.DateTime(timezone=True), nullable=False),
@@ -183,3 +203,11 @@ def _create_nonprofit_domain_tables(*, nonprofit_id_type: sa.types.TypeEngine, f
     op.create_index("ix_compliance_checks_nonprofit_evaluated", "compliance_checks", ["nonprofit_id", "evaluated_at"], unique=False)
     op.create_index("ix_compliance_checks_nonprofit_type", "compliance_checks", ["nonprofit_id", "check_type"], unique=False)
     op.create_index("ix_compliance_checks_nonprofit_type_evaluated", "compliance_checks", ["nonprofit_id", "check_type", "evaluated_at"], unique=False)
+
+
+def _pk_type_for_dialect(dialect_name: str) -> sa.types.TypeEngine:
+    return sa.BigInteger() if dialect_name == "postgresql" else sa.Integer()
+
+
+def _fk_type_for_dialect(dialect_name: str) -> sa.types.TypeEngine:
+    return sa.BigInteger() if dialect_name == "postgresql" else sa.Integer()

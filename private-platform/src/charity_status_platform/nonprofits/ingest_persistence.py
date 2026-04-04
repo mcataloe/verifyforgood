@@ -10,7 +10,6 @@ from .sqlalchemy_repository import (
     NonprofitRecord,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
-    build_nonprofit_id,
 )
 
 
@@ -56,9 +55,9 @@ class Form990NonprofitPersistenceService:
                 skipped_records += 1
                 continue
 
-            nonprofit_id = build_nonprofit_id(ein)
-            if nonprofit_id not in written_nonprofits:
-                existing = self._repository.get_nonprofit_by_ein(ein)
+            existing = self._repository.get_nonprofit_by_ein(ein)
+            nonprofit_id = existing.nonprofit_id if existing is not None else None
+            if nonprofit_id is None or nonprofit_id not in written_nonprofits:
                 nonprofit_record = NonprofitRecord(
                     nonprofit_id=nonprofit_id,
                     ein=ein,
@@ -79,9 +78,14 @@ class Form990NonprofitPersistenceService:
                     created_at=existing.created_at if existing else persisted_at_iso,
                     updated_at=persisted_at_iso,
                 )
-                self._repository.upsert_nonprofit(nonprofit_record)
+                persisted_nonprofit = self._repository.upsert_nonprofit(nonprofit_record)
+                nonprofit_id = persisted_nonprofit.nonprofit_id
+                if nonprofit_id is None:
+                    skipped_records += 1
+                    continue
                 written_nonprofits.add(nonprofit_id)
                 nonprofits_upserted += 1
+            assert nonprofit_id is not None
 
             self._repository.upsert_filing(_to_filing_record(nonprofit_id, filing, persisted_at_iso))
             filings_upserted += 1
@@ -160,7 +164,7 @@ def _filing_id(nonprofit_id: int, filing: dict[str, Any]) -> str:
     else:
         payload = "|".join(
             [
-                nonprofit_id,
+                str(nonprofit_id),
                 str(filing.get("tax_year") or "").strip(),
                 str(filing.get("return_type") or "").strip(),
                 str(filing.get("filing_date") or "").strip(),

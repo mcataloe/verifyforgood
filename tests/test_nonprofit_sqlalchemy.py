@@ -20,7 +20,6 @@ from charity_status_platform.nonprofits import (
     SqlAlchemyNonprofitRepository,
     build_form990_archive_id,
     build_form990_extracted_file_id,
-    build_nonprofit_id,
     make_record_id,
 )
 from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
@@ -90,7 +89,7 @@ def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata
 def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(
-        nonprofit_id=build_nonprofit_id("12-3456789"),
+        nonprofit_id=None,
         ein="12-3456789",
         canonical_name="Example Nonprofit",
         normalized_name="example nonprofit",
@@ -108,7 +107,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
         created_at="2026-03-31T00:00:00+00:00",
         updated_at="2026-03-31T00:00:00+00:00",
     )
-    repository.upsert_nonprofit(nonprofit)
+    nonprofit = repository.upsert_nonprofit(nonprofit)
 
     filing = NonprofitFilingRecord(
         filing_id=make_record_id("fil"),
@@ -200,14 +199,14 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
 def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(
-        nonprofit_id=build_nonprofit_id("12-3456789"),
+        nonprofit_id=None,
         ein="12-3456789",
         canonical_name="Example Nonprofit",
         normalized_name="example nonprofit",
         created_at="2026-03-31T00:00:00+00:00",
         updated_at="2026-03-31T00:00:00+00:00",
     )
-    repository.upsert_nonprofit(nonprofit)
+    nonprofit = repository.upsert_nonprofit(nonprofit)
 
     repository.upsert_filing(
         NonprofitFilingRecord(
@@ -232,14 +231,14 @@ def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Pat
 def test_nonprofit_repository_supports_large_financial_values(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(
-        nonprofit_id=build_nonprofit_id("98-6001153"),
+        nonprofit_id=None,
         ein="98-6001153",
         canonical_name="Large Balance Nonprofit",
         normalized_name="large balance nonprofit",
         created_at="2026-04-04T00:00:00+00:00",
         updated_at="2026-04-04T00:00:00+00:00",
     )
-    repository.upsert_nonprofit(nonprofit)
+    nonprofit = repository.upsert_nonprofit(nonprofit)
 
     repository.upsert_filing(
         NonprofitFilingRecord(
@@ -271,7 +270,7 @@ def test_nonprofit_repository_supports_large_financial_values(tmp_path: Path):
 def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(
-        nonprofit_id=build_nonprofit_id("12-3456789"),
+        nonprofit_id=None,
         ein="12-3456789",
         canonical_name="Helping Hands Foundation",
         normalized_name="helping hands foundation",
@@ -283,7 +282,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
         created_at="2026-03-31T00:00:00+00:00",
         updated_at="2026-03-31T00:00:00+00:00",
     )
-    repository.upsert_nonprofit(nonprofit)
+    nonprofit = repository.upsert_nonprofit(nonprofit)
     repository.upsert_filing(
         NonprofitFilingRecord(
             filing_id=make_record_id("fil"),
@@ -376,7 +375,7 @@ def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(session_factory)
     repository.upsert_nonprofit(
         NonprofitRecord(
-            nonprofit_id=build_nonprofit_id("123456789"),
+            nonprofit_id=None,
             ein="123456789",
             canonical_name="Org One",
             normalized_name="org one",
@@ -389,7 +388,7 @@ def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
         with customer_accounts_session_scope(session_factory) as session:
             session.add(
                 NonprofitModel(
-                    nonprofit_id="npo_duplicate",
+                    nonprofit_id=999,
                     ein="123456789",
                     canonical_name="Org Two",
                     normalized_name="org two",
@@ -426,7 +425,7 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
     repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
     repository.upsert_nonprofit(
         NonprofitRecord(
-            nonprofit_id=build_nonprofit_id("123456789"),
+            nonprofit_id=None,
             ein="123456789",
             canonical_name="Query Runtime Org",
             normalized_name="query runtime org",

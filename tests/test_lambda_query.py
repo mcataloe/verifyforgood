@@ -50,7 +50,6 @@ from charity_status_platform.nonprofits import (
     NonprofitFilingRecord,
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
-    build_nonprofit_id,
     make_record_id,
 )
 
@@ -151,7 +150,7 @@ def _seed_postgres_nonprofit(sqlite_url, *, ein="123456789", name="Postgres Org"
     CustomerAccountsBase.metadata.create_all(engine)
     repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
     nonprofit = NonprofitRecord(
-        nonprofit_id=build_nonprofit_id(ein),
+        nonprofit_id=None,
         ein=ein,
         canonical_name=name,
         normalized_name=name.lower(),
@@ -163,7 +162,7 @@ def _seed_postgres_nonprofit(sqlite_url, *, ein="123456789", name="Postgres Org"
         created_at="2026-03-31T00:00:00+00:00",
         updated_at="2026-03-31T00:00:00+00:00",
     )
-    repository.upsert_nonprofit(nonprofit)
+    nonprofit = repository.upsert_nonprofit(nonprofit)
     repository.upsert_filing(
         NonprofitFilingRecord(
             filing_id=make_record_id("fil"),

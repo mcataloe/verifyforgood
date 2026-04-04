@@ -214,10 +214,31 @@ def run_local_form990_ingest_config(
                 message="processing archive",
                 archive=archive_name,
             )
+            logger.log(
+                component="form990.archive",
+                level="DEBUG",
+                message=f"about to download zip archive url={artifact.source_url} destination={archive_workspace.archive_path}",
+                archive=archive_name,
+            )
+            logger.log(
+                component="form990.archive",
+                level="DEBUG",
+                message=f"downloading zip archive to {archive_workspace.archive_path}",
+                archive=archive_name,
+            )
             _download_archive_to_path(
                 url=artifact.source_url,
                 destination=archive_workspace.archive_path,
                 timeout_seconds=int(source_env.get("FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS") or "300"),
+            )
+            logger.log(
+                component="form990.archive",
+                level="DEBUG",
+                message=(
+                    f"zip archive downloaded path={archive_workspace.archive_path} "
+                    f"size_bytes={archive_workspace.archive_path.stat().st_size}"
+                ),
+                archive=archive_name,
             )
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             processing_context = {
@@ -286,12 +307,47 @@ def run_local_form990_ingest_config(
                 raise
         finally:
             if not config.keep_temp:
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"deleting extracted workspace directory {archive_workspace.extracted_dir}",
+                    archive=archive_name,
+                )
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"deleting temporary zip file {archive_workspace.archive_path}",
+                    archive=archive_name,
+                )
                 archive_workspace.finalize_processed_archive()
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"temporary extracted directory deleted path={archive_workspace.extracted_dir}",
+                    archive=archive_name,
+                )
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"temporary zip file deleted path={archive_workspace.archive_path}",
+                    archive=archive_name,
+                )
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"temporary workspace cleanup completed extracted_dir={archive_workspace.extracted_dir} zip_path={archive_workspace.archive_path}",
+                    archive=archive_name,
+                )
 
     logger.log(
         component="form990.cli",
         level="INFO",
         message=f"local form990 ingest completed failure_count={failure_count}",
+    )
+    logger.log(
+        component="form990.cli",
+        level="DEBUG",
+        message=f"whole procedure completed workspace_root={layout.root} failure_count={failure_count}",
     )
     return 0 if failure_count == 0 else 1
 

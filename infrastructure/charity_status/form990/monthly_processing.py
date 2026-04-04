@@ -268,7 +268,18 @@ def extract_zip_xml_members_to_workdir(
 ) -> list[LocalExtractedXmlMember]:
     extracted: list[LocalExtractedXmlMember] = []
     Path(workdir).mkdir(parents=True, exist_ok=True)
+    _log_structured(
+        "monthly_ingest.worker.unzip_start",
+        level=logging.DEBUG,
+        archive_path=archive_path,
+        extracted_workdir=workdir,
+    )
     try:
+        _log_structured(
+            "monthly_ingest.worker.unzip_in_progress",
+            level=logging.DEBUG,
+            archive_path=archive_path,
+        )
         with zipfile.ZipFile(archive_path, mode="r") as archive:
             for index, member in enumerate(archive.infolist()):
                 if member.is_dir() or not member.filename.lower().endswith(".xml"):
@@ -293,6 +304,12 @@ def extract_zip_xml_members_to_workdir(
                 )
     except zipfile.BadZipFile as exc:
         raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
+    _log_structured(
+        "monthly_ingest.worker.unzip_complete",
+        level=logging.DEBUG,
+        archive_path=archive_path,
+        extracted_member_count=len(extracted),
+    )
     return extracted
 
 
@@ -387,7 +404,22 @@ def process_form990_archive(
             filename=source_object.source_filename,
             checked_at=started,
         )
+        _log_structured(
+            "monthly_ingest.worker.archive_metadata_recorded",
+            level=logging.DEBUG,
+            job_id=context.job_id,
+            archive_id=getattr(archive_record, "archive_id", None),
+            source_url=context.source_url or f"s3://{context.source_bucket}/{context.source_key}",
+            filename=source_object.source_filename,
+        )
 
+    _log_structured(
+        "monthly_ingest.worker.unzip_about_to_start",
+        level=logging.DEBUG,
+        job_id=context.job_id,
+        archive_path=archive_path,
+        extracted_workdir=extracted_workdir,
+    )
     extracted_members = extract_zip_xml_members_to_workdir(
         archive_path=archive_path,
         workdir=extracted_workdir,
@@ -426,6 +458,14 @@ def process_form990_archive(
         source_key=context.source_key,
         source_object=source_object,
         archive_checksum=checksum,
+    )
+    _log_structured(
+        "monthly_ingest.worker.records_parse_about_to_start",
+        level=logging.DEBUG,
+        job_id=context.job_id,
+        archive_path=archive_path,
+        record_count=len(records),
+        selected_member_count=len(selected_members),
     )
     job_prefix = workflow_job_prefix(context.destination_prefix, context.job_id)
     if records:
@@ -470,6 +510,16 @@ def process_form990_archive(
             "nonprofit_persistence": None,
         }
         _cleanup_remaining_local_xml(local_file_lookup)
+
+    _log_structured(
+        "monthly_ingest.worker.records_parse_completed",
+        level=logging.DEBUG,
+        job_id=context.job_id,
+        archive_path=archive_path,
+        parsed_count=int(ingest_result.get("parsed_count") or 0),
+        failed_count=int(ingest_result.get("failed_count") or 0),
+        records_processed=int(ingest_result.get("records_processed") or 0),
+    )
 
     if archive_metadata_service is not None and archive_record is not None:
         _persist_extracted_file_results(

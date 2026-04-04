@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import urllib.request
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -26,8 +27,11 @@ from charity_status.form990.parser import XmlParseError, parse_xml
 from charity_status.form990.quality import compute_filing_quality
 from charity_status.form990.relationships import extract_relationship_edges
 from charity_status.form990.storage import manifest_key, normalized_dataset_key, raw_xml_key, to_jsonl
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 SUPPORTED_RETURN_TYPES = {"990", "FORM_990", "990O", "990EZ", "990PF", "990T"}
+LOGGER = logging.getLogger(__name__)
+LOGGING_CONFIG = configure_runtime_logging(logger=LOGGER)
 
 
 class Form990IngestService:
@@ -107,6 +111,14 @@ def ingest_form990_records(
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
+    log_structured(
+        LOGGER,
+        "form990.ingest.records_parse_start",
+        level=logging.DEBUG,
+        record_count=len(records),
+        download_raw=download_raw,
+        persist_artifacts=persist_artifacts,
+    )
 
     filing_records: list[dict[str, Any]] = []
     metrics_records: list[dict[str, Any]] = []
@@ -118,6 +130,7 @@ def ingest_form990_records(
 
     for record in records:
         metadata = _from_index_record(record)
+        file_name = _record_file_name(record)
 
         if not _is_supported_return_type(record.return_type):
             filing = replace(metadata, parse_status=Form990ParseStatus.UNSUPPORTED_RETURN_TYPE).to_dict()
@@ -136,6 +149,14 @@ def ingest_form990_records(
 
         try:
             source_reference = record.xml_url or ""
+            log_structured(
+                LOGGER,
+                "form990.ingest.xml_parse_start",
+                level=logging.DEBUG,
+                file_name=file_name,
+                irs_object_id=record.irs_object_id,
+                xml_source_reference=source_reference,
+            )
             if record_downloader is not None:
                 downloaded = record_downloader(record)
                 if isinstance(downloaded, Form990DownloadedXml):
@@ -188,6 +209,15 @@ def ingest_form990_records(
             filing_records.append(merged_filing)
             grouped_filings.setdefault(merged_filing.get("ein") or "unknown", []).append(merged_filing)
             relationship_records.extend(extract_relationship_edges(parsed, merged_filing))
+            log_structured(
+                LOGGER,
+                "form990.ingest.xml_parse_complete",
+                level=logging.DEBUG,
+                file_name=file_name,
+                ein=merged_filing.get("ein"),
+                organization_name=_extract_organization_name(parsed),
+                parse_status=merged_filing.get("parse_status"),
+            )
 
         except XmlParseError as exc:
             if record_error_handler is not None:
@@ -212,6 +242,13 @@ def ingest_form990_records(
         finally:
             if record_cleanup_handler is not None:
                 record_cleanup_handler(record)
+                log_structured(
+                    LOGGER,
+                    "form990.ingest.xml_file_deleted",
+                    level=logging.DEBUG,
+                    file_name=file_name,
+                    xml_source_reference=record.xml_url,
+                )
 
     for ein, filings in grouped_filings.items():
         sorted_filings = sorted(filings, key=lambda item: item.get("tax_year") or "")
@@ -302,6 +339,16 @@ def ingest_form990_records(
             persisted_at=started,
         ).to_dict()
 
+    log_structured(
+        LOGGER,
+        "form990.ingest.records_parse_complete",
+        level=logging.DEBUG,
+        records_processed=len(filing_records),
+        parsed_count=parsed_count,
+        failed_count=failed_count,
+        status=status,
+    )
+
     return Form990IngestResult(
         status=status,
         records_processed=len(filing_records),
@@ -347,3 +394,26 @@ def _download_raw_xml(url: str) -> bytes:
         if response.status >= 400:
             raise RuntimeError(f"download failed with status {response.status}")
         return response.read()
+
+
+def _record_file_name(record: Form990IndexRecord) -> str:
+    source_reference = str(record.xml_url or "").strip()
+    if "#" in source_reference:
+        return source_reference.rsplit("#", 1)[-1]
+    return source_reference.rsplit("/", 1)[-1] if "/" in source_reference else source_reference
+
+
+def _extract_organization_name(parsed: Any) -> str | None:
+    root = getattr(parsed, "root", None)
+    if root is None:
+        return None
+    for pattern in (
+        ".//{*}BusinessName/{*}BusinessNameLine1Txt",
+        ".//{*}ReturnHeader/{*}Filer/{*}BusinessName/{*}BusinessNameLine1Txt",
+        ".//{*}BusinessNameLine1Txt",
+    ):
+        node = root.find(pattern)
+        text = (node.text or "").strip() if node is not None and node.text is not None else ""
+        if text:
+            return text
+    return None

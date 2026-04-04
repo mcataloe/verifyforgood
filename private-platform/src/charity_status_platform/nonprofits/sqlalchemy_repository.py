@@ -22,7 +22,7 @@ from .sqlalchemy_models import (
 
 @dataclass(frozen=True)
 class NonprofitRecord:
-    nonprofit_id: int
+    nonprofit_id: int | None
     ein: str
     canonical_name: str
     normalized_name: str
@@ -156,11 +156,12 @@ class SqlAlchemyNonprofitRepository:
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(select(NonprofitModel).where(NonprofitModel.ein == record.ein).limit(1))
             if model is None:
-                session.add(_nonprofit_model(record))
+                model = _nonprofit_model(record)
+                session.add(model)
             else:
                 _apply_nonprofit_record(model, record)
             session.flush()
-        return record
+            return _nonprofit_record(model)
 
     def get_nonprofit_by_ein(self, ein: str) -> NonprofitRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
@@ -485,13 +486,6 @@ class SqlAlchemyNonprofitRepository:
         return normalized_record
 
 
-def build_nonprofit_id(ein: str) -> int:
-    normalized = _normalize_ein(ein)
-    if not normalized:
-        raise ValueError("EIN is required to build nonprofit_id")
-    return int(normalized)
-
-
 def make_record_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:24]}"
 
@@ -634,26 +628,28 @@ def _query_bool_string(value: bool | None) -> str | None:
 
 
 def _nonprofit_model(record: NonprofitRecord) -> NonprofitModel:
-    return NonprofitModel(
-        nonprofit_id=record.nonprofit_id,
-        ein=_normalize_ein(record.ein),
-        canonical_name=record.canonical_name,
-        normalized_name=record.normalized_name,
-        subsection_code=record.subsection_code,
-        deductibility_code=record.deductibility_code,
-        tax_deductible=record.tax_deductible,
-        entity_type=record.entity_type,
-        irs_status=record.irs_status,
-        revoked=record.revoked,
-        country=record.country,
-        state=record.state,
-        ntee_category=record.ntee_category,
-        canonical_source=record.canonical_source,
-        source_version=record.source_version,
-        last_seen_at=_parse_timestamp(record.last_seen_at),
-        created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
-        updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
-    )
+    payload: dict[str, Any] = {
+        "ein": _normalize_ein(record.ein),
+        "canonical_name": record.canonical_name,
+        "normalized_name": record.normalized_name,
+        "subsection_code": record.subsection_code,
+        "deductibility_code": record.deductibility_code,
+        "tax_deductible": record.tax_deductible,
+        "entity_type": record.entity_type,
+        "irs_status": record.irs_status,
+        "revoked": record.revoked,
+        "country": record.country,
+        "state": record.state,
+        "ntee_category": record.ntee_category,
+        "canonical_source": record.canonical_source,
+        "source_version": record.source_version,
+        "last_seen_at": _parse_timestamp(record.last_seen_at),
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.nonprofit_id is not None:
+        payload["nonprofit_id"] = record.nonprofit_id
+    return NonprofitModel(**payload)
 
 
 def _apply_nonprofit_record(model: NonprofitModel, record: NonprofitRecord) -> None:

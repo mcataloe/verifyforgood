@@ -29,7 +29,6 @@ from charity_status_platform.nonprofits import (
     NonprofitSourceModel,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
-    build_nonprofit_id,
 )
 
 from .migration_validation import MigrationEntityValidation, build_entity_validation
@@ -85,7 +84,7 @@ def run_nonprofit_migration(
         profile_table_name=profile_table_name,
     )
 
-    expected_nonprofits: set[int] = set()
+    expected_nonprofits: set[int | str] = set()
     expected_filings: set[str] = set()
     expected_sources: set[str] = set()
     expected_checks: set[str] = set()
@@ -122,13 +121,19 @@ def run_nonprofit_migration(
                 ein=normalized_ein,
                 row=nonprofit_row,
             )
-            expected_nonprofits.add(normalized_ein)
             if not dry_run:
-                repository.upsert_nonprofit(nonprofit_record)
+                nonprofit_record = repository.upsert_nonprofit(nonprofit_record)
+            expected_nonprofits.add(nonprofit_record.nonprofit_id if nonprofit_record.nonprofit_id is not None else normalized_ein)
+            working_nonprofit_id = nonprofit_record.nonprofit_id
+            if working_nonprofit_id is None:
+                if dry_run:
+                    working_nonprofit_id = int(normalized_ein)
+                else:
+                    continue
 
             _, filing_rows = effective_query_client.list_form990_filings(normalized_ein, limit=50)
             for filing_row in filing_rows:
-                filing_record = _filing_record_from_query(nonprofit_record.nonprofit_id, normalized_ein, filing_row)
+                filing_record = _filing_record_from_query(working_nonprofit_id, normalized_ein, filing_row)
                 expected_filings.add(filing_record.filing_id)
                 if not dry_run:
                     repository.upsert_filing(filing_record)
@@ -137,11 +142,11 @@ def run_nonprofit_migration(
                 profile_item = effective_profile_store.get_profile(normalized_ein)
                 if profile_item:
                     profile_items_seen += 1
-                    for source_record in _source_records_from_profile(nonprofit_record.nonprofit_id, normalized_ein, profile_item):
+                    for source_record in _source_records_from_profile(working_nonprofit_id, normalized_ein, profile_item):
                         expected_sources.add(source_record.nonprofit_source_id)
                         if not dry_run:
                             repository.upsert_source(source_record)
-                    compliance_record = _compliance_record_from_profile(nonprofit_record.nonprofit_id, normalized_ein, profile_item)
+                    compliance_record = _compliance_record_from_profile(working_nonprofit_id, normalized_ein, profile_item)
                     if compliance_record is not None:
                         expected_checks.add(compliance_record.compliance_check_id)
                         if not dry_run:
@@ -215,7 +220,7 @@ def _nonprofit_record_from_query(
     status_value = _text(row.get("status"))
     irs_status = map_irs_status(status_value or (existing.irs_status if existing else None))
     return NonprofitRecord(
-        nonprofit_id=build_nonprofit_id(ein),
+        nonprofit_id=existing.nonprofit_id if existing else None,
         ein=ein,
         canonical_name=name,
         normalized_name=name.lower(),
@@ -360,14 +365,37 @@ def _compliance_record_from_profile(
 def _validate_nonprofit_targets(
     *,
     session_factory: Any,
-    expected_nonprofits: set[int],
+    expected_nonprofits: set[int | str],
     expected_filings: set[str],
     expected_sources: set[str],
     expected_checks: set[str],
     sample_limit: int,
 ) -> tuple[NonprofitMigrationCounts, dict[str, MigrationEntityValidation]]:
     with customer_accounts_session_scope(session_factory) as session:
-        present_nonprofits = set(session.scalars(select(NonprofitModel.ein).where(NonprofitModel.ein.in_(expected_nonprofits))).all()) if expected_nonprofits else set()
+        expected_nonprofit_ids = {key for key in expected_nonprofits if isinstance(key, int)}
+        expected_nonprofit_eins = {key for key in expected_nonprofits if isinstance(key, str)}
+        present_nonprofits = (
+            (
+                set(
+                    session.scalars(
+                        select(NonprofitModel.nonprofit_id).where(NonprofitModel.nonprofit_id.in_(expected_nonprofit_ids))
+                    ).all()
+                )
+                if expected_nonprofit_ids
+                else set()
+            )
+            | (
+                set(
+                    session.scalars(
+                        select(NonprofitModel.ein).where(NonprofitModel.ein.in_(expected_nonprofit_eins))
+                    ).all()
+                )
+                if expected_nonprofit_eins
+                else set()
+            )
+            if expected_nonprofits
+            else set()
+        )
         present_filings = set(session.scalars(select(NonprofitFilingModel.filing_id).where(NonprofitFilingModel.filing_id.in_(expected_filings))).all()) if expected_filings else set()
         present_sources = set(session.scalars(select(NonprofitSourceModel.nonprofit_source_id).where(NonprofitSourceModel.nonprofit_source_id.in_(expected_sources))).all()) if expected_sources else set()
         present_checks = set(session.scalars(select(ComplianceCheckModel.compliance_check_id).where(ComplianceCheckModel.compliance_check_id.in_(expected_checks))).all()) if expected_checks else set()

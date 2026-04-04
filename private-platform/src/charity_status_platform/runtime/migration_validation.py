@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Hashable
 
 
 @dataclass(frozen=True)
@@ -13,8 +14,8 @@ class MigrationEntityValidation:
 
 def build_entity_validation(
     *,
-    expected_keys: set[str],
-    present_keys: set[str],
+    expected_keys: set[Hashable],
+    present_keys: set[Hashable],
     sample_limit: int = 20,
 ) -> MigrationEntityValidation:
     missing_keys = sorted(expected_keys - present_keys)
@@ -22,7 +23,7 @@ def build_entity_validation(
         expected=len(expected_keys),
         present=len(present_keys & expected_keys),
         missing=len(missing_keys),
-        sample_missing_keys=tuple(missing_keys[:sample_limit]),
+        sample_missing_keys=tuple(str(key) for key in missing_keys[:sample_limit]),
     )
 
 
