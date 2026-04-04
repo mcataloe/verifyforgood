@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -72,9 +72,9 @@ class NonprofitFilingModel(CustomerAccountsBase):
     filing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     amended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     parse_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    total_assets: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    total_income: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    total_revenue: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_assets: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    total_income: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    total_revenue: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     source_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     source_record_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)

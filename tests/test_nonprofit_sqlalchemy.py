@@ -228,6 +228,45 @@ def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Pat
     assert filings[0].filing_date == "2023-12-22"
 
 
+def test_nonprofit_repository_supports_large_financial_values(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = NonprofitRecord(
+        nonprofit_id=build_nonprofit_id("98-6001153"),
+        ein="98-6001153",
+        canonical_name="Large Balance Nonprofit",
+        normalized_name="large balance nonprofit",
+        created_at="2026-04-04T00:00:00+00:00",
+        updated_at="2026-04-04T00:00:00+00:00",
+    )
+    repository.upsert_nonprofit(nonprofit)
+
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=make_record_id("fil"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2022,
+            tax_period="2023-04-30",
+            form_type="990",
+            filing_date="2023-12-22",
+            amended=False,
+            parse_status="parsed",
+            total_assets=4_474_648_174,
+            total_income=2_345_678_901,
+            total_revenue=1_248_945_332,
+            source_name="irs.form990",
+            source_record_id="202333569349300603_public",
+            created_at="2026-04-04T00:00:00+00:00",
+            updated_at="2026-04-04T00:00:00+00:00",
+        )
+    )
+
+    filings = repository.list_filings_for_nonprofit(nonprofit.nonprofit_id)
+
+    assert filings[0].total_assets == 4_474_648_174
+    assert filings[0].total_income == 2_345_678_901
+    assert filings[0].total_revenue == 1_248_945_332
+
+
 def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(
