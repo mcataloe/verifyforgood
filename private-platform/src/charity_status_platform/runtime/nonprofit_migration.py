@@ -85,7 +85,7 @@ def run_nonprofit_migration(
         profile_table_name=profile_table_name,
     )
 
-    expected_nonprofits: set[str] = set()
+    expected_nonprofits: set[int] = set()
     expected_filings: set[str] = set()
     expected_sources: set[str] = set()
     expected_checks: set[str] = set()
@@ -236,7 +236,7 @@ def _nonprofit_record_from_query(
     )
 
 
-def _filing_record_from_query(nonprofit_id: str, ein: str, row: dict[str, Any]) -> NonprofitFilingRecord:
+def _filing_record_from_query(nonprofit_id: int, ein: str, row: dict[str, Any]) -> NonprofitFilingRecord:
     tax_year = _to_int(row.get("tax_year"))
     form_type = _text(row.get("return_type")) or "990"
     filing_date = _text(row.get("filing_date"))
@@ -259,7 +259,7 @@ def _filing_record_from_query(nonprofit_id: str, ein: str, row: dict[str, Any]) 
     )
 
 
-def _source_records_from_profile(nonprofit_id: str, ein: str, profile_item: dict[str, Any]) -> list[NonprofitSourceRecord]:
+def _source_records_from_profile(nonprofit_id: int, ein: str, profile_item: dict[str, Any]) -> list[NonprofitSourceRecord]:
     now_iso = _text(profile_item.get("materialized_at")) or _utc_now_iso()
     providers = ((profile_item.get("enrichment") or {}).get("providers") or [])
     records: list[NonprofitSourceRecord] = []
@@ -302,7 +302,7 @@ def _source_records_from_profile(nonprofit_id: str, ein: str, profile_item: dict
 
 
 def _compliance_record_from_profile(
-    nonprofit_id: str,
+    nonprofit_id: int,
     ein: str,
     profile_item: dict[str, Any],
 ) -> ComplianceCheckRecord | None:
@@ -360,7 +360,7 @@ def _compliance_record_from_profile(
 def _validate_nonprofit_targets(
     *,
     session_factory: Any,
-    expected_nonprofits: set[str],
+    expected_nonprofits: set[int],
     expected_filings: set[str],
     expected_sources: set[str],
     expected_checks: set[str],

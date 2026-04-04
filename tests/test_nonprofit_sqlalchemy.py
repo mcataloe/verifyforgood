@@ -194,6 +194,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
     assert latest_check is not None
     assert latest_check.status == "pass"
     assert latest_check.final_recommendation == "approve"
+    assert isinstance(fetched.nonprofit_id, int)
 
 
 def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Path):

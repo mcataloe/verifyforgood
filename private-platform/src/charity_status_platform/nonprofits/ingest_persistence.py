@@ -43,7 +43,7 @@ class Form990NonprofitPersistenceService:
         *,
         persisted_at: datetime | None = None,
     ) -> Form990PersistenceStats:
-        written_nonprofits: set[str] = set()
+        written_nonprofits: set[int] = set()
         nonprofits_upserted = 0
         filings_upserted = 0
         sources_upserted = 0
@@ -100,7 +100,7 @@ class Form990NonprofitPersistenceService:
         )
 
 
-def _to_filing_record(nonprofit_id: str, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitFilingRecord:
+def _to_filing_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitFilingRecord:
     return NonprofitFilingRecord(
         filing_id=_filing_id(nonprofit_id, filing),
         nonprofit_id=nonprofit_id,
@@ -124,7 +124,7 @@ def _to_filing_record(nonprofit_id: str, filing: dict[str, Any], persisted_at_is
     )
 
 
-def _to_source_record(nonprofit_id: str, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitSourceRecord:
+def _to_source_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitSourceRecord:
     return NonprofitSourceRecord(
         nonprofit_source_id=_source_id(nonprofit_id, filing),
         nonprofit_id=nonprofit_id,
@@ -153,7 +153,7 @@ def _to_source_record(nonprofit_id: str, filing: dict[str, Any], persisted_at_is
     )
 
 
-def _filing_id(nonprofit_id: str, filing: dict[str, Any]) -> str:
+def _filing_id(nonprofit_id: int, filing: dict[str, Any]) -> str:
     irs_object_id = str(filing.get("irs_object_id") or "").strip()
     if irs_object_id:
         payload = f"{nonprofit_id}|irs_object_id|{irs_object_id}"
@@ -170,10 +170,10 @@ def _filing_id(nonprofit_id: str, filing: dict[str, Any]) -> str:
     return f"fil_{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:24]}"
 
 
-def _source_id(nonprofit_id: str, filing: dict[str, Any]) -> str:
+def _source_id(nonprofit_id: int, filing: dict[str, Any]) -> str:
     payload = "|".join(
         [
-            nonprofit_id,
+            str(nonprofit_id),
             "irs.form990_filing",
             str(filing.get("irs_object_id") or "").strip(),
             str(filing.get("source_archive") or "").strip(),

@@ -21,7 +21,7 @@ class NonprofitModel(CustomerAccountsBase):
         Index("ix_nonprofits_normalized_name_ein", "normalized_name", "ein"),
     )
 
-    nonprofit_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nonprofit_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     ein: Mapped[str] = mapped_column(String(9), nullable=False)
     canonical_name: Mapped[str] = mapped_column(String(255), nullable=False)
     normalized_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -65,7 +65,7 @@ class NonprofitFilingModel(CustomerAccountsBase):
     )
 
     filing_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    nonprofit_id: Mapped[str] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
+    nonprofit_id: Mapped[int] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
     tax_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tax_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
     form_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -102,7 +102,7 @@ class NonprofitSourceModel(CustomerAccountsBase):
     )
 
     nonprofit_source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    nonprofit_id: Mapped[str] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
+    nonprofit_id: Mapped[int] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
     source_id: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_name: Mapped[str] = mapped_column(String(128), nullable=False)
     category: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -138,7 +138,7 @@ class ComplianceCheckModel(CustomerAccountsBase):
     )
 
     compliance_check_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    nonprofit_id: Mapped[str] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
+    nonprofit_id: Mapped[int] = mapped_column(ForeignKey("nonprofits.nonprofit_id"), nullable=False)
     check_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

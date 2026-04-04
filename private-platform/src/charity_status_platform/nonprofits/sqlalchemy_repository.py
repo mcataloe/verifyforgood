@@ -22,7 +22,7 @@ from .sqlalchemy_models import (
 
 @dataclass(frozen=True)
 class NonprofitRecord:
-    nonprofit_id: str
+    nonprofit_id: int
     ein: str
     canonical_name: str
     normalized_name: str
@@ -45,7 +45,7 @@ class NonprofitRecord:
 @dataclass(frozen=True)
 class NonprofitFilingRecord:
     filing_id: str
-    nonprofit_id: str
+    nonprofit_id: int
     tax_year: int | None
     tax_period: str | None
     form_type: str
@@ -68,7 +68,7 @@ class NonprofitFilingRecord:
 @dataclass(frozen=True)
 class NonprofitSourceRecord:
     nonprofit_source_id: str
-    nonprofit_id: str
+    nonprofit_id: int
     source_id: str
     provider_name: str
     category: str
@@ -96,7 +96,7 @@ class NonprofitSourceRecord:
 @dataclass(frozen=True)
 class ComplianceCheckRecord:
     compliance_check_id: str
-    nonprofit_id: str
+    nonprofit_id: int
     check_type: str
     status: str
     evaluated_at: str
@@ -204,7 +204,7 @@ class SqlAlchemyNonprofitRepository:
             session.flush()
         return record
 
-    def list_filings_for_nonprofit(self, nonprofit_id: str, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
+    def list_filings_for_nonprofit(self, nonprofit_id: int, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
         with customer_accounts_session_scope(self._session_factory) as session:
             statement = (
                 select(NonprofitFilingModel)
@@ -251,7 +251,7 @@ class SqlAlchemyNonprofitRepository:
 
     def list_sources_for_nonprofit(
         self,
-        nonprofit_id: str,
+        nonprofit_id: int,
         *,
         source_id: str | None = None,
         limit: int | None = None,
@@ -296,7 +296,7 @@ class SqlAlchemyNonprofitRepository:
 
     def latest_compliance_check(
         self,
-        nonprofit_id: str,
+        nonprofit_id: int,
         *,
         check_type: str | None = None,
     ) -> ComplianceCheckRecord | None:
@@ -485,8 +485,11 @@ class SqlAlchemyNonprofitRepository:
         return normalized_record
 
 
-def build_nonprofit_id(ein: str) -> str:
-    return f"npo_{_normalize_ein(ein)}"
+def build_nonprofit_id(ein: str) -> int:
+    normalized = _normalize_ein(ein)
+    if not normalized:
+        raise ValueError("EIN is required to build nonprofit_id")
+    return int(normalized)
 
 
 def make_record_id(prefix: str) -> str:
