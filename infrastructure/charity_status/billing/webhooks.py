@@ -5,7 +5,7 @@ import hmac
 import json
 import logging
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Protocol
 
 from charity_status.billing.checkout import _clean_text, _mapping_bool, _parse_price_ids
@@ -49,6 +49,7 @@ class StripeWebhookConfig:
     webhook_secret: str | None = None
     price_ids: dict[str, str] | None = None
     signature_tolerance_seconds: int = 300
+    payment_failure_grace_period_days: int = 7
 
     @property
     def plan_by_price_id(self) -> dict[str, str]:
@@ -98,6 +99,7 @@ def load_stripe_webhook_config(env: Mapping[str, str] | None = None) -> StripeWe
         webhook_secret=webhook_secret,
         price_ids=_parse_price_ids(source.get("STRIPE_PRICE_IDS")),
         signature_tolerance_seconds=300,
+        payment_failure_grace_period_days=max(0, int(source.get("STRIPE_BILLING_GRACE_PERIOD_DAYS") or 7)),
     )
 
 
@@ -232,6 +234,7 @@ class StripeWebhookService:
             pending_checkout_session_id=None,
             pending_checkout_session_url=None,
             pending_checkout_expires_at=None,
+            grace_period_ends_at=None,
             updated_at=_utcnow(),
         )
 
@@ -280,6 +283,7 @@ class StripeWebhookService:
             pending_checkout_session_id=None,
             pending_checkout_session_url=None,
             pending_checkout_expires_at=None,
+            grace_period_ends_at=None if stripe_status not in {"past_due", "payment_failed", "unpaid"} else subscription.grace_period_ends_at,
             updated_at=_utcnow(),
         )
 
@@ -298,6 +302,11 @@ class StripeWebhookService:
             billing_status=billing_status,
             billing_period_start=period[0] or subscription.billing_period_start,
             billing_period_end=period[1] or subscription.billing_period_end,
+            grace_period_ends_at=(
+                _utc_plus_days(self._config.payment_failure_grace_period_days)
+                if event_type == "invoice.payment_failed"
+                else None
+            ),
             pending_plan_effective_at=subscription.pending_plan_effective_at,
             stripe_subscription_schedule_id=subscription.stripe_subscription_schedule_id,
             updated_at=_utcnow(),
@@ -467,3 +476,7 @@ def _optional_int(value: Any) -> int | None:
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _utc_plus_days(days: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=max(0, int(days)))).isoformat()

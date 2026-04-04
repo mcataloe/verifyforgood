@@ -47,6 +47,7 @@ class BillingVisibilityService:
                 "current_period_end": None,
             }
             pending_downgrade = None
+            grace_period_ends_at = None
             trial = None
             resolved = self._entitlement_service.resolve(
                 account_id=account_id,
@@ -68,6 +69,7 @@ class BillingVisibilityService:
                 "current_period_end": getattr(subscription, "billing_period_end", None),
             }
             pending_downgrade = _pending_downgrade_payload(subscription, current_plan_code=plan_code, normalize=self._entitlement_service.normalize_plan_code)
+            grace_period_ends_at = getattr(subscription, "grace_period_ends_at", None)
             trial = self._trial_lifecycle_service.trial_summary(subscription) if self._trial_lifecycle_service is not None else None
         entitlements = resolved.entitlements
         return {
@@ -80,6 +82,7 @@ class BillingVisibilityService:
             },
             "effective_access_plan": effective_access_plan,
             "billing_status": billing_status,
+            "grace_period_ends_at": grace_period_ends_at,
             "subscription_status": subscription_status,
             "renewal_date": renewal_date,
             "billing_cycle": billing_cycle,

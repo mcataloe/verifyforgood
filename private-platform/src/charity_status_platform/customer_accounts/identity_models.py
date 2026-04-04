@@ -135,6 +135,12 @@ class SubscriptionRecord:
     billing_cycle_start: str
     billing_cycle_end: str
     created_at: str
+    pending_plan_id: str | None = None
+    pending_plan_effective_at: str | None = None
+    cancel_at_period_end: bool = False
+    updated_at: str | None = None
+    grace_period_ends_at: str | None = None
+    billing_status: str | None = None
 
 
 @dataclass(frozen=True)

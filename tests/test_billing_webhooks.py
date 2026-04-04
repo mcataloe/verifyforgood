@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import time
 
 from charity_status.billing.webhooks import (
@@ -271,6 +271,7 @@ def test_stripe_webhook_service_clears_failed_payment_state_after_invoice_paid()
             billing_status="payment_failed",
             billing_period_start="2026-02-01T00:00:00+00:00",
             billing_period_end="2026-03-01T00:00:00+00:00",
+            grace_period_ends_at="2026-02-08T00:00:00+00:00",
             updated_at="2026-02-01T00:00:00+00:00",
         )
     )
@@ -300,6 +301,54 @@ def test_stripe_webhook_service_clears_failed_payment_state_after_invoice_paid()
     assert updated is not None
     assert updated.billing_status == "active"
     assert updated.billing_period_end == _stripe_epoch_to_iso(1772592000)
+    assert updated.grace_period_ends_at is None
+
+
+def test_stripe_webhook_service_sets_grace_period_on_payment_failed():
+    control_plane = ControlPlaneService(store=InMemoryControlPlaneStore())
+    account = control_plane.create_account({"name": "Webhook Account", "ein": "123456789"})
+    control_plane.store.put_subscription(
+        control_plane.store.get_subscription(account["id"]).__class__(
+            account_id=account["id"],
+            plan_code="growth",
+            status="active",
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            billing_status="active",
+            updated_at="2026-02-01T00:00:00+00:00",
+        )
+    )
+    service = StripeWebhookService(
+        store=control_plane.store,
+        config=StripeWebhookConfig(
+            enabled=True,
+            webhook_secret="whsec_test",
+            price_ids={"growth": "price_growth"},
+            payment_failure_grace_period_days=5,
+        ),
+    )
+    payload = _event_payload(
+        event_id="evt_invoice_failed",
+        event_type="invoice.payment_failed",
+        event_object={
+            "object": "invoice",
+            "id": "in_999",
+            "customer": "cus_123",
+            "subscription": "sub_123",
+            "lines": {"data": [{"period": {"start": 1770000000, "end": 1772592000}}]},
+        },
+    )
+
+    before = datetime.now(timezone.utc)
+    service.handle(raw_body=payload, signature_header=_sign_payload(payload, secret="whsec_test"))
+    after = datetime.now(timezone.utc)
+
+    updated = control_plane.store.get_subscription(account["id"])
+    assert updated is not None
+    assert updated.billing_status == "payment_failed"
+    assert updated.grace_period_ends_at is not None
+    parsed = datetime.fromisoformat(updated.grace_period_ends_at)
+    assert before + timedelta(days=5) <= parsed <= after + timedelta(days=5, seconds=1)
 
 
 def test_stripe_webhook_service_updates_cancel_at_period_end_and_pending_downgrade():

@@ -85,6 +85,12 @@ class OrganizationSubscriptionModel(CustomerAccountsBase):
     billing_cycle_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     billing_cycle_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    pending_plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pending_plan_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    grace_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    billing_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     organization: Mapped[OrganizationModel] = relationship(back_populates="subscriptions")
 

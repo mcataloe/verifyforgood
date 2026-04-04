@@ -266,6 +266,12 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
                 model.billing_cycle_start = _parse_timestamp(subscription.billing_cycle_start)
                 model.billing_cycle_end = _parse_timestamp(subscription.billing_cycle_end)
                 model.created_at = _parse_timestamp(subscription.created_at)
+                model.pending_plan_id = subscription.pending_plan_id
+                model.pending_plan_effective_at = _parse_timestamp(subscription.pending_plan_effective_at) if subscription.pending_plan_effective_at else None
+                model.cancel_at_period_end = bool(subscription.cancel_at_period_end)
+                model.updated_at = _parse_timestamp(subscription.updated_at) if subscription.updated_at else None
+                model.grace_period_ends_at = _parse_timestamp(subscription.grace_period_ends_at) if subscription.grace_period_ends_at else None
+                model.billing_status = subscription.billing_status
             session.flush()
         return subscription
 
@@ -450,6 +456,12 @@ def _subscription_model(record: SubscriptionRecord) -> OrganizationSubscriptionM
         billing_cycle_start=_parse_timestamp(record.billing_cycle_start),
         billing_cycle_end=_parse_timestamp(record.billing_cycle_end),
         created_at=_parse_timestamp(record.created_at),
+        pending_plan_id=record.pending_plan_id,
+        pending_plan_effective_at=_parse_timestamp(record.pending_plan_effective_at) if record.pending_plan_effective_at else None,
+        cancel_at_period_end=bool(record.cancel_at_period_end),
+        updated_at=_parse_timestamp(record.updated_at) if record.updated_at else None,
+        grace_period_ends_at=_parse_timestamp(record.grace_period_ends_at) if record.grace_period_ends_at else None,
+        billing_status=record.billing_status,
     )
 
 
@@ -462,6 +474,12 @@ def _subscription_record(model: OrganizationSubscriptionModel) -> SubscriptionRe
         billing_cycle_start=_format_timestamp(model.billing_cycle_start) or "",
         billing_cycle_end=_format_timestamp(model.billing_cycle_end) or "",
         created_at=_format_timestamp(model.created_at) or "",
+        pending_plan_id=model.pending_plan_id,
+        pending_plan_effective_at=_format_timestamp(model.pending_plan_effective_at),
+        cancel_at_period_end=bool(model.cancel_at_period_end),
+        updated_at=_format_timestamp(model.updated_at),
+        grace_period_ends_at=_format_timestamp(model.grace_period_ends_at),
+        billing_status=model.billing_status,
     )
 
 

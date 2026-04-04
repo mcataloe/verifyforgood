@@ -259,7 +259,7 @@ class ApiKeyQuotaMeteringHook:
         if cached == "false":
             return False
         if self._billing_settings_resolver is None:
-            return True
+            return False
         return bool(self._billing_settings_resolver.allow_overage(account_id))
 
     def _monthly_request_limit(self, account_id: str, default_limit: int) -> int:

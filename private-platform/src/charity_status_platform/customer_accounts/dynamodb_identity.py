@@ -675,6 +675,12 @@ def _subscription_item(subscription: SubscriptionRecord) -> dict[str, Any]:
         "billing_cycle_start": subscription.billing_cycle_start,
         "billing_cycle_end": subscription.billing_cycle_end,
         "created_at": subscription.created_at,
+        "pending_plan_id": subscription.pending_plan_id,
+        "pending_plan_effective_at": subscription.pending_plan_effective_at,
+        "cancel_at_period_end": bool(subscription.cancel_at_period_end),
+        "updated_at": subscription.updated_at,
+        "grace_period_ends_at": subscription.grace_period_ends_at,
+        "billing_status": subscription.billing_status,
     }
 
 
@@ -794,6 +800,12 @@ def _subscription_from_item(item: dict[str, Any]) -> SubscriptionRecord:
         billing_cycle_start=str(item.get("billing_cycle_start") or ""),
         billing_cycle_end=str(item.get("billing_cycle_end") or ""),
         created_at=str(item.get("created_at") or ""),
+        pending_plan_id=_optional_string(item.get("pending_plan_id")),
+        pending_plan_effective_at=_optional_string(item.get("pending_plan_effective_at")),
+        cancel_at_period_end=bool(item.get("cancel_at_period_end", False)),
+        updated_at=_optional_string(item.get("updated_at")),
+        grace_period_ends_at=_optional_string(item.get("grace_period_ends_at")),
+        billing_status=_optional_string(item.get("billing_status")),
     )
 
 

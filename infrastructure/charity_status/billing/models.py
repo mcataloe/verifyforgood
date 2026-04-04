@@ -25,6 +25,7 @@ class Subscription:
     billing_status: str | None = None
     billing_period_start: str | None = None
     billing_period_end: str | None = None
+    grace_period_ends_at: str | None = None
     trial_status: str | None = None
     trial_started_at: str | None = None
     trial_ends_at: str | None = None

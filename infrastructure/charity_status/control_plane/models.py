@@ -81,6 +81,7 @@ class ManagedSubscription:
     billing_status: str | None = None
     billing_period_start: str | None = None
     billing_period_end: str | None = None
+    grace_period_ends_at: str | None = None
     trial_status: str | None = None
     trial_started_at: str | None = None
     trial_ends_at: str | None = None
@@ -109,6 +110,7 @@ class ManagedSubscription:
             "billing_status": self.billing_status,
             "billing_period_start": self.billing_period_start,
             "billing_period_end": self.billing_period_end,
+            "grace_period_ends_at": self.grace_period_ends_at,
             "trial_status": self.trial_status,
             "trial_started_at": self.trial_started_at,
             "trial_ends_at": self.trial_ends_at,
@@ -135,6 +137,7 @@ class ManagedSubscription:
             billing_status=self.billing_status,
             billing_period_start=self.billing_period_start,
             billing_period_end=self.billing_period_end,
+            grace_period_ends_at=self.grace_period_ends_at,
             trial_status=self.trial_status,
             trial_started_at=self.trial_started_at,
             trial_ends_at=self.trial_ends_at,

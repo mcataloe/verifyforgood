@@ -23,7 +23,7 @@ class OrganizationIntegrationSettingsValidationError(ValueError):
 
 @dataclass(frozen=True)
 class AccountBillingSettings:
-    allow_overage: bool = True
+    allow_overage: bool = False
     monthly_request_cap: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,7 +40,7 @@ class AccountBillingSettings:
         return cls(
             allow_overage=_coerce_bool(
                 billing.get("allowOverage", billing.get("allow_overage")),
-                default=True,
+                default=False,
             ),
             monthly_request_cap=_coerce_positive_int_or_none(
                 billing.get("monthlyRequestCap", billing.get("monthly_request_cap")),

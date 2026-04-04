@@ -147,6 +147,7 @@ class OrganizationSettingsService:
             workspace_id=workspace_id,
             account_id=account_id,
         )
+        previous_billing_settings = settings_document.billing_settings
         if has_settings_payload:
             if "billing" in payload:
                 changed_sections.append("billing")
@@ -170,6 +171,25 @@ class OrganizationSettingsService:
                 metadata={
                     "changed_fields": changed_fields,
                     "changed_sections": changed_sections,
+                },
+            )
+        if (
+            self._audit_log_service is not None
+            and "billing" in changed_sections
+            and previous_billing_settings.allow_overage != document.billing_settings.allow_overage
+        ):
+            self._audit_log_service.record_event(
+                event_type=(
+                    AuditEventType.BILLING_OVERAGE_ENABLED
+                    if document.billing_settings.allow_overage
+                    else AuditEventType.BILLING_OVERAGE_DISABLED
+                ),
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=None,
+                metadata={
+                    "previous_allow_overage": previous_billing_settings.allow_overage,
+                    "new_allow_overage": document.billing_settings.allow_overage,
                 },
             )
         return document

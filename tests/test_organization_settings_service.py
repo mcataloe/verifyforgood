@@ -74,7 +74,7 @@ def test_get_organization_settings_returns_composite_document():
     assert payload["organization"]["contactEmail"] == "ops@orgone.example"
     assert payload["organization"]["slug"] == "org-one"
     assert payload["integrations"]["candid"]["enabled"] is True
-    assert payload["billing"]["allowOverage"] is True
+    assert payload["billing"]["allowOverage"] is False
 
 
 def test_update_organization_settings_persists_profile_changes():
@@ -136,17 +136,19 @@ def test_update_organization_settings_records_sanitized_audit_event():
                 "contactEmail": "support@orgone.example",
             },
             "billing": {
-                "allowOverage": False,
+                "allowOverage": True,
                 "monthlyRequestCap": 750,
             },
         },
     )
 
     audit_items = audit_repository.list_for_organization("org_1")
+    by_type = {item.event_type: item for item in audit_items}
 
-    assert len(audit_items) == 1
-    assert audit_items[0].event_type is AuditEventType.ORGANIZATION_SETTINGS_UPDATE
-    assert audit_items[0].actor_user_id == "user_admin"
-    assert audit_items[0].metadata["changed_fields"] == ["display_name", "contact_email"]
-    assert audit_items[0].metadata["changed_sections"] == ["billing"]
-    assert "support@orgone.example" not in str(audit_items[0].metadata)
+    assert len(audit_items) == 2
+    assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].actor_user_id == "user_admin"
+    assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata["changed_fields"] == ["display_name", "contact_email"]
+    assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata["changed_sections"] == ["billing"]
+    assert "support@orgone.example" not in str(by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata)
+    assert by_type[AuditEventType.BILLING_OVERAGE_ENABLED].metadata["previous_allow_overage"] is False
+    assert by_type[AuditEventType.BILLING_OVERAGE_ENABLED].metadata["new_allow_overage"] is True

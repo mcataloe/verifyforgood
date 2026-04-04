@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from charity_status.api import normalize_route_key
@@ -212,7 +213,7 @@ def enforce_quota_and_scope(
         consumed_units=consumed_units,
         period_key=month_key,
     )
-    allow_overage = billing_settings_resolver.allow_overage(principal.account_id) if billing_settings_resolver is not None else True
+    allow_overage = billing_settings_resolver.allow_overage(principal.account_id) if billing_settings_resolver is not None else False
     if decision.projected_usage > limit and not allow_overage:
         raise QuotaExceededError(
             "Monthly request limit reached. Upgrade your subscription or enable pay per request to continue.",
@@ -234,6 +235,9 @@ def _enforce_billing_state(subscription: Subscription, *, route_key: str, consum
             billing_status=effective_status or subscription_status or None,
         )
     if effective_status in RESTRICTED_BILLING_STATUSES:
+        grace_period_ends_at = _parse_iso_datetime(getattr(subscription, "grace_period_ends_at", None))
+        if grace_period_ends_at is not None and grace_period_ends_at > datetime.now(timezone.utc):
+            return
         raise BillingAccessError(
             "Billing is past due. Access to product endpoints is temporarily restricted until payment is resolved.",
             code="billing_past_due",
@@ -283,3 +287,15 @@ def _resolve_monthly_request_limit(
         1,
         int(resolver(account_id, default_limit)),
     )
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    if candidate.endswith("Z"):
+        candidate = f"{candidate[:-1]}+00:00"
+    parsed = datetime.fromisoformat(candidate)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)

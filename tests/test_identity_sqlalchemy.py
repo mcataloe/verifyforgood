@@ -167,6 +167,12 @@ def test_sqlalchemy_plan_subscription_and_api_key_repositories(tmp_path: Path):
         billing_cycle_start="2026-03-01T00:00:00+00:00",
         billing_cycle_end="2026-04-01T00:00:00+00:00",
         created_at="2026-03-01T00:00:00+00:00",
+        pending_plan_id="starter",
+        pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+        cancel_at_period_end=True,
+        updated_at="2026-03-20T00:00:00+00:00",
+        grace_period_ends_at="2026-03-27T00:00:00+00:00",
+        billing_status="past_due",
     )
     subscription_repository.put(subscription)
     assert subscription_repository.get_by_organization("org_1") == subscription

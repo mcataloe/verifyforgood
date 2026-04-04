@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
+from datetime import datetime
 
 import pytest
 
@@ -49,10 +50,12 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     MembershipRole,
     MembershipStatus,
     OrganizationRecord,
+    PlanRecord,
     PLAN_LOOKUP_INDEX,
     PLAN_DEFAULT_FEATURE_FLAGS,
     ResolvedFeatureFlag,
     SubscriptionResolvedResponse,
+    SubscriptionRecord,
     SubscriptionScaffoldingError,
     SubscriptionService,
     SubscriptionStatus,
@@ -61,6 +64,7 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     UsageTrackingError,
     UserRecord,
 )
+from charity_status_platform.customer_accounts.billing_calendar import prorated_amount_cents  # noqa: E402
 
 
 def test_customer_accounts_exports_identity_phase_surface():
@@ -533,6 +537,163 @@ def test_subscription_service_links_subscription_to_organization_and_resolves_pl
     assert created.plan.plan_id == "growth"
     assert loaded.subscription.subscription_id == created.subscription.subscription_id
     assert loaded.plan.plan_name == "Growth"
+
+
+def test_subscription_service_uses_month_boundary_proration_for_new_subscription():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=resource)
+    service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    plans.seed_defaults(
+        [
+            PlanRecord(
+                plan_id="growth",
+                plan_name="Growth",
+                monthly_price=9900,
+                feature_flags=("verification",),
+                request_limit=10000,
+                description="Growth plan",
+            )
+        ]
+    )
+
+    created = service.create_or_activate_subscription(
+        organization_id="org_1",
+        plan_id="growth",
+        effective_at="2026-03-16T00:00:00+00:00",
+    )
+
+    assert created.subscription.billing_cycle_start == "2026-03-16T00:00:00+00:00"
+    assert created.subscription.billing_cycle_end == "2026-04-01T00:00:00+00:00"
+    assert created.current_charge_cents == 5110
+    assert created.is_prorated is True
+    assert created.billable_days == 16
+    assert created.days_in_month == 31
+    assert created.next_renewal_at == "2026-04-01T00:00:00+00:00"
+
+
+def test_subscription_service_supports_upgrade_downgrade_and_cancellation_metadata():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    organizations = DynamoOrganizationRepository(dynamodb_resource=resource)
+    plans = DynamoPlanRepository(dynamodb_resource=resource)
+    subscriptions = DynamoSubscriptionRepository(dynamodb_resource=resource)
+    service = SubscriptionService(
+        organizations=organizations,
+        plans=plans,
+        subscriptions=subscriptions,
+    )
+    organizations.create(
+        OrganizationRecord(
+            organization_id="org_1",
+            name="Verify For Good Org",
+            slug="verify-for-good-org",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
+    )
+    plans.seed_defaults(
+        [
+            PlanRecord(
+                plan_id="starter",
+                plan_name="Starter",
+                monthly_price=4900,
+                feature_flags=("verification",),
+                request_limit=1000,
+                description="Starter plan",
+            ),
+            PlanRecord(
+                plan_id="growth",
+                plan_name="Growth",
+                monthly_price=9900,
+                feature_flags=("verification", "risk_flags"),
+                request_limit=10000,
+                description="Growth plan",
+            ),
+            PlanRecord(
+                plan_id="enterprise",
+                plan_name="Enterprise",
+                monthly_price=49900,
+                feature_flags=("verification", "risk_flags"),
+                request_limit=250000,
+                description="Enterprise plan",
+            ),
+        ]
+    )
+    service.create_or_activate_subscription(
+        organization_id="org_1",
+        plan_id="starter",
+        effective_at="2026-03-01T00:00:00+00:00",
+    )
+
+    upgraded = service.apply_immediate_upgrade(
+        organization_id="org_1",
+        plan_id="growth",
+        effective_at="2026-03-16T00:00:00+00:00",
+    )
+    downgraded = service.schedule_downgrade(
+        organization_id="org_1",
+        plan_id="starter",
+        effective_at="2026-03-20T00:00:00+00:00",
+    )
+    canceled = service.schedule_cancellation(organization_id="org_1")
+    loaded = service.get_subscription_for_organization("org_1")
+
+    assert upgraded.current_charge_cents == prorated_amount_cents(5000, datetime.fromisoformat("2026-03-16T00:00:00+00:00"))
+    assert upgraded.quota_delta == 4646
+    assert downgraded.pending_plan_id == "starter"
+    assert downgraded.pending_plan_effective_at == "2026-04-01T00:00:00+00:00"
+    assert canceled.cancel_at_period_end is True
+    assert loaded.subscription.pending_plan_id == "starter"
+    assert loaded.subscription.cancel_at_period_end is True
+
+
+def test_dynamo_subscription_repository_round_trips_extended_fields():
+    table = FakeIdentityDynamoTable()
+    resource = FakeIdentityDynamoResource(table)
+    repository = DynamoSubscriptionRepository(dynamodb_resource=resource)
+
+    stored = repository.put(
+        SubscriptionRecord(
+            subscription_id="sub_1",
+            organization_id="org_1",
+            plan_id="growth",
+            status=SubscriptionStatus.ACTIVE,
+            billing_cycle_start="2026-03-16T00:00:00+00:00",
+            billing_cycle_end="2026-04-01T00:00:00+00:00",
+            created_at="2026-03-16T00:00:00+00:00",
+            pending_plan_id="starter",
+            pending_plan_effective_at="2026-04-01T00:00:00+00:00",
+            cancel_at_period_end=True,
+            updated_at="2026-03-20T00:00:00+00:00",
+            grace_period_ends_at="2026-03-27T00:00:00+00:00",
+            billing_status="past_due",
+        )
+    )
+
+    loaded = repository.get_by_organization("org_1")
+
+    assert stored.pending_plan_id == "starter"
+    assert loaded is not None
+    assert loaded.pending_plan_effective_at == "2026-04-01T00:00:00+00:00"
+    assert loaded.cancel_at_period_end is True
+    assert loaded.grace_period_ends_at == "2026-03-27T00:00:00+00:00"
+    assert loaded.billing_status == "past_due"
 
 
 def test_subscription_service_rejects_unknown_plan_and_unknown_organization():

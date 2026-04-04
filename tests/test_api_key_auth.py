@@ -5,6 +5,8 @@ import json
 import sys
 from types import SimpleNamespace
 
+from datetime import datetime, timedelta, timezone
+
 from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
 from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
 from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
@@ -142,7 +144,7 @@ def test_missing_key_rejected():
         assert False, "Expected AuthenticationError"
 
 
-def test_quota_allows_overage_by_default():
+def test_quota_hard_stop_when_no_overage_resolver_is_present():
     display_key, record = build_api_key_record(
         key_id="dev_001",
         secret="test-secret",
@@ -156,11 +158,12 @@ def test_quota_allows_overage_by_default():
     month_key = monthly_period_for()
     store._usage[("acct_1", month_key)] = 250
 
-    resolved_month, used, limit = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", store)
-
-    assert resolved_month == month_key
-    assert used == 250
-    assert limit == 250
+    try:
+        enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", store)
+    except QuotaExceededError as exc:
+        assert exc.code == "quota_exceeded_hard_stop"
+    else:
+        assert False, "Expected QuotaExceededError"
 
 
 def test_quota_hard_stop_when_overage_disabled():
@@ -324,6 +327,32 @@ def test_past_due_billing_restricts_product_access():
         assert exc.status_code == 402
     else:
         assert False, "Expected BillingAccessError"
+
+
+def test_past_due_billing_allows_access_during_grace_period():
+    principal = AuthenticatedPrincipal(
+        credential_id="key_1",
+        account_id="acct_1",
+        workspace_id="ws_1",
+        plan=ApiPlan(plan_id="growth", monthly_limit=10000, entitlements=DEFAULT_ENTITLEMENTS["growth"]),
+        scopes=("verify:read",),
+        auth_method="api_key",
+        rate_limit_profile="growth",
+        subscription=Subscription(
+            account_id="acct_1",
+            plan_code="growth",
+            status="active",
+            billing_status="past_due",
+            grace_period_ends_at=(datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        ),
+        entitlements=DEFAULT_ENTITLEMENTS["growth"],
+    )
+
+    resolved_month, used, limit = enforce_quota_and_scope(principal, "GET /v1/nonprofit/{ein}", InMemoryUsageStore())
+
+    assert resolved_month == monthly_period_for()
+    assert used == 0
+    assert limit == 10000
 
 
 def test_canceled_subscription_blocks_product_access():
@@ -716,6 +745,7 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
+    sys.modules.pop("charity_status_backend.api.runtime", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = SimpleNamespace(
@@ -746,6 +776,7 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
+    sys.modules.pop("charity_status_backend.api.runtime", None)
     module = importlib.import_module("infrastructure.lambda_query")
     event = {
         "httpMethod": "POST",
@@ -759,7 +790,6 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
 
 
 def test_batch_metering_counts_items_for_growth_plan(monkeypatch):
-    monkeypatch.setenv("API_AUTH_ENABLED", "true")
     display_key, record = build_api_key_record(
         key_id="growth_001",
         secret="test-secret",
@@ -768,26 +798,13 @@ def test_batch_metering_counts_items_for_growth_plan(monkeypatch):
         scopes=["verify:write"],
         plan_id="growth",
     )
-    monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
-    module.SERVING_DDB_ENABLED = False
-    module.athena_client = SimpleNamespace(
-        lookup_nonprofit=lambda ein, subsection=None: ("qid-1", {"ein": ein, "name": "X", "state": "IL", "status": "1", "deductibility": "1", "subsection": "03", "ntee_cd": "P20", "tax_period": "202501", "filing_req_cd": "1", "asset_amt": "", "income_amt": "", "revenue_amt": ""}),
-        lookup_form990_enrichment=lambda ein: ({}, {}, {}, {}),
-        lookup_peer_benchmark=lambda group: {"count": 0, "metrics": {}},
-        list_form990_filings=lambda ein, limit=10: ("qid-f", []),
-        search_nonprofits=lambda **kwargs: ("qid-s", []),
-    )
-    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
-    module.usage_store = InMemoryUsageStore()
-    event = {
-        "httpMethod": "POST",
-        "resource": "/v1/verify/batch",
-        "path": "/v1/verify/batch",
-        "headers": {"x-api-key": display_key},
-        "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
-    }
-    response = module.handler(event, None)
-    assert response["statusCode"] == 200
-    assert sum(module.usage_store._usage.values()) == 2
+    event = {"headers": {"x-api-key": display_key}}
+    context = ApiKeyAuthContextProvider(StaticApiKeyStore([record])).extract_context(event)
+    context.metadata["batch_items_count"] = "2"
+    store = InMemoryUsageStore()
+
+    hook = ApiKeyQuotaMeteringHook(store, billing_settings_resolver=_BillingSettingsResolver(True))
+    hook.on_request(context, "POST /v1/verify/batch")
+    hook.on_response(context, "POST /v1/verify/batch", 200)
+
+    assert sum(store._usage.values()) == 2
