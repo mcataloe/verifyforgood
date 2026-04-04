@@ -196,6 +196,38 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
     assert latest_check.final_recommendation == "approve"
 
 
+def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = NonprofitRecord(
+        nonprofit_id=build_nonprofit_id("12-3456789"),
+        ein="12-3456789",
+        canonical_name="Example Nonprofit",
+        normalized_name="example nonprofit",
+        created_at="2026-03-31T00:00:00+00:00",
+        updated_at="2026-03-31T00:00:00+00:00",
+    )
+    repository.upsert_nonprofit(nonprofit)
+
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=make_record_id("fil"),
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2023,
+            tax_period="202312",
+            form_type="990",
+            filing_date="2023-12-22T13:23:38-06:00",
+            amended=False,
+            parse_status="parsed",
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+
+    filings = repository.list_filings_for_nonprofit(nonprofit.nonprofit_id)
+
+    assert filings[0].filing_date == "2023-12-22"
+
+
 def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     nonprofit = NonprofitRecord(

@@ -536,6 +536,8 @@ def _parse_date(value: str | None) -> date | None:
     normalized = str(value or "").strip()
     if not normalized:
         return None
+    if "T" in normalized or " " in normalized:
+        return _parse_timestamp(normalized).date()
     return date.fromisoformat(normalized)
 
 
