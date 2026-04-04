@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from typing import TypeVar
 
 from charity_status.billing.service import EntitlementService, PLAN_CODE_ALIASES, PLAN_CODES
+from charity_status.runtime_logging import log_structured
 
 
 T = TypeVar("T")
@@ -43,14 +44,14 @@ def call_with_retries(
             if attempt >= attempts or not should_retry(exc):
                 raise
             if logger is not None:
-                logger.warning(
+                log_structured(
+                    logger,
                     "stripe_provider_retry",
-                    extra={
-                        "operation_name": operation_name,
-                        "attempt": attempt,
-                        "max_attempts": attempts,
-                        **(extra or {}),
-                    },
+                    level=logging.WARNING,
+                    operation_name=operation_name,
+                    attempt=attempt,
+                    max_attempts=attempts,
+                    **(extra or {}),
                 )
     assert last_error is not None
     raise last_error

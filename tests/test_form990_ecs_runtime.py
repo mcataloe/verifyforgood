@@ -35,6 +35,7 @@ def test_build_local_ingest_run_config_reads_ecs_alias_envs():
             "MAX_ARCHIVES": "7",
             "WORKSPACE_PATH": "/tmp/ecs-workspace",
             "LOG_LEVEL": "ERROR",
+            "LOG_STACK_TRACES": "true",
         }
     )
 
@@ -42,6 +43,7 @@ def test_build_local_ingest_run_config_reads_ecs_alias_envs():
     assert config.limit == 7
     assert config.workspace == "/tmp/ecs-workspace"
     assert config.log_level == "ERROR"
+    assert config.log_stack_traces is True
 
 
 def test_ecs_runtime_creates_workspace_and_calls_shared_local_runner(monkeypatch, tmp_path):

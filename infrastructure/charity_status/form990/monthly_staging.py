@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,8 +16,10 @@ from charity_status.form990.hardening import is_transient_network_error, retry_c
 from charity_status.form990.monthly_workflow import Form990MonthlyWorkflowBinding, load_form990_monthly_workflow_binding
 from charity_status.form990.source_downloads import download_source_bytes
 from charity_status.ingest import MonthlyIngestWorkflowInput, shape_staging_result
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 LOGGER = logging.getLogger(__name__)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 DEFAULT_SOURCE_KIND = "zip_archive"
 
@@ -267,11 +270,7 @@ def _clean_text(value: Any) -> str | None:
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)
 
 
 __all__ = [

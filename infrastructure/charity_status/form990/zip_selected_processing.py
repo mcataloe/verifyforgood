@@ -12,9 +12,10 @@ from typing import Any
 from charity_status.form990.hardening import is_transient_network_error, retry_call
 from charity_status.form990.models import Form990IndexRecord
 from charity_status.form990.source_catalog import derive_source_archive_key
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 
 class ZipMemberNotFoundError(RuntimeError):
@@ -244,8 +245,4 @@ def _download_xml_url(xml_url: str, timeout_seconds: int) -> bytes:
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)

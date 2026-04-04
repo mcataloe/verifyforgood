@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 
 import boto3
@@ -10,9 +11,10 @@ from charity_status.ingest.downloader import download_file
 from charity_status.ingest.irs_files import IRS_FILES, ingest_bucket, s3_key_for
 from charity_status.ingest.result import build_ingest_result
 from charity_status.ingest.uploader import S3Uploader
+from charity_status.runtime_logging import configure_runtime_logging, log_exception
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=logger)
 
 s3 = boto3.client("s3")
 
@@ -29,7 +31,15 @@ async def _process_file(filename: str, uploader: S3Uploader, bucket: str) -> dic
         logger.info("ingest_file", extra={"file": filename, "status": "downloaded", "s3_key": s3_key})
         return {"name": filename, "status": "downloaded", "s3_key": s3_key}
     except Exception as exc:
-        logger.exception("ingest_file_failed", extra={"file": filename, "status": "failed", "s3_key": s3_key})
+        log_exception(
+            logger,
+            "ingest_file_failed",
+            exc,
+            env=os.environ,
+            file=filename,
+            status="failed",
+            s3_key=s3_key,
+        )
         return {"name": filename, "status": "failed", "error": str(exc)}
 
 

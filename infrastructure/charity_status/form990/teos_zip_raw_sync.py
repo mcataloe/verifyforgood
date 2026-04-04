@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import zipfile
@@ -9,6 +10,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from charity_status.form990.storage import teos_raw_xml_member_key, teos_raw_xml_source_batch_prefix
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
+
+
+LOGGER = logging.getLogger(__name__)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 
 class TeosZipExtractionError(RuntimeError):
@@ -141,13 +147,7 @@ def _download_s3_object_to_temp_file(*, s3_client: Any, bucket: str, key: str):
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        import logging
-
-        logging.getLogger(__name__).info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        pass
+    log_structured(LOGGER, event, **fields)
 
 
 __all__ = [

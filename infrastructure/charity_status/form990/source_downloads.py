@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import urllib.request
 from urllib.error import HTTPError
 from datetime import datetime, timezone
@@ -9,8 +10,10 @@ from typing import Any
 
 from charity_status.form990.hardening import is_transient_network_error, retry_call
 from charity_status.form990.storage import raw_source_key, source_download_manifest_key, source_download_state_entry_key, source_download_state_prefix
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 LOGGER = logging.getLogger(__name__)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 
 def plan_source_downloads(selected_sources: list[dict[str, Any]], downloaded_state_entries: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -223,11 +226,7 @@ def download_source_bytes(source_url: str, timeout_seconds: int) -> tuple[bytes,
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)
 
 
 def _metadata_for_source(source: dict[str, Any], *, downloaded_at: str) -> dict[str, str]:

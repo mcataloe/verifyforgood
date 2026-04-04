@@ -82,6 +82,7 @@ from charity_status.platform import (
     load_platform_integrations_config,
     load_oauth_token_store,
 )
+from charity_status.runtime_logging import configure_runtime_logging, log_exception
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.policy import evaluate_policy
 from charity_status.query import VerificationInput, apply_evaluation_overlay, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
@@ -244,7 +245,7 @@ portal_customer_accounts_repositories: CustomerAccountsRepositories | None = Non
 nonprofit_service: NonprofitService | None = None
 nonprofit_query_client: QueryRepository | Any | None = None
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=logger)
 
 
 @dataclass(frozen=True)
@@ -2126,13 +2127,13 @@ def handle_api_event(event, context=None):
         response = fail(504, str(exc), code="timeout")
         _get_quota_metering_hook().on_response(auth_context, route_key, 504)
         return response
-    except AthenaQueryError:
-        logger.exception("Athena query error")
+    except AthenaQueryError as exc:
+        log_exception(logger, "athena_query_error", exc, env=os.environ)
         response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
-    except Exception:
-        logger.exception("Unhandled exception in lambda_query handler")
+    except Exception as exc:
+        log_exception(logger, "lambda_query_unhandled_exception", exc, env=os.environ)
         response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
@@ -2771,8 +2772,8 @@ def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[s
             InvocationType="Event",
             Payload=json.dumps(invoke_payload).encode("utf-8"),
         )
-    except Exception:
-        logger.exception("form990.manual_trigger_invoke_failed", extra={"run_id": run_id})
+    except Exception as exc:
+        log_exception(logger, "form990.manual_trigger_invoke_failed", exc, env=os.environ, run_id=run_id)
         return 500, {"message": "Failed to queue Form 990 run"}
 
     status_code = int(invoke_result.get("StatusCode") or 0)
@@ -2958,14 +2959,15 @@ def _record_nonprofit_access_audit_event(
             target_user_id=None,
             metadata=metadata,
         )
-    except Exception:  # noqa: BLE001
-        logger.exception(
+    except Exception as exc:  # noqa: BLE001
+        log_exception(
+            logger,
             "nonprofit_audit_log_failed",
-            extra={
-                "route_key": route_key,
-                "organization_id": tenant_context.organization_id,
-                "status_code": status_code,
-            },
+            exc,
+            env=os.environ,
+            route_key=route_key,
+            organization_id=tenant_context.organization_id,
+            status_code=status_code,
         )
 
 
@@ -3203,11 +3205,11 @@ def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationCont
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_policy", "message": str(exc)}
     except AthenaQueryTimeout as exc:
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_timeout", "message": str(exc)}
-    except AthenaQueryError:
-        logger.exception("Athena query error while processing batch item")
+    except AthenaQueryError as exc:
+        log_exception(logger, "athena_query_error_batch_item", exc, env=os.environ, index=index, ein=str(ein))
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_error", "message": "Athena query failed"}
-    except Exception:
-        logger.exception("Unhandled exception while processing batch item")
+    except Exception as exc:
+        log_exception(logger, "batch_item_unhandled_exception", exc, env=os.environ, index=index, ein=str(ein))
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "internal_error", "message": "Internal server error"}
 
 

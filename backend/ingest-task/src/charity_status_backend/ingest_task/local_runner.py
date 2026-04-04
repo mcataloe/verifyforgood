@@ -27,6 +27,7 @@ from charity_status.form990.source_catalog import (
     normalize_configured_sources,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
+from charity_status.runtime_logging import configure_runtime_logging, sanitize_log_value
 
 from .orchestration import build_workspace_layout
 from .persistence import build_form990_archive_metadata_service, build_form990_nonprofit_persistence_service
@@ -46,6 +47,7 @@ class LocalIngestRunConfig:
     workspace: str | None = None
     limit: int | None = None
     log_level: str = DEFAULT_LOG_LEVEL
+    log_stack_traces: bool | None = None
 
 
 class _ConsoleStructuredLogger:
@@ -57,10 +59,11 @@ class _ConsoleStructuredLogger:
         "CRITICAL": 50,
     }
 
-    def __init__(self, *, strict: bool, level: str = DEFAULT_LOG_LEVEL):
+    def __init__(self, *, strict: bool, level: str = DEFAULT_LOG_LEVEL, include_traceback: bool | None = None):
         self._strict = strict
         normalized = str(level or DEFAULT_LOG_LEVEL).strip().upper() or DEFAULT_LOG_LEVEL
         self._min_level = self._LEVELS.get(normalized, self._LEVELS[DEFAULT_LOG_LEVEL])
+        self._include_traceback = include_traceback if include_traceback is not None else strict
 
     def log(
         self,
@@ -84,9 +87,9 @@ class _ConsoleStructuredLogger:
             "message": message,
         }
         if error is not None:
-            payload["error"] = str(error)
+            payload["error"] = sanitize_log_value(str(error), key="error")
             payload["error_type"] = type(error).__name__
-            if self._strict:
+            if self._strict or self._include_traceback:
                 payload["traceback"] = traceback.format_exc()
         print(json.dumps(payload, sort_keys=True))
 
@@ -129,6 +132,7 @@ def build_local_ingest_run_config(
         workspace=workspace or _env_text(source_env, "FORM990_WORKSPACE_DIR") or None,
         limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
         log_level=log_level or _env_text(source_env, "LOG_LEVEL", DEFAULT_LOG_LEVEL) or DEFAULT_LOG_LEVEL,
+        log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
 
 
@@ -160,8 +164,18 @@ def run_local_form990_ingest_config(
     env: Mapping[str, str] | None = None,
 ) -> int:
     source_env = resolve_runtime_environment_aliases(env)
-    logging.getLogger().setLevel(_logging_level(config.log_level))
-    logger = _ConsoleStructuredLogger(strict=config.strict, level=config.log_level)
+    runtime_logging = configure_runtime_logging(
+        {
+            **source_env,
+            "LOG_LEVEL": config.log_level,
+            **({"LOG_STACK_TRACES": str(config.log_stack_traces).lower()} if config.log_stack_traces is not None else {}),
+        }
+    )
+    logger = _ConsoleStructuredLogger(
+        strict=config.strict,
+        level=runtime_logging.log_level_name,
+        include_traceback=config.log_stack_traces if config.log_stack_traces is not None else runtime_logging.include_stack_traces,
+    )
     layout = build_workspace_layout(
         {**source_env, **({"FORM990_WORKSPACE_DIR": config.workspace} if config.workspace else {})}
     ).ensure()
@@ -376,5 +390,8 @@ def _env_optional_int(source_env: Mapping[str, str], key: str) -> int | None:
     return int(raw)
 
 
-def _logging_level(level: str) -> int:
-    return getattr(logging, str(level or DEFAULT_LOG_LEVEL).strip().upper(), logging.INFO)
+def _env_optional_bool(source_env: Mapping[str, str], key: str) -> bool | None:
+    raw = source_env.get(key)
+    if raw is None or str(raw).strip() == "":
+        return None
+    return str(raw).strip().lower() == "true"

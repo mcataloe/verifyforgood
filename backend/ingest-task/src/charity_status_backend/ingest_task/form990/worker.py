@@ -18,6 +18,7 @@ from charity_status.form990.teos_manifest import S3TeosZipManifestRepository
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 from charity_status_backend.ingest_task.persistence import build_form990_nonprofit_persistence_service
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 BUCKET = os.environ.get("BUCKET", "").strip()
 RAW_PREFIX = os.environ.get("FORM990_RAW_PREFIX", "form990/raw/")
@@ -35,9 +36,8 @@ FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES = int(os.environ.get("FORM990_ZIP_MAX_XML_FI
 FORM990_ZIP_URL_FALLBACK_ENABLED = os.environ.get("FORM990_ZIP_URL_FALLBACK_ENABLED", "true").lower() == "true"
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
-logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 
 def handler(event, context):
@@ -467,8 +467,4 @@ def _validate_worker_config() -> list[str]:
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)

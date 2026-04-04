@@ -44,6 +44,7 @@ from charity_status.form990.teos_zip_discovery import fetch_teos_download_page_h
 from charity_status.form990.zip_selected_processing import ZipBackedXmlLoader, select_zip_sources_for_records
 from charity_status.ops import S3RunStore
 from charity_status.form990.storage import checkpoint_key, discovery_diff_key, discovery_manifest_key, discovery_state_key, source_download_state_prefix, state_manifest_key, teos_zip_manifest_state_prefix
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 from charity_status_backend.ingest_task.persistence import build_form990_nonprofit_persistence_service
 
 BUCKET = os.environ.get("BUCKET")
@@ -84,9 +85,8 @@ FORM990_CHUNK_SIZE = int(os.environ.get("FORM990_CHUNK_SIZE", "250"))
 FORM990_WORK_QUEUE_URL = os.environ.get("FORM990_WORK_QUEUE_URL", "").strip()
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
-logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 VALID_FORM990_SOURCE_MODES = {"configured", "irs_page", "static_manifest"}
 
 
@@ -1673,8 +1673,4 @@ def _load_previous_discovery_state(s3_client: Any) -> list[dict[str, Any]]:
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)

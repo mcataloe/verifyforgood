@@ -26,8 +26,9 @@ from charity_status.ingest.workflow import (
     workflow_manifest_key,
     workflow_summary_key,
 )
+from charity_status.runtime_logging import configure_runtime_logging, log_structured
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 DEFAULT_MAX_XML_FILE_SIZE_BYTES = 20 * 1024 * 1024
 
@@ -969,11 +970,7 @@ def _as_text(value: Any) -> str | None:
 
 
 def _log_structured(event: str, **fields: Any) -> None:
-    payload = {"event": event, **fields}
-    try:
-        LOGGER.info(json.dumps(payload, sort_keys=True))
-    except Exception:
-        LOGGER.info("%s %s", event, fields)
+    log_structured(LOGGER, event, **fields)
 
 
 __all__ = [
