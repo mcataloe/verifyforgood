@@ -19,7 +19,7 @@ Primary runtime and entrypoint files:
 
 - `infrastructure/lambda_query.py`
 - `infrastructure/lambda_refresh.py`
-- `infrastructure/lambda_ingest.py`
+- `infrastructure/eo_bmf_ingest_worker.py`
 - `infrastructure/lambda_form990.py`
 - `infrastructure/lambda_form990_orchestrator.py`
 - `infrastructure/lambda_form990_worker.py`
@@ -199,7 +199,7 @@ Current runtime ownership still stranded in `infrastructure/`:
   - current HTTP API composition root
 - `infrastructure/lambda_refresh.py`
   - current profile refresh job runtime host
-- `infrastructure/lambda_ingest.py`
+- `infrastructure/eo_bmf_ingest_worker.py`
   - current EO/BMF ingest runtime host
 - `infrastructure/lambda_form990.py`
   - current Form 990 ingest/discovery/orchestration runtime host
@@ -222,7 +222,7 @@ Target runtime placement:
   - intended long-term deployment target: private ECS service, separate from
     ingest-task execution
 - `backend/ingest-task/`
-  - successor to `infrastructure.lambda_ingest`, `infrastructure.lambda_form990`, `infrastructure.lambda_form990_orchestrator`, and `infrastructure.lambda_form990_worker`
+  - successor to `infrastructure.eo_bmf_ingest_worker`, `infrastructure.lambda_form990`, `infrastructure.lambda_form990_orchestrator`, and `infrastructure.lambda_form990_worker`
   - intended long-term deployment target: ECS task-style execution for
     scheduled and one-off ingest runs
   - current home for Form 990 and monthly ingest-task runtime ownership, while infrastructure retains thin deployment adapters

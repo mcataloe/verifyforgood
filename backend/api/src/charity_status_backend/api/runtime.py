@@ -3251,7 +3251,7 @@ def _verify_single_item(
         weighting_profile=weighting_profile,
     )
     status_code, payload = verify_nonprofit(
-        _get_athena_client(),
+        _get_nonprofit_query_client(),
         verification_input,
         enrichment_service=_get_enrichment_service(),
         evaluation_context=context,

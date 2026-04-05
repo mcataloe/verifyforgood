@@ -18,7 +18,7 @@
   - `terraform -chdir=infrastructure validate` succeeded.
   - `python -m pytest -q` could not run because Python is not installed/accessible in this environment.
 - Phase 2 complete:
-  - `infrastructure/lambda_ingest.py` now downloads the six IRS files asynchronously with `aiohttp`.
+  - the retired `infrastructure/lambda_ingest.py` path previously downloaded the IRS EO files asynchronously with `aiohttp`.
   - Added unit tests for success, partial failure, upload failure, and all-failure scenarios.
   - `terraform -chdir=infrastructure validate` succeeded.
   - `python -m pytest -q` could not run because Python is not installed/accessible in this environment.

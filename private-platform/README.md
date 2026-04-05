@@ -6,7 +6,7 @@ Current platform/runtime code still exists in this monorepo:
 
 - `infrastructure/lambda_query.py`
 - `infrastructure/lambda_refresh.py`
-- `infrastructure/lambda_ingest.py`
+- `infrastructure/eo_bmf_ingest_worker.py`
 - `infrastructure/lambda_form990.py`
 - `infrastructure/charity_status/platform/`
 

@@ -24,6 +24,17 @@ def _build_run_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_eo_bmf_run_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="charity_status_backend.ingest_task.cli run-eo-bmf",
+        description="Run local EO/BMF ingest on the backend-owned ECS-style path.",
+    )
+    parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--keep-temp", action="store_true")
+    parser.add_argument("--workspace")
+    return parser
+
+
 def _load_event(args: argparse.Namespace) -> dict[str, Any]:
     if args.event_json:
         payload = json.loads(args.event_json)
@@ -64,14 +75,27 @@ def main(argv: list[str] | None = None) -> int:
         from ..ecs_runtime import main as ecs_main
 
         return ecs_main(args_list[1:])
+    if args_list and args_list[0] == "run-eo-bmf":
+        from ..eo_bmf_runner import run_local_eo_bmf_ingest
+
+        run_args = _build_eo_bmf_run_parser().parse_args(args_list[1:])
+        return run_local_eo_bmf_ingest(
+            strict=bool(run_args.strict),
+            keep_temp=bool(run_args.keep_temp),
+            workspace=run_args.workspace,
+        )
+    if args_list and args_list[0] == "ecs-run-eo-bmf":
+        from ..eo_bmf_ecs_runtime import main as eo_bmf_ecs_main
+
+        return eo_bmf_ecs_main(args_list[1:])
 
     parser = argparse.ArgumentParser(
         prog="charity_status_backend.ingest_task.cli",
-        description="Backend-owned local CLI for Form 990 and monthly ingest runtimes.",
+        description="Backend-owned local CLI for EO/BMF, Form 990, and monthly ingest runtimes.",
     )
     parser.add_argument(
         "command",
-        choices=("ecs-run", "monthly-worker"),
+        choices=("ecs-run", "ecs-run-eo-bmf", "monthly-worker"),
     )
     parser.add_argument("--event-json")
     parser.add_argument("--event-file")

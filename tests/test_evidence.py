@@ -47,7 +47,7 @@ def test_evidence_eo_bmf_only_fallback_case():
     assert status == 200
     assert payload["evidence"]["model_version"] == payload["score_explanation"]["model_version"]
     sources = {s["source"]: s for s in payload["evidence"]["sources"]}
-    assert sources["irs_eo_bmf_athena"]["used"] is True
+    assert sources["irs.eo_bmf"]["used"] is True
     assert sources["irs_form_990_xml"]["used"] is False
 
 

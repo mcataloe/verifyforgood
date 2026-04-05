@@ -8,7 +8,7 @@ Entrypoints and workers:
 
 - `infrastructure/lambda_query.py`
 - `infrastructure/lambda_refresh.py`
-- `infrastructure/lambda_ingest.py`
+- `infrastructure/eo_bmf_ingest_worker.py`
 - `infrastructure/monthly_ingest_worker.py`
 - `infrastructure/nonprofit_ingest_persistence.py`
 
@@ -43,7 +43,7 @@ Current live entrypoints:
   - owns routing, response-envelope application, and composition of customer/admin/private-platform services
 - `infrastructure.lambda_refresh.handler`
   - profile refresh job entrypoint
-- `infrastructure.lambda_ingest.handler`
+- `infrastructure.eo_bmf_ingest_worker.handler`
   - EO/BMF ingest job entrypoint
 - `infrastructure.monthly_ingest_worker.main`
   - workspace-plus-PostgreSQL Form 990 monthly runtime
@@ -58,7 +58,7 @@ Current misplaced runtime ownership still stranded in `infrastructure/`:
   - still the main HTTP API composition root for auth, billing, admin, webhook, routing, and response shaping
 - `infrastructure/lambda_refresh.py`
   - still the profile refresh runtime host
-- `infrastructure/lambda_ingest.py`
+- `infrastructure/eo_bmf_ingest_worker.py`
   - still the EO/BMF ingest runtime host
 - `infrastructure/monthly_ingest_worker.py`
   - compatibility shim over the backend-owned monthly ingest runtime

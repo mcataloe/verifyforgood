@@ -107,7 +107,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
         country="US",
         state="IL",
         ntee_category="B",
-        canonical_source="irs_eo_bmf_athena",
+        canonical_source="irs.eo_bmf",
         source_version="2026.03",
         last_seen_at="2026-03-31T00:00:00+00:00",
         created_at="2026-03-31T00:00:00+00:00",

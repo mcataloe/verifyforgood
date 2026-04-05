@@ -68,7 +68,7 @@ This includes the current ingress-facing routes under `/v1/...`, including:
 Keep these on their current event-driven or worker-oriented runtime paths until
 later phases justify a change:
 
-- `lambda_ingest.py`
+- `eo_bmf_ingest_worker.py`
 - `lambda_refresh.py`
 - `lambda_form990.py`
 - `lambda_form990_worker.py`

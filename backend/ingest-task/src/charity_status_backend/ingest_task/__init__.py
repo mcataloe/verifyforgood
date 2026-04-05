@@ -16,7 +16,7 @@ for path in (INFRASTRUCTURE_SRC, PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC):
 
 RUNTIME_NAME = "ingest_task"
 CURRENT_COMPATIBILITY_SOURCES = (
-    "infrastructure.lambda_ingest.handler",
+    "infrastructure.eo_bmf_ingest_worker.handler",
     "infrastructure.monthly_ingest_worker.main",
     "infrastructure.nonprofit_ingest_persistence.build_form990_nonprofit_persistence_service",
 )

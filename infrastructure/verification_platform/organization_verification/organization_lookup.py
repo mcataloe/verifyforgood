@@ -15,7 +15,7 @@ from charity_status.normalization import (
 
 MODEL_INFO = {
     "version": "1.0.0",
-    "source": "irs_eo_bmf_athena",
+    "source": "irs.eo_bmf",
 }
 
 

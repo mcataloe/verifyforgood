@@ -4,6 +4,8 @@ from typing import Any
 
 from .sqlalchemy_repository import SqlAlchemyNonprofitRepository
 
+EO_BMF_FILING_FORM_TYPE = "EO_BMF"
+
 
 class PostgresNonprofitQueryClient:
     def __init__(self, *, repository: SqlAlchemyNonprofitRepository, delegate_client: Any) -> None:
@@ -25,7 +27,11 @@ class PostgresNonprofitQueryClient:
         return self._delegate_client.lookup_form990_enrichment(ein)
 
     def list_form990_filings(self, ein: str, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
-        return "postgres:list_form990_filings", self._repository.list_filings_by_ein(ein, limit=limit)
+        rows = self._repository.list_filings_by_ein(ein, limit=None)
+        filtered = [row for row in rows if str(row.get("return_type") or "").strip().upper() != EO_BMF_FILING_FORM_TYPE]
+        if limit is not None:
+            filtered = filtered[:limit]
+        return "postgres:list_form990_filings", filtered
 
     def lookup_peer_benchmark(self, group: dict[str, Any]) -> dict[str, Any]:
         return self._delegate_client.lookup_peer_benchmark(group)

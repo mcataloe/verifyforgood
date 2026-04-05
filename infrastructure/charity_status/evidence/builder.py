@@ -188,7 +188,7 @@ def build_evidence(
         )
 
     source_set = set(str(source) for source in data_sources)
-    sources.append(EvidenceSource(source="irs_eo_bmf_athena", used="irs_eo_bmf_athena" in source_set, detail="Core EO/BMF source"))
+    sources.append(EvidenceSource(source="irs.eo_bmf", used="irs.eo_bmf" in source_set, detail="Core EO/BMF source"))
     sources.append(EvidenceSource(source="irs_form_990_xml", used="irs_form_990_xml" in source_set, detail="Form 990 derived enrichments"))
 
     for provider in enrichment_providers:

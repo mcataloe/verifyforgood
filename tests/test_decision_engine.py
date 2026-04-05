@@ -8,7 +8,7 @@ def _base_inputs():
     scores = {"overall": 82}
     score_explanation = {
         "model_version": SCORING_MODEL_VERSION,
-        "score_data_sources": ["irs_eo_bmf_athena", "irs_form_990_xml"],
+        "score_data_sources": ["irs.eo_bmf", "irs_form_990_xml"],
         "eligibility": "ELIGIBLE",
         "peer_benchmarking_used": True,
         "peer_group": {"ntee": "P", "org_type": "03", "revenue_band": "1m_to_10m"},

@@ -75,7 +75,7 @@ def test_v2_scores_fallback_no_990_or_peer():
     result = calculate_v1_scores(record={}, verification=verification, ein_valid=True)
 
     assert result.scores["financial_resilience"] is None
-    assert result.explanation["score_data_sources"] == ["irs_eo_bmf_athena"]
+    assert result.explanation["score_data_sources"] == ["irs.eo_bmf"]
     assert result.explanation["peer_benchmarking_used"] is False
 
 

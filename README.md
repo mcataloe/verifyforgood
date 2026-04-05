@@ -239,7 +239,7 @@ Important:
 
 ## AWS Data Flow
 
-1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
+1. The backend-owned EO/BMF ingest runtime downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into a local/ECS workspace and upserts canonical nonprofit rows into PostgreSQL.
 2. The monthly Form 990 ingest worker downloads IRS ZIP archives into the workspace, parses XML members, and persists normalized filing/source metadata to PostgreSQL.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
 4. The ECS-hosted API handles verification/scoring endpoints, while
@@ -641,8 +641,8 @@ Model version: `1.1.0`
 
 Scoring modes:
 
-- EO/BMF-only fallback (`irs_eo_bmf_athena`)
-- EO/BMF + 990 enrichment (`irs_eo_bmf_athena`, `irs_form_990_xml`)
+- EO/BMF-only fallback (`irs.eo_bmf`)
+- EO/BMF + 990 enrichment (`irs.eo_bmf`, `irs_form_990_xml`)
 
 Dimensions:
 

@@ -94,7 +94,7 @@
         "infrastructure/charity_status/platform/",
         "infrastructure/lambda_query.py",
         "infrastructure/lambda_refresh.py",
-        "infrastructure/lambda_ingest.py",
+        "infrastructure/eo_bmf_ingest_worker.py",
         "infrastructure/monthly_ingest_worker.py",
         "infrastructure/nonprofit_ingest_persistence.py"
       ],
@@ -112,7 +112,7 @@
       "infrastructure/charity_status/enrichments/organization_store.py",
       "infrastructure/lambda_query.py",
       "infrastructure/lambda_refresh.py",
-      "infrastructure/lambda_ingest.py",
+      "infrastructure/eo_bmf_ingest_worker.py",
       "infrastructure/monthly_ingest_worker.py",
       "infrastructure/nonprofit_ingest_persistence.py"
     ],
@@ -141,7 +141,7 @@
     "infrastructure/charity_status/api/responses.py",
     "infrastructure/lambda_query.py",
     "infrastructure/lambda_refresh.py",
-    "infrastructure/lambda_ingest.py",
+    "infrastructure/eo_bmf_ingest_worker.py",
     "infrastructure/monthly_ingest_worker.py",
     "infrastructure/nonprofit_ingest_persistence.py"
   ],
@@ -169,7 +169,7 @@
       ]
     },
     "eo_ingest_job": {
-      "current_handler": "infrastructure.lambda_ingest.handler",
+      "current_handler": "infrastructure.eo_bmf_ingest_worker.handler",
       "target_directory": "backend/ingest-task/",
       "notes": [
         "EO/BMF ingest runtime host."

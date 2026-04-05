@@ -134,7 +134,7 @@ def calculate_v1_scores(
     elif present >= 5:
         confidence = "medium"
 
-    data_sources = ["irs_eo_bmf_athena"]
+    data_sources = ["irs.eo_bmf"]
     notes: list[str] = []
     if has_990:
         data_sources.append("irs_form_990_xml")

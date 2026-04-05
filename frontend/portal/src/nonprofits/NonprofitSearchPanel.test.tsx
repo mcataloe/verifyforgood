@@ -56,7 +56,7 @@ describe("NonprofitSearchPanel", () => {
         filingTaxYear: "2024",
         filingsCount: 1,
         irsStatus: "active",
-        modelSource: "irs_eo_bmf_athena",
+        modelSource: "irs.eo_bmf",
         modelVersion: "1.0.0",
         name: "Helping Hands Foundation",
         nteeCategory: "Human services",
@@ -112,7 +112,7 @@ describe("NonprofitSearchPanel", () => {
     ).toBeTruthy();
     expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Not enabled for your organization")).toBeTruthy();
-    expect(screen.queryByText("irs_eo_bmf_athena")).toBeNull();
+    expect(screen.queryByText("irs.eo_bmf")).toBeNull();
     expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(container.querySelector(".portal-page-grid")).toBeNull();

@@ -120,7 +120,7 @@ data "archive_file" "ingest_zip_from_file" {
 
 resource "aws_lambda_function" "ingest" {
   function_name = local.lambda_function_names.regulatory_data_ingestion
-  handler       = "lambda_ingest.handler"
+  handler       = "eo_bmf_ingest_worker.handler"
   runtime       = "python3.11"
   role          = aws_iam_role.lambda_role.arn
   timeout       = 300
@@ -292,7 +292,7 @@ data "archive_file" "refresh_zip" {
     ".terraform.tfstate.lock.info",
     "charity_status/ingest/**",
     "charity_status/future/**",
-    "lambda_ingest.py",
+    "eo_bmf_ingest_worker.py",
     "lambda_query.py",
     "lambda_form990.py",
     "ingest.zip",

@@ -31,7 +31,7 @@ describe("portal nonprofit search service", () => {
               tax_year: "2024",
             },
             model: {
-              source: "irs_eo_bmf_athena",
+              source: "irs.eo_bmf",
               version: "1.0.0",
             },
             organization: {
@@ -86,7 +86,7 @@ describe("portal nonprofit search service", () => {
     expect(detail?.name).toBe("Helping Hands Foundation");
     expect(detail?.filingTaxYear).toBe("2024");
     expect(detail?.filingsCount).toBe(1);
-    expect(detail?.modelSource).toBe("irs_eo_bmf_athena");
+    expect(detail?.modelSource).toBe("irs.eo_bmf");
     expect(detail?.sourceAvailability).toEqual([
       {
         attempted: false,

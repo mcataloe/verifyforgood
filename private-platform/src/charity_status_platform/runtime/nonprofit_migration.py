@@ -253,7 +253,7 @@ def _nonprofit_record_from_query(
         country="US",
         state=_text(row.get("state")) or (existing.state if existing else None),
         ntee_category=map_ntee_category(_text(row.get("ntee_cd")) or (existing.ntee_category if existing else None)),
-        canonical_source="irs_eo_bmf_athena",
+        canonical_source="irs.eo_bmf",
         source_version=(existing.source_version if existing else None),
         last_seen_at=now_iso,
         created_at=existing.created_at if existing else now_iso,

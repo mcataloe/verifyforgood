@@ -613,6 +613,26 @@ Keep the current nonprofit route contracts stable so any future cutover swaps
 the storage/read path behind the existing service surfaces rather than
 changing customer-visible payloads.
 
+## TODO-ARCH-029
+
+### Title
+
+Retire the remaining EO/BMF Athena, Glue, and Lambda deployment scaffolding after the backend PostgreSQL/runtime cutover stabilizes.
+
+### Rationale
+
+The backend runtime now has a local/ECS-style EO/BMF ingest path that writes canonical nonprofit data to PostgreSQL and uses workspace-local CSV artifacts. Infrastructure deployment assets still retain older EO/BMF Lambda, Athena, and Glue assumptions for compatibility and staged rollback.
+
+### Migration Triggers
+
+- deployed EO/BMF workers fully switched to the backend-owned ingest-task image
+- confirmation that PostgreSQL-backed nonprofit reads are authoritative in all target environments
+- no remaining operational dependency on the legacy EO/BMF Athena/Glue datasets
+
+### Constraint
+
+Do not break existing deployment rollback paths until the backend EO/BMF PostgreSQL cutover is validated end to end in deployed environments.
+
 ## TODO-ARCH-025
 
 ### Title

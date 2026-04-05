@@ -272,6 +272,9 @@ def test_vscode_launch_config_preserves_node_entry_and_adds_form990_python_profi
     assert '"name": "Form990 ECS Parity"' in launch_text
     assert '"module": "charity_status_backend.ingest_task.cli"' in launch_text
     assert '"FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990"' in launch_text
+    assert '"name": "EO BMF Local Run"' in launch_text
+    assert '"name": "EO BMF ECS Parity"' in launch_text
+    assert '"EOBMF_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/eo_bmf"' in launch_text
 
 
 def test_split_plan_records_operational_layers_and_backend_targets():

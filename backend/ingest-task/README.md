@@ -12,9 +12,12 @@ Python package root:
 - local entrypoint module: `python -m charity_status_backend.ingest_task.entrypoint`
 - local CLI:
   - `python -m ingest_task.cli run`
+  - `python -m ingest_task.cli run-eo-bmf`
   - `python -m ingest_task.cli run --archive-url <url>`
   - `python -m charity_status_backend.ingest_task.cli run`
+  - `python -m charity_status_backend.ingest_task.cli run-eo-bmf`
   - `python -m charity_status_backend.ingest_task.cli ecs-run`
+  - `python -m charity_status_backend.ingest_task.cli ecs-run-eo-bmf`
   - `python -m charity_status_backend.ingest_task.cli monthly-worker`
 
 Local Form 990 debug runner:
@@ -30,11 +33,21 @@ Local Form 990 debug runner:
 - the local runner is a thin wrapper over the monthly ECS worker processing core, not a separate ingest implementation
 - the `run` and `ecs-run` paths now keep IRS ZIP/XML handling off S3 and use only the local workspace plus PostgreSQL-backed persistence
 
+Local EO/BMF runner:
+
+- `run-eo-bmf` downloads `eo1.csv` through `eo4.csv` into a local workspace and upserts canonical nonprofit rows into PostgreSQL
+- `ecs-run-eo-bmf` reuses the same EO/BMF runtime core behind ECS-style env wiring
+- `--strict` stops on the first file failure and includes stack traces
+- `--keep-temp` preserves the downloaded CSVs in the workspace
+- `--workspace <path>` overrides `EOBMF_WORKSPACE_DIR` for that run only
+- the EO/BMF path is workspace-local and PostgreSQL-backed; it no longer uploads raw CSVs to S3
+
 Container build/run:
 
 ```powershell
 docker build -f backend/ingest-task/Dockerfile .
 docker run --env-file backend/.env.local <ingest-image>
+docker run --env-file backend/.env.local <ingest-image> run-eo-bmf
 docker run --env-file backend/.env.local <ingest-image> run --archive-url https://example.org/2026_TEOS_XML_02A.zip
 docker run --env-file backend/.env.local <ingest-image> monthly-worker
 ```
@@ -48,6 +61,7 @@ Container contract:
   not a long-lived worker service
 - supported command overrides:
   - `ecs-run`
+  - `ecs-run-eo-bmf`
   - `monthly-worker`
 - managed ECS parity path now routes through `ecs-run`, which reuses the same
   orchestration core as local `run`
@@ -56,12 +70,19 @@ ECS/local parity env aliases:
 
 - `DATABASE_URL` maps to `PLATFORM_POSTGRES_URL` when the native env is absent
 - `WORKSPACE_PATH` maps to `FORM990_WORKSPACE_DIR` when the native env is absent
+- `WORKSPACE_PATH` also maps to `EOBMF_WORKSPACE_DIR` for the EO/BMF runtime when the native env is absent
 - `STRICT_MODE` maps to strict failure behavior
 - `MAX_ARCHIVES` maps to the archive-processing limit
 - `LOG_LEVEL` controls runtime log verbosity for the parity path
 
 Backend-owned runtime modules:
 
+- `eo_bmf_runner.py`
+  - local EO/BMF runtime ownership and workspace-local CSV orchestration
+- `eo_bmf_ecs_runtime.py`
+  - ECS wrapper for the EO/BMF runtime
+- `eo_bmf_ingest.py`
+  - EO/BMF CSV parsing and PostgreSQL upsert mapping
 - `monthly/worker.py`
   - monthly ECS worker runtime ownership
 - `persistence.py`
@@ -131,7 +152,7 @@ Current migration boundary:
 
 Planned inbound migration:
 
-- `infrastructure.lambda_ingest`
+- `infrastructure.eo_bmf_ingest_worker`
 - `infrastructure.monthly_ingest_worker`
 - `infrastructure.nonprofit_ingest_persistence`
 

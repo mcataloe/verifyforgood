@@ -288,7 +288,7 @@ function buildFetchMock() {
               ],
             },
             model: {
-              source: "irs_eo_bmf_athena",
+              source: "irs.eo_bmf",
               version: "1.0.0",
             },
             organization: {

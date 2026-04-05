@@ -42,11 +42,14 @@ ENTRYPOINTS = (
     ),
     BackendEntrypoint(
         surface="eo_ingest_job",
-        current_module="infrastructure.lambda_ingest",
+        current_module="infrastructure.eo_bmf_ingest_worker",
         current_handler="handler",
         target_service_area="runtime",
         runtime_kind="job_handler",
-        notes=("Downloads and persists EO/BMF source files.",),
+        notes=(
+            "Acts as the backend-owned EO/BMF ingest compatibility shim.",
+            "Routes to the local/ECS-style workspace-plus-PostgreSQL runtime under backend/ingest-task.",
+        ),
     ),
     BackendEntrypoint(
         surface="monthly_ingest_job",
