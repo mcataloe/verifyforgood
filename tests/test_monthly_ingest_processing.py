@@ -2,15 +2,19 @@ import hashlib
 import io
 import json
 import zipfile
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
+from infrastructure.charity_status.form990 import monthly_processing
 from infrastructure.charity_status.form990.monthly_processing import (
     MonthlyIngestMalformedArchiveError,
+    MonthlyIngestSourceObject,
     MonthlyIngestSourceObjectNotFoundError,
     MonthlyIngestTaskInputError,
     parse_form990_source_object,
+    process_form990_archive,
     run_form990_monthly_processing_task,
 )
 
@@ -94,6 +98,36 @@ class FakeArchiveMetadataService:
             processed_at=failed_at,
             status="failed",
         )
+
+
+class RecordingProgressSession:
+    def __init__(self):
+        self.calls = []
+        self.completed = False
+
+    def item_completed(self, increments=None):
+        self.calls.append(dict(increments or {}))
+
+    def complete(self):
+        self.completed = True
+
+
+class RecordingProgressReporter:
+    def __init__(self):
+        self.starts = []
+        self.sessions = []
+
+    def start(self, *, total_items, fields, update_every=10):
+        session = RecordingProgressSession()
+        self.starts.append(
+            {
+                "total_items": total_items,
+                "field_keys": [field.key for field in fields],
+                "update_every": update_every,
+            }
+        )
+        self.sessions.append(session)
+        return session
 
 
 def _worker_env(**overrides):
@@ -274,6 +308,77 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     assert second["records_processed"] == 0
     assert second["skipped_unchanged_member_count"] == 1
     monkeypatch.undo()
+
+
+def test_process_form990_archive_reports_selection_progress_before_parse_progress(tmp_path):
+    metadata_service = FakeArchiveMetadataService()
+    archive_bytes = _make_zip(
+        ("folder/obj-1.xml", _valid_xml(ein="123456789")),
+        ("folder/obj-2.xml", _valid_xml(ein="987654321")),
+    )
+    archive_path, checksum, size = _write_temp_archive(archive_bytes, hashlib.sha256(archive_bytes).hexdigest())
+
+    try:
+        archive_record = metadata_service.ensure_archive_record(
+            source_url="https://example.org/2026_TEOS_XML_02A.zip",
+            filename="2026_TEOS_XML_02A.zip",
+            checked_at=datetime.now(timezone.utc),
+        )
+        extracted_dir = tmp_path / "initial-extract"
+        extracted_members = monthly_processing.extract_zip_xml_members_to_workdir(
+            archive_path=archive_path,
+            workdir=str(extracted_dir),
+            max_xml_file_size_bytes=monthly_processing.DEFAULT_MAX_XML_FILE_SIZE_BYTES,
+        )
+        first_member_hash = monthly_processing._hash_local_xml_file(extracted_members[0].local_path)
+        metadata_service.upsert_extracted_file(
+            archive_id=archive_record.archive_id,
+            filename=extracted_members[0].member_name,
+            content_hash=first_member_hash,
+            parse_status="parsed",
+        )
+        for member in extracted_members:
+            monthly_processing._delete_local_xml_file(member.local_path)
+
+        progress_reporter = RecordingProgressReporter()
+        result = process_form990_archive(
+            archive_path=archive_path,
+            archive_checksum=checksum,
+            archive_size=size,
+            extracted_workdir=str(tmp_path / "selection-progress"),
+            processing_context={
+                "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+                "job_id": "selection-progress-job",
+                "correlation_id": "selection-progress-corr",
+                "workflow_version": "2026-03",
+                "source_url": "https://example.org/2026_TEOS_XML_02A.zip",
+            },
+            source_object=MonthlyIngestSourceObject(
+                source_year="2026",
+                source_kind="zip_archive",
+                source_archive_key="2026_teos_xml_02a",
+                source_signature="sig-1",
+                source_filename="2026_TEOS_XML_02A.zip",
+            ),
+            archive_metadata_service=metadata_service,
+            archive_record=archive_record,
+            progress_reporter=progress_reporter,
+        )
+
+        assert result["selected_member_count"] == 1
+        assert result["skipped_unchanged_member_count"] == 1
+        assert progress_reporter.starts[0] == {
+            "total_items": 2,
+            "field_keys": ["selected", "skipped"],
+            "update_every": 10,
+        }
+        assert progress_reporter.sessions[0].calls == [{"skipped": 1}, {"selected": 1}]
+        assert progress_reporter.sessions[0].completed is True
+        assert progress_reporter.starts[1]["field_keys"] == ["parsed", "failed"]
+    finally:
+        import os
+
+        os.unlink(archive_path)
 
 
 def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:

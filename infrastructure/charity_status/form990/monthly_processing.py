@@ -393,15 +393,35 @@ def process_form990_archive(
     member_hashes: dict[str, str] = {}
     if archive_metadata_service is not None and archive_record is not None:
         selected_members = []
-        for member in extracted_members:
-            content_hash = _hash_local_xml_file(member.local_path)
-            member_hashes[member.member_name] = content_hash
-            existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
-            if existing is not None and str(existing.content_hash or "").strip() == content_hash:
-                skipped_unchanged_members += 1
-                _delete_local_xml_file(member.local_path)
-                continue
-            selected_members.append(member)
+        selection_progress_session = (
+            progress_reporter.start(
+                total_items=len(extracted_members),
+                fields=[
+                    ProgressField(key="selected", label="selected", color="green"),
+                    ProgressField(key="skipped", label="skipped", color="blue"),
+                ],
+                update_every=10,
+            )
+            if progress_reporter is not None
+            else None
+        )
+        try:
+            for member in extracted_members:
+                content_hash = _hash_local_xml_file(member.local_path)
+                member_hashes[member.member_name] = content_hash
+                existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
+                if existing is not None and str(existing.content_hash or "").strip() == content_hash:
+                    skipped_unchanged_members += 1
+                    _delete_local_xml_file(member.local_path)
+                    if selection_progress_session is not None:
+                        selection_progress_session.item_completed({"skipped": 1})
+                    continue
+                selected_members.append(member)
+                if selection_progress_session is not None:
+                    selection_progress_session.item_completed({"selected": 1})
+        finally:
+            if selection_progress_session is not None:
+                selection_progress_session.complete()
     _log_structured(
         "monthly_ingest.worker.extracted",
         job_id=context.job_id,
