@@ -23,7 +23,7 @@ def test_should_process_archive_prefers_normalized_etag_and_falls_back():
         last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
         content_length=1234,
         created_at="2026-04-03T00:00:00+00:00",
-        updated_at="2026-04-03T00:00:00+00:00",
+        update_started_at="2026-04-03T00:00:00+00:00",
     )
     same = ArchiveProbeResult(
         source_url=previous.source_url,

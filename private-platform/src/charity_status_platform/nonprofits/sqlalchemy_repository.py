@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
@@ -61,7 +60,7 @@ class NonprofitFilingRecord:
     source_record_id: str | None = None
     source_signature: str | None = None
     xml_source_reference: str | None = None
-    raw_s3_key: str | None = None
+    raw_file_reference: str | None = None
     raw_payload: dict[str, Any] | None = None
     created_at: str = ""
     updated_at: str = ""
@@ -134,7 +133,9 @@ class Form990ArchiveRecord:
     last_processed_at: str | None = None
     status: str | None = None
     created_at: str = ""
-    updated_at: str = ""
+    update_started_at: str = ""
+    update_ended_at: str | None = None
+    processing_duration_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -441,14 +442,27 @@ class SqlAlchemyNonprofitRepository:
             assert model is not None
         return _archive_record(model)
 
-    def mark_archive_processed(self, archive_id: int, processed_at: str, status: str) -> Form990ArchiveRecord | None:
+    def mark_archive_processing(
+        self,
+        archive_id: int,
+        *,
+        started_at: str | None = None,
+        ended_at: str | None = None,
+        processed_at: str | None = None,
+        status: str,
+    ) -> Form990ArchiveRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
             if model is None:
                 return None
-            model.last_processed_at = _parse_timestamp(processed_at) or datetime.now(timezone.utc)
+            started = _parse_timestamp(started_at) or model.update_started_at or datetime.now(timezone.utc)
+            ended_value = _parse_timestamp(ended_at) or _parse_timestamp(processed_at) or datetime.now(timezone.utc)
+            processed_value = _parse_timestamp(processed_at) or ended_value
+            model.update_started_at = started
+            model.update_ended_at = ended_value
+            model.last_processed_at = processed_value
             model.status = status
-            model.updated_at = _parse_timestamp(processed_at) or datetime.now(timezone.utc)
+            model.processing_duration_ms = max(int((ended_value - started).total_seconds() * 1000), 0)
             session.flush()
             return _archive_record(model)
 
@@ -494,21 +508,6 @@ class SqlAlchemyNonprofitRepository:
             )
             assert model is not None
         return _extracted_file_record(model)
-
-
-def make_record_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:24]}"
-
-
-def build_form990_archive_id(source_url: str) -> str:
-    normalized = _normalize_source_url(source_url)
-    return f"arc_{uuid.uuid5(uuid.NAMESPACE_URL, normalized).hex[:24]}"
-
-
-def build_form990_extracted_file_id(archive_id: str, filename: str) -> str:
-    payload = f"{archive_id}|{_normalize_optional_text(filename) or ''}"
-    return f"fx_{uuid.uuid5(uuid.NAMESPACE_URL, payload).hex[:24]}"
-
 
 def _normalize_ein(ein: str) -> str:
     return "".join(ch for ch in str(ein or "") if ch.isdigit())[:9]
@@ -720,7 +719,7 @@ def _filing_model(record: NonprofitFilingRecord) -> NonprofitFilingModel:
         source_record_id=record.source_record_id,
         source_signature=record.source_signature,
         xml_source_reference=record.xml_source_reference,
-        raw_s3_key=record.raw_s3_key,
+        raw_file_reference=record.raw_file_reference,
         raw_payload=record.raw_payload,
         created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
         updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
@@ -741,7 +740,7 @@ def _apply_filing_record(model: NonprofitFilingModel, record: NonprofitFilingRec
     model.source_record_id = record.source_record_id
     model.source_signature = record.source_signature
     model.xml_source_reference = record.xml_source_reference
-    model.raw_s3_key = record.raw_s3_key
+    model.raw_file_reference = record.raw_file_reference
     model.raw_payload = record.raw_payload
     model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
 
@@ -763,7 +762,7 @@ def _filing_record(model: NonprofitFilingModel) -> NonprofitFilingRecord:
         source_record_id=model.source_record_id,
         source_signature=model.source_signature,
         xml_source_reference=model.xml_source_reference,
-        raw_s3_key=model.raw_s3_key,
+        raw_file_reference=model.raw_file_reference,
         raw_payload=model.raw_payload,
         created_at=_format_timestamp(model.created_at) or "",
         updated_at=_format_timestamp(model.updated_at) or "",
@@ -919,7 +918,9 @@ def _archive_model(record: Form990ArchiveRecord) -> Form990ArchiveModel:
         last_processed_at=_parse_timestamp(record.last_processed_at),
         status=record.status,
         created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
-        updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+        update_started_at=_parse_timestamp(record.update_started_at) or datetime.now(timezone.utc),
+        update_ended_at=_parse_timestamp(record.update_ended_at),
+        processing_duration_ms=record.processing_duration_ms,
     )
 
 
@@ -932,7 +933,9 @@ def _apply_archive_record(model: Form990ArchiveModel, record: Form990ArchiveReco
     model.last_checked_at = _parse_timestamp(record.last_checked_at)
     model.last_processed_at = _parse_timestamp(record.last_processed_at)
     model.status = record.status
-    model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
+    model.update_started_at = _parse_timestamp(record.update_started_at) or datetime.now(timezone.utc)
+    model.update_ended_at = _parse_timestamp(record.update_ended_at)
+    model.processing_duration_ms = record.processing_duration_ms
 
 
 def _archive_record(model: Form990ArchiveModel) -> Form990ArchiveRecord:
@@ -948,7 +951,9 @@ def _archive_record(model: Form990ArchiveModel) -> Form990ArchiveRecord:
         last_processed_at=_format_timestamp(model.last_processed_at),
         status=model.status,
         created_at=_format_timestamp(model.created_at) or "",
-        updated_at=_format_timestamp(model.updated_at) or "",
+        update_started_at=_format_timestamp(model.update_started_at) or "",
+        update_ended_at=_format_timestamp(model.update_ended_at),
+        processing_duration_ms=model.processing_duration_ms,
     )
 
 
@@ -1057,7 +1062,7 @@ def _normalized_filing_record(record: NonprofitFilingRecord) -> NonprofitFilingR
         source_record_id=_normalize_optional_text(record.source_record_id),
         source_signature=_normalize_optional_text(record.source_signature),
         xml_source_reference=_normalize_optional_text(record.xml_source_reference),
-        raw_s3_key=_normalize_optional_text(record.raw_s3_key),
+        raw_file_reference=_normalize_optional_text(record.raw_file_reference),
         raw_payload=record.raw_payload,
         created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
         updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
@@ -1106,7 +1111,9 @@ def _normalized_archive_record(record: Form990ArchiveRecord) -> Form990ArchiveRe
         last_processed_at=_format_timestamp(_parse_timestamp(record.last_processed_at)),
         status=_normalize_optional_text(record.status),
         created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
-        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+        update_started_at=_format_timestamp(_parse_timestamp(record.update_started_at) or datetime.now(timezone.utc)) or "",
+        update_ended_at=_format_timestamp(_parse_timestamp(record.update_ended_at)),
+        processing_duration_ms=record.processing_duration_ms,
     )
 
 
@@ -1172,7 +1179,7 @@ def _filing_values(record: NonprofitFilingRecord) -> dict[str, Any]:
         "source_record_id": record.source_record_id,
         "source_signature": record.source_signature,
         "xml_source_reference": record.xml_source_reference,
-        "raw_s3_key": record.raw_s3_key,
+        "raw_file_reference": record.raw_file_reference,
         "raw_payload": record.raw_payload,
         "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
         "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
@@ -1239,7 +1246,9 @@ def _archive_values(record: Form990ArchiveRecord) -> dict[str, Any]:
         "last_processed_at": _parse_timestamp(record.last_processed_at),
         "status": record.status,
         "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
-        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+        "update_started_at": _parse_timestamp(record.update_started_at) or datetime.now(timezone.utc),
+        "update_ended_at": _parse_timestamp(record.update_ended_at),
+        "processing_duration_ms": record.processing_duration_ms,
     }
     if record.archive_id is not None:
         values["archive_id"] = record.archive_id

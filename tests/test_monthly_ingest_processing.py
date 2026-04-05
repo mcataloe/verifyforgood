@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import zipfile
@@ -14,27 +15,6 @@ from infrastructure.charity_status.form990.monthly_processing import (
 )
 
 
-class FakeS3:
-    def __init__(self):
-        self.store = {}
-
-    def put_object(self, Bucket, Key, Body, **kwargs):
-        self.store[(Bucket, Key)] = {"Body": Body, **kwargs}
-
-    def get_object(self, Bucket, Key):
-        if (Bucket, Key) not in self.store:
-            raise KeyError(Key)
-        return {"Body": _Body(self.store[(Bucket, Key)]["Body"])}
-
-
-class _Body:
-    def __init__(self, payload):
-        self._stream = io.BytesIO(payload if isinstance(payload, bytes) else str(payload).encode("utf-8"))
-
-    def read(self, size=-1):
-        return self._stream.read(size)
-
-
 class FakeArchiveMetadataService:
     def __init__(self, *, skip_archive: bool = False):
         self.skip_archive = skip_archive
@@ -44,14 +24,30 @@ class FakeArchiveMetadataService:
     def record_archive_probe(self, *, source_url, filename, probe):
         archive = self.archives.get(source_url)
         if archive is None:
-            archive = SimpleNamespace(archive_id=f"arc-{len(self.archives) + 1}", source_url=source_url, filename=filename)
+            archive = SimpleNamespace(
+                archive_id=len(self.archives) + 1,
+                source_url=source_url,
+                filename=filename,
+                update_started_at=None,
+                update_ended_at=None,
+                processing_duration_ms=None,
+                last_processed_at=None,
+            )
             self.archives[source_url] = archive
         return SimpleNamespace(archive=archive, should_process=not self.skip_archive, reason="unchanged_archive" if self.skip_archive else "new_archive")
 
     def ensure_archive_record(self, *, source_url, filename, checked_at, status="pending"):
         archive = self.archives.get(source_url)
         if archive is None:
-            archive = SimpleNamespace(archive_id=f"arc-{len(self.archives) + 1}", source_url=source_url, filename=filename)
+            archive = SimpleNamespace(
+                archive_id=len(self.archives) + 1,
+                source_url=source_url,
+                filename=filename,
+                update_started_at=None,
+                update_ended_at=None,
+                processing_duration_ms=None,
+                last_processed_at=None,
+            )
             self.archives[source_url] = archive
         return archive
 
@@ -70,8 +66,34 @@ class FakeArchiveMetadataService:
         self.files[(archive_id, filename)] = record
         return record
 
-    def mark_archive_processed(self, archive_id, *, processed_at=None, status="processed"):
+    def mark_archive_processing_started(self, archive_id, *, started_at=None):
+        for archive in self.archives.values():
+            if archive.archive_id == archive_id:
+                archive.update_started_at = started_at.isoformat() if started_at is not None else None
+                archive.status = "processing"
+                return archive
         return None
+
+    def mark_archive_processing_completed(self, archive_id, *, started_at=None, ended_at=None, processed_at=None, status="processed"):
+        for archive in self.archives.values():
+            if archive.archive_id == archive_id:
+                archive.update_started_at = started_at.isoformat() if started_at is not None else archive.update_started_at
+                archive.update_ended_at = ended_at.isoformat() if ended_at is not None else None
+                archive.last_processed_at = processed_at.isoformat() if processed_at is not None else None
+                if started_at is not None and ended_at is not None:
+                    archive.processing_duration_ms = int((ended_at - started_at).total_seconds() * 1000)
+                archive.status = status
+                return archive
+        return None
+
+    def mark_archive_processing_failed(self, archive_id, *, started_at=None, failed_at=None):
+        return self.mark_archive_processing_completed(
+            archive_id,
+            started_at=started_at,
+            ended_at=failed_at,
+            processed_at=failed_at,
+            status="failed",
+        )
 
 
 def _worker_env(**overrides):
@@ -135,92 +157,71 @@ def test_parse_form990_source_object_requires_raw_source_zip_contract():
 
 
 def test_worker_rejects_invalid_runtime_input_before_processing():
-    fake_s3 = FakeS3()
     env = _worker_env()
-    env.pop("MONTHLY_INGEST_DESTINATION_PREFIX")
+    env.pop("MONTHLY_INGEST_SOURCE_KEY")
 
-    with pytest.raises(MonthlyIngestTaskInputError, match="MONTHLY_INGEST_DESTINATION_PREFIX is required"):
-        run_form990_monthly_processing_task(env=env, s3_client=fake_s3)
+    with pytest.raises(MonthlyIngestTaskInputError, match="MONTHLY_INGEST_SOURCE_KEY is required"):
+        run_form990_monthly_processing_task(env=env)
 
 
-def test_worker_processes_staged_zip_and_writes_job_scoped_artifacts():
-    fake_s3 = FakeS3()
-    source_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip"
-    fake_s3.put_object(
-        Bucket="source-bucket",
-        Key=source_key,
-        Body=_make_zip(("folder/obj-1.xml", _valid_xml())),
+def test_worker_processes_staged_zip_without_s3_artifacts(monkeypatch):
+    archive_bytes = _make_zip(("folder/obj-1.xml", _valid_xml()))
+    checksum = hashlib.sha256(archive_bytes).hexdigest()
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._download_source_archive",
+        lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
-    result = run_form990_monthly_processing_task(env=_worker_env(), s3_client=fake_s3)
+    result = run_form990_monthly_processing_task(env=_worker_env())
 
-    job_prefix = "form990/normalized/manifests/monthly-workflows/jobs/job-123"
     assert result["status"] == "success"
-    assert result["manifest_s3_key"] == f"{job_prefix}/manifest.json"
-    assert result["artifact_index_s3_key"] == f"{job_prefix}/artifacts.json"
-    assert result["summary_s3_key"] == f"{job_prefix}/summary.json"
-    assert ("dest-bucket", result["manifest_s3_key"]) in fake_s3.store
-    assert ("dest-bucket", result["artifact_index_s3_key"]) in fake_s3.store
-    assert ("dest-bucket", result["summary_s3_key"]) in fake_s3.store
-
-    artifact_index = json.loads(fake_s3.store[("dest-bucket", result["artifact_index_s3_key"])]["Body"].decode("utf-8"))
-    assert artifact_index["artifacts"]["raw_xml_prefix"] == f"{job_prefix}/raw-xml/"
-    assert artifact_index["artifacts"]["processing_manifest_s3_key"].startswith(f"{job_prefix}/processing/manifest_")
-    assert artifact_index["artifacts"]["filing_records_s3_key"].startswith(f"{job_prefix}/datasets/metadata/filings_")
-
-    summary = json.loads(fake_s3.store[("dest-bucket", result["summary_s3_key"])]["Body"].decode("utf-8"))
-    assert summary["records_processed"] == 1
-    assert summary["parsed_count"] == 1
-    assert summary["failed_count"] == 0
+    assert result["artifact_paths"] is None
+    assert result["records_processed"] == 1
+    assert result["parsed_count"] == 1
+    assert result["failed_count"] == 0
 
 
-def test_worker_raises_for_malformed_zip_and_writes_failure_summary():
-    fake_s3 = FakeS3()
-    source_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip"
-    fake_s3.put_object(Bucket="source-bucket", Key=source_key, Body=b"not-a-zip")
+def test_worker_raises_for_malformed_zip():
+    archive_bytes = b"not-a-zip"
+    checksum = hashlib.sha256(archive_bytes).hexdigest()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._download_source_archive",
+        lambda source_url: _write_temp_archive(archive_bytes, checksum),
+    )
 
     with pytest.raises(MonthlyIngestMalformedArchiveError):
-        run_form990_monthly_processing_task(env=_worker_env(), s3_client=fake_s3)
+        run_form990_monthly_processing_task(env=_worker_env())
+    monkeypatch.undo()
 
-    summary = json.loads(
-        fake_s3.store[("dest-bucket", "form990/normalized/manifests/monthly-workflows/jobs/job-123/summary.json")]["Body"].decode(
-            "utf-8"
-        )
+
+def test_worker_raises_for_missing_source_object():
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._download_source_archive",
+        lambda source_url: (_ for _ in ()).throw(MonthlyIngestSourceObjectNotFoundError(f"source archive not found at {source_url}")),
     )
-    assert summary["status"] == "failed"
-    assert summary["job_id"] == "job-123"
-
-
-def test_worker_raises_for_missing_source_object_and_writes_failure_summary():
-    fake_s3 = FakeS3()
 
     with pytest.raises(MonthlyIngestSourceObjectNotFoundError):
-        run_form990_monthly_processing_task(env=_worker_env(), s3_client=fake_s3)
-
-    manifest = json.loads(
-        fake_s3.store[("dest-bucket", "form990/normalized/manifests/monthly-workflows/jobs/job-123/manifest.json")]["Body"].decode(
-            "utf-8"
-        )
-    )
-    assert manifest["status"] == "failed"
-    assert "source object not found" in manifest["error"]
+        run_form990_monthly_processing_task(env=_worker_env())
+    monkeypatch.undo()
 
 
 def test_worker_fails_when_zip_contains_no_processable_xml_members():
-    fake_s3 = FakeS3()
-    source_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip"
-    fake_s3.put_object(
-        Bucket="source-bucket",
-        Key=source_key,
-        Body=_make_zip(("README.txt", b"ignored")),
+    archive_bytes = _make_zip(("README.txt", b"ignored"))
+    checksum = hashlib.sha256(archive_bytes).hexdigest()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._download_source_archive",
+        lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
     with pytest.raises(MonthlyIngestMalformedArchiveError, match="processable XML members"):
-        run_form990_monthly_processing_task(env=_worker_env(), s3_client=fake_s3)
+        run_form990_monthly_processing_task(env=_worker_env())
+    monkeypatch.undo()
 
 
 def test_worker_skips_archive_when_head_metadata_is_unchanged(monkeypatch):
-    fake_s3 = FakeS3()
     metadata_service = FakeArchiveMetadataService(skip_archive=True)
     monkeypatch.setattr(
         "infrastructure.charity_status.form990.monthly_processing._probe_archive_metadata",
@@ -245,35 +246,30 @@ def test_worker_skips_archive_when_head_metadata_is_unchanged(monkeypatch):
                 }
             }
         ),
-        s3_client=fake_s3,
         archive_metadata_service=metadata_service,
     )
 
     assert result["status"] == "success"
     assert result["skipped_archive"] is True
-    summary = json.loads(fake_s3.store[("dest-bucket", result["summary_s3_key"])]["Body"].decode("utf-8"))
-    assert summary["skipped_archive"] is True
-    assert summary["skip_reason"] == "unchanged_archive"
+    assert result["skip_reason"] == "unchanged_archive"
 
 
 def test_worker_skips_unchanged_xml_files_when_hash_matches():
-    fake_s3 = FakeS3()
     metadata_service = FakeArchiveMetadataService()
-    source_key = "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip"
-    fake_s3.put_object(
-        Bucket="source-bucket",
-        Key=source_key,
-        Body=_make_zip(("folder/obj-1.xml", _valid_xml())),
+    archive_bytes = _make_zip(("folder/obj-1.xml", _valid_xml()))
+    checksum = hashlib.sha256(archive_bytes).hexdigest()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "infrastructure.charity_status.form990.monthly_processing._download_source_archive",
+        lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
     first = run_form990_monthly_processing_task(
         env=_worker_env(),
-        s3_client=fake_s3,
         archive_metadata_service=metadata_service,
     )
     second = run_form990_monthly_processing_task(
         env=_worker_env(),
-        s3_client=fake_s3,
         archive_metadata_service=metadata_service,
     )
 
@@ -281,3 +277,14 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     assert second["parsed_count"] == 0
     assert second["records_processed"] == 0
     assert second["skipped_unchanged_member_count"] == 1
+    monkeypatch.undo()
+
+
+def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:
+    import tempfile
+    from pathlib import Path
+
+    handle = tempfile.NamedTemporaryFile(prefix="monthly-test-", suffix=".zip", delete=False)
+    handle.write(payload)
+    handle.close()
+    return handle.name, checksum, Path(handle.name).stat().st_size

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 import urllib.request
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Callable
-
-import boto3
 
 from charity_status.form990.extractors import (
     extract_financial_fields,
@@ -26,7 +23,6 @@ from charity_status.form990.models import (
 from charity_status.form990.parser import XmlParseError, parse_xml
 from charity_status.form990.quality import compute_filing_quality
 from charity_status.form990.relationships import extract_relationship_edges
-from charity_status.form990.storage import manifest_key, normalized_dataset_key, raw_xml_key, to_jsonl
 from charity_status.runtime_logging import configure_runtime_logging, log_structured
 
 SUPPORTED_RETURN_TYPES = {"990", "FORM_990", "990O", "990EZ", "990PF", "990T"}
@@ -37,26 +33,17 @@ LOGGING_CONFIG = configure_runtime_logging(logger=LOGGER)
 class Form990IngestService:
     def __init__(
         self,
-        bucket: str,
-        raw_prefix: str,
-        metadata_prefix: str,
-        manifest_prefix: str,
-        metrics_prefix: str,
-        governance_prefix: str,
-        quality_prefix: str,
+        bucket: str = "",
+        raw_prefix: str = "",
+        metadata_prefix: str = "",
+        manifest_prefix: str = "",
+        metrics_prefix: str = "",
+        governance_prefix: str = "",
+        quality_prefix: str = "",
         relationships_prefix: str = "form990/normalized/relationships/",
         s3_client: Any | None = None,
         nonprofit_persistence_service: Any | None = None,
     ):
-        self.bucket = bucket
-        self.raw_prefix = raw_prefix
-        self.metadata_prefix = metadata_prefix
-        self.manifest_prefix = manifest_prefix
-        self.metrics_prefix = metrics_prefix
-        self.governance_prefix = governance_prefix
-        self.quality_prefix = quality_prefix
-        self.relationships_prefix = relationships_prefix
-        self.s3 = s3_client or boto3.client("s3")
         self.nonprofit_persistence_service = nonprofit_persistence_service
 
     def ingest_index_payload(
@@ -68,15 +55,6 @@ class Form990IngestService:
         records = parse_index_records(payload)
         result = ingest_form990_records(
             records=records,
-            bucket=self.bucket,
-            raw_prefix=self.raw_prefix,
-            metadata_prefix=self.metadata_prefix,
-            manifest_prefix=self.manifest_prefix,
-            metrics_prefix=self.metrics_prefix,
-            governance_prefix=self.governance_prefix,
-            quality_prefix=self.quality_prefix,
-            relationships_prefix=self.relationships_prefix,
-            s3_client=self.s3,
             download_raw=download_raw,
             record_downloader=record_downloader,
             nonprofit_persistence_service=self.nonprofit_persistence_service,
@@ -92,22 +70,22 @@ class Form990DownloadedXml:
 
 def ingest_form990_records(
     records: list[Form990IndexRecord],
-    bucket: str | None,
-    raw_prefix: str,
-    metadata_prefix: str,
-    manifest_prefix: str,
-    metrics_prefix: str,
-    governance_prefix: str,
-    quality_prefix: str,
-    relationships_prefix: str,
-    s3_client: Any | None,
+    bucket: str | None = None,
+    raw_prefix: str = "",
+    metadata_prefix: str = "",
+    manifest_prefix: str = "",
+    metrics_prefix: str = "",
+    governance_prefix: str = "",
+    quality_prefix: str = "",
+    relationships_prefix: str = "",
+    s3_client: Any | None = None,
     download_raw: bool = False,
     downloader: Any | None = None,
     record_downloader: Any | None = None,
     nonprofit_persistence_service: Any | None = None,
     record_error_handler: Callable[[Form990IndexRecord, Exception, str], None] | None = None,
     record_cleanup_handler: Callable[[Form990IndexRecord], None] | None = None,
-    persist_artifacts: bool = True,
+    persist_artifacts: bool = False,
 ) -> Form990IngestResult:
     started = datetime.now(timezone.utc)
     downloader = downloader or _download_raw_xml
@@ -117,7 +95,7 @@ def ingest_form990_records(
         level=logging.DEBUG,
         record_count=len(records),
         download_raw=download_raw,
-        persist_artifacts=persist_artifacts,
+        persist_artifacts=False,
     )
 
     filing_records: list[dict[str, Any]] = []
@@ -169,19 +147,6 @@ def ingest_form990_records(
                     xml_bytes = downloaded
             else:
                 xml_bytes = downloader(record.xml_url)
-            raw_key = None
-            if persist_artifacts:
-                raw_key = raw_xml_key(
-                    raw_prefix,
-                    metadata.ein,
-                    metadata.tax_year,
-                    metadata.irs_object_id,
-                    source_batch=record.source_archive,
-                )
-                if s3_client is None or not bucket:
-                    raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
-                s3_client.put_object(Bucket=bucket, Key=raw_key, Body=xml_bytes)
-
             parsed = parse_xml(xml_bytes)
             extracted_meta = extract_metadata_fields(parsed)
             extracted_financials = extract_financial_fields(parsed)
@@ -199,7 +164,7 @@ def ingest_form990_records(
                     return_type=extracted_meta.get("return_type") or metadata.return_type,
                     irs_object_id=metadata.irs_object_id,
                     xml_source_reference=source_reference,
-                    raw_s3_key=raw_key,
+                    raw_file_reference=source_reference,
                     parse_status=Form990ParseStatus.PARSED,
                 ).to_dict(),
                 **extracted_financials,
@@ -285,26 +250,6 @@ def ingest_form990_records(
             governance_records.append(governance_record)
             quality_records.append(quality_record)
 
-    filing_key = None
-    metrics_key = None
-    governance_key = None
-    quality_key = None
-    relationships_key = None
-    if persist_artifacts:
-        if s3_client is None or not bucket:
-            raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
-        filing_key = normalized_dataset_key(metadata_prefix, "filings", now=started)
-        metrics_key = normalized_dataset_key(metrics_prefix, "metrics", now=started)
-        governance_key = normalized_dataset_key(governance_prefix, "governance", now=started)
-        quality_key = normalized_dataset_key(quality_prefix, "quality", now=started)
-        relationships_key = normalized_dataset_key(relationships_prefix, "relationships", now=started)
-
-        s3_client.put_object(Bucket=bucket, Key=filing_key, Body=to_jsonl(filing_records))
-        s3_client.put_object(Bucket=bucket, Key=metrics_key, Body=to_jsonl(metrics_records))
-        s3_client.put_object(Bucket=bucket, Key=governance_key, Body=to_jsonl(governance_records))
-        s3_client.put_object(Bucket=bucket, Key=quality_key, Body=to_jsonl(quality_records))
-        s3_client.put_object(Bucket=bucket, Key=relationships_key, Body=to_jsonl(relationship_records))
-
     parsed_count = sum(1 for item in filing_records if item.get("parse_status") == Form990ParseStatus.PARSED.value)
     failed_count = sum(
         1
@@ -312,25 +257,6 @@ def ingest_form990_records(
         if item.get("parse_status") in {Form990ParseStatus.MALFORMED_XML.value, Form990ParseStatus.PARSE_ERROR.value}
     )
     status = "success" if failed_count == 0 else ("partial_success" if parsed_count > 0 else "failed")
-
-    manifest = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "records_processed": len(filing_records),
-        "parsed_count": parsed_count,
-        "failed_count": failed_count,
-        "status": status,
-        "filing_records_s3_key": filing_key,
-        "metrics_s3_key": metrics_key,
-        "governance_s3_key": governance_key,
-        "quality_s3_key": quality_key,
-        "relationships_s3_key": relationships_key,
-    }
-    manifest_s3 = None
-    if persist_artifacts:
-        if s3_client is None or not bucket:
-            raise ValueError("s3_client and bucket are required when persist_artifacts is enabled")
-        manifest_s3 = manifest_key(manifest_prefix, now=started)
-        s3_client.put_object(Bucket=bucket, Key=manifest_s3, Body=json.dumps(manifest, sort_keys=True).encode("utf-8"))
 
     nonprofit_persistence = None
     if nonprofit_persistence_service is not None:
@@ -354,13 +280,8 @@ def ingest_form990_records(
         records_processed=len(filing_records),
         parsed_count=parsed_count,
         failed_count=failed_count,
-        manifest_s3_key=manifest_s3,
-        filing_records_s3_key=filing_key,
-        metrics_s3_key=metrics_key,
-        governance_s3_key=governance_key,
-        quality_s3_key=quality_key,
-        relationships_s3_key=relationships_key,
         records=filing_records,
+        artifact_paths=None,
         nonprofit_persistence=nonprofit_persistence,
     )
 
@@ -376,7 +297,7 @@ def _from_index_record(record: Form990IndexRecord) -> Form990MetadataRecord:
         return_type=record.return_type,
         irs_object_id=record.irs_object_id,
         xml_source_reference=record.xml_url,
-        raw_s3_key=None,
+        raw_file_reference=None,
         parse_status=Form990ParseStatus.INDEX_ONLY,
     )
 

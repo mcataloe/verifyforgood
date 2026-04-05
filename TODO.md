@@ -239,6 +239,26 @@ Phase 20E moves the real tenant-aware nonprofit experience onto the portal works
 
 ### Migration Triggers
 
+## TODO-ARCH-028
+
+### Title
+
+Retire remaining legacy S3-backed Form 990 orchestration paths after the local/workspace ingest runtime cutover.
+
+### Rationale
+
+The active Form 990 local and ECS-parity ingest path now persists archive and filing metadata directly to PostgreSQL and uses workspace-local artifacts instead of S3 job artifacts. Older orchestration and reconciliation modules still carry S3 manifest, raw XML, and run-store assumptions that are no longer authoritative for the active ingest runtime.
+
+### Migration Triggers
+
+- monthly worker parity requirements
+- reconciliation redesign against PostgreSQL archive/file metadata
+- retirement of legacy TEOS raw XML and S3 manifest state flows
+
+### Constraint
+
+Do not reintroduce S3-specific runtime contracts into the active archive-at-a-time ingest path; any legacy cleanup should converge the remaining orchestration modules onto the workspace-plus-PostgreSQL model.
+
 - backend address-search support for nonprofit discovery
 - customer-user IA refresh for search and review workflows
 - need to retire placeholder local datasets from the portal surface

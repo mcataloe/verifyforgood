@@ -247,10 +247,7 @@ def test_process_form990_archive_reports_xml_failures_with_file_context_without_
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted"),
         processing_context={
-            "source_bucket": "",
             "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_05a/sig-1/2026_TEOS_XML_05A.zip",
-            "destination_bucket": "",
-            "destination_prefix": "",
             "job_id": "local-cli-job",
             "correlation_id": "local-cli-corr",
             "workflow_version": "local-cli",
@@ -263,16 +260,12 @@ def test_process_form990_archive_reports_xml_failures_with_file_context_without_
             source_signature="sig-1",
             source_filename="2026_TEOS_XML_05A.zip",
         ),
-        artifact_keys=None,
-        s3_client=None,
         xml_error_handler=lambda file_name, exc, status: xml_errors.append((file_name, status)),
     )
 
     assert result["status"] == "failed"
     assert xml_errors == [("bad-object.xml", "malformed_xml")]
-    assert result["manifest_s3_key"] is None
-    assert result["artifact_index_s3_key"] is None
-    assert result["summary_s3_key"] is None
+    assert result["artifact_paths"] is None
 
 
 def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_path):
@@ -283,10 +276,7 @@ def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_pa
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted-cleanup"),
         processing_context={
-            "source_bucket": "",
             "source_key": "local/archive.zip",
-            "destination_bucket": "",
-            "destination_prefix": "",
             "job_id": "cleanup-job",
             "correlation_id": "cleanup-corr",
             "workflow_version": "local-cli",
@@ -298,8 +288,6 @@ def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_pa
             source_signature="sig-2",
             source_filename="2026_TEOS_XML_05B.zip",
         ),
-        artifact_keys=None,
-        s3_client=None,
         nonprofit_persistence_service=None,
     )
 
@@ -307,20 +295,15 @@ def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_pa
     assert list((tmp_path / "extracted-cleanup").glob("*.xml")) == []
 
 
-def test_process_form990_archive_no_s3_mode_does_not_create_s3_client(tmp_path, monkeypatch):
+def test_process_form990_archive_runs_without_bucket_based_processing(tmp_path):
     archive_path = tmp_path / "2026_TEOS_XML_05C.zip"
     archive_path.write_bytes(_make_zip(("obj-1.xml", _valid_xml())))
-
-    monkeypatch.setattr(monthly_processing.boto3, "client", lambda service: (_ for _ in ()).throw(AssertionError(service)))
 
     result = process_form990_archive(
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted-no-s3"),
         processing_context={
-            "source_bucket": "",
             "source_key": "local/archive.zip",
-            "destination_bucket": "",
-            "destination_prefix": "",
             "job_id": "no-s3-job",
             "correlation_id": "no-s3-corr",
             "workflow_version": "local-cli",
@@ -332,8 +315,6 @@ def test_process_form990_archive_no_s3_mode_does_not_create_s3_client(tmp_path, 
             source_signature="sig-3",
             source_filename="2026_TEOS_XML_05C.zip",
         ),
-        artifact_keys=None,
-        s3_client=None,
     )
 
     assert result["status"] == "success"

@@ -126,7 +126,7 @@ class NonprofitFilingModel(CustomerAccountsBase):
     source_record_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)
     xml_source_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
-    raw_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_file_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_payload: Mapped[dict[str, Any] | None] = mapped_column(
         JSON_VARIANT, nullable=True
     )
@@ -295,8 +295,14 @@ class Form990ArchiveModel(CustomerAccountsBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
-    updated_at: Mapped[datetime] = mapped_column(
+    update_started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
+    )
+    update_ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    processing_duration_ms: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True
     )
 
     extracted_files: Mapped[list["Form990ExtractedFileModel"]] = relationship(

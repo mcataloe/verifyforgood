@@ -14,7 +14,6 @@ from .sqlalchemy_repository import (
     NonprofitRecord,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
-    make_record_id,
 )
 from .query_client import PostgresNonprofitQueryClient
 from .ingest_persistence import Form990NonprofitPersistenceService, Form990PersistenceStats
@@ -34,7 +33,6 @@ __all__ = [
     "Form990ExtractedFileRecord",
     "SqlAlchemyNonprofitRepository",
     "PostgresNonprofitQueryClient",
-    "make_record_id",
     "Form990NonprofitPersistenceService",
     "Form990PersistenceStats",
 ]

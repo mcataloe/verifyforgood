@@ -47,7 +47,9 @@ class Form990ArchiveMetadataService:
             last_processed_at=previous.last_processed_at if previous is not None else None,
             status="pending" if decision.should_process else "checked",
             created_at=previous.created_at if previous is not None else now_iso,
-            updated_at=now_iso,
+            update_started_at=previous.update_started_at if previous is not None else now_iso,
+            update_ended_at=previous.update_ended_at if previous is not None else None,
+            processing_duration_ms=previous.processing_duration_ms if previous is not None else None,
         )
         persisted = self._repository.upsert_archive_probe(archive)
         return ArchiveProbeOutcome(archive=persisted, should_process=decision.should_process, reason=decision.reason)
@@ -74,9 +76,24 @@ class Form990ArchiveMetadataService:
             last_processed_at=existing.last_processed_at if existing is not None else None,
             status=status,
             created_at=existing.created_at if existing is not None else now_iso,
-            updated_at=now_iso,
+            update_started_at=existing.update_started_at if existing is not None else now_iso,
+            update_ended_at=existing.update_ended_at if existing is not None else None,
+            processing_duration_ms=existing.processing_duration_ms if existing is not None else None,
         )
         return self._repository.upsert_archive_probe(record)
+
+    def mark_archive_processing_started(
+        self,
+        archive_id: int,
+        *,
+        started_at: datetime | None = None,
+    ) -> Form990ArchiveRecord | None:
+        effective = _format_timestamp(started_at or datetime.now(timezone.utc))
+        return self._repository.mark_archive_processing(
+            archive_id,
+            started_at=effective,
+            status="processing",
+        )
 
     def get_extracted_file(self, archive_id: int, filename: str) -> Form990ExtractedFileRecord | None:
         return self._repository.get_extracted_file(archive_id, filename)
@@ -109,9 +126,39 @@ class Form990ArchiveMetadataService:
         )
         return self._repository.upsert_extracted_file(record)
 
-    def mark_archive_processed(self, archive_id: int, *, processed_at: datetime | None = None, status: str = "processed") -> None:
-        effective = _format_timestamp(processed_at or datetime.now(timezone.utc))
-        self._repository.mark_archive_processed(archive_id, effective, status)
+    def mark_archive_processing_completed(
+        self,
+        archive_id: int,
+        *,
+        started_at: datetime | None = None,
+        ended_at: datetime | None = None,
+        processed_at: datetime | None = None,
+        status: str = "processed",
+    ) -> Form990ArchiveRecord | None:
+        effective_end = ended_at or processed_at or datetime.now(timezone.utc)
+        return self._repository.mark_archive_processing(
+            archive_id,
+            started_at=_format_timestamp(started_at) if started_at is not None else None,
+            ended_at=_format_timestamp(effective_end),
+            processed_at=_format_timestamp(processed_at or effective_end),
+            status=status,
+        )
+
+    def mark_archive_processing_failed(
+        self,
+        archive_id: int,
+        *,
+        started_at: datetime | None = None,
+        failed_at: datetime | None = None,
+    ) -> Form990ArchiveRecord | None:
+        effective = failed_at or datetime.now(timezone.utc)
+        return self._repository.mark_archive_processing(
+            archive_id,
+            started_at=_format_timestamp(started_at) if started_at is not None else None,
+            ended_at=_format_timestamp(effective),
+            processed_at=_format_timestamp(effective),
+            status="failed",
+        )
 
 
 def _format_timestamp(value: datetime) -> str:

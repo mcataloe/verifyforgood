@@ -249,10 +249,7 @@ def run_local_form990_ingest_config(
             )
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             processing_context = {
-                "source_bucket": "",
                 "source_key": _local_source_key(artifact),
-                "destination_bucket": "",
-                "destination_prefix": "",
                 "job_id": f"local-cli-{run_id}-{archive_name}",
                 "correlation_id": f"local-cli-{run_id}",
                 "workflow_version": "local-cli",
@@ -271,7 +268,6 @@ def run_local_form990_ingest_config(
                 extracted_workdir=str(archive_workspace.extracted_dir),
                 processing_context=processing_context,
                 source_object=source_object,
-                artifact_keys=None,
                 started_at=datetime.now(timezone.utc),
                 archive_metadata_service=archive_metadata_service,
                 nonprofit_persistence_service=nonprofit_persistence_service,

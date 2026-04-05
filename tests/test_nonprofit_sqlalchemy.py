@@ -53,7 +53,7 @@ def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata
         last_checked_at="2026-04-03T00:00:00+00:00",
         status="pending",
         created_at="2026-04-03T00:00:00+00:00",
-        updated_at="2026-04-03T00:00:00+00:00",
+        update_started_at="2026-04-03T00:00:00+00:00",
     )
     archive = repository.upsert_archive_probe(archive)
     repository.upsert_extracted_file(
@@ -72,7 +72,13 @@ def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata
     fetched_archive = repository.get_archive_by_source_url("https://example.org/2025_TEOS_XML_01A.zip")
     fetched_file = repository.get_extracted_file(archive.archive_id, "folder/object-1.xml")
     archive_files = repository.list_extracted_files_for_archive(archive.archive_id)
-    processed = repository.mark_archive_processed(archive.archive_id, "2026-04-03T00:10:00+00:00", "processed")
+    processed = repository.mark_archive_processing(
+        archive.archive_id,
+        started_at="2026-04-03T00:00:00+00:00",
+        ended_at="2026-04-03T00:10:00+00:00",
+        processed_at="2026-04-03T00:10:00+00:00",
+        status="processed",
+    )
 
     assert fetched_archive is not None
     assert fetched_archive.etag == "etag-1"
@@ -81,6 +87,9 @@ def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata
     assert len(archive_files) == 1
     assert processed is not None
     assert processed.status == "processed"
+    assert processed.update_started_at == "2026-04-03T00:00:00+00:00"
+    assert processed.update_ended_at == "2026-04-03T00:10:00+00:00"
+    assert processed.processing_duration_ms == 600000
 
 
 def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_path: Path):
