@@ -18,6 +18,7 @@ from charity_status.form990.ingest import ingest_form990_records
 from charity_status.form990.models import Form990IndexRecord
 from charity_status.form990.parser import XmlParseError, parse_xml
 from charity_status.ingest import EcsTaskRuntimeContract, MonthlyIngestWorkflowInput
+from charity_status.ops import ProgressField, ProgressReporter
 from charity_status.runtime_logging import configure_runtime_logging, log_structured
 LOGGER = logging.getLogger(__name__)
 LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
@@ -336,6 +337,7 @@ def process_form990_archive(
     nonprofit_persistence_service: Any | None = None,
     max_xml_file_size_bytes: int = DEFAULT_MAX_XML_FILE_SIZE_BYTES,
     xml_error_handler: Callable[[str | None, Exception, str], None] | None = None,
+    progress_reporter: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     if isinstance(processing_context, _ArchiveProcessingContext):
         context = processing_context
@@ -425,6 +427,18 @@ def process_form990_archive(
         selected_member_count=len(selected_members),
     )
     if records:
+        progress_session = (
+            progress_reporter.start(
+                total_items=len(records),
+                fields=[
+                    ProgressField(key="parsed", label="parsed", color="green"),
+                    ProgressField(key="failed", label="failed", color="red"),
+                ],
+                update_every=10,
+            )
+            if progress_reporter is not None
+            else None
+        )
         try:
             ingest_result = ingest_form990_records(
                 records=records,
@@ -438,6 +452,7 @@ def process_form990_archive(
                     else None
                 ),
                 persist_artifacts=False,
+                progress_session=progress_session,
             ).to_dict()
         finally:
             _cleanup_remaining_local_xml(local_file_lookup)

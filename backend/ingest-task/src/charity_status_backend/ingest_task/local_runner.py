@@ -27,6 +27,7 @@ from charity_status.form990.source_catalog import (
     normalize_configured_sources,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
+from charity_status.ops import build_progress_reporter
 from charity_status.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
 from .orchestration import build_workspace_layout
@@ -183,6 +184,7 @@ def run_local_form990_ingest_config(
         level=runtime_logging.log_level_name,
         include_traceback=config.log_stack_traces if config.log_stack_traces is not None else runtime_logging.include_stack_traces,
     )
+    progress_reporter = build_progress_reporter()
     layout = build_workspace_layout(
         {**source_env, **({"FORM990_WORKSPACE_DIR": config.workspace} if config.workspace else {})}
     ).ensure()
@@ -280,6 +282,7 @@ def run_local_form990_ingest_config(
                     file_name=file_name or "",
                     error=exc,
                 ),
+                progress_reporter=progress_reporter,
             )
             logger.log(
                 component="form990.archive",

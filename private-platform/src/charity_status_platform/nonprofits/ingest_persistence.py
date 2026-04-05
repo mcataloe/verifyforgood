@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from charity_status.ops import ProgressSession
+
 from .sqlalchemy_repository import (
     NonprofitFilingRecord,
     NonprofitRecord,
@@ -39,6 +41,7 @@ class Form990NonprofitPersistenceService:
         filing_records: list[dict[str, Any]],
         *,
         persisted_at: datetime | None = None,
+        progress_session: ProgressSession | None = None,
     ) -> Form990PersistenceStats:
         written_nonprofits: set[int] = set()
         nonprofits_upserted = 0
@@ -51,6 +54,8 @@ class Form990NonprofitPersistenceService:
             ein = _normalize_ein(filing.get("ein"))
             if not ein:
                 skipped_records += 1
+                if progress_session is not None:
+                    progress_session.item_completed({"skipped_records": 1})
                 continue
 
             existing = self._repository.get_nonprofit_by_ein(ein)
@@ -80,6 +85,8 @@ class Form990NonprofitPersistenceService:
                 nonprofit_id = persisted_nonprofit.nonprofit_id
                 if nonprofit_id is None:
                     skipped_records += 1
+                    if progress_session is not None:
+                        progress_session.item_completed({"skipped_records": 1})
                     continue
                 written_nonprofits.add(nonprofit_id)
                 nonprofits_upserted += 1
@@ -90,9 +97,13 @@ class Form990NonprofitPersistenceService:
 
             parse_status = str(filing.get("parse_status") or "").strip().lower()
             if parse_status in IGNORED_PARSE_STATUSES:
+                if progress_session is not None:
+                    progress_session.item_completed({"filings_upserted": 1})
                 continue
             self._repository.upsert_source(_to_source_record(nonprofit_id, filing, persisted_at_iso))
             sources_upserted += 1
+            if progress_session is not None:
+                progress_session.item_completed({"filings_upserted": 1, "sources_upserted": 1})
 
         return Form990PersistenceStats(
             nonprofits_upserted=nonprofits_upserted,

@@ -27,4 +27,11 @@ Allowed runtime log fields should stay high level:
 - route keys
 - plan and billing state identifiers
 
+Interactive local backend runs may also render TTY-only progress lines for
+long-running loops. Those console updates are a developer aid only:
+
+- use them only when stdout is an interactive terminal
+- keep structured JSON events as the operational source of truth
+- do not rely on in-place progress rendering in ECS, CI, or redirected logs
+
 When deeper diagnosis is required locally, prefer `LOG_LEVEL=DEBUG` and `LOG_STACK_TRACES=true` instead of adding new raw payload logging.

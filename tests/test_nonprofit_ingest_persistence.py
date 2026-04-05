@@ -17,6 +17,14 @@ def _repository(tmp_path: Path) -> SqlAlchemyNonprofitRepository:
     return SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
 
 
+class RecordingProgressSession:
+    def __init__(self):
+        self.calls = []
+
+    def item_completed(self, increments=None):
+        self.calls.append(dict(increments or {}))
+
+
 def test_form990_persistence_service_is_repeat_safe_and_updates_existing_rows(tmp_path: Path):
     repository = _repository(tmp_path)
     service = Form990NonprofitPersistenceService(repository)
@@ -104,3 +112,54 @@ def test_ingest_form990_records_persists_to_nonprofit_repository_when_hook_is_pr
     assert len(filings) == 1
     assert len(sources) == 1
     assert filings[0].raw_file_reference == "https://example.org/obj-1.xml"
+
+
+def test_form990_persistence_service_reports_progress_after_service_level_upsert_decisions(tmp_path: Path):
+    repository = _repository(tmp_path)
+    service = Form990NonprofitPersistenceService(repository)
+    progress_session = RecordingProgressSession()
+
+    stats = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-15",
+                "return_type": "990",
+                "irs_object_id": "object-1",
+                "parse_status": "parsed",
+                "source_signature": "sig-1",
+            },
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-16",
+                "return_type": "990",
+                "irs_object_id": "object-2",
+                "parse_status": "malformed_xml",
+                "source_signature": "sig-2",
+            },
+            {
+                "ein": "",
+                "tax_year": "2024",
+                "return_type": "990",
+                "irs_object_id": "object-3",
+                "parse_status": "parsed",
+            },
+        ],
+        progress_session=progress_session,
+    )
+
+    assert stats.to_dict() == {
+        "nonprofits_upserted": 1,
+        "filings_upserted": 2,
+        "sources_upserted": 1,
+        "skipped_records": 1,
+    }
+    assert progress_session.calls == [
+        {"filings_upserted": 1, "sources_upserted": 1},
+        {"filings_upserted": 1},
+        {"skipped_records": 1},
+    ]

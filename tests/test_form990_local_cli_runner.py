@@ -130,6 +130,39 @@ def test_cli_keep_temp_preserves_workspace_files(tmp_path, monkeypatch):
     assert (workspace / "extracted" / "2026_teos_xml_02b" / "obj-1.xml").exists()
 
 
+def test_cli_passes_shared_progress_reporter_to_archive_processing(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_02D.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", b"<Return/>")))
+    captured = {}
+    progress_reporter = object()
+
+    def fake_process_form990_archive(**kwargs):
+        captured["progress_reporter"] = kwargs.get("progress_reporter")
+        return {
+            "status": "success",
+            "records_processed": 1,
+            "parsed_count": 1,
+            "failed_count": 0,
+        }
+
+    _configure_local_runner(monkeypatch)
+    monkeypatch.setattr(local_runner, "build_progress_reporter", lambda: progress_reporter)
+    monkeypatch.setattr(local_runner, "process_form990_archive", fake_process_form990_archive)
+
+    exit_code = local_runner.run_local_form990_ingest(
+        archive_url=archive_path.resolve().as_uri(),
+        single_archive=False,
+        strict=False,
+        keep_temp=False,
+        workspace=str(tmp_path / "workspace"),
+        limit=None,
+        env={},
+    )
+
+    assert exit_code == 0
+    assert captured["progress_reporter"] is progress_reporter
+
+
 def test_cli_single_archive_and_limit_bound_selected_archives(tmp_path, monkeypatch):
     archives = []
     for suffix in ("02A", "02B", "02C"):

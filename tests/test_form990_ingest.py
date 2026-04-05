@@ -12,6 +12,18 @@ class FakeS3:
         self.objects.append({"Bucket": Bucket, "Key": Key, "Body": Body})
 
 
+class RecordingProgressSession:
+    def __init__(self):
+        self.calls = []
+        self.completed = False
+
+    def item_completed(self, increments=None):
+        self.calls.append(dict(increments or {}))
+
+    def complete(self):
+        self.completed = True
+
+
 def test_ingest_manifest_and_result_success():
     records = parse_index_records([
         {
@@ -272,3 +284,42 @@ def test_ingest_supports_record_downloader_zip_reference():
     )
     assert result.parsed_count == 1
     assert result.records[0]["xml_source_reference"].startswith("s3://test-bucket/form990/raw-sources/")
+
+
+def test_ingest_updates_progress_session_and_preserves_result_shape():
+    records = parse_index_records(
+        [
+            {
+                "ein": "123456789",
+                "tax_year": "2024",
+                "filing_date": "2025-01-01",
+                "return_type": "990",
+                "irs_object_id": "obj-ok",
+                "xml_url": "https://example.org/obj-ok.xml",
+            },
+            {
+                "ein": "123456789",
+                "tax_year": "2024",
+                "filing_date": "2025-01-02",
+                "return_type": "990",
+                "irs_object_id": "obj-bad",
+                "xml_url": "https://example.org/obj-bad.xml",
+            },
+        ]
+    )
+    xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
+    progress_session = RecordingProgressSession()
+
+    result = ingest_form990_records(
+        records=records,
+        download_raw=True,
+        record_downloader=lambda record: xml_content if record.irs_object_id == "obj-ok" else b"<Return><bad></Return>",
+        progress_session=progress_session,
+    )
+
+    assert result.status == "partial_success"
+    assert result.records_processed == 2
+    assert result.parsed_count == 1
+    assert result.failed_count == 1
+    assert progress_session.calls == [{"parsed": 1}, {"failed": 1}]
+    assert progress_session.completed is True
