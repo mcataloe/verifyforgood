@@ -17,6 +17,7 @@ Archive lifecycle fields:
 - `processing_duration_ms`: total elapsed processing time in milliseconds
 - `last_processed_at`: last completion timestamp, including failed runs
 
-Known follow-up:
+Current posture:
 
-- legacy S3-backed Form 990 orchestration and reconciliation modules still exist outside the active local/ECS-parity ingest path and should be retired separately
+- the backend-owned monthly runtime no longer depends on legacy S3-backed Form 990 orchestration, reconciliation, or manifest state modules
+- Form 990 transient artifacts now stay in the workspace only; durable state lives in PostgreSQL

@@ -9,9 +9,8 @@ Entrypoints and workers:
 - `infrastructure/lambda_query.py`
 - `infrastructure/lambda_refresh.py`
 - `infrastructure/lambda_ingest.py`
-- `infrastructure/lambda_form990.py`
-- `infrastructure/lambda_form990_orchestrator.py`
-- `infrastructure/lambda_form990_worker.py`
+- `infrastructure/monthly_ingest_worker.py`
+- `infrastructure/nonprofit_ingest_persistence.py`
 
 Shared backend contracts and interfaces:
 
@@ -46,12 +45,10 @@ Current live entrypoints:
   - profile refresh job entrypoint
 - `infrastructure.lambda_ingest.handler`
   - EO/BMF ingest job entrypoint
-- `infrastructure.lambda_form990.handler`
-  - Form 990 ingest/discovery compatibility entrypoint
-- `infrastructure.lambda_form990_orchestrator.handler`
-  - current Form 990 orchestration compatibility shim
-- `infrastructure.lambda_form990_worker.handler`
-  - queued Form 990 worker compatibility entrypoint
+- `infrastructure.monthly_ingest_worker.main`
+  - workspace-plus-PostgreSQL Form 990 monthly runtime
+- `infrastructure.nonprofit_ingest_persistence.build_form990_nonprofit_persistence_service`
+  - backend-owned nonprofit persistence compatibility entrypoint
 
 ## Runtime Extraction Targets
 
@@ -63,12 +60,10 @@ Current misplaced runtime ownership still stranded in `infrastructure/`:
   - still the profile refresh runtime host
 - `infrastructure/lambda_ingest.py`
   - still the EO/BMF ingest runtime host
-- `infrastructure/lambda_form990.py`
-  - now reduced to a compatibility shim over the backend-owned Form 990 runtime
-- `infrastructure/lambda_form990_orchestrator.py`
-  - compatibility shim over the backend-owned Form 990 orchestrator entrypoint
-- `infrastructure/lambda_form990_worker.py`
-  - now reduced to a compatibility shim over the backend-owned Form 990 worker runtime
+- `infrastructure/monthly_ingest_worker.py`
+  - compatibility shim over the backend-owned monthly ingest runtime
+- `infrastructure/nonprofit_ingest_persistence.py`
+  - compatibility shim over the backend-owned nonprofit persistence service
 - `infrastructure/charity_status/api/routes.py`, `infrastructure/charity_status/api/responses.py`, and `infrastructure/charity_status/core/interfaces.py`
   - still hold transport/runtime-facing contracts under the legacy runtime path
 - `infrastructure/charity_status/platform/`
@@ -121,8 +116,8 @@ Compatibility posture for the transition:
 - `charity_status_platform.runtime.backend_contracts` remains the compatibility re-export root while shared transport/runtime contracts still live under legacy paths
 - `charity_status_platform.runtime.api_compat` remains a compatibility import root and no longer owns FastAPI assembly directly
 - `infrastructure.lambda_query` remains a thin rollback/import shim over the backend-owned API runtime
-- `infrastructure.lambda_form990`, `infrastructure.lambda_form990_worker`, and `infrastructure.lambda_form990_orchestrator` remain thin compatibility/import shims over backend-owned ingest runtime modules
-- `infrastructure.lambda_monthly_ingest_staging` and `infrastructure.monthly_ingest_worker` remain thin compatibility/import shims over backend-owned monthly ingest runtime modules
+- `infrastructure.monthly_ingest_worker` remains the thin compatibility/import shim over the backend-owned monthly ingest runtime
+- `infrastructure.nonprofit_ingest_persistence` remains the thin compatibility/import shim over backend-owned nonprofit persistence wiring
 - `infrastructure/` remains allowed to host temporary deployment shims, but should stop being the long-term owner of executable runtime logic
 
 ## Shared Contract Guidance

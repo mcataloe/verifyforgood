@@ -4,14 +4,6 @@ from infrastructure.charity_status.form990.index import parse_index_records
 from infrastructure.charity_status.form990.ingest import ingest_form990_records
 
 
-class FakeS3:
-    def __init__(self):
-        self.objects = []
-
-    def put_object(self, Bucket, Key, Body):
-        self.objects.append({"Bucket": Bucket, "Key": Key, "Body": Body})
-
-
 class RecordingProgressSession:
     def __init__(self):
         self.calls = []
@@ -24,7 +16,7 @@ class RecordingProgressSession:
         self.completed = True
 
 
-def test_ingest_manifest_and_result_success():
+def test_ingest_result_success_without_s3_artifacts():
     records = parse_index_records([
         {
             "ein": "123456789",
@@ -35,20 +27,10 @@ def test_ingest_manifest_and_result_success():
             "xml_url": "https://example.org/obj-1.xml",
         }
     ])
-    s3 = FakeS3()
     xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
 
     result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
         downloader=lambda url: xml_content,
     )
@@ -57,16 +39,11 @@ def test_ingest_manifest_and_result_success():
     assert result.records_processed == 1
     assert result.parsed_count == 1
     assert result.failed_count == 0
-    assert any(item["Key"].startswith("form990/raw/") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/metadata/filings_") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/metrics/metrics_") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/governance/governance_") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/quality/quality_") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/relationships/relationships_") for item in s3.objects)
-    assert any(item["Key"].startswith("form990/normalized/manifests/") for item in s3.objects)
+    assert result.records[0]["xml_source_reference"] == "https://example.org/obj-1.xml"
+    assert result.artifact_paths is None
 
 
-def test_ingest_uses_source_batch_aware_raw_xml_key_when_source_archive_present():
+def test_ingest_preserves_record_source_reference_when_source_archive_present():
     records = parse_index_records(
         [
             {
@@ -80,25 +57,16 @@ def test_ingest_uses_source_batch_aware_raw_xml_key_when_source_archive_present(
             }
         ]
     )
-    s3 = FakeS3()
     xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
 
-    ingest_form990_records(
+    result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
         downloader=lambda url: xml_content,
     )
 
-    assert any(item["Key"] == "form990/raw/year=2025/source_batch=2025_TEOS_XML_01A/ein=123456789/obj-batch-1.xml" for item in s3.objects)
+    assert result.records[0]["xml_source_reference"] == "https://example.org/obj-batch-1.xml"
+    assert result.records[0]["raw_file_reference"] == "https://example.org/obj-batch-1.xml"
 
 
 def test_ingest_malformed_xml_fallback():
@@ -112,19 +80,8 @@ def test_ingest_malformed_xml_fallback():
             "xml_url": "https://example.org/obj-2.xml",
         }
     ])
-    s3 = FakeS3()
-
     result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
         downloader=lambda url: b"<Return><bad></Return>",
     )
@@ -145,19 +102,8 @@ def test_ingest_unsupported_return_type_keeps_index_only():
             "xml_url": "https://example.org/obj-3.xml",
         }
     ])
-    s3 = FakeS3()
-
     result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
         downloader=lambda url: b"",
     )
@@ -179,19 +125,9 @@ def test_ingest_supports_990t_return_type():
             }
         ]
     )
-    s3 = FakeS3()
     xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
     result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
         downloader=lambda url: xml_content,
     )
@@ -266,24 +202,17 @@ def test_ingest_supports_record_downloader_zip_reference():
             }
         ]
     )
-    s3 = FakeS3()
     xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
     result = ingest_form990_records(
         records=records,
-        bucket="test-bucket",
-        raw_prefix="form990/raw/",
-        metadata_prefix="form990/normalized/metadata/",
-        manifest_prefix="form990/normalized/manifests/",
-        metrics_prefix="form990/normalized/metrics/",
-        governance_prefix="form990/normalized/governance/",
-        quality_prefix="form990/normalized/quality/",
-        relationships_prefix="form990/normalized/relationships/",
-        s3_client=s3,
         download_raw=True,
-        record_downloader=lambda record: (xml_content, "s3://test-bucket/form990/raw-sources/2024/zip_archive/a#obj-zip-1.xml"),
+        record_downloader=lambda record: (
+            xml_content,
+            "workspace://form990/raw-sources/2024/zip_archive/a/2024_TEOS_XML_01A.zip#obj-zip-1.xml",
+        ),
     )
     assert result.parsed_count == 1
-    assert result.records[0]["xml_source_reference"].startswith("s3://test-bucket/form990/raw-sources/")
+    assert result.records[0]["xml_source_reference"].startswith("workspace://form990/raw-sources/")
 
 
 def test_ingest_updates_progress_session_and_preserves_result_shape():

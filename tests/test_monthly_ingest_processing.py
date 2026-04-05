@@ -98,9 +98,7 @@ class FakeArchiveMetadataService:
 
 def _worker_env(**overrides):
     payload = {
-        "source_bucket": "source-bucket",
         "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
-        "destination_bucket": "dest-bucket",
         "destination_prefix": "form990/normalized/manifests/",
         "job_id": "job-123",
         "correlation_id": "corr-123",
@@ -112,9 +110,7 @@ def _worker_env(**overrides):
         "MONTHLY_INGEST_WORKFLOW_VERSION": payload["workflow_version"],
         "MONTHLY_INGEST_JOB_ID": payload["job_id"],
         "MONTHLY_INGEST_CORRELATION_ID": payload["correlation_id"],
-        "MONTHLY_INGEST_SOURCE_BUCKET": payload["source_bucket"],
         "MONTHLY_INGEST_SOURCE_KEY": payload["source_key"],
-        "MONTHLY_INGEST_DESTINATION_BUCKET": payload["destination_bucket"],
         "MONTHLY_INGEST_DESTINATION_PREFIX": payload["destination_prefix"],
         "MONTHLY_INGEST_INPUT_JSON": json.dumps(payload, sort_keys=True),
         "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES": "20971520",

@@ -19,9 +19,7 @@ DEFAULT_ECS_TASK_TIMEOUT_SECONDS = 14400
 DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS = 21600
 
 STEP_FUNCTION_INPUT_FIELDS: tuple[str, ...] = (
-    "source_bucket",
     "source_key",
-    "destination_bucket",
     "destination_prefix",
     "job_id",
     "correlation_id",
@@ -37,9 +35,7 @@ ECS_TASK_REQUIRED_ENV_VARS: tuple[str, ...] = (
     "MONTHLY_INGEST_WORKFLOW_VERSION",
     "MONTHLY_INGEST_JOB_ID",
     "MONTHLY_INGEST_CORRELATION_ID",
-    "MONTHLY_INGEST_SOURCE_BUCKET",
     "MONTHLY_INGEST_SOURCE_KEY",
-    "MONTHLY_INGEST_DESTINATION_BUCKET",
     "MONTHLY_INGEST_DESTINATION_PREFIX",
     "MONTHLY_INGEST_INPUT_JSON",
 )
@@ -47,9 +43,7 @@ ECS_TASK_REQUIRED_ENV_VARS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class MonthlyIngestWorkflowInput:
-    source_bucket: str
     source_key: str
-    destination_bucket: str
     destination_prefix: str
     job_id: str
     correlation_id: str
@@ -59,9 +53,7 @@ class MonthlyIngestWorkflowInput:
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            "source_bucket": self.source_bucket,
             "source_key": self.source_key,
-            "destination_bucket": self.destination_bucket,
             "destination_prefix": self.destination_prefix,
             "job_id": self.job_id,
             "correlation_id": self.correlation_id,
@@ -79,9 +71,7 @@ class MonthlyIngestWorkflowInput:
         if errors:
             raise ValueError("; ".join(errors))
         return cls(
-            source_bucket=_clean_text(payload.get("source_bucket")) or "",
             source_key=_clean_text(payload.get("source_key")) or "",
-            destination_bucket=_clean_text(payload.get("destination_bucket")) or "",
             destination_prefix=_clean_text(payload.get("destination_prefix")) or "",
             job_id=_clean_text(payload.get("job_id")) or "",
             correlation_id=_clean_text(payload.get("correlation_id")) or "",
@@ -109,38 +99,8 @@ class WorkflowRetryConfig:
 
 
 @dataclass(frozen=True)
-class EcsTaskOutputArtifact:
-    field_name: str
-    suffix: str
-    description: str
-    required: bool = True
-
-    def key_for(self, destination_prefix: str, job_id: str) -> str:
-        return f"{workflow_job_prefix(destination_prefix, job_id)}/{self.suffix.strip('/')}"
-
-
-@dataclass(frozen=True)
 class EcsTaskRuntimeContract:
     required_environment_variables: tuple[str, ...] = ECS_TASK_REQUIRED_ENV_VARS
-    expected_output_artifacts: tuple[EcsTaskOutputArtifact, ...] = field(
-        default_factory=lambda: (
-            EcsTaskOutputArtifact(
-                field_name="manifest_s3_key",
-                suffix="manifest.json",
-                description="Task-level manifest describing processed artifacts for the job.",
-            ),
-            EcsTaskOutputArtifact(
-                field_name="artifact_index_s3_key",
-                suffix="artifacts.json",
-                description="Index of downstream S3 artifacts produced by the task.",
-            ),
-            EcsTaskOutputArtifact(
-                field_name="summary_s3_key",
-                suffix="summary.json",
-                description="Compact task summary for orchestration status checks and retries.",
-            ),
-        )
-    )
 
     def validate_payload(self, payload: Mapping[str, Any]) -> list[str]:
         return validate_step_function_input_payload(payload)
@@ -162,9 +122,7 @@ class EcsTaskRuntimeContract:
             "MONTHLY_INGEST_WORKFLOW_VERSION": contract_input.workflow_version,
             "MONTHLY_INGEST_JOB_ID": contract_input.job_id,
             "MONTHLY_INGEST_CORRELATION_ID": contract_input.correlation_id,
-            "MONTHLY_INGEST_SOURCE_BUCKET": contract_input.source_bucket,
             "MONTHLY_INGEST_SOURCE_KEY": contract_input.source_key,
-            "MONTHLY_INGEST_DESTINATION_BUCKET": contract_input.destination_bucket,
             "MONTHLY_INGEST_DESTINATION_PREFIX": contract_input.destination_prefix,
             "MONTHLY_INGEST_INPUT_JSON": json.dumps(payload, sort_keys=True),
         }
@@ -287,9 +245,7 @@ class MonthlyIngestWorkflowConfig:
 
 def shape_step_function_input(
     *,
-    source_bucket: str,
     source_key: str,
-    destination_bucket: str,
     destination_prefix: str,
     job_id: str,
     correlation_id: str | None = None,
@@ -298,9 +254,7 @@ def shape_step_function_input(
     skip_staging: bool = False,
 ) -> MonthlyIngestWorkflowInput:
     payload: dict[str, Any] = {
-        "source_bucket": source_bucket,
         "source_key": source_key,
-        "destination_bucket": destination_bucket,
         "destination_prefix": destination_prefix,
         "job_id": job_id,
         "correlation_id": correlation_id or job_id,
@@ -330,26 +284,6 @@ def validate_step_function_input_payload(payload: Mapping[str, Any] | None) -> l
         except ValueError as exc:
             errors.append(str(exc))
     return errors
-
-
-def workflow_job_prefix(destination_prefix: str, job_id: str) -> str:
-    base = str(destination_prefix or "").strip().strip("/")
-    job = _safe_path_segment(job_id, default="unknown-job")
-    if not base:
-        return f"monthly-workflows/jobs/{job}"
-    return f"{base}/monthly-workflows/jobs/{job}"
-
-
-def workflow_manifest_key(destination_prefix: str, job_id: str) -> str:
-    return f"{workflow_job_prefix(destination_prefix, job_id)}/manifest.json"
-
-
-def workflow_artifact_index_key(destination_prefix: str, job_id: str) -> str:
-    return f"{workflow_job_prefix(destination_prefix, job_id)}/artifacts.json"
-
-
-def workflow_summary_key(destination_prefix: str, job_id: str) -> str:
-    return f"{workflow_job_prefix(destination_prefix, job_id)}/summary.json"
 
 
 def default_interface_endpoint_services() -> tuple[VpcEndpointServiceConfig, ...]:
@@ -477,11 +411,6 @@ def _positive_float(value: Any, *, default: float, field_name: str) -> float:
     return parsed
 
 
-def _safe_path_segment(value: str | None, *, default: str) -> str:
-    candidate = str(value or "").strip().replace("/", "_")
-    return candidate or default
-
-
 def _mapping_or_none(value: Any) -> Mapping[str, Any] | None:
     if value is None:
         return None
@@ -518,7 +447,6 @@ __all__ = [
     "DEFAULT_STAGING_LAMBDA_TIMEOUT_SECONDS",
     "DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS",
     "ECS_TASK_REQUIRED_ENV_VARS",
-    "EcsTaskOutputArtifact",
     "EcsTaskRuntimeContract",
     "MonthlyIngestWorkflowConfig",
     "MonthlyIngestWorkflowInput",
@@ -532,8 +460,4 @@ __all__ = [
     "load_monthly_ingest_workflow_config",
     "shape_step_function_input",
     "validate_step_function_input_payload",
-    "workflow_artifact_index_key",
-    "workflow_job_prefix",
-    "workflow_manifest_key",
-    "workflow_summary_key",
 ]

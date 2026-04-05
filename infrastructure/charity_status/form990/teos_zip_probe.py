@@ -3,13 +3,15 @@ from __future__ import annotations
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable, Protocol
 from urllib.error import HTTPError
 
 from charity_status.form990.hardening import is_transient_network_error, retry_call
 
-if TYPE_CHECKING:
-    from charity_status.form990.teos_manifest import TeosZipManifestRecord
+class TeosZipProbeState(Protocol):
+    etag: str | None
+    last_modified: str | None
+    content_length: int | None
 
 
 @dataclass(frozen=True)
@@ -84,7 +86,7 @@ def probe_teos_zip_metadata(
 
 def should_download_teos_zip(
     *,
-    previous: TeosZipManifestRecord | None,
+    previous: TeosZipProbeState | None,
     current_probe: TeosZipProbeResult,
 ) -> TeosZipDownloadDecision:
     if previous is None:

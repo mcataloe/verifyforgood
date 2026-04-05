@@ -61,9 +61,7 @@ def test_runtime_entrypoint_map_covers_live_backend_handlers():
         "public_api",
         "profile_refresh_job",
         "eo_ingest_job",
-        "form990_ingest_job",
-        "form990_orchestrator",
-        "form990_worker",
+        "monthly_ingest_job",
     }
 
     public_api = entrypoint_by_surface("public_api")
@@ -101,6 +99,7 @@ def test_split_plan_tracks_shared_contracts_and_test_layers():
     assert backend_targets["public_api"]["current_handler"] == "infrastructure.lambda_query.handler"
     assert backend_targets["public_api"]["target_directory"] == "backend/api/"
     assert backend_targets["profile_refresh_job"]["target_directory"] == "backend/worker/"
+    assert backend_targets["monthly_ingest_job"]["target_directory"] == "backend/ingest-task/"
     assert backend_targets["runtime_shared_contracts"]["target_directory"] == "backend/shared/"
 
 
@@ -156,7 +155,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`FORM990_WORKSPACE_DIR`" in readiness_text
     assert "`archives/`, `extracted/`, `logs/`, and `state/`" in readiness_text
     assert "thin rollback/import shim" in readiness_text
-    assert "thin compatibility/import shims over backend-owned ingest runtime modules" in readiness_text
+    assert "workspace-plus-PostgreSQL Form 990 monthly runtime" in readiness_text
     assert "Shared Contract Guidance" in readiness_text
     assert "Remaining Blockers Before Frontend Scaffolding" in readiness_text
 
@@ -167,7 +166,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/ingest-task/`" in backend_text
     assert "`backend/shared/`" in backend_text
     assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
-    assert "python -m charity_status_backend.ingest_task.cli form990" in backend_text
+    assert "python -m charity_status_backend.ingest_task.cli monthly-worker" in backend_text
     assert "charity_status_backend.shared.local_dev db-upgrade" in backend_text
     assert "verification_platform" in backend_text
     assert "backend/api/Dockerfile" in backend_text

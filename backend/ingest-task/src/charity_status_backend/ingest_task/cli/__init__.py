@@ -42,22 +42,7 @@ def _dispatch(command: str, event: dict[str, Any]) -> Any:
         from ..monthly import worker as monthly_worker
 
         return monthly_worker.main()
-    if command == "form990":
-        from ..form990 import runtime as form990_runtime
-
-        return form990_runtime.handler(event, None)
-    if command == "form990-worker":
-        from ..form990 import worker as form990_worker
-
-        return form990_worker.handler(event, None)
-    if command == "form990-orchestrator":
-        from ..form990 import orchestrator as form990_orchestrator
-
-        return form990_orchestrator.handler(event, None)
-
-    from ..monthly import staging as monthly_staging
-
-    return monthly_staging.handler(event, None)
+    raise ValueError(f"unsupported ingest-task command: {command}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("ecs-run", "form990", "form990-worker", "form990-orchestrator", "monthly-staging", "monthly-worker"),
+        choices=("ecs-run", "monthly-worker"),
     )
     parser.add_argument("--event-json")
     parser.add_argument("--event-file")

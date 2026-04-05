@@ -17,19 +17,10 @@ for path in (INFRASTRUCTURE_SRC, PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC):
 RUNTIME_NAME = "ingest_task"
 CURRENT_COMPATIBILITY_SOURCES = (
     "infrastructure.lambda_ingest.handler",
-    "infrastructure.lambda_form990.handler",
-    "infrastructure.lambda_form990_orchestrator.handler",
-    "infrastructure.lambda_form990_worker.handler",
-    "infrastructure.lambda_monthly_ingest_staging.handler",
     "infrastructure.monthly_ingest_worker.main",
+    "infrastructure.nonprofit_ingest_persistence.build_form990_nonprofit_persistence_service",
 )
 CANONICAL_LOCAL_ENTRYPOINT = "python -m charity_status_backend.ingest_task.cli.monthly_ingest_task"
-
-__all__ = [
-    "RUNTIME_NAME",
-    "CURRENT_COMPATIBILITY_SOURCES",
-    "CANONICAL_LOCAL_ENTRYPOINT",
-]
 
 FORM990_WORKSPACE_MODULES = (
     "charity_status_backend.ingest_task.discovery",
@@ -46,5 +37,6 @@ FORM990_WORKSPACE_MODULES = (
 __all__ = [
     "RUNTIME_NAME",
     "CURRENT_COMPATIBILITY_SOURCES",
+    "CANONICAL_LOCAL_ENTRYPOINT",
     "FORM990_WORKSPACE_MODULES",
 ]

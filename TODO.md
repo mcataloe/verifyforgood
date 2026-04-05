@@ -259,6 +259,15 @@ The active Form 990 local and ECS-parity ingest path now persists archive and fi
 
 Do not reintroduce S3-specific runtime contracts into the active archive-at-a-time ingest path; any legacy cleanup should converge the remaining orchestration modules onto the workspace-plus-PostgreSQL model.
 
+### Status
+
+Backend runtime cutover completed for the active Form 990 monthly path:
+
+- retired backend-owned Lambda/S3-era Form 990 runtime hosts and staging shims
+- removed S3-shaped monthly worker env requirements from the backend workflow contract
+- removed legacy Form 990 manifest/raw-XML helper modules from the backend runtime path
+- kept the workspace-plus-PostgreSQL monthly runtime as the only supported backend execution model
+
 - backend address-search support for nonprofit discovery
 - customer-user IA refresh for search and review workflows
 - need to retire placeholder local datasets from the portal surface
@@ -304,6 +313,12 @@ manifest state.
 
 Keep current monthly-task archive/file change detection stable while the TEOS
 runtime finishes moving off the compatibility manifest.
+
+### Status
+
+The active backend monthly runtime no longer depends on the TEOS S3 manifest.
+Any remaining follow-up is limited to non-backend infra/history cleanup rather
+than the current workspace/PostgreSQL ingest path.
 
 - audit log export to a data warehouse or lake
 - BI dashboards built on nonprofit access activity

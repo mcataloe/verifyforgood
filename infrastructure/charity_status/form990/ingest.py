@@ -34,15 +34,7 @@ LOGGING_CONFIG = configure_runtime_logging(logger=LOGGER)
 class Form990IngestService:
     def __init__(
         self,
-        bucket: str = "",
-        raw_prefix: str = "",
-        metadata_prefix: str = "",
-        manifest_prefix: str = "",
-        metrics_prefix: str = "",
-        governance_prefix: str = "",
-        quality_prefix: str = "",
         relationships_prefix: str = "form990/normalized/relationships/",
-        s3_client: Any | None = None,
         nonprofit_persistence_service: Any | None = None,
     ):
         self.nonprofit_persistence_service = nonprofit_persistence_service
@@ -71,15 +63,7 @@ class Form990DownloadedXml:
 
 def ingest_form990_records(
     records: list[Form990IndexRecord],
-    bucket: str | None = None,
-    raw_prefix: str = "",
-    metadata_prefix: str = "",
-    manifest_prefix: str = "",
-    metrics_prefix: str = "",
-    governance_prefix: str = "",
-    quality_prefix: str = "",
     relationships_prefix: str = "",
-    s3_client: Any | None = None,
     download_raw: bool = False,
     downloader: Any | None = None,
     record_downloader: Any | None = None,

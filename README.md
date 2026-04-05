@@ -240,7 +240,7 @@ Important:
 ## AWS Data Flow
 
 1. `lambda_ingest.py` downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into S3.
-2. `lambda_form990.py` ingests Form 990 index/XML and writes normalized JSONL datasets.
+2. The monthly Form 990 ingest worker downloads IRS ZIP archives into the workspace, parses XML members, and persists normalized filing/source metadata to PostgreSQL.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
 4. The ECS-hosted API handles verification/scoring endpoints, while
    `lambda_query.py` remains the deprecated rollback implementation.
@@ -263,16 +263,10 @@ S3 prefixes (configurable via Terraform variables):
 
 Operational note:
 
-- `lambda_form990` processes explicit `records[]` input, or (when `records` is omitted) can fetch records from configured IRS index URLs (`FORM990_INDEX_URL` / `FORM990_INDEX_URLS`).
-- `lambda_form990` now defaults to repo-backed source-catalog discovery (`FORM990_SOURCE_MODE=static_manifest`), which reads the checked-in [`infrastructure/charity_status/form990/Form990Links.txt`](infrastructure/charity_status/form990/Form990Links.txt) manifest for known yearly CSV/ZIP artifacts.
-- each discovery run also scrapes the IRS Form 990 downloads page to discover TEOS ZIP batches for the selected target years and persists a separate ZIP manifest state for later download/extract/process phases
-- each discovered TEOS ZIP is probed with `HEAD` metadata before download; unchanged ZIP batches are skipped on rerun while the manifest still refreshes `last_checked_at`, `ETag`, `Last-Modified`, and `Content-Length` when available
-- `FORM990_SOURCE_MODE=configured` remains available for manual source catalogs and index URLs, and `FORM990_SOURCE_MODE=irs_page` remains available only as a legacy compatibility path.
-- static discovery can also synthesize one next-year TEOS source set from the latest explicit TEOS year in the manifest so the pipeline can keep pace when the checked-in manifest lags by one year.
-- generated next-year sources are advisory: if IRS has not published one yet, the source-download stage records it as `skipped_unavailable` and continues; explicit manifest/configured sources still fail hard.
-- If neither explicit records nor index URLs are provided, the default discovery path runs against the repo-backed static manifest.
-- Raw XML download defaults to `FORM990_DEFAULT_DOWNLOAD_RAW=true` unless overridden per invocation with `download_raw`.
-- the monthly ZIP-processing path documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md) now includes the Step Functions conductor, EventBridge schedule integration, staging Lambda S3 handoff, and a managed ECS task-definition pattern for the worker; environments still need an ECS cluster ARN plus image build/push automation.
+- the active backend Form 990 runtime is the monthly workspace-based worker path documented in [`docs/monthly-ingest-architecture.md`](docs/monthly-ingest-architecture.md)
+- the worker downloads one ZIP archive at a time into the workspace, probes archive metadata with `HEAD`, parses extracted XML members locally, and persists archive/file state to PostgreSQL
+- unchanged archives are skipped using HTTP probe metadata and unchanged extracted XML members are skipped using stored content hashes
+- transient ZIP/XML artifacts stay in the workspace only; the backend runtime no longer depends on S3-backed manifest or raw-XML state for the active monthly path
 
 ## Monthly Private-Ingest Overview
 

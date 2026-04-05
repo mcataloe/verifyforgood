@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from urllib.error import HTTPError
 
-from infrastructure.charity_status.form990.teos_manifest import TeosZipManifestRecord
 from infrastructure.charity_status.form990.teos_zip_probe import probe_teos_zip_metadata, should_download_teos_zip
+
+
+@dataclass(frozen=True)
+class _PreviousProbeState:
+    etag: str | None
+    last_modified: str | None
+    content_length: int | None
 
 
 class _FakeResponse:
@@ -94,21 +101,10 @@ def test_should_download_teos_zip_when_no_previous_manifest_record_exists():
 
 
 def test_should_download_teos_zip_when_probe_metadata_changes():
-    previous = TeosZipManifestRecord(
-        tax_year="2025",
-        source_url="https://example.org/2025_TEOS_XML_01A.zip",
-        zip_basename="2025_TEOS_XML_01A",
-        discovered_at="2026-03-20T00:00:00+00:00",
-        last_checked_at="2026-03-20T00:00:00+00:00",
-        resolved_source_url="https://example.org/2025_TEOS_XML_01A.zip",
-        content_length=1234,
+    previous = _PreviousProbeState(
         etag='"etag-1"',
         last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
-        current_sync_status="checked",
-        download_status="skipped_unchanged",
-        extraction_status="pending",
-        processing_status="pending",
-        destination_raw_s3_prefix="form990/raw/year=2025/source_batch=2025_TEOS_XML_01A",
+        content_length=1234,
     )
     current = probe_teos_zip_metadata(
         "https://example.org/2025_TEOS_XML_01A.zip",
@@ -125,21 +121,10 @@ def test_should_download_teos_zip_when_probe_metadata_changes():
 
 
 def test_should_download_teos_zip_skips_unchanged_remote_zip():
-    previous = TeosZipManifestRecord(
-        tax_year="2025",
-        source_url="https://example.org/2025_TEOS_XML_01A.zip",
-        zip_basename="2025_TEOS_XML_01A",
-        discovered_at="2026-03-20T00:00:00+00:00",
-        last_checked_at="2026-03-20T00:00:00+00:00",
-        resolved_source_url="https://example.org/2025_TEOS_XML_01A.zip",
-        content_length=1234,
+    previous = _PreviousProbeState(
         etag='"etag-1"',
         last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
-        current_sync_status="checked",
-        download_status="skipped_unchanged",
-        extraction_status="pending",
-        processing_status="pending",
-        destination_raw_s3_prefix="form990/raw/year=2025/source_batch=2025_TEOS_XML_01A",
+        content_length=1234,
     )
     current = probe_teos_zip_metadata(
         "https://example.org/2025_TEOS_XML_01A.zip",

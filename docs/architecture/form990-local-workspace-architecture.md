@@ -84,15 +84,14 @@ Canonical backend-owned module seams:
 This phase defines the architecture and scaffolding, not the full logic
 relocation.
 
-Current live logic still relies heavily on:
+Current live logic now routes through:
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/runtime.py`
-- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/worker.py`
+- `backend/ingest-task/src/charity_status_backend/ingest_task/monthly/worker.py`
+- `backend/ingest-task/src/charity_status_backend/ingest_task/persistence.py`
 - `infrastructure/charity_status/form990/`
 
-That is acceptable for now. New runtime work should move responsibilities into
-the workspace-oriented seams instead of adding more archive lifecycle behavior
-directly into the legacy runtime hosts.
+New runtime work should keep moving responsibilities into the workspace-oriented
+seams instead of reintroducing Lambda/S3-era runtime hosts.
 
 Current Phase 27F note:
 
@@ -102,8 +101,8 @@ Current Phase 27F note:
   upstream source URL is available in schedule context
 - unchanged extracted XML members can be skipped from deterministic normalized
   file hashes
-- the older TEOS S3 manifest remains in compatibility use for parts of the
-  broader discovery runtime and is not yet fully retired
+- the active backend monthly runtime no longer depends on the older TEOS S3
+  manifest or S3-backed raw-XML state
 
 ## Local And ECS Mapping
 

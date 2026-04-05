@@ -18,7 +18,7 @@ Target subdirectories:
 - `backend/worker/`
   - non-HTTP worker runtimes such as refresh jobs and future background workers
 - `backend/ingest-task/`
-  - EO/BMF and Form 990 task runtimes, including ECS task and queue/chunk-processing hosts
+  - EO/BMF and Form 990 task runtimes, including the monthly ECS worker and local workspace processing hosts
 - `backend/shared/`
   - runtime-only shared bootstrap/config/logging/request helpers and compatibility exports
 
@@ -40,8 +40,8 @@ Dependency direction:
 
 Migration note:
 
-- live runtime entrypoints still remain under `infrastructure/lambda_*.py` in this phase
-- those modules should shrink into compatibility shims as backend runtime hosts are introduced in later phases
+- the remaining deploy-time compatibility shims are limited to the rollback API handler, the monthly ingest worker, and nonprofit persistence wiring
+- backend runtime logic should continue moving out of `infrastructure/`
 
 Local development:
 
@@ -119,9 +119,6 @@ python -m ingest_task.cli run
 python -m ingest_task.cli run --archive-url https://example.org/2026_TEOS_XML_02A.zip --strict --keep-temp
 python -m charity_status_backend.ingest_task.cli run --limit 1
 python -m charity_status_backend.ingest_task.cli ecs-run
-python -m charity_status_backend.ingest_task.cli form990
-python -m charity_status_backend.ingest_task.cli form990-worker
-python -m charity_status_backend.ingest_task.cli monthly-staging
 python -m charity_status_backend.ingest_task.cli monthly-worker
 ```
 
@@ -152,6 +149,4 @@ Container notes:
 - keep image ownership in `backend/`, not `infrastructure/`
 - GitLab CI now builds all three backend runtime images and publishes them to
   the Terraform-managed ECR repositories using commit-SHA tags
-- the ingest-task image defaults to `monthly-worker` and supports later ECS
-  command overrides such as `form990`, `form990-worker`, and
-  `form990-orchestrator`
+- the ingest-task image defaults to `monthly-worker`

@@ -42,7 +42,7 @@ def test_form990_persistence_service_is_repeat_safe_and_updates_existing_rows(tm
         "source_archive": "2024_TEOS_XML_01A",
         "source_year": "2024",
         "source_signature": "sig-1",
-        "xml_source_reference": "s3://bucket/archive.zip#object-1.xml",
+        "xml_source_reference": "workspace://form990/raw-sources/2024/zip_archive/2024_teos_xml_01a/sig-1/2024_TEOS_XML_01A.zip#object-1.xml",
         "raw_file_reference": "workspace://form990/raw-sources/2024/zip_archive/2024_TEOS_XML_01A/object-1.xml",
     }
     updated = {

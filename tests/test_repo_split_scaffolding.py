@@ -102,12 +102,8 @@ def test_package_scaffolding_roots_exist():
     assert (backend_ingest_package / "cli.py").exists()
     assert backend_ingest_form990.exists()
     assert (backend_ingest_form990 / "__init__.py").exists()
-    assert (backend_ingest_form990 / "runtime.py").exists()
-    assert (backend_ingest_form990 / "worker.py").exists()
-    assert (backend_ingest_form990 / "orchestrator.py").exists()
     assert backend_ingest_monthly.exists()
     assert (backend_ingest_monthly / "__init__.py").exists()
-    assert (backend_ingest_monthly / "staging.py").exists()
     assert (backend_ingest_monthly / "worker.py").exists()
     assert backend_ingest_discovery.exists()
     assert (backend_ingest_discovery / "__init__.py").exists()
@@ -191,8 +187,7 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "backend/worker/Dockerfile" in backend_worker_text
     assert "private-subnet ECS service" in backend_worker_text
     assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
-    assert "python -m charity_status_backend.ingest_task.cli form990" in backend_ingest_text
-    assert "monthly/staging.py" in backend_ingest_text
+    assert "python -m charity_status_backend.ingest_task.cli monthly-worker" in backend_ingest_text
     assert "monthly/worker.py" in backend_ingest_text
     assert "backend/ingest-task/Dockerfile" in backend_ingest_text
     assert "ECS task definition invoked by schedules or one-off runs" in backend_ingest_text
@@ -276,7 +271,7 @@ def test_vscode_launch_config_preserves_node_entry_and_adds_form990_python_profi
     assert '"module": "ingest_task.cli"' in launch_text
     assert '"name": "Form990 ECS Parity"' in launch_text
     assert '"module": "charity_status_backend.ingest_task.cli"' in launch_text
-    assert '"WORKSPACE_PATH": "${workspaceFolder}/.workspace/form990"' in launch_text
+    assert '"FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990"' in launch_text
 
 
 def test_split_plan_records_operational_layers_and_backend_targets():
@@ -297,9 +292,7 @@ def test_split_plan_records_operational_layers_and_backend_targets():
     assert targets["public_api"]["target_directory"] == "backend/api/"
     assert targets["profile_refresh_job"]["target_directory"] == "backend/worker/"
     assert targets["eo_ingest_job"]["target_directory"] == "backend/ingest-task/"
-    assert targets["form990_ingest_job"]["target_directory"] == "backend/ingest-task/"
-    assert targets["form990_orchestrator"]["target_directory"] == "backend/ingest-task/"
-    assert targets["form990_worker"]["target_directory"] == "backend/ingest-task/"
+    assert targets["monthly_ingest_job"]["target_directory"] == "backend/ingest-task/"
     assert targets["runtime_shared_contracts"]["target_directory"] == "backend/shared/"
 
 

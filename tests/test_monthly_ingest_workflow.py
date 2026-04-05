@@ -6,25 +6,18 @@ from charity_status.ingest import (
     load_monthly_ingest_workflow_config,
     shape_step_function_input,
     validate_step_function_input_payload,
-    workflow_artifact_index_key,
-    workflow_manifest_key,
-    workflow_summary_key,
 )
 
 
 def test_shape_step_function_input_defaults_correlation_id_to_job_id():
     payload = shape_step_function_input(
-        source_bucket="source-bucket",
         source_key="raw/monthly/2026-02.zip",
-        destination_bucket="dest-bucket",
         destination_prefix="ops/manifests/",
         job_id="job-123",
     )
 
     assert payload.to_dict() == {
-        "source_bucket": "source-bucket",
         "source_key": "raw/monthly/2026-02.zip",
-        "destination_bucket": "dest-bucket",
         "destination_prefix": "ops/manifests/",
         "job_id": "job-123",
         "correlation_id": "job-123",
@@ -35,9 +28,7 @@ def test_shape_step_function_input_defaults_correlation_id_to_job_id():
 def test_validate_step_function_input_payload_reports_missing_required_fields():
     errors = validate_step_function_input_payload(
         {
-            "source_bucket": "bucket",
             "source_key": "",
-            "destination_bucket": "bucket",
             "destination_prefix": "ops/manifests/",
             "job_id": "job-123",
             "correlation_id": "",
@@ -51,9 +42,7 @@ def test_validate_step_function_input_payload_reports_missing_required_fields():
 
 def test_shape_step_function_input_supports_optional_schedule_context_and_skip_staging():
     payload = shape_step_function_input(
-        source_bucket="source-bucket",
         source_key="raw/monthly/2026-02.zip",
-        destination_bucket="dest-bucket",
         destination_prefix="ops/manifests/",
         job_id="job-123",
         schedule_context={"trigger": "eventbridge"},
@@ -67,9 +56,7 @@ def test_shape_step_function_input_supports_optional_schedule_context_and_skip_s
 
 def test_ecs_task_runtime_contract_builds_valid_environment():
     workflow_input = shape_step_function_input(
-        source_bucket="source-bucket",
         source_key="raw/monthly/2026-02.zip",
-        destination_bucket="dest-bucket",
         destination_prefix="ops/manifests/",
         job_id="job-123",
         correlation_id="corr-123",
@@ -83,13 +70,6 @@ def test_ecs_task_runtime_contract_builds_valid_environment():
     assert payload["job_id"] == "job-123"
     assert payload["correlation_id"] == "corr-123"
     assert env["MONTHLY_INGEST_WORKFLOW_NAME"] == "monthly-ingest-prod"
-
-
-def test_output_artifact_key_helpers_use_stable_job_scoped_layout():
-    assert workflow_manifest_key("ops/manifests/", "job-123") == "ops/manifests/monthly-workflows/jobs/job-123/manifest.json"
-    assert workflow_artifact_index_key("ops/manifests/", "job-123") == "ops/manifests/monthly-workflows/jobs/job-123/artifacts.json"
-    assert workflow_summary_key("ops/manifests/", "job-123") == "ops/manifests/monthly-workflows/jobs/job-123/summary.json"
-
 
 def test_monthly_ingest_workflow_config_loads_env_and_resolves_endpoint_services():
     config = load_monthly_ingest_workflow_config(

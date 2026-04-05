@@ -3,9 +3,8 @@
 Target ownership for `backend/ingest-task/`:
 
 - EO/BMF ingest runtime host
-- Form 990 ingest/discovery runtime host
-- Form 990 orchestration and chunk-processing task hosts
-- ECS task entrypoints and queue/chunk-processing runtime assembly for ingest workloads
+- Form 990 monthly workspace runtime host
+- ECS task entrypoints and local workspace runtime assembly for ingest workloads
 
 Python package root:
 
@@ -16,10 +15,6 @@ Python package root:
   - `python -m ingest_task.cli run --archive-url <url>`
   - `python -m charity_status_backend.ingest_task.cli run`
   - `python -m charity_status_backend.ingest_task.cli ecs-run`
-  - `python -m charity_status_backend.ingest_task.cli form990`
-  - `python -m charity_status_backend.ingest_task.cli form990-worker`
-  - `python -m charity_status_backend.ingest_task.cli form990-orchestrator`
-  - `python -m charity_status_backend.ingest_task.cli monthly-staging`
   - `python -m charity_status_backend.ingest_task.cli monthly-worker`
 
 Local Form 990 debug runner:
@@ -41,9 +36,7 @@ Container build/run:
 docker build -f backend/ingest-task/Dockerfile .
 docker run --env-file backend/.env.local <ingest-image>
 docker run --env-file backend/.env.local <ingest-image> run --archive-url https://example.org/2026_TEOS_XML_02A.zip
-docker run --env-file backend/.env.local <ingest-image> form990
-docker run --env-file backend/.env.local <ingest-image> form990-worker
-docker run --env-file backend/.env.local <ingest-image> form990-orchestrator
+docker run --env-file backend/.env.local <ingest-image> monthly-worker
 ```
 
 Container contract:
@@ -55,13 +48,7 @@ Container contract:
   not a long-lived worker service
 - supported command overrides:
   - `ecs-run`
-  - `form990`
-  - `form990-worker`
-  - `form990-orchestrator`
-  - `monthly-staging`
   - `monthly-worker`
-- monthly staging remains Lambda-oriented even though the CLI supports local
-  invocation of the staging runtime shape
 - managed ECS parity path now routes through `ecs-run`, which reuses the same
   orchestration core as local `run`
 
@@ -75,14 +62,6 @@ ECS/local parity env aliases:
 
 Backend-owned runtime modules:
 
-- `form990/runtime.py`
-  - primary Form 990 discovery and orchestration runtime
-- `form990/worker.py`
-  - Form 990 chunk-processing worker runtime
-- `form990/orchestrator.py`
-  - compatibility orchestrator entrypoint
-- `monthly/staging.py`
-  - monthly staging Lambda runtime ownership
 - `monthly/worker.py`
   - monthly ECS worker runtime ownership
 - `persistence.py`
@@ -147,20 +126,19 @@ Current migration boundary:
 
 - `backend/ingest-task` is now the canonical runtime architecture home for the local-first Form 990 workspace model
 - reusable parser and batch-processing logic under `infrastructure/charity_status/form990/` still remains in place while the runtime migrates toward the new module seams
-- `form990/runtime.py` and `form990/worker.py` still own the live compatibility behavior today, but future refactors should move archive download, extraction, parsing, persistence, and cleanup responsibilities through the new module map rather than adding more logic directly to the runtime hosts
-- PostgreSQL-backed archive/file change tracking is now owned here for the monthly task path; broader TEOS manifest retirement remains an incremental follow-on step while compatibility shims still exist
+- PostgreSQL-backed archive/file change tracking now owns the active monthly task path end to end
+- future refactors should keep moving archive download, extraction, parsing, persistence, and cleanup responsibilities through the module map rather than reintroducing Lambda/S3-era runtime hosts
 
 Planned inbound migration:
 
 - `infrastructure.lambda_ingest`
-- `infrastructure.lambda_form990`
-- `infrastructure.lambda_form990_orchestrator`
-- `infrastructure.lambda_form990_worker`
+- `infrastructure.monthly_ingest_worker`
+- `infrastructure.nonprofit_ingest_persistence`
 
 Temporary compatibility note:
 
 - checked-in runtime assets such as `infrastructure/charity_status/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
 - infrastructure-owned deployment wiring may continue to reference compatibility shims during the transition
-- `infrastructure.lambda_form990`, `infrastructure.lambda_form990_worker`, `infrastructure.lambda_form990_orchestrator`, `infrastructure.lambda_monthly_ingest_staging`, `infrastructure.monthly_ingest_worker`, and `infrastructure.nonprofit_ingest_persistence` now remain as thin compatibility adapters
+- `infrastructure.monthly_ingest_worker` and `infrastructure.nonprofit_ingest_persistence` remain as thin compatibility adapters
 - the ECS task definition should now align to this backend-owned image contract
   rather than an infrastructure-owned Dockerfile path

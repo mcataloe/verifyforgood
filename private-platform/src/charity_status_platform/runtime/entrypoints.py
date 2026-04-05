@@ -49,31 +49,15 @@ ENTRYPOINTS = (
         notes=("Downloads and persists EO/BMF source files.",),
     ),
     BackendEntrypoint(
-        surface="form990_ingest_job",
-        current_module="infrastructure.lambda_form990",
-        current_handler="handler",
+        surface="monthly_ingest_job",
+        current_module="infrastructure.monthly_ingest_worker",
+        current_handler="main",
         target_service_area="runtime",
         runtime_kind="job_handler",
         notes=(
-            "Acts as the primary Form 990 ingest entrypoint.",
-            "Still owns both direct-ingest compatibility and discovery/orchestration branching.",
+            "Acts as the canonical backend-owned Form 990 monthly ingest entrypoint.",
+            "Uses the workspace-plus-PostgreSQL runtime rather than the retired Lambda/S3 orchestration path.",
         ),
-    ),
-    BackendEntrypoint(
-        surface="form990_orchestrator",
-        current_module="infrastructure.lambda_form990_orchestrator",
-        current_handler="handler",
-        target_service_area="runtime",
-        runtime_kind="worker_shim",
-        notes=("Currently remains a thin compatibility shim over the main Form 990 handler.",),
-    ),
-    BackendEntrypoint(
-        surface="form990_worker",
-        current_module="infrastructure.lambda_form990_worker",
-        current_handler="handler",
-        target_service_area="runtime",
-        runtime_kind="worker_handler",
-        notes=("Processes queued Form 990 source-download, source-batch, and filing chunks.",),
     ),
 )
 
