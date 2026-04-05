@@ -5,7 +5,7 @@ import json
 import logging
 
 from charity_status.billing.runtime import call_with_retries
-from charity_status.runtime_logging import log_exception, resolve_runtime_logging_config, sanitize_log_fields
+from charity_status.runtime_logging import configure_runtime_logging, log_exception, resolve_runtime_logging_config, sanitize_log_fields
 
 
 def test_runtime_logging_defaults_to_info_without_traces_in_prod():
@@ -29,6 +29,23 @@ def test_runtime_logging_respects_explicit_log_level_override():
 
     assert config.log_level_name == "WARNING"
     assert config.log_level == logging.WARNING
+
+
+def test_configure_runtime_logging_installs_console_handler_when_root_has_none():
+    root_logger = logging.getLogger()
+    original_handlers = list(root_logger.handlers)
+    original_level = root_logger.level
+    try:
+        root_logger.handlers = []
+        configure_runtime_logging({"APP_ENV": "dev"})
+
+        assert len(root_logger.handlers) == 1
+        assert isinstance(root_logger.handlers[0], logging.StreamHandler)
+        assert root_logger.handlers[0].formatter is not None
+        assert root_logger.handlers[0].formatter._fmt == "%(message)s"
+    finally:
+        root_logger.handlers = original_handlers
+        root_logger.setLevel(original_level)
 
 
 def test_log_exception_omits_traceback_in_prod_by_default():

@@ -68,7 +68,9 @@ def configure_runtime_logging(
     logger: logging.Logger | None = None,
 ) -> RuntimeLoggingConfig:
     config = resolve_runtime_logging_config(env)
-    logging.getLogger().setLevel(config.log_level)
+    root_logger = logging.getLogger()
+    _ensure_console_handler(root_logger)
+    root_logger.setLevel(config.log_level)
     if logger is not None:
         logger.setLevel(config.log_level)
     return config
@@ -158,6 +160,14 @@ def sanitize_log_value(value: Any, *, key: str | None = None) -> Any:
 
 def _coerce_log_level(level_name: str) -> int:
     return logging._nameToLevel.get(str(level_name or "").strip().upper(), logging.INFO)
+
+
+def _ensure_console_handler(logger: logging.Logger) -> None:
+    if logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
 
 
 def _normalize_key(key: str | None) -> str:
