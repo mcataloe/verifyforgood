@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -106,7 +104,7 @@ class Form990NonprofitPersistenceService:
 
 def _to_filing_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitFilingRecord:
     return NonprofitFilingRecord(
-        filing_id=_filing_id(nonprofit_id, filing),
+        filing_id=None,
         nonprofit_id=nonprofit_id,
         tax_year=_to_int(filing.get("tax_year")),
         tax_period=str(filing.get("tax_period_end") or filing.get("tax_period_begin") or "").strip() or None,
@@ -130,7 +128,7 @@ def _to_filing_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_is
 
 def _to_source_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitSourceRecord:
     return NonprofitSourceRecord(
-        nonprofit_source_id=_source_id(nonprofit_id, filing),
+        nonprofit_source_id=None,
         nonprofit_id=nonprofit_id,
         source_id="irs.form990_filing",
         provider_name="irs",
@@ -155,37 +153,6 @@ def _to_source_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_is
         created_at=persisted_at_iso,
         updated_at=persisted_at_iso,
     )
-
-
-def _filing_id(nonprofit_id: int, filing: dict[str, Any]) -> str:
-    irs_object_id = str(filing.get("irs_object_id") or "").strip()
-    if irs_object_id:
-        payload = f"{nonprofit_id}|irs_object_id|{irs_object_id}"
-    else:
-        payload = "|".join(
-            [
-                str(nonprofit_id),
-                str(filing.get("tax_year") or "").strip(),
-                str(filing.get("return_type") or "").strip(),
-                str(filing.get("filing_date") or "").strip(),
-                str(filing.get("source_archive") or "").strip(),
-            ]
-        )
-    return f"fil_{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:24]}"
-
-
-def _source_id(nonprofit_id: int, filing: dict[str, Any]) -> str:
-    payload = "|".join(
-        [
-            str(nonprofit_id),
-            "irs.form990_filing",
-            str(filing.get("irs_object_id") or "").strip(),
-            str(filing.get("source_archive") or "").strip(),
-        ]
-    )
-    return f"src_{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:24]}"
-
-
 def _normalize_ein(value: Any) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())[:9]
 

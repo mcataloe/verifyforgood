@@ -85,8 +85,9 @@ Phase 24F adds an opt-in PostgreSQL ingest persistence path for normalized Form
 990 outputs. That path:
 
 - upserts canonical nonprofit rows by EIN
-- upserts filing rows with deterministic filing identifiers
-- upserts filing provenance/source rows with archive and signature metadata
+- upserts filing rows by natural filing identity instead of a Python-generated
+  filing ID
+- upserts filing provenance/source rows by source lineage keys
 - leaves discovery manifests, raw-source storage, Athena reads, and the
   materialized serving cache unchanged
 
@@ -101,7 +102,15 @@ metadata:
 - `form990_extracted_files`
   - one row per extracted XML member per archive
   - stores deterministic normalized content hash, parse status, parsed
-    timestamp, and optional error text
+  timestamp, and optional error text
+
+Current key model for the nonprofit/Form 990 slice:
+
+- every table in the slice uses a database-generated `BIGINT` primary key
+- natural unique constraints remain the upsert identity for nonprofit, filing,
+  source, archive, and extracted-file writes
+- repository writes use PostgreSQL/SQLite `ON CONFLICT` semantics rather than
+  Python-generated primary-key values
 
 That metadata is now used by the monthly Form 990 task runtime to skip
 unchanged remote archives when `schedule_context.source_url` is available and

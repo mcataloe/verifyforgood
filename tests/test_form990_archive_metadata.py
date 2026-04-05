@@ -17,7 +17,7 @@ def test_normalize_etag_strips_quotes_and_weak_prefix():
 
 def test_should_process_archive_prefers_normalized_etag_and_falls_back():
     previous = Form990ArchiveRecord(
-        archive_id="arc_1",
+        archive_id=1,
         source_url="https://example.org/a.zip",
         etag="etag-1",
         last_modified="Thu, 20 Mar 2026 00:00:00 GMT",

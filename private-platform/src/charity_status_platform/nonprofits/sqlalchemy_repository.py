@@ -6,6 +6,8 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
@@ -44,7 +46,7 @@ class NonprofitRecord:
 
 @dataclass(frozen=True)
 class NonprofitFilingRecord:
-    filing_id: str
+    filing_id: int | None
     nonprofit_id: int
     tax_year: int | None
     tax_period: str | None
@@ -67,7 +69,7 @@ class NonprofitFilingRecord:
 
 @dataclass(frozen=True)
 class NonprofitSourceRecord:
-    nonprofit_source_id: str
+    nonprofit_source_id: int | None
     nonprofit_id: int
     source_id: str
     provider_name: str
@@ -95,7 +97,7 @@ class NonprofitSourceRecord:
 
 @dataclass(frozen=True)
 class ComplianceCheckRecord:
-    compliance_check_id: str
+    compliance_check_id: int | None
     nonprofit_id: int
     check_type: str
     status: str
@@ -121,7 +123,7 @@ class ComplianceCheckRecord:
 
 @dataclass(frozen=True)
 class Form990ArchiveRecord:
-    archive_id: str
+    archive_id: int | None
     source_url: str
     filename: str | None = None
     etag: str | None = None
@@ -137,8 +139,8 @@ class Form990ArchiveRecord:
 
 @dataclass(frozen=True)
 class Form990ExtractedFileRecord:
-    file_id: str
-    archive_id: str
+    file_id: int | None
+    archive_id: int
     filename: str
     content_hash: str | None = None
     parse_status: str | None = None
@@ -154,13 +156,18 @@ class SqlAlchemyNonprofitRepository:
 
     def upsert_nonprofit(self, record: NonprofitRecord) -> NonprofitRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.scalar(select(NonprofitModel).where(NonprofitModel.ein == record.ein).limit(1))
-            if model is None:
-                model = _nonprofit_model(record)
-                session.add(model)
-            else:
-                _apply_nonprofit_record(model, record)
-            session.flush()
+            normalized_record = _normalized_nonprofit_record(record)
+            _execute_upsert(
+                session,
+                NonprofitModel,
+                values=_nonprofit_values(normalized_record),
+                conflict_columns=["ein"],
+                update_values=_nonprofit_update_values(normalized_record),
+            )
+            model = session.scalar(
+                select(NonprofitModel).where(NonprofitModel.ein == normalized_record.ein).limit(1)
+            )
+            assert model is not None
             return _nonprofit_record(model)
 
     def get_nonprofit_by_ein(self, ein: str) -> NonprofitRecord | None:
@@ -193,17 +200,27 @@ class SqlAlchemyNonprofitRepository:
 
     def upsert_filing(self, record: NonprofitFilingRecord) -> NonprofitFilingRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
+            normalized_record = _normalized_filing_record(record)
+            _execute_upsert(
+                session,
+                NonprofitFilingModel,
+                values=_filing_values(normalized_record),
+                conflict_columns=["nonprofit_id", "tax_year", "form_type", "filing_date", "source_name"],
+                update_values=_filing_update_values(normalized_record),
+            )
             model = session.scalar(
                 select(NonprofitFilingModel)
-                .where(NonprofitFilingModel.filing_id == record.filing_id)
+                .where(
+                    NonprofitFilingModel.nonprofit_id == normalized_record.nonprofit_id,
+                    NonprofitFilingModel.tax_year == normalized_record.tax_year,
+                    NonprofitFilingModel.form_type == normalized_record.form_type,
+                    NonprofitFilingModel.filing_date == _parse_date(normalized_record.filing_date),
+                    NonprofitFilingModel.source_name == normalized_record.source_name,
+                )
                 .limit(1)
             )
-            if model is None:
-                session.add(_filing_model(record))
-            else:
-                _apply_filing_record(model, record)
-            session.flush()
-        return record
+            assert model is not None
+        return _filing_record(model)
 
     def list_filings_for_nonprofit(self, nonprofit_id: int, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
         with customer_accounts_session_scope(self._session_factory) as session:
@@ -238,17 +255,26 @@ class SqlAlchemyNonprofitRepository:
 
     def upsert_source(self, record: NonprofitSourceRecord) -> NonprofitSourceRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
+            normalized_record = _normalized_source_record(record)
+            _execute_upsert(
+                session,
+                NonprofitSourceModel,
+                values=_source_values(normalized_record),
+                conflict_columns=["nonprofit_id", "source_id", "record_id", "retrieved_at"],
+                update_values=_source_update_values(normalized_record),
+            )
             model = session.scalar(
                 select(NonprofitSourceModel)
-                .where(NonprofitSourceModel.nonprofit_source_id == record.nonprofit_source_id)
+                .where(
+                    NonprofitSourceModel.nonprofit_id == normalized_record.nonprofit_id,
+                    NonprofitSourceModel.source_id == normalized_record.source_id,
+                    NonprofitSourceModel.record_id == normalized_record.record_id,
+                    NonprofitSourceModel.retrieved_at == _parse_timestamp(normalized_record.retrieved_at),
+                )
                 .limit(1)
             )
-            if model is None:
-                session.add(_source_model(record))
-            else:
-                _apply_source_record(model, record)
-            session.flush()
-        return record
+            assert model is not None
+        return _source_record(model)
 
     def list_sources_for_nonprofit(
         self,
@@ -291,9 +317,10 @@ class SqlAlchemyNonprofitRepository:
 
     def create_compliance_check(self, record: ComplianceCheckRecord) -> ComplianceCheckRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_check_model(record))
+            model = _check_model(record)
+            session.add(model)
             session.flush()
-        return record
+            return _check_record(model)
 
     def latest_compliance_check(
         self,
@@ -391,40 +418,30 @@ class SqlAlchemyNonprofitRepository:
             )
             return None if model is None else _archive_record(model)
 
-    def get_archive_by_id(self, archive_id: str) -> Form990ArchiveRecord | None:
+    def get_archive_by_id(self, archive_id: int) -> Form990ArchiveRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
             return None if model is None else _archive_record(model)
 
     def upsert_archive_probe(self, record: Form990ArchiveRecord) -> Form990ArchiveRecord:
-        normalized_record = Form990ArchiveRecord(
-            archive_id=record.archive_id,
-            source_url=_normalize_source_url(record.source_url),
-            filename=record.filename,
-            etag=_normalize_optional_text(record.etag),
-            last_modified=_normalize_optional_text(record.last_modified),
-            content_length=record.content_length,
-            response_status=record.response_status,
-            last_checked_at=record.last_checked_at,
-            last_processed_at=record.last_processed_at,
-            status=record.status,
-            created_at=record.created_at,
-            updated_at=record.updated_at,
-        )
+        normalized_record = _normalized_archive_record(record)
         with customer_accounts_session_scope(self._session_factory) as session:
+            _execute_upsert(
+                session,
+                Form990ArchiveModel,
+                values=_archive_values(normalized_record),
+                conflict_columns=["source_url"],
+                update_values=_archive_update_values(normalized_record),
+            )
             model = session.scalar(
                 select(Form990ArchiveModel)
                 .where(Form990ArchiveModel.source_url == normalized_record.source_url)
                 .limit(1)
             )
-            if model is None:
-                session.add(_archive_model(normalized_record))
-            else:
-                _apply_archive_record(model, normalized_record)
-            session.flush()
-        return normalized_record
+            assert model is not None
+        return _archive_record(model)
 
-    def mark_archive_processed(self, archive_id: str, processed_at: str, status: str) -> Form990ArchiveRecord | None:
+    def mark_archive_processed(self, archive_id: int, processed_at: str, status: str) -> Form990ArchiveRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
             if model is None:
@@ -435,7 +452,7 @@ class SqlAlchemyNonprofitRepository:
             session.flush()
             return _archive_record(model)
 
-    def get_extracted_file(self, archive_id: str, filename: str) -> Form990ExtractedFileRecord | None:
+    def get_extracted_file(self, archive_id: int, filename: str) -> Form990ExtractedFileRecord | None:
         normalized_filename = _normalize_optional_text(filename) or ""
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(
@@ -448,7 +465,7 @@ class SqlAlchemyNonprofitRepository:
             )
             return None if model is None else _extracted_file_record(model)
 
-    def list_extracted_files_for_archive(self, archive_id: str) -> list[Form990ExtractedFileRecord]:
+    def list_extracted_files_for_archive(self, archive_id: int) -> list[Form990ExtractedFileRecord]:
         with customer_accounts_session_scope(self._session_factory) as session:
             statement = (
                 select(Form990ExtractedFileModel)
@@ -458,18 +475,15 @@ class SqlAlchemyNonprofitRepository:
             return [_extracted_file_record(model) for model in session.scalars(statement).all()]
 
     def upsert_extracted_file(self, record: Form990ExtractedFileRecord) -> Form990ExtractedFileRecord:
-        normalized_record = Form990ExtractedFileRecord(
-            file_id=record.file_id,
-            archive_id=record.archive_id,
-            filename=_normalize_optional_text(record.filename) or "",
-            content_hash=_normalize_optional_text(record.content_hash),
-            parse_status=_normalize_optional_text(record.parse_status),
-            parsed_at=record.parsed_at,
-            error_message=_normalize_optional_text(record.error_message),
-            created_at=record.created_at,
-            updated_at=record.updated_at,
-        )
+        normalized_record = _normalized_extracted_file_record(record)
         with customer_accounts_session_scope(self._session_factory) as session:
+            _execute_upsert(
+                session,
+                Form990ExtractedFileModel,
+                values=_extracted_file_values(normalized_record),
+                conflict_columns=["archive_id", "filename"],
+                update_values=_extracted_file_update_values(normalized_record),
+            )
             model = session.scalar(
                 select(Form990ExtractedFileModel)
                 .where(
@@ -478,12 +492,8 @@ class SqlAlchemyNonprofitRepository:
                 )
                 .limit(1)
             )
-            if model is None:
-                session.add(_extracted_file_model(normalized_record))
-            else:
-                _apply_extracted_file_record(model, normalized_record)
-            session.flush()
-        return normalized_record
+            assert model is not None
+        return _extracted_file_record(model)
 
 
 def make_record_id(prefix: str) -> str:
@@ -976,3 +986,291 @@ def _extracted_file_record(model: Form990ExtractedFileModel) -> Form990Extracted
         created_at=_format_timestamp(model.created_at) or "",
         updated_at=_format_timestamp(model.updated_at) or "",
     )
+
+
+def _execute_upsert(
+    session: Session,
+    model: type[Any],
+    *,
+    values: dict[str, Any],
+    conflict_columns: list[str],
+    update_values: dict[str, Any],
+) -> None:
+    insert_fn = _insert_for_session(session)
+    statement = insert_fn(model).values(**values)
+    statement = statement.on_conflict_do_update(
+        index_elements=list(conflict_columns),
+        set_=dict(update_values),
+    )
+    session.execute(statement)
+    session.flush()
+
+
+def _insert_for_session(session: Session):
+    dialect_name = session.bind.dialect.name if session.bind is not None else ""
+    if dialect_name == "postgresql":
+        return postgresql_insert
+    if dialect_name == "sqlite":
+        return sqlite_insert
+    raise NotImplementedError(f"Unsupported nonprofit repository dialect for upsert: {dialect_name}")
+
+
+def _normalized_nonprofit_record(record: NonprofitRecord) -> NonprofitRecord:
+    normalized_name = _normalize_optional_text(record.normalized_name)
+    canonical_name = _normalize_optional_text(record.canonical_name) or f"EIN {_normalize_ein(record.ein)}"
+    return NonprofitRecord(
+        nonprofit_id=record.nonprofit_id,
+        ein=_normalize_ein(record.ein),
+        canonical_name=canonical_name,
+        normalized_name=normalized_name or canonical_name.lower(),
+        subsection_code=_normalize_optional_text(record.subsection_code),
+        deductibility_code=_normalize_optional_text(record.deductibility_code),
+        tax_deductible=record.tax_deductible,
+        entity_type=_normalize_optional_text(record.entity_type),
+        irs_status=_normalize_optional_text(record.irs_status),
+        revoked=bool(record.revoked),
+        country=_normalize_optional_text(record.country),
+        state=_normalize_optional_text(record.state),
+        ntee_category=_normalize_optional_text(record.ntee_category),
+        canonical_source=_normalize_optional_text(record.canonical_source),
+        source_version=_normalize_optional_text(record.source_version),
+        last_seen_at=_format_timestamp(_parse_timestamp(record.last_seen_at)),
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
+def _normalized_filing_record(record: NonprofitFilingRecord) -> NonprofitFilingRecord:
+    return NonprofitFilingRecord(
+        filing_id=record.filing_id,
+        nonprofit_id=record.nonprofit_id,
+        tax_year=record.tax_year,
+        tax_period=_normalize_optional_text(record.tax_period),
+        form_type=_normalize_optional_text(record.form_type) or "unknown",
+        filing_date=_format_date(_parse_date(record.filing_date)),
+        amended=bool(record.amended),
+        parse_status=_normalize_optional_text(record.parse_status),
+        total_assets=record.total_assets,
+        total_income=record.total_income,
+        total_revenue=record.total_revenue,
+        source_name=_normalize_optional_text(record.source_name),
+        source_record_id=_normalize_optional_text(record.source_record_id),
+        source_signature=_normalize_optional_text(record.source_signature),
+        xml_source_reference=_normalize_optional_text(record.xml_source_reference),
+        raw_s3_key=_normalize_optional_text(record.raw_s3_key),
+        raw_payload=record.raw_payload,
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
+def _normalized_source_record(record: NonprofitSourceRecord) -> NonprofitSourceRecord:
+    return NonprofitSourceRecord(
+        nonprofit_source_id=record.nonprofit_source_id,
+        nonprofit_id=record.nonprofit_id,
+        source_id=_normalize_optional_text(record.source_id) or "",
+        provider_name=_normalize_optional_text(record.provider_name) or "",
+        category=_normalize_optional_text(record.category) or "",
+        record_id=_normalize_optional_text(record.record_id),
+        retrieved_at=_format_timestamp(_parse_timestamp(record.retrieved_at) or datetime.now(timezone.utc)) or "",
+        valid_as_of=_format_timestamp(_parse_timestamp(record.valid_as_of)),
+        expires_at=_format_timestamp(_parse_timestamp(record.expires_at)),
+        status=_normalize_optional_text(record.status),
+        driver=_normalize_optional_text(record.driver),
+        integration_id=_normalize_optional_text(record.integration_id),
+        tenant_enabled=record.tenant_enabled,
+        required_for_eligibility=record.required_for_eligibility,
+        evaluation_effect=_normalize_optional_text(record.evaluation_effect),
+        explanation_code=_normalize_optional_text(record.explanation_code),
+        explanation=_normalize_optional_text(record.explanation),
+        licensed=record.licensed,
+        notes=_normalize_optional_text(record.notes),
+        source_signature=_normalize_optional_text(record.source_signature),
+        normalized_data=record.normalized_data,
+        raw_payload=record.raw_payload,
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
+def _normalized_archive_record(record: Form990ArchiveRecord) -> Form990ArchiveRecord:
+    return Form990ArchiveRecord(
+        archive_id=record.archive_id,
+        source_url=_normalize_source_url(record.source_url),
+        filename=_normalize_optional_text(record.filename),
+        etag=_normalize_optional_text(record.etag),
+        last_modified=_normalize_optional_text(record.last_modified),
+        content_length=record.content_length,
+        response_status=record.response_status,
+        last_checked_at=_format_timestamp(_parse_timestamp(record.last_checked_at)),
+        last_processed_at=_format_timestamp(_parse_timestamp(record.last_processed_at)),
+        status=_normalize_optional_text(record.status),
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
+def _normalized_extracted_file_record(record: Form990ExtractedFileRecord) -> Form990ExtractedFileRecord:
+    return Form990ExtractedFileRecord(
+        file_id=record.file_id,
+        archive_id=record.archive_id,
+        filename=_normalize_optional_text(record.filename) or "",
+        content_hash=_normalize_optional_text(record.content_hash),
+        parse_status=_normalize_optional_text(record.parse_status),
+        parsed_at=_format_timestamp(_parse_timestamp(record.parsed_at)),
+        error_message=_normalize_optional_text(record.error_message),
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
+def _nonprofit_values(record: NonprofitRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "ein": record.ein,
+        "canonical_name": record.canonical_name,
+        "normalized_name": record.normalized_name,
+        "subsection_code": record.subsection_code,
+        "deductibility_code": record.deductibility_code,
+        "tax_deductible": record.tax_deductible,
+        "entity_type": record.entity_type,
+        "irs_status": record.irs_status,
+        "revoked": record.revoked,
+        "country": record.country,
+        "state": record.state,
+        "ntee_category": record.ntee_category,
+        "canonical_source": record.canonical_source,
+        "source_version": record.source_version,
+        "last_seen_at": _parse_timestamp(record.last_seen_at),
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.nonprofit_id is not None:
+        values["nonprofit_id"] = record.nonprofit_id
+    return values
+
+
+def _nonprofit_update_values(record: NonprofitRecord) -> dict[str, Any]:
+    values = _nonprofit_values(record)
+    values.pop("nonprofit_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _filing_values(record: NonprofitFilingRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "nonprofit_id": record.nonprofit_id,
+        "tax_year": record.tax_year,
+        "tax_period": record.tax_period,
+        "form_type": record.form_type,
+        "filing_date": _parse_date(record.filing_date),
+        "amended": record.amended,
+        "parse_status": record.parse_status,
+        "total_assets": record.total_assets,
+        "total_income": record.total_income,
+        "total_revenue": record.total_revenue,
+        "source_name": record.source_name,
+        "source_record_id": record.source_record_id,
+        "source_signature": record.source_signature,
+        "xml_source_reference": record.xml_source_reference,
+        "raw_s3_key": record.raw_s3_key,
+        "raw_payload": record.raw_payload,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.filing_id is not None:
+        values["filing_id"] = record.filing_id
+    return values
+
+
+def _filing_update_values(record: NonprofitFilingRecord) -> dict[str, Any]:
+    values = _filing_values(record)
+    values.pop("filing_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _source_values(record: NonprofitSourceRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "nonprofit_id": record.nonprofit_id,
+        "source_id": record.source_id,
+        "provider_name": record.provider_name,
+        "category": record.category,
+        "record_id": record.record_id,
+        "retrieved_at": _parse_timestamp(record.retrieved_at) or datetime.now(timezone.utc),
+        "valid_as_of": _parse_timestamp(record.valid_as_of),
+        "expires_at": _parse_timestamp(record.expires_at),
+        "status": record.status,
+        "driver": record.driver,
+        "integration_id": record.integration_id,
+        "tenant_enabled": record.tenant_enabled,
+        "required_for_eligibility": record.required_for_eligibility,
+        "evaluation_effect": record.evaluation_effect,
+        "explanation_code": record.explanation_code,
+        "explanation": record.explanation,
+        "licensed": record.licensed,
+        "notes": record.notes,
+        "source_signature": record.source_signature,
+        "normalized_data": record.normalized_data,
+        "raw_payload": record.raw_payload,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.nonprofit_source_id is not None:
+        values["nonprofit_source_id"] = record.nonprofit_source_id
+    return values
+
+
+def _source_update_values(record: NonprofitSourceRecord) -> dict[str, Any]:
+    values = _source_values(record)
+    values.pop("nonprofit_source_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _archive_values(record: Form990ArchiveRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "source_url": record.source_url,
+        "filename": record.filename,
+        "etag": record.etag,
+        "last_modified": record.last_modified,
+        "content_length": record.content_length,
+        "response_status": record.response_status,
+        "last_checked_at": _parse_timestamp(record.last_checked_at),
+        "last_processed_at": _parse_timestamp(record.last_processed_at),
+        "status": record.status,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.archive_id is not None:
+        values["archive_id"] = record.archive_id
+    return values
+
+
+def _archive_update_values(record: Form990ArchiveRecord) -> dict[str, Any]:
+    values = _archive_values(record)
+    values.pop("archive_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _extracted_file_values(record: Form990ExtractedFileRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "archive_id": record.archive_id,
+        "filename": record.filename,
+        "content_hash": record.content_hash,
+        "parse_status": record.parse_status,
+        "parsed_at": _parse_timestamp(record.parsed_at),
+        "error_message": record.error_message,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.file_id is not None:
+        values["file_id"] = record.file_id
+    return values
+
+
+def _extracted_file_update_values(record: Form990ExtractedFileRecord) -> dict[str, Any]:
+    values = _extracted_file_values(record)
+    values.pop("file_id", None)
+    values.pop("created_at", None)
+    return values

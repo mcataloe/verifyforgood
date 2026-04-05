@@ -9,8 +9,6 @@ from charity_status_platform.nonprofits import (
     Form990ArchiveRecord,
     Form990ExtractedFileRecord,
     SqlAlchemyNonprofitRepository,
-    build_form990_archive_id,
-    build_form990_extracted_file_id,
 )
 
 from ..metadata import ArchiveProbeResult, should_process_archive
@@ -38,7 +36,7 @@ class Form990ArchiveMetadataService:
         decision = should_process_archive(previous=previous, current_probe=probe)
         now_iso = probe.checked_at or _utc_now_iso()
         archive = Form990ArchiveRecord(
-            archive_id=previous.archive_id if previous is not None else build_form990_archive_id(source_url),
+            archive_id=previous.archive_id if previous is not None else None,
             source_url=source_url,
             filename=filename,
             etag=probe.normalized_etag,
@@ -65,7 +63,7 @@ class Form990ArchiveMetadataService:
         existing = self._repository.get_archive_by_source_url(source_url)
         now_iso = _format_timestamp(checked_at or datetime.now(timezone.utc))
         record = Form990ArchiveRecord(
-            archive_id=existing.archive_id if existing is not None else build_form990_archive_id(source_url),
+            archive_id=existing.archive_id if existing is not None else None,
             source_url=source_url,
             filename=filename,
             etag=existing.etag if existing is not None else None,
@@ -80,16 +78,16 @@ class Form990ArchiveMetadataService:
         )
         return self._repository.upsert_archive_probe(record)
 
-    def get_extracted_file(self, archive_id: str, filename: str) -> Form990ExtractedFileRecord | None:
+    def get_extracted_file(self, archive_id: int, filename: str) -> Form990ExtractedFileRecord | None:
         return self._repository.get_extracted_file(archive_id, filename)
 
-    def list_extracted_files_for_archive(self, archive_id: str) -> list[Form990ExtractedFileRecord]:
+    def list_extracted_files_for_archive(self, archive_id: int) -> list[Form990ExtractedFileRecord]:
         return self._repository.list_extracted_files_for_archive(archive_id)
 
     def upsert_extracted_file(
         self,
         *,
-        archive_id: str,
+        archive_id: int,
         filename: str,
         content_hash: str | None,
         parse_status: str | None,
@@ -99,7 +97,7 @@ class Form990ArchiveMetadataService:
         existing = self._repository.get_extracted_file(archive_id, filename)
         now_iso = _format_timestamp(parsed_at or datetime.now(timezone.utc))
         record = Form990ExtractedFileRecord(
-            file_id=existing.file_id if existing is not None else build_form990_extracted_file_id(archive_id, filename),
+            file_id=existing.file_id if existing is not None else None,
             archive_id=archive_id,
             filename=filename,
             content_hash=content_hash,
@@ -111,7 +109,7 @@ class Form990ArchiveMetadataService:
         )
         return self._repository.upsert_extracted_file(record)
 
-    def mark_archive_processed(self, archive_id: str, *, processed_at: datetime | None = None, status: str = "processed") -> None:
+    def mark_archive_processed(self, archive_id: int, *, processed_at: datetime | None = None, status: str = "processed") -> None:
         effective = _format_timestamp(processed_at or datetime.now(timezone.utc))
         self._repository.mark_archive_processed(archive_id, effective, status)
 

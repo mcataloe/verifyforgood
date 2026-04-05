@@ -50,7 +50,6 @@ from charity_status_platform.nonprofits import (
     NonprofitFilingRecord,
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
-    make_record_id,
 )
 
 
@@ -165,7 +164,7 @@ def _seed_postgres_nonprofit(sqlite_url, *, ein="123456789", name="Postgres Org"
     nonprofit = repository.upsert_nonprofit(nonprofit)
     repository.upsert_filing(
         NonprofitFilingRecord(
-            filing_id=make_record_id("fil"),
+            filing_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             tax_year=2024,
             tax_period="202412",

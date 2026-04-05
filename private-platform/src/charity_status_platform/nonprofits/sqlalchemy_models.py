@@ -25,6 +25,7 @@ from charity_status_platform.customer_accounts.sqlalchemy_db import CustomerAcco
 
 JSON_VARIANT = JSON().with_variant(JSONB(), "postgresql")
 BIGINT_PRIMARY_KEY = BigInteger().with_variant(Integer(), "sqlite")
+BIGINT_FOREIGN_KEY = BigInteger().with_variant(Integer(), "sqlite")
 
 
 class NonprofitModel(CustomerAccountsBase):
@@ -106,9 +107,11 @@ class NonprofitFilingModel(CustomerAccountsBase):
         ),
     )
 
-    filing_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    filing_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
     nonprofit_id: Mapped[int] = mapped_column(
-        ForeignKey("nonprofits.nonprofit_id"), nullable=False
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
     )
     tax_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tax_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -153,9 +156,11 @@ class NonprofitSourceModel(CustomerAccountsBase):
         Index("ix_nonprofit_sources_nonprofit_source_id", "nonprofit_id", "source_id"),
     )
 
-    nonprofit_source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nonprofit_source_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
     nonprofit_id: Mapped[int] = mapped_column(
-        ForeignKey("nonprofits.nonprofit_id"), nullable=False
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
     )
     source_id: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -214,9 +219,11 @@ class ComplianceCheckModel(CustomerAccountsBase):
         ),
     )
 
-    compliance_check_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    compliance_check_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
     nonprofit_id: Mapped[int] = mapped_column(
-        ForeignKey("nonprofits.nonprofit_id"), nullable=False
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
     )
     check_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -269,7 +276,9 @@ class Form990ArchiveModel(CustomerAccountsBase):
         Index("ix_form990_archives_last_checked_at", "last_checked_at"),
     )
 
-    archive_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    archive_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -307,9 +316,11 @@ class Form990ExtractedFileModel(CustomerAccountsBase):
         ),
     )
 
-    file_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    archive_id: Mapped[str] = mapped_column(
-        ForeignKey("form990_archives.archive_id"), nullable=False
+    file_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
+    archive_id: Mapped[int] = mapped_column(
+        BIGINT_FOREIGN_KEY, ForeignKey("form990_archives.archive_id"), nullable=False
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     content_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)

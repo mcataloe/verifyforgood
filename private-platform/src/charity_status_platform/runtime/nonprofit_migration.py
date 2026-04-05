@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from dataclasses import asdict, dataclass, field
@@ -85,9 +84,9 @@ def run_nonprofit_migration(
     )
 
     expected_nonprofits: set[int | str] = set()
-    expected_filings: set[str] = set()
-    expected_sources: set[str] = set()
-    expected_checks: set[str] = set()
+    expected_filings: set[tuple[int, int | None, str, str | None, str | None]] = set()
+    expected_sources: set[tuple[int, str, str | None, str]] = set()
+    expected_checks: set[tuple[int, str, str]] = set()
     missing_lookup_records: list[str] = []
     invalid_eins: list[str] = []
     processed_eins = 0
@@ -134,7 +133,15 @@ def run_nonprofit_migration(
             _, filing_rows = effective_query_client.list_form990_filings(normalized_ein, limit=50)
             for filing_row in filing_rows:
                 filing_record = _filing_record_from_query(working_nonprofit_id, normalized_ein, filing_row)
-                expected_filings.add(filing_record.filing_id)
+                expected_filings.add(
+                    (
+                        filing_record.nonprofit_id,
+                        filing_record.tax_year,
+                        filing_record.form_type,
+                        filing_record.filing_date,
+                        filing_record.source_name,
+                    )
+                )
                 if not dry_run:
                     repository.upsert_filing(filing_record)
 
@@ -143,12 +150,25 @@ def run_nonprofit_migration(
                 if profile_item:
                     profile_items_seen += 1
                     for source_record in _source_records_from_profile(working_nonprofit_id, normalized_ein, profile_item):
-                        expected_sources.add(source_record.nonprofit_source_id)
+                        expected_sources.add(
+                            (
+                                source_record.nonprofit_id,
+                                source_record.source_id,
+                                source_record.record_id,
+                                source_record.retrieved_at,
+                            )
+                        )
                         if not dry_run:
                             repository.upsert_source(source_record)
                     compliance_record = _compliance_record_from_profile(working_nonprofit_id, normalized_ein, profile_item)
                     if compliance_record is not None:
-                        expected_checks.add(compliance_record.compliance_check_id)
+                        expected_checks.add(
+                            (
+                                compliance_record.nonprofit_id,
+                                compliance_record.check_type,
+                                compliance_record.evaluated_at,
+                            )
+                        )
                         if not dry_run:
                             repository.create_compliance_check(compliance_record)
 
@@ -245,10 +265,9 @@ def _filing_record_from_query(nonprofit_id: int, ein: str, row: dict[str, Any]) 
     tax_year = _to_int(row.get("tax_year"))
     form_type = _text(row.get("return_type")) or "990"
     filing_date = _text(row.get("filing_date"))
-    filing_id = _stable_id("fil", ein, str(tax_year or ""), form_type, filing_date or "")
     now_iso = _utc_now_iso()
     return NonprofitFilingRecord(
-        filing_id=filing_id,
+        filing_id=None,
         nonprofit_id=nonprofit_id,
         tax_year=tax_year,
         tax_period=None,
@@ -279,7 +298,7 @@ def _source_records_from_profile(nonprofit_id: int, ein: str, profile_item: dict
         record_id = _text(source.get("record_id"))
         source_id = _text(source.get("source_name")) or provider_name
         source_record = NonprofitSourceRecord(
-            nonprofit_source_id=_stable_id("src", ein, source_id, record_id or "", retrieved_at),
+            nonprofit_source_id=None,
             nonprofit_id=nonprofit_id,
             source_id=source_id,
             provider_name=provider_name,
@@ -321,7 +340,7 @@ def _compliance_record_from_profile(
         return None
 
     evaluated_at = _text(profile_item.get("materialized_at")) or _utc_now_iso()
-    source_hash = _text(profile_item.get("source_hash")) or _stable_id("src_hash", ein, evaluated_at)
+    source_hash = _text(profile_item.get("source_hash")) or f"{ein}:{evaluated_at}"
     compliance_flags = state_compliance.get("compliance_flags")
     reasons = policy_evaluation.get("matched_rules")
     status = (
@@ -331,7 +350,7 @@ def _compliance_record_from_profile(
         or "available"
     )
     return ComplianceCheckRecord(
-        compliance_check_id=_stable_id("chk", ein, source_hash, evaluated_at),
+        compliance_check_id=None,
         nonprofit_id=nonprofit_id,
         check_type="materialized_profile_snapshot",
         status=status,
@@ -366,9 +385,9 @@ def _validate_nonprofit_targets(
     *,
     session_factory: Any,
     expected_nonprofits: set[int | str],
-    expected_filings: set[str],
-    expected_sources: set[str],
-    expected_checks: set[str],
+    expected_filings: set[tuple[int, int | None, str, str | None, str | None]],
+    expected_sources: set[tuple[int, str, str | None, str]],
+    expected_checks: set[tuple[int, str, str]],
     sample_limit: int,
 ) -> tuple[NonprofitMigrationCounts, dict[str, MigrationEntityValidation]]:
     with customer_accounts_session_scope(session_factory) as session:
@@ -396,9 +415,66 @@ def _validate_nonprofit_targets(
             if expected_nonprofits
             else set()
         )
-        present_filings = set(session.scalars(select(NonprofitFilingModel.filing_id).where(NonprofitFilingModel.filing_id.in_(expected_filings))).all()) if expected_filings else set()
-        present_sources = set(session.scalars(select(NonprofitSourceModel.nonprofit_source_id).where(NonprofitSourceModel.nonprofit_source_id.in_(expected_sources))).all()) if expected_sources else set()
-        present_checks = set(session.scalars(select(ComplianceCheckModel.compliance_check_id).where(ComplianceCheckModel.compliance_check_id.in_(expected_checks))).all()) if expected_checks else set()
+        present_filings = (
+            {
+                (
+                    nonprofit_id,
+                    tax_year,
+                    form_type,
+                    None if filing_date is None else filing_date.isoformat(),
+                    source_name,
+                )
+                for nonprofit_id, tax_year, form_type, filing_date, source_name in session.execute(
+                    select(
+                        NonprofitFilingModel.nonprofit_id,
+                        NonprofitFilingModel.tax_year,
+                        NonprofitFilingModel.form_type,
+                        NonprofitFilingModel.filing_date,
+                        NonprofitFilingModel.source_name,
+                    )
+                ).all()
+            }
+            if expected_filings
+            else set()
+        )
+        present_sources = (
+            {
+                (
+                    nonprofit_id,
+                    source_id,
+                    record_id,
+                    _normalize_present_timestamp(retrieved_at),
+                )
+                for nonprofit_id, source_id, record_id, retrieved_at in session.execute(
+                    select(
+                        NonprofitSourceModel.nonprofit_id,
+                        NonprofitSourceModel.source_id,
+                        NonprofitSourceModel.record_id,
+                        NonprofitSourceModel.retrieved_at,
+                    )
+                ).all()
+            }
+            if expected_sources
+            else set()
+        )
+        present_checks = (
+            {
+                (
+                    nonprofit_id,
+                    check_type,
+                    _normalize_present_timestamp(evaluated_at),
+                )
+                for nonprofit_id, check_type, evaluated_at in session.execute(
+                    select(
+                        ComplianceCheckModel.nonprofit_id,
+                        ComplianceCheckModel.check_type,
+                        ComplianceCheckModel.evaluated_at,
+                    )
+                ).all()
+            }
+            if expected_checks
+            else set()
+        )
 
     validation = {
         "nonprofits": build_entity_validation(expected_keys=expected_nonprofits, present_keys=present_nonprofits, sample_limit=sample_limit),
@@ -419,15 +495,16 @@ def _validate_nonprofit_targets(
 
 def _normalize_ein(value: Any) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())[:9]
-
-
-def _stable_id(prefix: str, *parts: str) -> str:
-    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:24]
-    return f"{prefix}_{digest}"
-
-
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _normalize_present_timestamp(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _to_int(value: Any) -> int | None:

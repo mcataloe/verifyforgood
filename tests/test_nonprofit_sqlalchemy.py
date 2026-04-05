@@ -18,9 +18,6 @@ from charity_status_platform.nonprofits import (
     PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
-    build_form990_archive_id,
-    build_form990_extracted_file_id,
-    make_record_id,
 )
 from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
@@ -46,7 +43,7 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
 def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     archive = Form990ArchiveRecord(
-        archive_id=build_form990_archive_id("https://example.org/2025_TEOS_XML_01A.zip"),
+        archive_id=None,
         source_url="https://example.org/2025_TEOS_XML_01A.zip",
         filename="2025_TEOS_XML_01A.zip",
         etag="etag-1",
@@ -58,10 +55,10 @@ def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata
         created_at="2026-04-03T00:00:00+00:00",
         updated_at="2026-04-03T00:00:00+00:00",
     )
-    repository.upsert_archive_probe(archive)
+    archive = repository.upsert_archive_probe(archive)
     repository.upsert_extracted_file(
         Form990ExtractedFileRecord(
-            file_id=build_form990_extracted_file_id(archive.archive_id, "folder/object-1.xml"),
+            file_id=None,
             archive_id=archive.archive_id,
             filename="folder/object-1.xml",
             content_hash="abc123",
@@ -110,7 +107,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
     nonprofit = repository.upsert_nonprofit(nonprofit)
 
     filing = NonprofitFilingRecord(
-        filing_id=make_record_id("fil"),
+        filing_id=None,
         nonprofit_id=nonprofit.nonprofit_id,
         tax_year=2024,
         tax_period="202412",
@@ -128,7 +125,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
         updated_at="2026-03-31T00:00:00+00:00",
     )
     source = NonprofitSourceRecord(
-        nonprofit_source_id=make_record_id("src"),
+        nonprofit_source_id=None,
         nonprofit_id=nonprofit.nonprofit_id,
         source_id="state_registry.compliance",
         provider_name="state_registry",
@@ -152,7 +149,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
         updated_at="2026-03-31T00:00:00+00:00",
     )
     check_old = ComplianceCheckRecord(
-        compliance_check_id=make_record_id("chk"),
+        compliance_check_id=None,
         nonprofit_id=nonprofit.nonprofit_id,
         check_type="state_compliance",
         status="warning",
@@ -166,7 +163,7 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
         created_at="2026-03-31T00:00:00+00:00",
     )
     check_new = ComplianceCheckRecord(
-        compliance_check_id=make_record_id("chk"),
+        compliance_check_id=None,
         nonprofit_id=nonprofit.nonprofit_id,
         check_type="state_compliance",
         status="pass",
@@ -210,7 +207,7 @@ def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Pat
 
     repository.upsert_filing(
         NonprofitFilingRecord(
-            filing_id=make_record_id("fil"),
+            filing_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             tax_year=2023,
             tax_period="202312",
@@ -242,7 +239,7 @@ def test_nonprofit_repository_supports_large_financial_values(tmp_path: Path):
 
     repository.upsert_filing(
         NonprofitFilingRecord(
-            filing_id=make_record_id("fil"),
+            filing_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             tax_year=2022,
             tax_period="2023-04-30",
@@ -285,7 +282,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
     nonprofit = repository.upsert_nonprofit(nonprofit)
     repository.upsert_filing(
         NonprofitFilingRecord(
-            filing_id=make_record_id("fil"),
+            filing_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             tax_year=2024,
             tax_period="202412",
@@ -302,7 +299,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
     )
     repository.create_compliance_check(
         ComplianceCheckRecord(
-            compliance_check_id=make_record_id("chk"),
+            compliance_check_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             check_type="state_compliance",
             status="pass",
@@ -312,7 +309,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
     )
     repository.upsert_source(
         NonprofitSourceRecord(
-            nonprofit_source_id=make_record_id("src"),
+            nonprofit_source_id=None,
             nonprofit_id=nonprofit.nonprofit_id,
             source_id="state_registry_mock",
             provider_name="state_registry",
