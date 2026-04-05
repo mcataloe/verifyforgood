@@ -56,7 +56,7 @@ class IdentityProviderType(str, Enum):
 
 @dataclass(frozen=True)
 class UserRecord:
-    user_id: str
+    user_id: int | str | None
     email: str
     normalized_email: str
     full_name: str | None
@@ -69,24 +69,25 @@ class UserRecord:
 
 @dataclass(frozen=True)
 class OrganizationRecord:
-    organization_id: str
+    organization_id: int | str | None
     name: str
     slug: str
     created_at: str
     updated_at: str
     contact_email: str | None = None
     deleted_at: str | None = None
-    deleted_by_user_id: str | None = None
+    deleted_by_user_id: int | str | None = None
 
 
 @dataclass(frozen=True)
 class MembershipRecord:
-    organization_id: str
-    user_id: str
+    organization_id: int | str
+    user_id: int | str
     role: MembershipRole
     status: MembershipStatus
     created_at: str
     updated_at: str
+    membership_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -106,36 +107,37 @@ class InvitationRecord:
 
 @dataclass(frozen=True)
 class ApiKeyRecord:
-    key_id: str
-    organization_id: str
+    key_id: int | str | None
+    organization_id: int | str
     hashed_key_value: str
     display_name: str
     created_at: str
-    created_by_user_id: str
+    created_by_user_id: int | str
     status: ApiKeyStatus
     last_used_at: str | None = None
 
 
 @dataclass(frozen=True)
 class PlanRecord:
-    plan_id: str
+    plan_id: int | str | None
     plan_name: str
     monthly_price: int
     feature_flags: tuple[str, ...]
     request_limit: int
     description: str
+    plan_code: str = ""
 
 
 @dataclass(frozen=True)
 class SubscriptionRecord:
-    subscription_id: str
-    organization_id: str
-    plan_id: str
+    subscription_id: int | str | None
+    organization_id: int | str
+    plan_id: int | str
     status: SubscriptionStatus
     billing_cycle_start: str
     billing_cycle_end: str
     created_at: str
-    pending_plan_id: str | None = None
+    pending_plan_id: int | str | None = None
     pending_plan_effective_at: str | None = None
     cancel_at_period_end: bool = False
     updated_at: str | None = None

@@ -353,13 +353,15 @@ def _get_profile_store() -> ProfileStoreAdapter | None:
 
 def _get_auth_context_provider() -> AuthContextProvider:
     global auth_context_provider
-    if not API_AUTH_ENABLED:
+    api_auth_enabled = _env_bool("API_AUTH_ENABLED")
+    oauth_m2m_enabled = _env_bool("OAUTH_M2M_ENABLED")
+    if not api_auth_enabled:
         if auth_context_provider is None:
             auth_context_provider = NoopAuthContextProvider()
         return auth_context_provider
 
     api_key_store = _load_runtime_api_key_store()
-    if OAUTH_M2M_ENABLED:
+    if oauth_m2m_enabled:
         return ApiKeyOrOAuthAuthContextProvider(
             api_key_store=api_key_store,
             oauth_token_store=_load_runtime_oauth_token_store(),
@@ -372,7 +374,7 @@ def _get_auth_context_provider() -> AuthContextProvider:
 def _get_quota_metering_hook() -> QuotaMeteringHook:
     global quota_metering_hook, usage_store
     if quota_metering_hook is None:
-        if API_AUTH_ENABLED:
+        if _env_bool("API_AUTH_ENABLED"):
             usage_store = usage_store or _get_control_plane_service().store
             usage_service = _get_portal_usage_service()
             quota_metering_hook = ApiKeyQuotaMeteringHook(
@@ -699,10 +701,13 @@ def _get_portal_customer_accounts_repositories() -> CustomerAccountsRepositories
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
+    configured_identity_backend = str(os.environ.get("PLATFORM_IDENTITY_STORE_BACKEND") or "").strip().lower()
+    fallback_store = load_api_key_store(os.environ.get("API_KEY_RECORDS_JSON", ""))
+    primary_store = _ManagedOrganizationApiKeyStore() if configured_identity_backend else _NoopApiKeyStore()
     return _MergedApiKeyStore(
-        _ManagedOrganizationApiKeyStore(),
+        primary_store,
         _ManagedApiKeyStore(_get_control_plane_service().store),
-        load_api_key_store(API_KEY_RECORDS_JSON),
+        fallback_store,
     )
 
 
@@ -801,6 +806,11 @@ class _MergedApiKeyStore:
         return None
 
 
+class _NoopApiKeyStore:
+    def get(self, key_id: str):
+        return None
+
+
 class _PortalOrganizationUsageTracker:
     def __init__(self, usage_service: UsageService) -> None:
         self._usage_service = usage_service
@@ -836,10 +846,10 @@ def _to_stored_api_key_record(record):
     from charity_status.auth.service import StoredApiKeyRecord
 
     return StoredApiKeyRecord(
-        key_id=record.key_id,
+        key_id=str(record.key_id),
         secret_hash=record.hashed_key_value,
-        account_id=record.organization_id,
-        workspace_id=record.organization_id,
+        account_id=str(record.organization_id),
+        workspace_id=str(record.organization_id),
         scopes=(
             "verify:read",
             "verify:write",

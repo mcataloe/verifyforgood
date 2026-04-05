@@ -3,16 +3,20 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Index
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, Integer, JSON, String, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .sqlalchemy_db import CustomerAccountsBase
 
 
+BIGINT_PRIMARY_KEY = BigInteger().with_variant(Integer(), "sqlite")
+BIGINT_FOREIGN_KEY = BigInteger().with_variant(Integer(), "sqlite")
+
+
 class UserModel(CustomerAccountsBase):
     __tablename__ = "users"
 
-    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     normalized_email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -28,14 +32,14 @@ class UserModel(CustomerAccountsBase):
 class OrganizationModel(CustomerAccountsBase):
     __tablename__ = "organizations"
 
-    organization_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deleted_by_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    deleted_by_user_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, nullable=True)
 
     memberships: Mapped[list["OrganizationMembershipModel"]] = relationship(back_populates="organization")
     subscriptions: Mapped[list["OrganizationSubscriptionModel"]] = relationship(back_populates="organization")
@@ -50,8 +54,9 @@ class OrganizationMembershipModel(CustomerAccountsBase):
         Index("ix_organization_memberships_user_id", "user_id"),
     )
 
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.organization_id"), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), primary_key=True)
+    membership_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("users.user_id"), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -64,8 +69,9 @@ class OrganizationMembershipModel(CustomerAccountsBase):
 class PlanModel(CustomerAccountsBase):
     __tablename__ = "plans"
 
-    plan_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plan_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
     plan_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    plan_code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     monthly_price: Mapped[int] = mapped_column(Integer, nullable=False)
     feature_flags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     request_limit: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -78,14 +84,14 @@ class OrganizationSubscriptionModel(CustomerAccountsBase):
         UniqueConstraint("organization_id", name="uq_organization_subscriptions_organization_id"),
     )
 
-    subscription_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.organization_id"), nullable=False)
-    plan_id: Mapped[str] = mapped_column(ForeignKey("plans.plan_id"), nullable=False)
+    subscription_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=False)
+    plan_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("plans.plan_id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     billing_cycle_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     billing_cycle_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    pending_plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pending_plan_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, nullable=True)
     pending_plan_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -101,12 +107,12 @@ class OrganizationApiKeyModel(CustomerAccountsBase):
         Index("ix_organization_api_keys_organization_id", "organization_id"),
     )
 
-    key_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.organization_id"), nullable=False)
+    key_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=False)
     hashed_key_value: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_by_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by_user_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -120,11 +126,11 @@ class OrganizationAuditLogModel(CustomerAccountsBase):
         Index("ix_organization_audit_logs_timestamp", "timestamp"),
     )
 
-    audit_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    audit_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    actor_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    organization_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.organization_id"), nullable=True)
-    target_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actor_user_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, nullable=True)
+    organization_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=True)
+    target_user_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False, default=dict)
 

@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from sqlalchemy import select
+
 from charity_status_platform.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
@@ -232,19 +234,22 @@ def test_backfill_customer_accounts_from_dynamodb_copies_migrated_identity_recor
     assert stats.api_keys == 1
     assert stats.audit_logs == 2
 
-    assert SqlAlchemyUserRepository(session_factory).get("user_1") is not None
-    assert SqlAlchemyOrganizationRepository(session_factory).get("org_1") is not None
-    assert SqlAlchemyOrganizationRepository(session_factory).get("org_2") is None
-    assert SqlAlchemyMembershipRepository(session_factory).get("org_1", "user_1") is not None
+    assert SqlAlchemyUserRepository(session_factory).get_by_email("person@example.com") is not None
+    assert SqlAlchemyOrganizationRepository(session_factory).get_by_slug("active-org") is not None
+    assert SqlAlchemyOrganizationRepository(session_factory).get_by_slug("deleted-org") is None
+    active_org = SqlAlchemyOrganizationRepository(session_factory).get_by_slug("active-org")
+    migrated_user = SqlAlchemyUserRepository(session_factory).get_by_email("person@example.com")
+    assert active_org is not None and migrated_user is not None
+    assert SqlAlchemyMembershipRepository(session_factory).get(active_org.organization_id, migrated_user.user_id) is not None
     assert SqlAlchemyPlanRepository(session_factory).get("growth") is not None
-    assert SqlAlchemySubscriptionRepository(session_factory).get_by_organization("org_1") is not None
-    assert SqlAlchemyApiKeyRepository(session_factory).get_by_key_id("key_1") is not None
+    assert SqlAlchemySubscriptionRepository(session_factory).get_by_organization(active_org.organization_id) is not None
+    assert len(SqlAlchemyApiKeyRepository(session_factory).list_for_organization(active_org.organization_id)) == 1
     assert len(SqlAlchemyAuditLogRepository(session_factory).list_identity_events()) == 1
-    assert len(SqlAlchemyAuditLogRepository(session_factory).list_for_organization("org_1")) == 1
+    assert len(SqlAlchemyAuditLogRepository(session_factory).list_for_organization(active_org.organization_id)) == 1
 
     session = session_factory()
     try:
-        deleted_model = session.get(OrganizationModel, "org_2")
+        deleted_model = session.scalar(select(OrganizationModel).where(OrganizationModel.slug == "deleted-org").limit(1))
         assert deleted_model is not None
         assert deleted_model.deleted_at is not None
     finally:

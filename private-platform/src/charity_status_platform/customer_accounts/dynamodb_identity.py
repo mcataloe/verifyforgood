@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import secrets
 from typing import Any
 
 import boto3
@@ -316,16 +317,26 @@ class DynamoApiKeyRepository:
         self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
 
     def create(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
+        persisted = api_key if api_key.key_id is not None else ApiKeyRecord(
+            key_id=f"key_{secrets.token_hex(16)}",
+            organization_id=api_key.organization_id,
+            hashed_key_value=api_key.hashed_key_value,
+            display_name=api_key.display_name,
+            created_at=api_key.created_at,
+            created_by_user_id=api_key.created_by_user_id,
+            status=api_key.status,
+            last_used_at=api_key.last_used_at,
+        )
         try:
             self._table.put_item(
-                Item=_api_key_item(api_key),
+                Item=_api_key_item(persisted),
                 ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)",
             )
         except Exception as exc:
             if exc.__class__.__name__ == "ConditionalCheckFailedException":
-                raise DuplicateApiKeyError(f"API key already exists: {api_key.key_id}") from exc
+                raise DuplicateApiKeyError(f"API key already exists: {persisted.key_id}") from exc
             raise
-        return api_key
+        return persisted
 
     def list_for_organization(self, organization_id: str) -> list[ApiKeyRecord]:
         response = self._table.query(
@@ -386,8 +397,9 @@ class DynamoPlanRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
         self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
 
-    def get(self, plan_id: str) -> PlanRecord | None:
-        response = self._table.get_item(Key={"pk": _plan_pk(plan_id), "sk": "PLAN"})
+    def get(self, plan_id: int | str) -> PlanRecord | None:
+        plan_key = _normalize_plan_key(plan_id)
+        response = self._table.get_item(Key={"pk": _plan_pk(plan_key), "sk": "PLAN"})
         item = response.get("Item")
         if item is None:
             return None
@@ -404,7 +416,7 @@ class DynamoPlanRepository:
 
     def seed_defaults(self, plans: list[PlanRecord]) -> None:
         for plan in plans:
-            if self.get(plan.plan_id) is not None:
+            if self.get(plan.plan_code) is not None:
                 continue
             self._table.put_item(Item=_plan_item(plan))
 
@@ -414,8 +426,23 @@ class DynamoSubscriptionRepository:
         self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
 
     def put(self, subscription: SubscriptionRecord) -> SubscriptionRecord:
-        self._table.put_item(Item=_subscription_item(subscription))
-        return subscription
+        persisted = subscription if subscription.subscription_id is not None else SubscriptionRecord(
+            subscription_id=f"sub_{secrets.token_hex(16)}",
+            organization_id=subscription.organization_id,
+            plan_id=subscription.plan_id,
+            status=subscription.status,
+            billing_cycle_start=subscription.billing_cycle_start,
+            billing_cycle_end=subscription.billing_cycle_end,
+            created_at=subscription.created_at,
+            pending_plan_id=subscription.pending_plan_id,
+            pending_plan_effective_at=subscription.pending_plan_effective_at,
+            cancel_at_period_end=subscription.cancel_at_period_end,
+            updated_at=subscription.updated_at,
+            grace_period_ends_at=subscription.grace_period_ends_at,
+            billing_status=subscription.billing_status,
+        )
+        self._table.put_item(Item=_subscription_item(persisted))
+        return persisted
 
     def get_by_organization(self, organization_id: str) -> SubscriptionRecord | None:
         response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": "SUBSCRIPTION"})
@@ -648,18 +675,20 @@ def _api_key_item(api_key: ApiKeyRecord) -> dict[str, Any]:
 
 
 def _plan_item(plan: PlanRecord) -> dict[str, Any]:
+    plan_key = _normalize_plan_key(plan.plan_code or plan.plan_id)
     return {
-        "pk": _plan_pk(plan.plan_id),
+        "pk": _plan_pk(plan_key),
         "sk": "PLAN",
         "type": "PLAN",
-        "plan_id": plan.plan_id,
+        "plan_id": plan_key,
+        "plan_code": plan_key,
         "plan_name": plan.plan_name,
         "monthly_price": plan.monthly_price,
         "feature_flags": list(plan.feature_flags),
         "request_limit": plan.request_limit,
         "description": plan.description,
         "gsi6pk": "PLANCATALOG",
-        "gsi6sk": plan.plan_id,
+        "gsi6sk": plan_key,
     }
 
 
@@ -783,12 +812,18 @@ def _plan_from_item(item: dict[str, Any]) -> PlanRecord:
     feature_flags = item.get("feature_flags") or []
     return PlanRecord(
         plan_id=str(item.get("plan_id") or ""),
+        plan_code=str(item.get("plan_code") or item.get("plan_id") or ""),
         plan_name=str(item.get("plan_name") or ""),
         monthly_price=int(item.get("monthly_price") or 0),
         feature_flags=tuple(str(flag) for flag in feature_flags),
         request_limit=int(item.get("request_limit") or 0),
         description=str(item.get("description") or ""),
     )
+
+
+def _normalize_plan_key(value: int | str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized
 
 
 def _subscription_from_item(item: dict[str, Any]) -> SubscriptionRecord:

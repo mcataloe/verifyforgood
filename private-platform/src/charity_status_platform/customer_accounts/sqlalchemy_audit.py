@@ -18,18 +18,20 @@ class SqlAlchemyAuditLogRepository(AuditLogRepository):
 
     def create(self, record: AuditRecord) -> AuditRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_audit_model(record))
+            model = _audit_model(record)
+            session.add(model)
             session.flush()
-        return record
+            session.refresh(model)
+            return _audit_record(model)
 
-    def list_for_organization(self, organization_id: str) -> list[AuditRecord]:
+    def list_for_organization(self, organization_id: int | str) -> list[AuditRecord]:
         with customer_accounts_session_scope(self._session_factory) as session:
             models = session.scalars(_organization_audit_query(organization_id)).all()
             return [_audit_record(model) for model in models]
 
     def list_for_organization_page(
         self,
-        organization_id: str,
+        organization_id: int | str,
         *,
         limit: int,
         cursor: str | None = None,
@@ -65,24 +67,28 @@ class SqlAlchemyAuditLogRepository(AuditLogRepository):
             return [_audit_record(model) for model in models]
 
 
-def _organization_audit_query(organization_id: str):
+def _organization_audit_query(organization_id: int | str):
+    normalized = _normalize_int_id(organization_id)
     return (
         select(OrganizationAuditLogModel)
-        .where(OrganizationAuditLogModel.organization_id == organization_id)
+        .where(OrganizationAuditLogModel.organization_id == normalized)
         .order_by(desc(OrganizationAuditLogModel.timestamp), desc(OrganizationAuditLogModel.audit_id))
     )
 
 
 def _audit_model(record: AuditRecord) -> OrganizationAuditLogModel:
-    return OrganizationAuditLogModel(
-        audit_id=record.audit_id,
-        event_type=record.event_type.value,
-        actor_user_id=record.actor_user_id,
-        organization_id=record.organization_id,
-        target_user_id=record.target_user_id,
-        timestamp=_parse_timestamp(record.timestamp),
-        metadata_json=dict(record.metadata),
-    )
+    kwargs = {
+        "event_type": record.event_type.value,
+        "actor_user_id": _normalize_int_id(record.actor_user_id),
+        "organization_id": _normalize_int_id(record.organization_id),
+        "target_user_id": _normalize_int_id(record.target_user_id),
+        "timestamp": _parse_timestamp(record.timestamp),
+        "metadata_json": dict(record.metadata),
+    }
+    audit_id = _normalize_int_id(record.audit_id)
+    if audit_id is not None:
+        kwargs["audit_id"] = audit_id
+    return OrganizationAuditLogModel(**kwargs)
 
 
 def _audit_record(model: OrganizationAuditLogModel) -> AuditRecord:
@@ -113,7 +119,7 @@ def _format_timestamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _encode_cursor(organization_id: str | None, timestamp: datetime, audit_id: str) -> str:
+def _encode_cursor(organization_id: int | None, timestamp: datetime, audit_id: int) -> str:
     payload = {
         "organization_id": organization_id or "",
         "timestamp": _format_timestamp(timestamp),
@@ -122,14 +128,26 @@ def _encode_cursor(organization_id: str | None, timestamp: datetime, audit_id: s
     return base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
 
 
-def _decode_cursor(cursor: str, *, organization_id: str) -> tuple[datetime, str]:
+def _decode_cursor(cursor: str, *, organization_id: int | str) -> tuple[datetime, int]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode("utf-8")).decode("utf-8"))
     except Exception as exc:  # noqa: BLE001
         raise ValueError("cursor is invalid") from exc
-    cursor_org_id = str((payload or {}).get("organization_id") or "")
+    cursor_org_id = _normalize_int_id((payload or {}).get("organization_id"))
+    expected_org_id = _normalize_int_id(organization_id)
     timestamp = str((payload or {}).get("timestamp") or "")
-    audit_id = str((payload or {}).get("audit_id") or "")
-    if cursor_org_id != organization_id or not timestamp or not audit_id:
+    audit_id = _normalize_int_id((payload or {}).get("audit_id"))
+    if cursor_org_id != expected_org_id or not timestamp or audit_id is None:
         raise ValueError("cursor is invalid")
     return _parse_timestamp(timestamp), audit_id
+
+
+def _normalize_int_id(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return int(normalized) if normalized.isdigit() else None

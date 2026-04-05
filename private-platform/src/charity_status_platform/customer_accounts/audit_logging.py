@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -30,11 +29,11 @@ class AuditEventType(str, Enum):
 
 @dataclass(frozen=True)
 class AuditRecord:
-    audit_id: str
+    audit_id: int | str | None
     event_type: AuditEventType
-    actor_user_id: str | None
-    organization_id: str | None
-    target_user_id: str | None
+    actor_user_id: int | str | None
+    organization_id: int | str | None
+    target_user_id: int | str | None
     timestamp: str
     metadata: dict[str, Any]
 
@@ -43,12 +42,12 @@ class AuditLogRepository(Protocol):
     def create(self, record: AuditRecord) -> AuditRecord:
         ...
 
-    def list_for_organization(self, organization_id: str) -> list[AuditRecord]:
+    def list_for_organization(self, organization_id: int | str) -> list[AuditRecord]:
         ...
 
     def list_for_organization_page(
         self,
-        organization_id: str,
+        organization_id: int | str,
         *,
         limit: int,
         cursor: str | None = None,
@@ -73,14 +72,14 @@ class AuditLogService:
         self,
         *,
         event_type: AuditEventType,
-        actor_user_id: str | None,
-        organization_id: str | None,
-        target_user_id: str | None,
+        actor_user_id: int | str | None,
+        organization_id: int | str | None,
+        target_user_id: int | str | None,
         metadata: dict[str, Any] | None = None,
         timestamp: str | None = None,
     ) -> AuditRecord | None:
         record = AuditRecord(
-            audit_id=f"audit_{secrets.token_hex(16)}",
+            audit_id=None,
             event_type=event_type,
             actor_user_id=_optional_string(actor_user_id),
             organization_id=_optional_string(organization_id),
@@ -107,6 +106,10 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _optional_string(value: str | None) -> str | None:
+def _optional_string(value: int | str | None) -> int | str | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
     candidate = str(value or "").strip()
     return candidate or None

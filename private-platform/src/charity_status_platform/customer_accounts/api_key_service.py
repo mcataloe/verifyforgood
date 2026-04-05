@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -32,15 +31,15 @@ class ApiKeyCreateRequest:
 
 @dataclass(frozen=True)
 class ApiKeyResponse:
-    key_id: str
-    organization_id: str
+    key_id: int | str
+    organization_id: int | str
     display_name: str
     created_at: str
-    created_by_user_id: str
+    created_by_user_id: int | str
     status: str
     last_used_at: str | None
 
-    def to_dict(self) -> dict[str, str | None]:
+    def to_dict(self) -> dict[str, int | str | None]:
         return {
             "key_id": self.key_id,
             "organization_id": self.organization_id,
@@ -90,25 +89,18 @@ class ApiKeyService:
         display_name = _validate_display_name(request.display_name)
         created_at = _utc_now()
 
-        for _ in range(5):
-            key_id = f"key_{secrets.token_hex(16)}"
-            if self._api_keys.get_by_key_id(key_id) is None:
-                break
-        else:
-            raise ApiKeyManagementError("Unable to generate a unique API key id")
-
         plaintext, stored = build_api_key_record(
-            key_id=key_id,
+            key_id="pending",
             secret=None,
-            account_id=organization_id,
-            workspace_id=organization_id,
+            account_id=str(organization_id),
+            workspace_id=str(organization_id),
             scopes=list(DEFAULT_ORG_API_KEY_SCOPES),
             plan_id=DEFAULT_ORG_API_KEY_PLAN,
             rate_limit_profile=DEFAULT_ORG_API_KEY_PLAN,
         )
         persisted = self._api_keys.create(
             ApiKeyRecord(
-                key_id=key_id,
+                key_id=None,
                 organization_id=organization_id,
                 hashed_key_value=stored.secret_hash,
                 display_name=display_name,
@@ -118,6 +110,7 @@ class ApiKeyService:
                 last_used_at=None,
             )
         )
+        plaintext = f"csk_{persisted.key_id}.{plaintext.split('.', 1)[1]}"
 
         if self._audit_log_service is not None:
             self._audit_log_service.record_event(
@@ -134,7 +127,7 @@ class ApiKeyService:
 
         return ApiKeyCreateResponse(api_key=_to_response(persisted), secret=plaintext)
 
-    def revoke_key(self, *, organization_id: str, actor_user_id: str, key_id: str) -> ApiKeyResponse:
+    def revoke_key(self, *, organization_id: int | str, actor_user_id: int | str, key_id: int | str) -> ApiKeyResponse:
         self._require_admin(organization_id=organization_id, user_id=actor_user_id)
         revoked = self._api_keys.revoke(organization_id, key_id, revoked_at=_utc_now())
         if revoked is None:
@@ -155,7 +148,7 @@ class ApiKeyService:
 
         return _to_response(revoked)
 
-    def _require_admin(self, *, organization_id: str, user_id: str) -> None:
+    def _require_admin(self, *, organization_id: int | str, user_id: int | str) -> None:
         if self._organizations.get(organization_id) is None:
             raise ApiKeyManagementError("Current organization was not found")
         membership = self._memberships.get(organization_id, user_id)

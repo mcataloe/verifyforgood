@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -15,7 +14,8 @@ class SubscriptionScaffoldingError(ValueError):
 
 DEFAULT_PORTAL_PLANS: tuple[PlanRecord, ...] = (
     PlanRecord(
-        plan_id="starter",
+        plan_id=None,
+        plan_code="starter",
         plan_name="Starter",
         monthly_price=4900,
         feature_flags=("verification", "risk_flags"),
@@ -23,7 +23,8 @@ DEFAULT_PORTAL_PLANS: tuple[PlanRecord, ...] = (
         description="Entry-level plan for early portal teams.",
     ),
     PlanRecord(
-        plan_id="growth",
+        plan_id=None,
+        plan_code="growth",
         plan_name="Growth",
         monthly_price=14900,
         feature_flags=("verification", "risk_flags", "financial_trends", "benchmarking"),
@@ -31,7 +32,8 @@ DEFAULT_PORTAL_PLANS: tuple[PlanRecord, ...] = (
         description="Expanded feature access for growing organizations.",
     ),
     PlanRecord(
-        plan_id="enterprise",
+        plan_id=None,
+        plan_code="enterprise",
         plan_name="Enterprise",
         monthly_price=49900,
         feature_flags=("verification", "risk_flags", "financial_trends", "benchmarking", "state_registry", "monitoring"),
@@ -50,7 +52,7 @@ class SubscriptionResolvedResponse:
     billable_days: int | None = None
     days_in_month: int | None = None
     next_renewal_at: str | None = None
-    pending_plan_id: str | None = None
+    pending_plan_id: int | str | None = None
     pending_plan_effective_at: str | None = None
     cancel_at_period_end: bool = False
     quota_delta: int | None = None
@@ -74,6 +76,7 @@ class SubscriptionResolvedResponse:
             },
             "plan": {
                 "plan_id": self.plan.plan_id,
+                "plan_code": self.plan.plan_code,
                 "plan_name": self.plan.plan_name,
                 "monthly_price": self.plan.monthly_price,
                 "feature_flags": list(self.plan.feature_flags),
@@ -112,7 +115,7 @@ class SubscriptionService:
 
     def get_plan(self, plan_id: str) -> PlanRecord:
         self._ensure_seeded_plans()
-        plan = self._plans.get(_normalize_plan_id(plan_id))
+        plan = self._plans.get(_normalize_plan_key(plan_id))
         if plan is None:
             raise SubscriptionScaffoldingError("plan_id must reference a known portal subscription plan")
         return plan
@@ -160,7 +163,7 @@ class SubscriptionService:
         detail = proration_detail(plan.monthly_price, effective)
         persisted = self._subscriptions.put(
             SubscriptionRecord(
-                subscription_id=existing.subscription_id if existing is not None else f"sub_{secrets.token_hex(16)}",
+                subscription_id=existing.subscription_id if existing is not None else None,
                 organization_id=organization_id,
                 plan_id=plan.plan_id,
                 status=normalized_status,
@@ -334,7 +337,7 @@ class SubscriptionService:
         next_renewal_at: str | None,
         billable_days: int | None = None,
         days_in_month: int | None = None,
-        pending_plan_id: str | None = None,
+        pending_plan_id: int | str | None = None,
         pending_plan_effective_at: str | None = None,
         cancel_at_period_end: bool | None = None,
         quota_delta: int | None = None,
@@ -370,8 +373,11 @@ class SubscriptionService:
         return current, plan, _parse_or_now(effective_at or _utc_now())
 
 
-def _normalize_plan_id(plan_id: str) -> str:
-    return str(plan_id or "").strip().lower()
+def _normalize_plan_key(plan_id: int | str) -> int | str:
+    if isinstance(plan_id, int):
+        return plan_id
+    normalized = str(plan_id or "").strip().lower()
+    return int(normalized) if normalized.isdigit() else normalized
 
 
 def _validate_status(status: str) -> SubscriptionStatus:

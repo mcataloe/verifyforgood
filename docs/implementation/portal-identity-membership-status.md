@@ -3,6 +3,7 @@
 ## Status
 
 customer support experience implemented
+customer-account PostgreSQL tables now use generated `BIGINT` primary keys across users, organizations, memberships, plans, subscriptions, API keys, and audit logs
 
 ## Next Phase
 

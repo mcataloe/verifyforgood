@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -33,12 +32,12 @@ class OrganizationDeleteRequest:
 
 @dataclass(frozen=True)
 class OrganizationContextResponse:
-    organization_id: str
+    organization_id: int | str
     organization_name: str
     slug: str
-    account_id: str
-    workspace_id: str
-    membership: dict[str, str]
+    account_id: int | str
+    workspace_id: int | str
+    membership: dict[str, int | str]
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -68,7 +67,7 @@ class OrganizationService:
     def create_organization(
         self,
         *,
-        creator_user_id: str,
+        creator_user_id: int | str,
         request: OrganizationCreateRequest,
     ) -> OrganizationContextResponse:
         creator = self._users.get(creator_user_id)
@@ -81,9 +80,8 @@ class OrganizationService:
             raise OrganizationBootstrapValidationError("Organization slug is already in use")
 
         created_at = _utc_now()
-        organization_id = f"org_{secrets.token_hex(16)}"
         organization = OrganizationRecord(
-            organization_id=organization_id,
+            organization_id=None,
             name=organization_name,
             slug=slug,
             created_at=created_at,
@@ -137,8 +135,8 @@ class OrganizationService:
     def delete_organization(
         self,
         *,
-        actor_user_id: str,
-        organization_id: str,
+        actor_user_id: int | str,
+        organization_id: int | str,
         request: OrganizationDeleteRequest,
     ) -> OrganizationContextResponse:
         actor = self._users.get(actor_user_id)

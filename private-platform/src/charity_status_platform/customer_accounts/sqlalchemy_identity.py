@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
-from sqlalchemy import desc, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -49,16 +48,21 @@ class SqlAlchemyUserRepository(UserRepository):
 
     def create(self, user: UserRecord) -> UserRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_user_model(user))
+            model = _user_model(user)
+            session.add(model)
             try:
                 session.flush()
             except IntegrityError as exc:
                 raise DuplicateUserEmailError(f"User email already exists: {user.email}") from exc
-        return user
+            session.refresh(model)
+            return _user_record(model)
 
-    def get(self, user_id: str) -> UserRecord | None:
+    def get(self, user_id: int | str) -> UserRecord | None:
+        normalized = _normalize_int_id(user_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(UserModel, user_id)
+            model = session.get(UserModel, normalized)
             return None if model is None else _user_record(model)
 
     def get_by_email(self, email: str) -> UserRecord | None:
@@ -74,16 +78,21 @@ class SqlAlchemyOrganizationRepository(OrganizationRepository):
 
     def create(self, organization: OrganizationRecord) -> OrganizationRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_organization_model(organization))
+            model = _organization_model(organization)
+            session.add(model)
             try:
                 session.flush()
             except IntegrityError as exc:
                 raise DuplicateOrganizationSlugError(f"Organization slug already exists: {organization.slug}") from exc
-        return organization
+            session.refresh(model)
+            return _organization_record(model)
 
-    def get(self, organization_id: str) -> OrganizationRecord | None:
+    def get(self, organization_id: int | str) -> OrganizationRecord | None:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationModel, organization_id)
+            model = session.get(OrganizationModel, normalized)
             if model is None:
                 return None
             record = _organization_record(model)
@@ -100,14 +109,17 @@ class SqlAlchemyOrganizationRepository(OrganizationRepository):
 
     def update_profile(
         self,
-        organization_id: str,
+        organization_id: int | str,
         *,
         name: str,
         contact_email: str | None,
         updated_at: str,
     ) -> OrganizationRecord | None:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationModel, organization_id)
+            model = session.get(OrganizationModel, normalized)
             if model is None or model.deleted_at is not None:
                 return None
             model.name = name
@@ -118,17 +130,20 @@ class SqlAlchemyOrganizationRepository(OrganizationRepository):
 
     def soft_delete(
         self,
-        organization_id: str,
+        organization_id: int | str,
         *,
         deleted_at: str,
-        deleted_by_user_id: str,
+        deleted_by_user_id: int | str,
     ) -> OrganizationRecord | None:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationModel, organization_id)
+            model = session.get(OrganizationModel, normalized)
             if model is None:
                 return None
             model.deleted_at = _parse_timestamp(deleted_at)
-            model.deleted_by_user_id = deleted_by_user_id
+            model.deleted_by_user_id = _normalize_int_id(deleted_by_user_id)
             model.updated_at = _parse_timestamp(deleted_at)
             session.flush()
             return _organization_record(model)
@@ -140,39 +155,47 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
 
     def create(self, membership: MembershipRecord) -> MembershipRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_membership_model(membership))
+            model = _membership_model(membership)
+            session.add(model)
             try:
                 session.flush()
             except IntegrityError as exc:
                 raise DuplicateMembershipError(
                     f"Membership already exists for user {membership.user_id} in organization {membership.organization_id}"
                 ) from exc
-        return membership
+            session.refresh(model)
+            return _membership_record(model)
 
-    def get(self, organization_id: str, user_id: str) -> MembershipRecord | None:
+    def get(self, organization_id: int | str, user_id: int | str) -> MembershipRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationMembershipModel, {"organization_id": organization_id, "user_id": user_id})
+            model = _membership_lookup(session, organization_id=organization_id, user_id=user_id)
             return None if model is None else _membership_record(model)
 
-    def list_for_organization(self, organization_id: str) -> list[MembershipRecord]:
+    def list_for_organization(self, organization_id: int | str) -> list[MembershipRecord]:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return []
         with customer_accounts_session_scope(self._session_factory) as session:
             models = session.scalars(
                 select(OrganizationMembershipModel)
-                .where(OrganizationMembershipModel.organization_id == organization_id)
+                .where(OrganizationMembershipModel.organization_id == normalized)
                 .order_by(OrganizationMembershipModel.created_at, OrganizationMembershipModel.user_id)
             ).all()
             return [_membership_record(model) for model in models]
 
-    def list_for_user(self, user_id: str) -> list[MembershipRecord]:
+    def list_for_user(self, user_id: int | str) -> list[MembershipRecord]:
+        normalized = _normalize_int_id(user_id)
+        if normalized is None:
+            return []
         with customer_accounts_session_scope(self._session_factory) as session:
             models = session.scalars(
                 select(OrganizationMembershipModel)
-                .where(OrganizationMembershipModel.user_id == user_id)
+                .where(OrganizationMembershipModel.user_id == normalized)
                 .order_by(OrganizationMembershipModel.created_at, OrganizationMembershipModel.organization_id)
             ).all()
             return [_membership_record(model) for model in models]
 
-    def update_role(self, organization_id: str, user_id: str, role: str) -> MembershipRecord | None:
+    def update_role(self, organization_id: int | str, user_id: int | str, role: str) -> MembershipRecord | None:
         existing = self.get(organization_id, user_id)
         if existing is None:
             return None
@@ -185,15 +208,15 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
 
     def update_membership(
         self,
-        organization_id: str,
-        user_id: str,
+        organization_id: int | str,
+        user_id: int | str,
         *,
         role: str | None = None,
         status: str | None = None,
         updated_at: str,
     ) -> MembershipRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationMembershipModel, {"organization_id": organization_id, "user_id": user_id})
+            model = _membership_lookup(session, organization_id=organization_id, user_id=user_id)
             if model is None:
                 return None
             if role is not None:
@@ -204,9 +227,9 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
             session.flush()
             return _membership_record(model)
 
-    def delete(self, organization_id: str, user_id: str) -> bool:
+    def delete(self, organization_id: int | str, user_id: int | str) -> bool:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationMembershipModel, {"organization_id": organization_id, "user_id": user_id})
+            model = _membership_lookup(session, organization_id=organization_id, user_id=user_id)
             if model is None:
                 return False
             session.delete(model)
@@ -217,9 +240,9 @@ class SqlAlchemyPlanRepository(PlanRepository):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
 
-    def get(self, plan_id: str) -> PlanRecord | None:
+    def get(self, plan_id: int | str) -> PlanRecord | None:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(PlanModel, plan_id)
+            model = _lookup_plan(session, plan_id)
             return None if model is None else _plan_record(model)
 
     def list_all(self) -> list[PlanRecord]:
@@ -230,11 +253,12 @@ class SqlAlchemyPlanRepository(PlanRepository):
     def seed_defaults(self, plans: list[PlanRecord]) -> None:
         with customer_accounts_session_scope(self._session_factory) as session:
             for record in plans:
-                model = session.get(PlanModel, record.plan_id)
+                model = session.scalar(select(PlanModel).where(PlanModel.plan_code == record.plan_code).limit(1))
                 if model is None:
                     session.add(_plan_model(record))
                     continue
                 model.plan_name = record.plan_name
+                model.plan_code = record.plan_code
                 model.monthly_price = record.monthly_price
                 model.feature_flags = list(record.feature_flags)
                 model.request_limit = record.request_limit
@@ -248,38 +272,41 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
 
     def put(self, subscription: SubscriptionRecord) -> SubscriptionRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.scalar(
-                select(OrganizationSubscriptionModel).where(
-                    or_(
-                        OrganizationSubscriptionModel.subscription_id == subscription.subscription_id,
-                        OrganizationSubscriptionModel.organization_id == subscription.organization_id,
-                    )
-                ).limit(1)
+            model = _lookup_subscription(
+                session,
+                subscription_id=subscription.subscription_id,
+                organization_id=subscription.organization_id,
             )
             if model is None:
-                session.add(_subscription_model(subscription))
+                model = _subscription_model(subscription)
+                session.add(model)
             else:
-                model.subscription_id = subscription.subscription_id
-                model.organization_id = subscription.organization_id
-                model.plan_id = subscription.plan_id
+                model.organization_id = _require_int_id(subscription.organization_id, field_name="organization_id")
+                model.plan_id = _require_int_id(subscription.plan_id, field_name="plan_id")
                 model.status = subscription.status.value
                 model.billing_cycle_start = _parse_timestamp(subscription.billing_cycle_start)
                 model.billing_cycle_end = _parse_timestamp(subscription.billing_cycle_end)
                 model.created_at = _parse_timestamp(subscription.created_at)
-                model.pending_plan_id = subscription.pending_plan_id
-                model.pending_plan_effective_at = _parse_timestamp(subscription.pending_plan_effective_at) if subscription.pending_plan_effective_at else None
+                model.pending_plan_id = _normalize_int_id(subscription.pending_plan_id)
+                model.pending_plan_effective_at = (
+                    _parse_timestamp(subscription.pending_plan_effective_at) if subscription.pending_plan_effective_at else None
+                )
                 model.cancel_at_period_end = bool(subscription.cancel_at_period_end)
                 model.updated_at = _parse_timestamp(subscription.updated_at) if subscription.updated_at else None
                 model.grace_period_ends_at = _parse_timestamp(subscription.grace_period_ends_at) if subscription.grace_period_ends_at else None
                 model.billing_status = subscription.billing_status
             session.flush()
-        return subscription
+            session.refresh(model)
+            return _subscription_record(model)
 
-    def get_by_organization(self, organization_id: str) -> SubscriptionRecord | None:
+    def get_by_organization(self, organization_id: int | str) -> SubscriptionRecord | None:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
             model = session.scalar(
                 select(OrganizationSubscriptionModel)
-                .where(OrganizationSubscriptionModel.organization_id == organization_id)
+                .where(OrganizationSubscriptionModel.organization_id == normalized)
                 .limit(1)
             )
             return None if model is None else _subscription_record(model)
@@ -291,44 +318,135 @@ class SqlAlchemyApiKeyRepository(ApiKeyRepository):
 
     def create(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
-            session.add(_api_key_model(api_key))
+            model = _api_key_model(api_key)
+            session.add(model)
             try:
                 session.flush()
             except IntegrityError as exc:
-                raise DuplicateApiKeyError(f"API key already exists: {api_key.key_id}") from exc
-        return api_key
+                raise DuplicateApiKeyError("API key already exists") from exc
+            session.refresh(model)
+            return _api_key_record(model)
 
-    def list_for_organization(self, organization_id: str) -> list[ApiKeyRecord]:
+    def list_for_organization(self, organization_id: int | str) -> list[ApiKeyRecord]:
+        normalized = _normalize_int_id(organization_id)
+        if normalized is None:
+            return []
         with customer_accounts_session_scope(self._session_factory) as session:
             models = session.scalars(
                 select(OrganizationApiKeyModel)
-                .where(OrganizationApiKeyModel.organization_id == organization_id)
+                .where(OrganizationApiKeyModel.organization_id == normalized)
                 .order_by(OrganizationApiKeyModel.created_at, OrganizationApiKeyModel.key_id)
             ).all()
             return [_api_key_record(model) for model in models]
 
-    def get_by_key_id(self, key_id: str) -> ApiKeyRecord | None:
+    def get_by_key_id(self, key_id: int | str) -> ApiKeyRecord | None:
+        normalized = _normalize_int_id(key_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationApiKeyModel, key_id)
+            model = session.get(OrganizationApiKeyModel, normalized)
             return None if model is None else _api_key_record(model)
 
-    def revoke(self, organization_id: str, key_id: str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
+    def revoke(self, organization_id: int | str, key_id: int | str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
+        normalized_key_id = _normalize_int_id(key_id)
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_key_id is None or normalized_org_id is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationApiKeyModel, key_id)
-            if model is None or model.organization_id != organization_id:
+            model = session.get(OrganizationApiKeyModel, normalized_key_id)
+            if model is None or model.organization_id != normalized_org_id:
                 return None
             model.status = ApiKeyStatus.REVOKED.value
+            if revoked_at:
+                model.last_used_at = _parse_timestamp(revoked_at)
             session.flush()
             return _api_key_record(model)
 
-    def touch_last_used(self, key_id: str, *, used_at: str) -> ApiKeyRecord | None:
+    def touch_last_used(self, key_id: int | str, *, used_at: str) -> ApiKeyRecord | None:
+        normalized = _normalize_int_id(key_id)
+        if normalized is None:
+            return None
         with customer_accounts_session_scope(self._session_factory) as session:
-            model = session.get(OrganizationApiKeyModel, key_id)
+            model = session.get(OrganizationApiKeyModel, normalized)
             if model is None:
                 return None
             model.last_used_at = _parse_timestamp(used_at)
             session.flush()
             return _api_key_record(model)
+
+
+def _lookup_plan(session: Session, plan_id: int | str) -> PlanModel | None:
+    normalized_id = _normalize_int_id(plan_id)
+    if normalized_id is not None:
+        model = session.get(PlanModel, normalized_id)
+        if model is not None:
+            return model
+    normalized_code = _normalize_code(plan_id)
+    if not normalized_code:
+        return None
+    return session.scalar(select(PlanModel).where(PlanModel.plan_code == normalized_code).limit(1))
+
+
+def _lookup_subscription(
+    session: Session,
+    *,
+    subscription_id: int | str | None,
+    organization_id: int | str,
+) -> OrganizationSubscriptionModel | None:
+    normalized_subscription_id = _normalize_int_id(subscription_id)
+    normalized_organization_id = _normalize_int_id(organization_id)
+    if normalized_subscription_id is not None:
+        model = session.get(OrganizationSubscriptionModel, normalized_subscription_id)
+        if model is not None:
+            return model
+    if normalized_organization_id is None:
+        return None
+    return session.scalar(
+        select(OrganizationSubscriptionModel)
+        .where(OrganizationSubscriptionModel.organization_id == normalized_organization_id)
+        .limit(1)
+    )
+
+
+def _membership_lookup(session: Session, *, organization_id: int | str, user_id: int | str) -> OrganizationMembershipModel | None:
+    normalized_org_id = _normalize_int_id(organization_id)
+    normalized_user_id = _normalize_int_id(user_id)
+    if normalized_org_id is None or normalized_user_id is None:
+        return None
+    return session.scalar(
+        select(OrganizationMembershipModel)
+        .where(
+            OrganizationMembershipModel.organization_id == normalized_org_id,
+            OrganizationMembershipModel.user_id == normalized_user_id,
+        )
+        .limit(1)
+    )
+
+
+def _normalize_int_id(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.isdigit():
+        return int(normalized)
+    return None
+
+
+def _require_int_id(value: int | str | None, *, field_name: str) -> int:
+    normalized = _normalize_int_id(value)
+    if normalized is None:
+        raise ValueError(f"{field_name} must be a numeric identifier")
+    return normalized
+
+
+def _normalize_code(value: int | str | None) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().lower()
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -350,17 +468,20 @@ def _format_timestamp(value: datetime | None) -> str | None:
 
 
 def _user_model(record: UserRecord) -> UserModel:
-    return UserModel(
-        user_id=record.user_id,
-        email=record.email,
-        normalized_email=record.normalized_email,
-        full_name=record.full_name,
-        created_at=_parse_timestamp(record.created_at),
-        updated_at=_parse_timestamp(record.updated_at),
-        password_hash=record.password_hash,
-        identity_provider_type=record.identity_provider_type.value,
-        external_subject_id=record.external_subject_id,
-    )
+    kwargs = {
+        "email": record.email,
+        "normalized_email": record.normalized_email,
+        "full_name": record.full_name,
+        "created_at": _parse_timestamp(record.created_at),
+        "updated_at": _parse_timestamp(record.updated_at),
+        "password_hash": record.password_hash,
+        "identity_provider_type": record.identity_provider_type.value,
+        "external_subject_id": record.external_subject_id,
+    }
+    user_id = _normalize_int_id(record.user_id)
+    if user_id is not None:
+        kwargs["user_id"] = user_id
+    return UserModel(**kwargs)
 
 
 def _user_record(model: UserModel) -> UserRecord:
@@ -378,16 +499,19 @@ def _user_record(model: UserModel) -> UserRecord:
 
 
 def _organization_model(record: OrganizationRecord) -> OrganizationModel:
-    return OrganizationModel(
-        organization_id=record.organization_id,
-        name=record.name,
-        slug=record.slug,
-        created_at=_parse_timestamp(record.created_at),
-        updated_at=_parse_timestamp(record.updated_at),
-        contact_email=record.contact_email,
-        deleted_at=_parse_timestamp(record.deleted_at) if record.deleted_at else None,
-        deleted_by_user_id=record.deleted_by_user_id,
-    )
+    kwargs = {
+        "name": record.name,
+        "slug": record.slug,
+        "created_at": _parse_timestamp(record.created_at),
+        "updated_at": _parse_timestamp(record.updated_at),
+        "contact_email": record.contact_email,
+        "deleted_at": _parse_timestamp(record.deleted_at) if record.deleted_at else None,
+        "deleted_by_user_id": _normalize_int_id(record.deleted_by_user_id),
+    }
+    organization_id = _normalize_int_id(record.organization_id)
+    if organization_id is not None:
+        kwargs["organization_id"] = organization_id
+    return OrganizationModel(**kwargs)
 
 
 def _organization_record(model: OrganizationModel) -> OrganizationRecord:
@@ -404,18 +528,22 @@ def _organization_record(model: OrganizationModel) -> OrganizationRecord:
 
 
 def _membership_model(record: MembershipRecord) -> OrganizationMembershipModel:
-    return OrganizationMembershipModel(
-        organization_id=record.organization_id,
-        user_id=record.user_id,
-        role=record.role.value,
-        status=record.status.value,
-        created_at=_parse_timestamp(record.created_at),
-        updated_at=_parse_timestamp(record.updated_at),
-    )
+    kwargs = {
+        "organization_id": _require_int_id(record.organization_id, field_name="organization_id"),
+        "user_id": _require_int_id(record.user_id, field_name="user_id"),
+        "role": record.role.value,
+        "status": record.status.value,
+        "created_at": _parse_timestamp(record.created_at),
+        "updated_at": _parse_timestamp(record.updated_at),
+    }
+    if record.membership_id is not None:
+        kwargs["membership_id"] = record.membership_id
+    return OrganizationMembershipModel(**kwargs)
 
 
 def _membership_record(model: OrganizationMembershipModel) -> MembershipRecord:
     return MembershipRecord(
+        membership_id=model.membership_id,
         organization_id=model.organization_id,
         user_id=model.user_id,
         role=MembershipRole(model.role),
@@ -426,19 +554,24 @@ def _membership_record(model: OrganizationMembershipModel) -> MembershipRecord:
 
 
 def _plan_model(record: PlanRecord) -> PlanModel:
-    return PlanModel(
-        plan_id=record.plan_id,
-        plan_name=record.plan_name,
-        monthly_price=record.monthly_price,
-        feature_flags=list(record.feature_flags),
-        request_limit=record.request_limit,
-        description=record.description,
-    )
+    kwargs = {
+        "plan_code": record.plan_code,
+        "plan_name": record.plan_name,
+        "monthly_price": record.monthly_price,
+        "feature_flags": list(record.feature_flags),
+        "request_limit": record.request_limit,
+        "description": record.description,
+    }
+    plan_id = _normalize_int_id(record.plan_id)
+    if plan_id is not None:
+        kwargs["plan_id"] = plan_id
+    return PlanModel(**kwargs)
 
 
 def _plan_record(model: PlanModel) -> PlanRecord:
     return PlanRecord(
         plan_id=model.plan_id,
+        plan_code=model.plan_code,
         plan_name=model.plan_name,
         monthly_price=model.monthly_price,
         feature_flags=tuple(model.feature_flags or []),
@@ -448,21 +581,24 @@ def _plan_record(model: PlanModel) -> PlanRecord:
 
 
 def _subscription_model(record: SubscriptionRecord) -> OrganizationSubscriptionModel:
-    return OrganizationSubscriptionModel(
-        subscription_id=record.subscription_id,
-        organization_id=record.organization_id,
-        plan_id=record.plan_id,
-        status=record.status.value,
-        billing_cycle_start=_parse_timestamp(record.billing_cycle_start),
-        billing_cycle_end=_parse_timestamp(record.billing_cycle_end),
-        created_at=_parse_timestamp(record.created_at),
-        pending_plan_id=record.pending_plan_id,
-        pending_plan_effective_at=_parse_timestamp(record.pending_plan_effective_at) if record.pending_plan_effective_at else None,
-        cancel_at_period_end=bool(record.cancel_at_period_end),
-        updated_at=_parse_timestamp(record.updated_at) if record.updated_at else None,
-        grace_period_ends_at=_parse_timestamp(record.grace_period_ends_at) if record.grace_period_ends_at else None,
-        billing_status=record.billing_status,
-    )
+    kwargs = {
+        "organization_id": _require_int_id(record.organization_id, field_name="organization_id"),
+        "plan_id": _require_int_id(record.plan_id, field_name="plan_id"),
+        "status": record.status.value,
+        "billing_cycle_start": _parse_timestamp(record.billing_cycle_start),
+        "billing_cycle_end": _parse_timestamp(record.billing_cycle_end),
+        "created_at": _parse_timestamp(record.created_at),
+        "pending_plan_id": _normalize_int_id(record.pending_plan_id),
+        "pending_plan_effective_at": _parse_timestamp(record.pending_plan_effective_at) if record.pending_plan_effective_at else None,
+        "cancel_at_period_end": bool(record.cancel_at_period_end),
+        "updated_at": _parse_timestamp(record.updated_at) if record.updated_at else None,
+        "grace_period_ends_at": _parse_timestamp(record.grace_period_ends_at) if record.grace_period_ends_at else None,
+        "billing_status": record.billing_status,
+    }
+    subscription_id = _normalize_int_id(record.subscription_id)
+    if subscription_id is not None:
+        kwargs["subscription_id"] = subscription_id
+    return OrganizationSubscriptionModel(**kwargs)
 
 
 def _subscription_record(model: OrganizationSubscriptionModel) -> SubscriptionRecord:
@@ -484,16 +620,19 @@ def _subscription_record(model: OrganizationSubscriptionModel) -> SubscriptionRe
 
 
 def _api_key_model(record: ApiKeyRecord) -> OrganizationApiKeyModel:
-    return OrganizationApiKeyModel(
-        key_id=record.key_id,
-        organization_id=record.organization_id,
-        hashed_key_value=record.hashed_key_value,
-        display_name=record.display_name,
-        created_at=_parse_timestamp(record.created_at),
-        created_by_user_id=record.created_by_user_id,
-        status=record.status.value,
-        last_used_at=_parse_timestamp(record.last_used_at) if record.last_used_at else None,
-    )
+    kwargs = {
+        "organization_id": _require_int_id(record.organization_id, field_name="organization_id"),
+        "hashed_key_value": record.hashed_key_value,
+        "display_name": record.display_name,
+        "created_at": _parse_timestamp(record.created_at),
+        "created_by_user_id": _require_int_id(record.created_by_user_id, field_name="created_by_user_id"),
+        "status": record.status.value,
+        "last_used_at": _parse_timestamp(record.last_used_at) if record.last_used_at else None,
+    }
+    key_id = _normalize_int_id(record.key_id)
+    if key_id is not None:
+        kwargs["key_id"] = key_id
+    return OrganizationApiKeyModel(**kwargs)
 
 
 def _api_key_record(model: OrganizationApiKeyModel) -> ApiKeyRecord:

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import boto3
@@ -111,13 +112,28 @@ def _collect_expected_identity_keys(
         "API_KEY": "api_keys",
         "AUDIT": "audit_logs",
     }
+    organization_slug_by_id = {
+        _text(item.get("organization_id")): _text(item.get("slug"))
+        for item in items
+        if str(item.get("type") or "").strip().upper() == "ORG" and _text(item.get("organization_id")) and _text(item.get("slug"))
+    }
+    user_email_by_id = {
+        _text(item.get("user_id")): (_text(item.get("normalized_email")) or _text(item.get("email")))
+        for item in items
+        if str(item.get("type") or "").strip().upper() == "USER" and _text(item.get("user_id")) and (_text(item.get("normalized_email")) or _text(item.get("email")))
+    }
     for item in items:
         item_type = str(item.get("type") or "").strip().upper()
         bucket = type_to_bucket.get(item_type)
         if bucket is None:
             unsupported_items += 1
             continue
-        key = _identity_key_for_item(item_type, item)
+        key = _identity_key_for_item(
+            item_type,
+            item,
+            organization_slug_by_id=organization_slug_by_id,
+            user_email_by_id=user_email_by_id,
+        )
         if key is None:
             invalid_items.append(
                 {
@@ -132,23 +148,34 @@ def _collect_expected_identity_keys(
     return expected_keys, invalid_items[:sample_limit], unsupported_items
 
 
-def _identity_key_for_item(item_type: str, item: dict[str, Any]) -> str | None:
+def _identity_key_for_item(
+    item_type: str,
+    item: dict[str, Any],
+    *,
+    organization_slug_by_id: dict[str | None, str | None],
+    user_email_by_id: dict[str | None, str | None],
+) -> str | None:
     if item_type == "USER":
-        return _text(item.get("user_id"))
+        return _text(item.get("normalized_email")) or _text(item.get("email"))
     if item_type == "ORG":
-        return _text(item.get("organization_id"))
+        return _text(item.get("slug"))
     if item_type == "MEMBERSHIP":
-        organization_id = _text(item.get("organization_id"))
-        user_id = _text(item.get("user_id"))
-        return None if not organization_id or not user_id else f"{organization_id}|{user_id}"
+        organization_slug = organization_slug_by_id.get(_text(item.get("organization_id")))
+        user_email = user_email_by_id.get(_text(item.get("user_id")))
+        return None if not organization_slug or not user_email else f"{organization_slug}|{user_email}"
     if item_type == "PLAN":
-        return _text(item.get("plan_id"))
+        return _text(item.get("plan_code")) or _text(item.get("plan_id"))
     if item_type == "SUBSCRIPTION":
-        return _text(item.get("subscription_id"))
+        return organization_slug_by_id.get(_text(item.get("organization_id")))
     if item_type == "API_KEY":
-        return _text(item.get("key_id"))
+        organization_id = organization_slug_by_id.get(_text(item.get("organization_id")))
+        key_hash = _text(item.get("hashed_key_value"))
+        return None if not organization_id or not key_hash else f"{organization_id}|{key_hash}"
     if item_type == "AUDIT":
-        return _text(item.get("audit_id"))
+        event_type = _text(item.get("event_type"))
+        organization_id = organization_slug_by_id.get(_text(item.get("organization_id"))) or ""
+        timestamp = _text(item.get("timestamp"))
+        return None if not event_type or not timestamp else f"{organization_id}|{event_type}|{timestamp}"
     return None
 
 
@@ -173,29 +200,39 @@ def _validate_customer_accounts_targets(
     engine = build_customer_accounts_engine(sqlalchemy_url)
     session_factory = build_customer_accounts_session_factory(engine)
     with customer_accounts_session_scope(session_factory) as session:
-        present_users = set(session.scalars(select(UserModel.user_id).where(UserModel.user_id.in_(expected_keys["users"]))).all()) if expected_keys["users"] else set()
-        present_organizations = set(
-            session.scalars(select(OrganizationModel.organization_id).where(OrganizationModel.organization_id.in_(expected_keys["organizations"]))).all()
-        ) if expected_keys["organizations"] else set()
-        present_plans = set(session.scalars(select(PlanModel.plan_id).where(PlanModel.plan_id.in_(expected_keys["plans"]))).all()) if expected_keys["plans"] else set()
+        present_users = set(session.scalars(select(UserModel.normalized_email)).all()) if expected_keys["users"] else set()
+        present_organizations = set(session.scalars(select(OrganizationModel.slug)).all()) if expected_keys["organizations"] else set()
+        present_plans = set(session.scalars(select(PlanModel.plan_code)).all()) if expected_keys["plans"] else set()
         present_subscriptions = set(
-            session.scalars(select(OrganizationSubscriptionModel.subscription_id).where(OrganizationSubscriptionModel.subscription_id.in_(expected_keys["subscriptions"]))).all()
+            session.execute(
+                select(OrganizationModel.slug)
+                .join(OrganizationSubscriptionModel, OrganizationSubscriptionModel.organization_id == OrganizationModel.organization_id)
+            ).scalars().all()
         ) if expected_keys["subscriptions"] else set()
         present_api_keys = set(
-            session.scalars(select(OrganizationApiKeyModel.key_id).where(OrganizationApiKeyModel.key_id.in_(expected_keys["api_keys"]))).all()
+            f"{slug}|{hashed_key_value}"
+            for slug, hashed_key_value in session.execute(
+                select(OrganizationModel.slug, OrganizationApiKeyModel.hashed_key_value)
+                .join(OrganizationApiKeyModel, OrganizationApiKeyModel.organization_id == OrganizationModel.organization_id)
+            ).all()
         ) if expected_keys["api_keys"] else set()
         present_audits = set(
-            session.scalars(select(OrganizationAuditLogModel.audit_id).where(OrganizationAuditLogModel.audit_id.in_(expected_keys["audit_logs"]))).all()
-        ) if expected_keys["audit_logs"] else set()
-        present_memberships = set()
-        if expected_keys["memberships"]:
-            rows = session.execute(
-                select(OrganizationMembershipModel.organization_id, OrganizationMembershipModel.user_id).where(
-                    OrganizationMembershipModel.organization_id.in_({key.split("|", 1)[0] for key in expected_keys["memberships"]}),
-                    OrganizationMembershipModel.user_id.in_({key.split("|", 1)[1] for key in expected_keys["memberships"]}),
-                )
+            f"{slug or ''}|{event_type}|{_format_timestamp(timestamp)}"
+            for slug, event_type, timestamp in session.execute(
+                select(OrganizationModel.slug, OrganizationAuditLogModel.event_type, OrganizationAuditLogModel.timestamp)
+                .select_from(OrganizationAuditLogModel)
+                .join(OrganizationModel, OrganizationAuditLogModel.organization_id == OrganizationModel.organization_id, isouter=True)
             ).all()
-            present_memberships = {f"{organization_id}|{user_id}" for organization_id, user_id in rows}
+        ) if expected_keys["audit_logs"] else set()
+        present_memberships = set(
+            f"{slug}|{normalized_email}"
+            for slug, normalized_email in session.execute(
+                select(OrganizationModel.slug, UserModel.normalized_email)
+                .select_from(OrganizationMembershipModel)
+                .join(OrganizationModel, OrganizationMembershipModel.organization_id == OrganizationModel.organization_id)
+                .join(UserModel, OrganizationMembershipModel.user_id == UserModel.user_id)
+            ).all()
+        ) if expected_keys["memberships"] else set()
 
     validation = {
         "users": build_entity_validation(expected_keys=expected_keys["users"], present_keys=present_users, sample_limit=sample_limit),
@@ -221,6 +258,14 @@ def _validate_customer_accounts_targets(
 def _text(value: Any) -> str | None:
     normalized = str(value or "").strip()
     return normalized or None
+
+
+def _format_timestamp(value: Any) -> str:
+    if isinstance(value, datetime):
+        current = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return current.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+    normalized = str(value or "").strip()
+    return normalized.replace("Z", "+00:00")
 
 
 def _build_parser() -> argparse.ArgumentParser:
