@@ -40,6 +40,18 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
     assert "form990_extracted_files" in table_names
 
 
+def test_nonprofit_model_allows_extended_ntee_category_labels():
+    ntee_column = NonprofitModel.__table__.c["ntee_category"]
+
+    assert getattr(ntee_column.type, "length", None) == 128
+
+
+def test_nonprofit_model_allows_extended_entity_type_labels():
+    entity_type_column = NonprofitModel.__table__.c["entity_type"]
+
+    assert getattr(entity_type_column.type, "length", None) == 128
+
+
 def test_nonprofit_repository_tracks_form990_archive_and_extracted_file_metadata(tmp_path: Path):
     repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
     archive = Form990ArchiveRecord(
