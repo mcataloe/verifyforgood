@@ -58,6 +58,25 @@ def test_build_local_ingest_run_config_defaults_to_debug_in_dev_without_override
     assert config.log_level == "DEBUG"
 
 
+def test_build_local_ingest_run_config_auto_sizes_xml_parser_workers(monkeypatch):
+    monkeypatch.setattr(local_runner, "_available_cpu_count", lambda: 8)
+
+    config = local_runner.build_local_ingest_run_config(env={})
+
+    assert config.xml_parser_workers == 4
+
+
+def test_build_local_ingest_run_config_prefers_cli_xml_parser_worker_override(monkeypatch):
+    monkeypatch.setattr(local_runner, "_available_cpu_count", lambda: 8)
+
+    config = local_runner.build_local_ingest_run_config(
+        env={"FORM990_XML_PARSER_WORKERS": "3"},
+        xml_parser_workers=2,
+    )
+
+    assert config.xml_parser_workers == 2
+
+
 def test_ecs_runtime_creates_workspace_and_calls_shared_local_runner(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 

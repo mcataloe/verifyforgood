@@ -37,6 +37,7 @@ from .persistence import build_form990_archive_metadata_service, build_form990_n
 DEFAULT_SOURCE_MODE = "static_manifest"
 DEFAULT_IRS_DOWNLOADS_PAGE_URL = "https://www.irs.gov/charities-non-profits/form-990-series-downloads"
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_MAX_XML_PARSER_WORKERS = 4
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class LocalIngestRunConfig:
     keep_temp: bool = False
     workspace: str | None = None
     limit: int | None = None
+    xml_parser_workers: int = 1
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
 
@@ -122,6 +124,7 @@ def build_local_ingest_run_config(
     keep_temp: bool | None = None,
     workspace: str | None = None,
     limit: int | None = None,
+    xml_parser_workers: int | None = None,
     log_level: str | None = None,
 ) -> LocalIngestRunConfig:
     source_env = resolve_runtime_environment_aliases(env)
@@ -139,6 +142,7 @@ def build_local_ingest_run_config(
         keep_temp=bool(keep_temp) if keep_temp is not None else False,
         workspace=workspace or _env_text(source_env, "FORM990_WORKSPACE_DIR") or None,
         limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
+        xml_parser_workers=_resolve_xml_parser_workers(source_env, override=xml_parser_workers),
         log_level=resolved_log_level,
         log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
@@ -152,6 +156,7 @@ def run_local_form990_ingest(
     keep_temp: bool,
     workspace: str | None,
     limit: int | None,
+    xml_parser_workers: int | None = None,
     env: Mapping[str, str] | None = None,
 ) -> int:
     config = build_local_ingest_run_config(
@@ -162,6 +167,7 @@ def run_local_form990_ingest(
         keep_temp=keep_temp,
         workspace=workspace,
         limit=limit,
+        xml_parser_workers=xml_parser_workers,
     )
     return run_local_form990_ingest_config(config=config, env=env)
 
@@ -283,6 +289,7 @@ def run_local_form990_ingest_config(
                     error=exc,
                 ),
                 progress_reporter=progress_reporter,
+                xml_parser_workers=config.xml_parser_workers,
             )
             logger.log(
                 component="form990.archive",
@@ -457,3 +464,52 @@ def _env_optional_bool(source_env: Mapping[str, str], key: str) -> bool | None:
     if raw is None or str(raw).strip() == "":
         return None
     return str(raw).strip().lower() == "true"
+
+
+def _resolve_xml_parser_workers(source_env: Mapping[str, str], *, override: int | None = None) -> int:
+    if override is not None:
+        return max(1, int(override))
+    configured = _env_optional_int(source_env, "FORM990_XML_PARSER_WORKERS")
+    if configured is not None:
+        return max(1, configured)
+    available_cpu = _available_cpu_count()
+    return min(DEFAULT_MAX_XML_PARSER_WORKERS, max(1, available_cpu - 1))
+
+
+def _available_cpu_count() -> int:
+    try:
+        affinity = os.sched_getaffinity(0)
+    except AttributeError:
+        affinity = None
+    if affinity:
+        return max(1, len(affinity))
+    cgroup_count = _available_cpu_count_from_cgroup()
+    if cgroup_count is not None:
+        return cgroup_count
+    return max(1, int(os.cpu_count() or 1))
+
+
+def _available_cpu_count_from_cgroup() -> int | None:
+    cpu_max_path = Path("/sys/fs/cgroup/cpu.max")
+    if cpu_max_path.exists():
+        try:
+            quota_text, period_text = cpu_max_path.read_text(encoding="utf-8").strip().split(maxsplit=1)
+            if quota_text != "max":
+                quota = int(quota_text)
+                period = int(period_text)
+                if quota > 0 and period > 0:
+                    return max(1, (quota + period - 1) // period)
+        except (OSError, ValueError):
+            pass
+
+    quota_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+    period_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+    if quota_path.exists() and period_path.exists():
+        try:
+            quota = int(quota_path.read_text(encoding="utf-8").strip())
+            period = int(period_path.read_text(encoding="utf-8").strip())
+            if quota > 0 and period > 0:
+                return max(1, (quota + period - 1) // period)
+        except (OSError, ValueError):
+            pass
+    return None

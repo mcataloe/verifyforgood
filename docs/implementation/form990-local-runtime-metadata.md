@@ -6,6 +6,7 @@ Current active runtime behavior:
 
 - archive ZIP files are downloaded from their HTTP source URL into the workspace
 - extracted XML files remain workspace-local and are deleted after parsing
+- the local archive path now parses each extracted XML once and overlaps unzip plus parse work through a bounded local worker pool
 - `form990_archives` stores HTTP probe metadata plus processing lifecycle timestamps
 - `form990_extracted_files` stores per-member content hashes and parse status
 - `nonprofit_filings` stores `raw_file_reference` instead of an S3-specific key

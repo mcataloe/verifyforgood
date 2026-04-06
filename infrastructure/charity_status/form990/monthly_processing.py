@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 import hashlib
 import json
 import logging
 import os
 import tempfile
+import time
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -14,8 +16,8 @@ from typing import Any, Callable, Mapping
 
 from charity_status.form990.extractors.metadata import extract_metadata_fields
 from charity_status.form990.hardening import classify_error, validate_runtime_config
-from charity_status.form990.ingest import ingest_form990_records
-from charity_status.form990.models import Form990IndexRecord
+from charity_status.form990.ingest import finalize_form990_filing_records, parse_form990_record_xml
+from charity_status.form990.models import Form990IndexRecord, Form990MetadataRecord, Form990ParseStatus
 from charity_status.form990.parser import XmlParseError, parse_xml
 from charity_status.ingest import EcsTaskRuntimeContract, MonthlyIngestWorkflowInput
 from charity_status.ops import ProgressField, ProgressReporter
@@ -74,6 +76,20 @@ class _ArchiveProcessingContext:
     correlation_id: str
     workflow_version: str
     source_url: str | None = None
+
+
+@dataclass(frozen=True)
+class _LocalXmlParseTask:
+    member: LocalExtractedXmlMember
+    record: Form990IndexRecord
+    source_reference: str
+
+
+@dataclass(frozen=True)
+class _ParsedXmlMemberResult:
+    member: LocalExtractedXmlMember
+    filing_record: dict[str, Any]
+    relationship_records: tuple[dict[str, Any], ...] = ()
 
 
 def run_form990_monthly_processing_task(
@@ -338,6 +354,7 @@ def process_form990_archive(
     max_xml_file_size_bytes: int = DEFAULT_MAX_XML_FILE_SIZE_BYTES,
     xml_error_handler: Callable[[str | None, Exception, str], None] | None = None,
     progress_reporter: ProgressReporter | None = None,
+    xml_parser_workers: int = 1,
 ) -> dict[str, Any]:
     if isinstance(processing_context, _ArchiveProcessingContext):
         context = processing_context
@@ -350,6 +367,7 @@ def process_form990_archive(
             source_url=_as_text(processing_context.get("source_url")),
         )
     started = started_at or datetime.now(timezone.utc)
+    total_started_at = time.perf_counter()
     checksum = archive_checksum or _hash_file(archive_path)
     size = int(archive_size) if archive_size is not None else Path(archive_path).stat().st_size
     archive_identity = context.source_url or f"workspace://{context.source_key}"
@@ -380,48 +398,87 @@ def process_form990_archive(
         archive_path=archive_path,
         extracted_workdir=extracted_workdir,
     )
-    extracted_members = extract_zip_xml_members_to_workdir(
+    processable_members = _processable_archive_members(
         archive_path=archive_path,
-        workdir=extracted_workdir,
         max_xml_file_size_bytes=max_xml_file_size_bytes,
     )
-    if not extracted_members:
+    if not processable_members:
         raise MonthlyIngestMalformedArchiveError("zip archive did not contain any processable XML members")
 
-    selected_members = extracted_members
+    unzip_duration_seconds = 0.0
+    selection_duration_seconds = 0.0
     skipped_unchanged_members = 0
+    extracted_members: list[LocalExtractedXmlMember] = []
+    selected_members: list[LocalExtractedXmlMember] = []
     member_hashes: dict[str, str] = {}
-    if archive_metadata_service is not None and archive_record is not None:
-        selected_members = []
-        selection_progress_session = (
-            progress_reporter.start(
-                total_items=len(extracted_members),
-                fields=[
-                    ProgressField(key="selected", label="selected", color="green"),
-                    ProgressField(key="skipped", label="skipped", color="blue"),
-                ],
-                update_every=10,
-            )
-            if progress_reporter is not None
-            else None
+    parser_workers = max(1, int(xml_parser_workers or 1))
+    selection_progress_session = (
+        progress_reporter.start(
+            total_items=len(processable_members),
+            fields=[
+                ProgressField(key="selected", label="selected", color="green"),
+                ProgressField(key="skipped", label="skipped", color="blue"),
+            ],
+            update_every=10,
         )
-        try:
-            for member in extracted_members:
-                content_hash = _hash_local_xml_file(member.local_path)
-                member_hashes[member.member_name] = content_hash
-                existing = archive_metadata_service.get_extracted_file(archive_record.archive_id, member.member_name)
-                if existing is not None and str(existing.content_hash or "").strip() == content_hash:
-                    skipped_unchanged_members += 1
-                    _delete_local_xml_file(member.local_path)
+        if progress_reporter is not None
+        else None
+    )
+    parse_futures: list[Future[_ParsedXmlMemberResult]] = []
+    parse_tasks: list[_LocalXmlParseTask] = []
+    max_pending_tasks = max(1, parser_workers * 2)
+    try:
+        with ThreadPoolExecutor(max_workers=parser_workers, thread_name_prefix="form990-xml") as executor:
+            with zipfile.ZipFile(archive_path, mode="r") as archive:
+                for index, member in processable_members:
+                    extract_started_at = time.perf_counter()
+                    extracted_member = _extract_zip_member_to_workdir(
+                        archive=archive,
+                        member=member,
+                        member_index=index,
+                        workdir=extracted_workdir,
+                    )
+                    unzip_duration_seconds += time.perf_counter() - extract_started_at
+                    extracted_members.append(extracted_member)
+                    selection_started_at = time.perf_counter()
+                    content_hash = _hash_local_xml_file(extracted_member.local_path)
+                    member_hashes[extracted_member.member_name] = content_hash
+                    if archive_metadata_service is not None and archive_record is not None:
+                        existing = archive_metadata_service.get_extracted_file(
+                            archive_record.archive_id,
+                            extracted_member.member_name,
+                        )
+                        if existing is not None and str(existing.content_hash or "").strip() == content_hash:
+                            skipped_unchanged_members += 1
+                            _delete_local_xml_file(extracted_member.local_path)
+                            if selection_progress_session is not None:
+                                selection_progress_session.item_completed({"skipped": 1})
+                            selection_duration_seconds += time.perf_counter() - selection_started_at
+                            continue
+                    selected_members.append(extracted_member)
                     if selection_progress_session is not None:
-                        selection_progress_session.item_completed({"skipped": 1})
-                    continue
-                selected_members.append(member)
-                if selection_progress_session is not None:
-                    selection_progress_session.item_completed({"selected": 1})
-        finally:
-            if selection_progress_session is not None:
-                selection_progress_session.complete()
+                        selection_progress_session.item_completed({"selected": 1})
+                    parse_task = _build_local_xml_parse_task(
+                        member=extracted_member,
+                        source_key=context.source_key,
+                        source_object=source_object,
+                    )
+                    if parse_task is None:
+                        _delete_local_xml_file(extracted_member.local_path)
+                        selection_duration_seconds += time.perf_counter() - selection_started_at
+                        continue
+                    parse_tasks.append(parse_task)
+                    parse_futures.append(executor.submit(_parse_local_xml_parse_task, parse_task, xml_error_handler))
+                    selection_duration_seconds += time.perf_counter() - selection_started_at
+                    while len(parse_futures) - _count_completed_futures(parse_futures) >= max_pending_tasks:
+                        wait(parse_futures, return_when=FIRST_COMPLETED)
+    except zipfile.BadZipFile as exc:
+        raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
+    finally:
+        if selection_progress_session is not None:
+            selection_progress_session.complete()
+    unzip_elapsed_ms = int(unzip_duration_seconds * 1000)
+    selection_elapsed_ms = int(selection_duration_seconds * 1000)
     _log_structured(
         "monthly_ingest.worker.extracted",
         job_id=context.job_id,
@@ -432,24 +489,19 @@ def process_form990_archive(
         archive_size_bytes=size,
     )
 
-    records, local_file_lookup = build_local_index_records(
-        extracted_members=selected_members,
-        source_key=context.source_key,
-        source_object=source_object,
-        archive_checksum=checksum,
-    )
     _log_structured(
         "monthly_ingest.worker.records_parse_about_to_start",
         level=logging.DEBUG,
         job_id=context.job_id,
         archive_path=archive_path,
-        record_count=len(records),
+        record_count=len(parse_tasks),
         selected_member_count=len(selected_members),
     )
-    if records:
+    parse_started_at = time.perf_counter()
+    if parse_tasks:
         progress_session = (
             progress_reporter.start(
-                total_items=len(records),
+                total_items=len(parse_tasks),
                 fields=[
                     ProgressField(key="parsed", label="parsed", color="green"),
                     ProgressField(key="failed", label="failed", color="red"),
@@ -460,22 +512,19 @@ def process_form990_archive(
             else None
         )
         try:
-            ingest_result = ingest_form990_records(
-                records=records,
-                download_raw=True,
-                record_downloader=lambda record: _load_local_xml(record, local_file_lookup),
-                record_cleanup_handler=lambda record: _delete_local_xml_for_record(record, local_file_lookup),
-                nonprofit_persistence_service=nonprofit_persistence_service,
-                record_error_handler=(
-                    (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
-                    if xml_error_handler is not None
-                    else None
-                ),
-                persist_artifacts=False,
-                progress_session=progress_session,
-            ).to_dict()
+            parsed_results = _collect_parse_results(parse_futures=parse_futures, progress_session=progress_session)
         finally:
-            _cleanup_remaining_local_xml(local_file_lookup)
+            if progress_session is not None:
+                progress_session.complete()
+        parse_elapsed_ms = _elapsed_ms(parse_started_at)
+        persistence_started_at = time.perf_counter()
+        filing_records = [result.filing_record for result in parsed_results]
+        ingest_result = finalize_form990_filing_records(
+            filing_records,
+            started=started,
+            nonprofit_persistence_service=nonprofit_persistence_service,
+        ).to_dict()
+        persistence_elapsed_ms = _elapsed_ms(persistence_started_at)
     else:
         ingest_result = {
             "status": "success",
@@ -486,7 +535,8 @@ def process_form990_archive(
             "artifact_paths": None,
             "nonprofit_persistence": None,
         }
-        _cleanup_remaining_local_xml(local_file_lookup)
+        parse_elapsed_ms = 0
+        persistence_elapsed_ms = 0
 
     _log_structured(
         "monthly_ingest.worker.records_parse_completed",
@@ -499,6 +549,7 @@ def process_form990_archive(
     )
 
     if archive_metadata_service is not None and archive_record is not None:
+        extracted_file_persistence_started_at = time.perf_counter()
         _persist_extracted_file_results(
             archive_metadata_service=archive_metadata_service,
             archive_id=archive_record.archive_id,
@@ -506,8 +557,22 @@ def process_form990_archive(
             member_hashes=member_hashes,
             ingest_result=ingest_result,
         )
+        persistence_elapsed_ms += _elapsed_ms(extracted_file_persistence_started_at)
 
     completed_at = datetime.now(timezone.utc)
+    total_elapsed_ms = _elapsed_ms(total_started_at)
+    _log_structured(
+        "monthly_ingest.worker.stage_timings",
+        level=logging.DEBUG,
+        job_id=context.job_id,
+        archive_path=archive_path,
+        unzip_duration_ms=unzip_elapsed_ms,
+        selection_duration_ms=selection_elapsed_ms,
+        parse_duration_ms=parse_elapsed_ms,
+        persistence_duration_ms=persistence_elapsed_ms,
+        total_duration_ms=total_elapsed_ms,
+        xml_parser_workers=parser_workers,
+    )
     return {
         "status": str(ingest_result.get("status") or "failed"),
         "job_id": context.job_id,
@@ -523,6 +588,155 @@ def process_form990_archive(
         "artifact_paths": None,
         "completed_at": completed_at.isoformat(),
     }
+
+
+def _processable_archive_members(*, archive_path: str, max_xml_file_size_bytes: int) -> list[tuple[int, zipfile.ZipInfo]]:
+    try:
+        with zipfile.ZipFile(archive_path, mode="r") as archive:
+            return [
+                (index, member)
+                for index, member in enumerate(archive.infolist())
+                if not member.is_dir()
+                and member.filename.lower().endswith(".xml")
+                and member.file_size <= max_xml_file_size_bytes
+            ]
+    except zipfile.BadZipFile as exc:
+        raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
+
+
+def _extract_zip_member_to_workdir(
+    *,
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+    member_index: int,
+    workdir: str,
+) -> LocalExtractedXmlMember:
+    Path(workdir).mkdir(parents=True, exist_ok=True)
+    member_name = member.filename.replace("\\", "/")
+    output_name = f"{member_index:05d}_{Path(member_name).name}"
+    output_path = Path(workdir) / output_name
+    with archive.open(member, mode="r") as source_handle, output_path.open("wb") as target_handle:
+        while True:
+            chunk = source_handle.read(64 * 1024)
+            if not chunk:
+                break
+            target_handle.write(chunk)
+    return LocalExtractedXmlMember(
+        member_name=member_name,
+        local_path=str(output_path),
+        content_length=output_path.stat().st_size,
+    )
+
+
+def _build_local_xml_parse_task(
+    *,
+    member: LocalExtractedXmlMember,
+    source_key: str,
+    source_object: MonthlyIngestSourceObject,
+) -> _LocalXmlParseTask | None:
+    irs_object_id = _object_id_from_member_name(member.member_name)
+    if not irs_object_id:
+        return None
+    xml_reference = _xml_reference(source_key=source_key, member_name=member.member_name)
+    return _LocalXmlParseTask(
+        member=member,
+        source_reference=xml_reference,
+        record=Form990IndexRecord(
+            ein=None,
+            tax_year=source_object.source_year,
+            filing_date=None,
+            return_type="990",
+            irs_object_id=irs_object_id,
+            xml_url=xml_reference,
+            source_year=source_object.source_year,
+            source_archive=source_object.source_archive_key,
+            source_signature=None,
+        ),
+    )
+
+
+def _parse_local_xml_parse_task(
+    task: _LocalXmlParseTask,
+    xml_error_handler: Callable[[str | None, Exception, str], None] | None,
+) -> _ParsedXmlMemberResult:
+    try:
+        record_error_handler = (
+            (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
+            if xml_error_handler is not None
+            else None
+        )
+        try:
+            xml_bytes = Path(task.member.local_path).read_bytes()
+            parsed_record = parse_form990_record_xml(
+                task.record,
+                xml_bytes=xml_bytes,
+                source_reference=task.source_reference,
+                record_error_handler=record_error_handler,
+            )
+            return _ParsedXmlMemberResult(
+                member=task.member,
+                filing_record=parsed_record.filing_record,
+                relationship_records=parsed_record.relationship_records,
+            )
+        except Exception as exc:
+            if record_error_handler is not None:
+                record_error_handler(task.record, exc, Form990ParseStatus.PARSE_ERROR.value)
+            return _ParsedXmlMemberResult(
+                member=task.member,
+                filing_record=Form990MetadataRecord(
+                    ein=task.record.ein,
+                    tax_year=task.record.tax_year,
+                    tax_period_begin=None,
+                    tax_period_end=None,
+                    filing_date=task.record.filing_date,
+                    amended_return=None,
+                    return_type=task.record.return_type,
+                    irs_object_id=task.record.irs_object_id,
+                    xml_source_reference=task.source_reference,
+                    raw_file_reference=None,
+                    parse_status=Form990ParseStatus.PARSE_ERROR,
+                    parse_error=str(exc),
+                ).to_dict(),
+            )
+    finally:
+        _delete_local_xml_file(task.member.local_path)
+        _log_structured(
+            "form990.ingest.xml_file_deleted",
+            level=logging.DEBUG,
+            file_name=Path(task.member.local_path).name,
+            xml_source_reference=task.source_reference,
+        )
+
+
+def _collect_parse_results(
+    *,
+    parse_futures: list[Future[_ParsedXmlMemberResult]],
+    progress_session: Any | None,
+) -> list[_ParsedXmlMemberResult]:
+    parsed_results: list[_ParsedXmlMemberResult] = []
+    for future in as_completed(parse_futures):
+        result = future.result()
+        parsed_results.append(result)
+        if progress_session is not None:
+            progress_session.item_completed(_progress_increments_for_filing(result.filing_record))
+    return parsed_results
+
+
+def _count_completed_futures(futures: list[Future[Any]]) -> int:
+    return sum(1 for future in futures if future.done())
+
+
+def _progress_increments_for_filing(filing_record: Mapping[str, Any]) -> dict[str, int]:
+    status = str(filing_record.get("parse_status") or "").strip().lower()
+    if status == Form990ParseStatus.PARSED.value:
+        return {"parsed": 1}
+    if status in {Form990ParseStatus.MALFORMED_XML.value, Form990ParseStatus.PARSE_ERROR.value}:
+        return {"failed": 1}
+    return {}
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return int((time.perf_counter() - started_at) * 1000)
 
 
 def _load_workflow_input(source: Mapping[str, str], contract: EcsTaskRuntimeContract) -> MonthlyIngestWorkflowInput:

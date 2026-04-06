@@ -30,8 +30,10 @@ Local Form 990 debug runner:
 - `--strict` stops on the first archive or XML failure and includes stack traces
 - `--keep-temp` preserves the downloaded ZIP and extracted XML in the workspace
 - `--workspace <path>` overrides `FORM990_WORKSPACE_DIR` for that run only
+- `--xml-parser-workers <n>` overrides the local XML parser worker pool for the single-archive pipeline
 - the local runner is a thin wrapper over the monthly ECS worker processing core, not a separate ingest implementation
 - the `run` and `ecs-run` paths now keep IRS ZIP/XML handling off S3 and use only the local workspace plus PostgreSQL-backed persistence
+- local runs may also set `FORM990_XML_PARSER_WORKERS` to tune the bounded XML parser worker pool when the CLI flag is not supplied
 
 Local EO/BMF runner:
 
@@ -109,6 +111,7 @@ workspace/
 - only one archive should be processed at a time inside a given workspace
 - extracted XML files are expected to be deleted immediately after each XML has been parsed or skipped
 - ZIP files are expected to be deleted after archive processing completes
+- the local archive path now parses each extracted XML once and overlaps unzip plus parse work through a bounded in-archive worker pipeline
 - the runtime keeps this model local-first so the same logic can run on a developer machine or inside ECS ephemeral storage
 - current workspace helpers live under:
   - `orchestration/workspace.py`

@@ -21,6 +21,7 @@ def _build_run_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--workspace")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--xml-parser-workers", type=int)
     return parser
 
 
@@ -70,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
             keep_temp=bool(run_args.keep_temp),
             workspace=run_args.workspace,
             limit=run_args.limit,
+            xml_parser_workers=run_args.xml_parser_workers,
         )
     if args_list and args_list[0] == "ecs-run":
         from ..ecs_runtime import main as ecs_main
