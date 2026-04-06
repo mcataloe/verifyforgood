@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from typing import Mapping, Sequence, TextIO
@@ -14,7 +15,7 @@ class ProgressField:
 
 
 class ProgressSession:
-    def item_completed(self, increments: Mapping[str, int] | None = None) -> None:
+    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
         raise NotImplementedError
 
     def complete(self) -> None:
@@ -42,7 +43,7 @@ class _AnsiPalette:
 
 
 class NoOpProgressSession(ProgressSession):
-    def item_completed(self, increments: Mapping[str, int] | None = None) -> None:
+    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
         return
 
     def complete(self) -> None:
@@ -61,6 +62,8 @@ class NoOpProgressReporter(ProgressReporter):
 
 
 class ConsoleProgressSession(ProgressSession):
+    _MAX_LAST_ITEM_LENGTH = 48
+
     def __init__(
         self,
         *,
@@ -80,23 +83,30 @@ class ConsoleProgressSession(ProgressSession):
         self._started_at = time.monotonic()
         self._last_render_length = 0
         self._closed = False
+        self._last_item: str | None = None
+        self._lock = threading.Lock()
 
-    def item_completed(self, increments: Mapping[str, int] | None = None) -> None:
-        if self._closed:
-            return
-        self._completed_items += 1
-        for key, value in dict(increments or {}).items():
-            self._counts[str(key)] = self._counts.get(str(key), 0) + int(value or 0)
-        if self._completed_items % self._update_every == 0:
-            self._render(final=False)
+    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._completed_items += 1
+            for key, value in dict(increments or {}).items():
+                self._counts[str(key)] = self._counts.get(str(key), 0) + int(value or 0)
+            if last_item is not None:
+                normalized = str(last_item).strip()
+                self._last_item = normalized or None
+            if self._completed_items % self._update_every == 0:
+                self._render(final=False)
 
     def complete(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        self._render(final=True)
-        self._stream.write("\n")
-        self._stream.flush()
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            self._render(final=True)
+            self._stream.write("\n")
+            self._stream.flush()
 
     @property
     def completed_items(self) -> int:
@@ -118,6 +128,8 @@ class ConsoleProgressSession(ProgressSession):
         eta = self._eta_text(final=final)
         if eta is not None:
             segments.append(f"eta: {self._format_value('yellow', eta)}")
+        if self._last_item is not None:
+            segments.append(f"last: {self._format_value(None, self._truncate_last_item(self._last_item))}")
         return " ".join(segments)
 
     @property
@@ -141,6 +153,12 @@ class ConsoleProgressSession(ProgressSession):
         if not color:
             return str(value)
         return f"{color}{value}{self._palette.reset}"
+
+    def _truncate_last_item(self, value: str) -> str:
+        text = str(value or "").strip()
+        if len(text) <= self._MAX_LAST_ITEM_LENGTH:
+            return text
+        return f"{text[: self._MAX_LAST_ITEM_LENGTH - 3]}..."
 
 
 class ConsoleProgressReporter(ProgressReporter):

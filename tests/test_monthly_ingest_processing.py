@@ -105,8 +105,8 @@ class RecordingProgressSession:
         self.calls = []
         self.completed = False
 
-    def item_completed(self, increments=None):
-        self.calls.append(dict(increments or {}))
+    def item_completed(self, increments=None, *, last_item=None):
+        self.calls.append({"increments": dict(increments or {}), "last_item": last_item})
 
     def complete(self):
         self.completed = True
@@ -372,13 +372,63 @@ def test_process_form990_archive_reports_selection_progress_before_parse_progres
             "field_keys": ["selected", "skipped"],
             "update_every": 10,
         }
-        assert progress_reporter.sessions[0].calls == [{"skipped": 1}, {"selected": 1}]
+        assert progress_reporter.sessions[0].calls == [
+            {"increments": {"skipped": 1}, "last_item": "obj-1.xml"},
+            {"increments": {"selected": 1}, "last_item": "obj-2.xml"},
+        ]
         assert progress_reporter.sessions[0].completed is True
         assert progress_reporter.starts[1]["field_keys"] == ["parsed", "failed"]
+        assert progress_reporter.sessions[1].calls == [{"increments": {"parsed": 1}, "last_item": "obj-2.xml"}]
     finally:
         import os
 
         os.unlink(archive_path)
+
+
+def test_process_form990_archive_logs_split_persistence_stage_timings(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_06A.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", _valid_xml())))
+    events: list[tuple[str, dict[str, object]]] = []
+
+    monkeypatch.setattr(
+        monthly_processing,
+        "_log_structured",
+        lambda event, **fields: events.append((event, fields)),
+    )
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "timing-extracted"),
+        processing_context={
+            "source_key": "local/archive.zip",
+            "job_id": "timing-job",
+            "correlation_id": "timing-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_06a",
+            source_signature="sig-6",
+            source_filename="2026_TEOS_XML_06A.zip",
+        ),
+    )
+
+    assert result["status"] == "success"
+    stage_event = next(fields for event, fields in events if event == "monthly_ingest.worker.stage_timings")
+    assert stage_event["total_duration_ms"] >= 0
+    assert stage_event["unzip_duration_ms"] >= 0
+    assert stage_event["selection_duration_ms"] >= 0
+    assert stage_event["parse_duration_ms"] >= 0
+    assert stage_event["nonprofit_persistence_duration_ms"] >= 0
+    assert stage_event["extracted_file_metadata_duration_ms"] >= 0
+    assert stage_event["persistence_duration_ms"] == (
+        stage_event["nonprofit_persistence_duration_ms"] + stage_event["extracted_file_metadata_duration_ms"]
+    )
+    assert stage_event["parsed_count"] == 1
+    assert stage_event["failed_count"] == 0
+    assert stage_event["selected_member_count"] == 1
+    assert stage_event["extracted_member_count"] == 1
 
 
 def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:

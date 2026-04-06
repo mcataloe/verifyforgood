@@ -9,7 +9,7 @@ class RecordingProgressSession:
         self.calls = []
         self.completed = False
 
-    def item_completed(self, increments=None):
+    def item_completed(self, increments=None, *, last_item=None):
         self.calls.append(dict(increments or {}))
 
     def complete(self):

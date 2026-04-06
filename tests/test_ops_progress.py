@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import threading
 
 from charity_status.ops.progress import ConsoleProgressSession, ProgressField, build_progress_reporter
 
@@ -68,3 +69,47 @@ def test_console_progress_session_renders_every_tenth_item_with_eta_and_final_fl
     assert final_rendered.endswith("\n")
     assert "\033[34m0\033[0m" in final_rendered
     assert "\033[33m00:00\033[0m" in final_rendered
+
+
+def test_console_progress_session_renders_last_item_and_truncates_it(monkeypatch):
+    stream = _FakeStream(is_tty=True)
+    monotonic_values = iter([0.0, 60.0, 120.0])
+    monkeypatch.setattr("charity_status.ops.progress.time.monotonic", lambda: next(monotonic_values))
+    session = ConsoleProgressSession(
+        stream=stream,
+        total_items=10,
+        fields=[ProgressField(key="parsed", label="parsed", color="green")],
+        update_every=1,
+    )
+
+    session.item_completed({"parsed": 1}, last_item="very-long-xml-member-name-" * 3 + ".xml")
+    session.complete()
+
+    rendered = stream.getvalue()
+    assert "last:" in rendered
+    assert "..." in rendered
+
+
+def test_console_progress_session_item_completed_is_thread_safe():
+    stream = _FakeStream(is_tty=True)
+    session = ConsoleProgressSession(
+        stream=stream,
+        total_items=40,
+        fields=[ProgressField(key="parsed", label="parsed", color="green")],
+        update_every=5,
+    )
+
+    def _worker(start: int) -> None:
+        for idx in range(10):
+            session.item_completed({"parsed": 1}, last_item=f"obj-{start + idx}.xml")
+
+    threads = [threading.Thread(target=_worker, args=(offset,)) for offset in (0, 10, 20, 30)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    session.complete()
+
+    rendered = stream.getvalue()
+    assert "\033[32m40\033[0m" in rendered
+    assert "last:" in rendered

@@ -452,12 +452,18 @@ def process_form990_archive(
                             skipped_unchanged_members += 1
                             _delete_local_xml_file(extracted_member.local_path)
                             if selection_progress_session is not None:
-                                selection_progress_session.item_completed({"skipped": 1})
+                                selection_progress_session.item_completed(
+                                    {"skipped": 1},
+                                    last_item=Path(extracted_member.member_name).name,
+                                )
                             selection_duration_seconds += time.perf_counter() - selection_started_at
                             continue
                     selected_members.append(extracted_member)
                     if selection_progress_session is not None:
-                        selection_progress_session.item_completed({"selected": 1})
+                        selection_progress_session.item_completed(
+                            {"selected": 1},
+                            last_item=Path(extracted_member.member_name).name,
+                        )
                     parse_task = _build_local_xml_parse_task(
                         member=extracted_member,
                         source_key=context.source_key,
@@ -517,14 +523,14 @@ def process_form990_archive(
             if progress_session is not None:
                 progress_session.complete()
         parse_elapsed_ms = _elapsed_ms(parse_started_at)
-        persistence_started_at = time.perf_counter()
+        nonprofit_persistence_started_at = time.perf_counter()
         filing_records = [result.filing_record for result in parsed_results]
         ingest_result = finalize_form990_filing_records(
             filing_records,
             started=started,
             nonprofit_persistence_service=nonprofit_persistence_service,
         ).to_dict()
-        persistence_elapsed_ms = _elapsed_ms(persistence_started_at)
+        nonprofit_persistence_elapsed_ms = _elapsed_ms(nonprofit_persistence_started_at)
     else:
         ingest_result = {
             "status": "success",
@@ -536,7 +542,7 @@ def process_form990_archive(
             "nonprofit_persistence": None,
         }
         parse_elapsed_ms = 0
-        persistence_elapsed_ms = 0
+        nonprofit_persistence_elapsed_ms = 0
 
     _log_structured(
         "monthly_ingest.worker.records_parse_completed",
@@ -557,10 +563,15 @@ def process_form990_archive(
             member_hashes=member_hashes,
             ingest_result=ingest_result,
         )
-        persistence_elapsed_ms += _elapsed_ms(extracted_file_persistence_started_at)
+        extracted_file_metadata_elapsed_ms = _elapsed_ms(extracted_file_persistence_started_at)
+    else:
+        extracted_file_metadata_elapsed_ms = 0
 
     completed_at = datetime.now(timezone.utc)
     total_elapsed_ms = _elapsed_ms(total_started_at)
+    persistence_elapsed_ms = nonprofit_persistence_elapsed_ms + extracted_file_metadata_elapsed_ms
+    parse_files_per_second = _items_per_second(int(ingest_result.get("parsed_count") or 0), parse_elapsed_ms)
+    persist_records_per_second = _items_per_second(int(ingest_result.get("records_processed") or 0), persistence_elapsed_ms)
     _log_structured(
         "monthly_ingest.worker.stage_timings",
         level=logging.DEBUG,
@@ -569,8 +580,17 @@ def process_form990_archive(
         unzip_duration_ms=unzip_elapsed_ms,
         selection_duration_ms=selection_elapsed_ms,
         parse_duration_ms=parse_elapsed_ms,
+        nonprofit_persistence_duration_ms=nonprofit_persistence_elapsed_ms,
+        extracted_file_metadata_duration_ms=extracted_file_metadata_elapsed_ms,
         persistence_duration_ms=persistence_elapsed_ms,
         total_duration_ms=total_elapsed_ms,
+        extracted_member_count=len(extracted_members),
+        selected_member_count=len(selected_members),
+        parsed_count=int(ingest_result.get("parsed_count") or 0),
+        failed_count=int(ingest_result.get("failed_count") or 0),
+        skipped_unchanged_member_count=skipped_unchanged_members,
+        parse_files_per_second=parse_files_per_second,
+        persist_records_per_second=persist_records_per_second,
         xml_parser_workers=parser_workers,
     )
     return {
@@ -718,7 +738,10 @@ def _collect_parse_results(
         result = future.result()
         parsed_results.append(result)
         if progress_session is not None:
-            progress_session.item_completed(_progress_increments_for_filing(result.filing_record))
+            progress_session.item_completed(
+                _progress_increments_for_filing(result.filing_record),
+                last_item=Path(result.member.member_name).name,
+            )
     return parsed_results
 
 
@@ -737,6 +760,12 @@ def _progress_increments_for_filing(filing_record: Mapping[str, Any]) -> dict[st
 
 def _elapsed_ms(started_at: float) -> int:
     return int((time.perf_counter() - started_at) * 1000)
+
+
+def _items_per_second(count: int, duration_ms: int) -> float | None:
+    if duration_ms <= 0:
+        return None
+    return round(float(count) / (float(duration_ms) / 1000.0), 2)
 
 
 def _load_workflow_input(source: Mapping[str, str], contract: EcsTaskRuntimeContract) -> MonthlyIngestWorkflowInput:

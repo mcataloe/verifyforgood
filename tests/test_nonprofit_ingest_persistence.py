@@ -21,7 +21,7 @@ class RecordingProgressSession:
     def __init__(self):
         self.calls = []
 
-    def item_completed(self, increments=None):
+    def item_completed(self, increments=None, *, last_item=None):
         self.calls.append(dict(increments or {}))
 
 
