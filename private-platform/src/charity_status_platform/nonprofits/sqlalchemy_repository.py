@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
+import time
 from typing import Any
 
 from sqlalchemy import and_, desc, func, or_, select
@@ -151,6 +152,14 @@ class Form990ExtractedFileRecord:
     updated_at: str = ""
 
 
+@dataclass(frozen=True)
+class NonprofitBatchUpsertStats:
+    nonprofits_upserted: int
+    filings_upserted: int
+    nonprofit_upsert_duration_ms: int
+    filing_upsert_duration_ms: int
+
+
 class SqlAlchemyNonprofitRepository:
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -222,6 +231,68 @@ class SqlAlchemyNonprofitRepository:
             )
             assert model is not None
         return _filing_record(model)
+
+    def upsert_nonprofits_and_filings_batch(
+        self,
+        records: list[tuple[NonprofitRecord, NonprofitFilingRecord]],
+    ) -> NonprofitBatchUpsertStats:
+        if not records:
+            return NonprofitBatchUpsertStats(
+                nonprofits_upserted=0,
+                filings_upserted=0,
+                nonprofit_upsert_duration_ms=0,
+                filing_upsert_duration_ms=0,
+            )
+
+        normalized_pairs = [
+            (_normalized_nonprofit_record(nonprofit), _normalized_filing_record(filing))
+            for nonprofit, filing in records
+        ]
+        nonprofits_by_ein: dict[str, NonprofitRecord] = {}
+        for nonprofit, _filing in normalized_pairs:
+            nonprofits_by_ein[nonprofit.ein] = nonprofit
+
+        perf_counter = time.perf_counter
+        with customer_accounts_session_scope(self._session_factory) as session:
+            nonprofit_started_at = perf_counter()
+            nonprofit_values = [_nonprofit_values(record) for record in nonprofits_by_ein.values()]
+            _execute_upsert_many(
+                session,
+                NonprofitModel,
+                values=nonprofit_values,
+                conflict_columns=["ein"],
+                update_columns=list(_nonprofit_update_values(next(iter(nonprofits_by_ein.values()))).keys()),
+            )
+            nonprofit_ids = {
+                str(row.ein): int(row.nonprofit_id)
+                for row in session.execute(
+                    select(NonprofitModel.ein, NonprofitModel.nonprofit_id).where(
+                        NonprofitModel.ein.in_(list(nonprofits_by_ein.keys()))
+                    )
+                )
+            }
+            nonprofit_upsert_duration_ms = _elapsed_ms(perf_counter() - nonprofit_started_at)
+
+            filing_started_at = perf_counter()
+            filing_values = [
+                _filing_values(replace(filing, nonprofit_id=nonprofit_ids[nonprofit.ein]))
+                for nonprofit, filing in normalized_pairs
+            ]
+            _execute_upsert_many(
+                session,
+                NonprofitFilingModel,
+                values=filing_values,
+                conflict_columns=["nonprofit_id", "tax_year", "form_type", "filing_date", "source_name"],
+                update_columns=list(_filing_update_values(normalized_pairs[0][1]).keys()),
+            )
+            filing_upsert_duration_ms = _elapsed_ms(perf_counter() - filing_started_at)
+
+        return NonprofitBatchUpsertStats(
+            nonprofits_upserted=len(nonprofits_by_ein),
+            filings_upserted=len(normalized_pairs),
+            nonprofit_upsert_duration_ms=nonprofit_upsert_duration_ms,
+            filing_upsert_duration_ms=filing_upsert_duration_ms,
+        )
 
     def list_filings_for_nonprofit(self, nonprofit_id: int, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
         with customer_accounts_session_scope(self._session_factory) as session:
@@ -1011,6 +1082,26 @@ def _execute_upsert(
     session.flush()
 
 
+def _execute_upsert_many(
+    session: Session,
+    model: type[Any],
+    *,
+    values: list[dict[str, Any]],
+    conflict_columns: list[str],
+    update_columns: list[str],
+) -> None:
+    if not values:
+        return
+    insert_fn = _insert_for_session(session)
+    statement = insert_fn(model).values(values)
+    statement = statement.on_conflict_do_update(
+        index_elements=list(conflict_columns),
+        set_={column: getattr(statement.excluded, column) for column in update_columns},
+    )
+    session.execute(statement)
+    session.flush()
+
+
 def _insert_for_session(session: Session):
     dialect_name = session.bind.dialect.name if session.bind is not None else ""
     if dialect_name == "postgresql":
@@ -1018,6 +1109,10 @@ def _insert_for_session(session: Session):
     if dialect_name == "sqlite":
         return sqlite_insert
     raise NotImplementedError(f"Unsupported nonprofit repository dialect for upsert: {dialect_name}")
+
+
+def _elapsed_ms(elapsed_seconds: float) -> int:
+    return max(0, int(round(float(elapsed_seconds) * 1000)))
 
 
 def _normalized_nonprofit_record(record: NonprofitRecord) -> NonprofitRecord:

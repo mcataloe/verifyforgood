@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import logging
 import os
@@ -17,13 +18,15 @@ from charity_status.form990.hardening import is_transient_network_error, retry_c
 from charity_status.ingest.irs_files import IRS_FILES, source_url_for
 from charity_status.ops import ProgressField, build_progress_reporter
 from charity_status.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
-from charity_status_platform.runtime import build_nonprofit_postgres_repository
 
 from .eo_bmf_ingest import ingest_eo_bmf_csv
 from .orchestration.eo_bmf_workspace import build_eo_bmf_workspace_layout
+from .persistence import build_eo_bmf_nonprofit_persistence_service
 
 
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_MAX_EO_BMF_WORKERS = 4
+DEFAULT_EO_BMF_BATCH_SIZE = 500
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ class EoBmfRunConfig:
     strict: bool = False
     keep_temp: bool = False
     workspace: str | None = None
+    workers: int = 1
+    batch_size: int = DEFAULT_EO_BMF_BATCH_SIZE
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
 
@@ -105,6 +110,8 @@ def build_eo_bmf_run_config(
     strict: bool | None = None,
     keep_temp: bool | None = None,
     workspace: str | None = None,
+    workers: int | None = None,
+    batch_size: int | None = None,
     log_level: str | None = None,
 ) -> EoBmfRunConfig:
     source_env = resolve_eo_bmf_runtime_environment_aliases(env)
@@ -119,6 +126,8 @@ def build_eo_bmf_run_config(
         strict=_env_bool(source_env, "STRICT_MODE", default=False) if strict is None else bool(strict),
         keep_temp=bool(keep_temp) if keep_temp is not None else False,
         workspace=workspace or _env_text(source_env, "EOBMF_WORKSPACE_DIR") or None,
+        workers=_resolve_eo_bmf_workers(source_env, override=workers),
+        batch_size=_resolve_eo_bmf_batch_size(source_env, override=batch_size),
         log_level=resolved_log_level,
         log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
@@ -129,6 +138,8 @@ def run_local_eo_bmf_ingest(
     strict: bool,
     keep_temp: bool,
     workspace: str | None,
+    workers: int | None = None,
+    batch_size: int | None = None,
     env: Mapping[str, str] | None = None,
 ) -> int:
     config = build_eo_bmf_run_config(
@@ -136,6 +147,8 @@ def run_local_eo_bmf_ingest(
         strict=strict,
         keep_temp=keep_temp,
         workspace=workspace,
+        workers=workers,
+        batch_size=batch_size,
     )
     return run_local_eo_bmf_ingest_config(config=config, env=env)
 
@@ -158,12 +171,12 @@ def run_local_eo_bmf_ingest_config(
         level=runtime_logging.log_level_name,
         include_traceback=config.log_stack_traces if config.log_stack_traces is not None else runtime_logging.include_stack_traces,
     )
-    repository = build_nonprofit_postgres_repository(env=source_env)
-    if repository is None:
+    persistence_service = build_eo_bmf_nonprofit_persistence_service(env=source_env)
+    if persistence_service is None:
         logger.log(
             component="eo_bmf.cli",
             level="ERROR",
-            message="postgres nonprofit repository could not be built",
+            message="postgres nonprofit persistence service could not be built",
         )
         return 1
 
@@ -183,7 +196,11 @@ def run_local_eo_bmf_ingest_config(
         component="eo_bmf.cli",
         level="INFO",
         message="local eo_bmf ingest starting",
-        extra={"workspace_root": str(layout.root)},
+        extra={
+            "workspace_root": str(layout.root),
+            "workers": config.workers,
+            "batch_size": config.batch_size,
+        },
     )
 
     run_started_at = time.perf_counter()
@@ -195,92 +212,77 @@ def run_local_eo_bmf_ingest_config(
     failure_count = 0
 
     try:
-        for filename in IRS_FILES:
-            file_workspace = layout.for_filename(filename).ensure()
-            file_started_at = time.perf_counter()
-            try:
-                url = source_url_for(filename)
+        with ThreadPoolExecutor(
+            max_workers=max(1, int(config.workers or 1)),
+            thread_name_prefix="eo-bmf-file",
+        ) as executor:
+            future_to_filename = {}
+            for filename in IRS_FILES:
                 logger.log(
                     component="eo_bmf.file",
                     level="INFO",
                     message="processing file",
                     file_name=filename,
-                    extra={"source_url": url},
+                    extra={"source_url": source_url_for(filename)},
                 )
-                download_started_at = time.perf_counter()
-                _download_file_to_path(
-                    url=url,
-                    destination=file_workspace.download_path,
-                    timeout_seconds=int(source_env.get("EO_BMF_DOWNLOAD_TIMEOUT_SECONDS") or "300"),
-                )
-                download_duration_ms = _elapsed_ms(download_started_at)
-                stats = ingest_eo_bmf_csv(
-                    path=str(file_workspace.download_path),
+                future_to_filename[
+                    executor.submit(
+                    _process_eo_bmf_file,
                     filename=filename,
-                    repository=repository,
-                )
-                rows_seen += stats.rows_seen
-                nonprofits_upserted += stats.nonprofits_upserted
-                filings_upserted += stats.filings_upserted
-                invalid_rows += stats.invalid_rows
-                file_payload = {
-                    **stats.to_dict(),
-                    "download_duration_ms": download_duration_ms,
-                    "total_file_duration_ms": _elapsed_ms(file_started_at),
-                }
-                files.append(file_payload)
-                progress_session.item_completed({"processed": 1}, last_item=filename)
-                logger.log(
-                    component="eo_bmf.file",
-                    level="INFO",
-                    message="file processed",
-                    file_name=filename,
-                    extra=file_payload,
-                )
-                if stats.status == "failed":
+                    workspace_root=str(layout.root),
+                    env=source_env,
+                    batch_size=config.batch_size,
+                    keep_temp=config.keep_temp,
+                    enable_record_progress=max(1, int(config.workers or 1)) == 1,
+                    )
+                ] = filename
+            for future in as_completed(future_to_filename):
+                filename = future_to_filename[future]
+                try:
+                    file_payload = future.result()
+                    rows_seen += int(file_payload.get("rows_seen") or 0)
+                    nonprofits_upserted += int(file_payload.get("nonprofits_upserted") or 0)
+                    filings_upserted += int(file_payload.get("filings_upserted") or 0)
+                    invalid_rows += int(file_payload.get("invalid_rows") or 0)
+                    files.append(file_payload)
+                    if file_payload.get("status") == "failed":
+                        failure_count += 1
+                        progress_session.item_completed({"failed": 1}, last_item=filename)
+                        logger.log(
+                            component="eo_bmf.file",
+                            level="ERROR",
+                            message="file processing failed",
+                            file_name=filename,
+                            extra=file_payload,
+                        )
+                        if config.strict:
+                            raise RuntimeError(f"eo_bmf file failed: {filename}")
+                    else:
+                        progress_session.item_completed({"processed": 1}, last_item=filename)
+                        logger.log(
+                            component="eo_bmf.file",
+                            level="INFO",
+                            message="file processed",
+                            file_name=filename,
+                            extra=file_payload,
+                        )
+                except Exception as exc:
                     failure_count += 1
+                    files.append(_failed_file_payload(filename=filename, total_file_duration_ms=0, error=exc))
+                    progress_session.item_completed({"failed": 1}, last_item=filename)
+                    logger.log(
+                        component="eo_bmf.file",
+                        level="ERROR",
+                        message="file processing failed",
+                        file_name=filename,
+                        error=exc,
+                    )
                     if config.strict:
-                        raise RuntimeError(f"eo_bmf file failed: {filename}")
-            except Exception as exc:
-                failure_count += 1
-                files.append(
-                    {
-                        "filename": filename,
-                        "status": "failed",
-                        "rows_seen": 0,
-                        "nonprofits_upserted": 0,
-                        "filings_upserted": 0,
-                        "invalid_rows": 0,
-                        "map_duration_ms": 0,
-                        "nonprofit_upsert_duration_ms": 0,
-                        "filing_upsert_duration_ms": 0,
-                        "db_upsert_duration_ms": 0,
-                        "download_duration_ms": 0,
-                        "total_file_duration_ms": _elapsed_ms(file_started_at),
-                        "rows_per_second": 0.0,
-                        "nonprofit_upserts_per_second": 0.0,
-                        "filing_upserts_per_second": 0.0,
-                        "invalid_row_rate": 0.0,
-                        "db_time_share": 0.0,
-                        "error": str(exc),
-                    }
-                )
-                progress_session.item_completed({"failed": 1}, last_item=filename)
-                logger.log(
-                    component="eo_bmf.file",
-                    level="ERROR",
-                    message="file processing failed",
-                    file_name=filename,
-                    error=exc,
-                )
-                if config.strict:
-                    raise
-            finally:
-                if not config.keep_temp:
-                    file_workspace.finalize_processed_file()
+                        raise
     finally:
         progress_session.complete()
 
+    files.sort(key=lambda item: str(item.get("filename") or ""))
     status = _result_status(files)
     total_run_duration_ms = _elapsed_ms(run_started_at)
     logger.log(
@@ -342,6 +344,76 @@ def _download_file_to_path(*, url: str, destination: Path, timeout_seconds: int)
     )
 
 
+def _process_eo_bmf_file(
+    *,
+    filename: str,
+    workspace_root: str,
+    env: Mapping[str, str],
+    batch_size: int,
+    keep_temp: bool,
+    enable_record_progress: bool,
+) -> dict[str, Any]:
+    layout = build_eo_bmf_workspace_layout({**env, "EOBMF_WORKSPACE_DIR": workspace_root}).ensure()
+    file_workspace = layout.for_filename(filename).ensure()
+    file_started_at = time.perf_counter()
+    try:
+        url = source_url_for(filename)
+        download_started_at = time.perf_counter()
+        _download_file_to_path(
+            url=url,
+            destination=file_workspace.download_path,
+            timeout_seconds=int(env.get("EO_BMF_DOWNLOAD_TIMEOUT_SECONDS") or "300"),
+        )
+        download_duration_ms = _elapsed_ms(download_started_at)
+        persistence_service = build_eo_bmf_nonprofit_persistence_service(env=env)
+        if persistence_service is None:
+            raise RuntimeError("postgres nonprofit persistence service could not be built")
+        stats = ingest_eo_bmf_csv(
+            path=str(file_workspace.download_path),
+            filename=filename,
+            persistence_service=persistence_service,
+            batch_size=batch_size,
+            progress_reporter=build_progress_reporter() if enable_record_progress else None,
+        )
+        return {
+            **stats.to_dict(),
+            "download_duration_ms": download_duration_ms,
+            "total_file_duration_ms": _elapsed_ms(file_started_at),
+        }
+    except Exception as exc:
+        return _failed_file_payload(
+            filename=filename,
+            total_file_duration_ms=_elapsed_ms(file_started_at),
+            error=exc,
+        )
+    finally:
+        if not keep_temp:
+            file_workspace.finalize_processed_file()
+
+
+def _failed_file_payload(*, filename: str, total_file_duration_ms: int, error: Exception) -> dict[str, Any]:
+    return {
+        "filename": filename,
+        "status": "failed",
+        "rows_seen": 0,
+        "nonprofits_upserted": 0,
+        "filings_upserted": 0,
+        "invalid_rows": 0,
+        "map_duration_ms": 0,
+        "nonprofit_upsert_duration_ms": 0,
+        "filing_upsert_duration_ms": 0,
+        "db_upsert_duration_ms": 0,
+        "download_duration_ms": 0,
+        "total_file_duration_ms": total_file_duration_ms,
+        "rows_per_second": 0.0,
+        "nonprofit_upserts_per_second": 0.0,
+        "filing_upserts_per_second": 0.0,
+        "invalid_row_rate": 0.0,
+        "db_time_share": 0.0,
+        "error": str(error),
+    }
+
+
 def _result_status(files: list[dict[str, Any]]) -> str:
     if not files:
         return "failed"
@@ -386,6 +458,32 @@ def _env_optional_bool(source_env: Mapping[str, str], key: str) -> bool | None:
     if raw is None or str(raw).strip() == "":
         return None
     return str(raw).strip().lower() == "true"
+
+
+def _env_optional_int(source_env: Mapping[str, str], key: str) -> int | None:
+    raw = source_env.get(key)
+    if raw is None or str(raw).strip() == "":
+        return None
+    return int(str(raw).strip())
+
+
+def _resolve_eo_bmf_workers(source_env: Mapping[str, str], *, override: int | None = None) -> int:
+    if override is not None:
+        return max(1, int(override))
+    configured = _env_optional_int(source_env, "EO_BMF_WORKERS")
+    if configured is not None:
+        return max(1, int(configured))
+    cpu_count = os.cpu_count() or DEFAULT_MAX_EO_BMF_WORKERS
+    return max(1, min(len(IRS_FILES), min(cpu_count, DEFAULT_MAX_EO_BMF_WORKERS)))
+
+
+def _resolve_eo_bmf_batch_size(source_env: Mapping[str, str], *, override: int | None = None) -> int:
+    if override is not None:
+        return max(1, int(override))
+    configured = _env_optional_int(source_env, "EO_BMF_BATCH_SIZE")
+    if configured is not None:
+        return max(1, int(configured))
+    return DEFAULT_EO_BMF_BATCH_SIZE
 
 
 __all__ = [

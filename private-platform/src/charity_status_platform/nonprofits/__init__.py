@@ -17,6 +17,8 @@ from .sqlalchemy_repository import (
 )
 from .query_client import PostgresNonprofitQueryClient
 from .ingest_persistence import Form990NonprofitPersistenceService, Form990PersistenceStats
+from .eo_bmf_persistence import DEFAULT_EO_BMF_BATCH_SIZE, EoBmfNonprofitPersistenceService, EoBmfPersistenceStats
+from .sqlalchemy_repository import NonprofitBatchUpsertStats
 
 __all__ = [
     "NonprofitModel",
@@ -35,4 +37,8 @@ __all__ = [
     "PostgresNonprofitQueryClient",
     "Form990NonprofitPersistenceService",
     "Form990PersistenceStats",
+    "DEFAULT_EO_BMF_BATCH_SIZE",
+    "EoBmfNonprofitPersistenceService",
+    "EoBmfPersistenceStats",
+    "NonprofitBatchUpsertStats",
 ]

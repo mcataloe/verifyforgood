@@ -33,6 +33,8 @@ def _build_eo_bmf_run_parser() -> argparse.ArgumentParser:
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--workspace")
+    parser.add_argument("--workers", type=int)
+    parser.add_argument("--batch-size", type=int)
     return parser
 
 
@@ -85,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
             strict=bool(run_args.strict),
             keep_temp=bool(run_args.keep_temp),
             workspace=run_args.workspace,
+            workers=run_args.workers,
+            batch_size=run_args.batch_size,
         )
     if args_list and args_list[0] == "ecs-run-eo-bmf":
         from ..eo_bmf_ecs_runtime import main as eo_bmf_ecs_main

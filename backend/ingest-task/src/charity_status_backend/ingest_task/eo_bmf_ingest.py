@@ -11,8 +11,15 @@ import time
 from typing import Any, Iterable, Mapping
 
 from charity_status.normalization import map_deductibility, map_entity_type, map_irs_status, map_ntee_category
+from charity_status.ops import ProgressField, ProgressReporter
 from charity_status.runtime_logging import configure_runtime_logging, log_structured
-from charity_status_platform.nonprofits import NonprofitFilingRecord, NonprofitRecord, SqlAlchemyNonprofitRepository
+from charity_status_platform.nonprofits import (
+    DEFAULT_EO_BMF_BATCH_SIZE,
+    EoBmfNonprofitPersistenceService,
+    NonprofitFilingRecord,
+    NonprofitRecord,
+    SqlAlchemyNonprofitRepository,
+)
 
 
 EO_BMF_COLUMNS = (
@@ -98,59 +105,87 @@ def ingest_eo_bmf_csv(
     *,
     path: str,
     filename: str,
-    repository: SqlAlchemyNonprofitRepository,
+    persistence_service: EoBmfNonprofitPersistenceService | None = None,
+    repository: SqlAlchemyNonprofitRepository | None = None,
     processed_at: datetime | None = None,
+    batch_size: int = DEFAULT_EO_BMF_BATCH_SIZE,
+    progress_reporter: ProgressReporter | None = None,
 ) -> EoBmfFileIngestStats:
     perf_counter = time.perf_counter
-    upsert_nonprofit = repository.upsert_nonprofit
-    upsert_filing = repository.upsert_filing
+    persistence_service = persistence_service or (
+        EoBmfNonprofitPersistenceService(repository) if repository is not None else None
+    )
+    if persistence_service is None:
+        raise ValueError("EO/BMF ingest requires a persistence service or repository")
     processed = processed_at or datetime.now(timezone.utc)
     processed_at_iso = processed.replace(microsecond=0).isoformat()
-    total_rows = _count_eo_bmf_rows(path) if LOGGER.isEnabledFor(logging.DEBUG) else None
+    total_rows = _count_eo_bmf_rows(path)
+    progress_session = (
+        progress_reporter.start(
+            total_items=total_rows,
+            fields=[
+                ProgressField(key="processed", label="processed", color="green"),
+                ProgressField(key="invalid", label="invalid", color="red"),
+            ],
+            update_every=EO_BMF_RECORD_LOG_UPDATE_EVERY,
+        )
+        if progress_reporter is not None
+        else None
+    )
+    normalized_batch_size = max(1, int(batch_size or DEFAULT_EO_BMF_BATCH_SIZE))
     rows_seen = 0
+    rows_completed = 0
     nonprofits_upserted = 0
     filings_upserted = 0
     invalid_rows = 0
     map_duration_ms = 0
     nonprofit_upsert_duration_ms = 0
     filing_upsert_duration_ms = 0
+    batch: list[dict[str, Any]] = []
 
-    for row in iter_eo_bmf_rows(path):
-        rows_seen += 1
-        map_started_at = perf_counter()
-        mapped = _map_row_to_records(row=row, filename=filename, processed_at_iso=processed_at_iso)
-        map_duration_ms += _elapsed_ms(map_started_at)
-        if mapped is None:
-            invalid_rows += 1
-            continue
-        nonprofit_upsert_started_at = perf_counter()
-        nonprofit = upsert_nonprofit(mapped["nonprofit"])
-        nonprofit_upsert_duration_ms += _elapsed_ms(nonprofit_upsert_started_at)
-        filing_upsert_started_at = perf_counter()
-        upsert_filing(
-            NonprofitFilingRecord(
-                filing_id=None,
-                nonprofit_id=nonprofit.nonprofit_id,
-                tax_year=mapped["tax_year"],
-                tax_period=mapped["tax_period"],
-                form_type=EO_BMF_FILING_FORM_TYPE,
-                filing_date=None,
-                amended=False,
-                parse_status="parsed",
-                total_assets=mapped["total_assets"],
-                total_income=mapped["total_income"],
-                total_revenue=mapped["total_revenue"],
-                source_name=EO_BMF_CANONICAL_SOURCE,
-                source_record_id=mapped["source_record_id"],
-                raw_payload=mapped["raw_payload"],
-                created_at=processed_at_iso,
-                updated_at=processed_at_iso,
+    try:
+        for row in iter_eo_bmf_rows(path):
+            rows_seen += 1
+            map_started_at = perf_counter()
+            mapped = _map_row_to_records(row=row, filename=filename, processed_at_iso=processed_at_iso)
+            map_duration_ms += _elapsed_ms(map_started_at)
+            if mapped is None:
+                invalid_rows += 1
+                rows_completed += 1
+                if progress_session is not None:
+                    progress_session.item_completed({"invalid": 1}, last_item=f"{filename}:row:{rows_seen}")
+                _log_record_progress(filename=filename, rows_completed=rows_completed, total_rows=total_rows)
+                continue
+            batch.append(mapped)
+            if len(batch) >= normalized_batch_size:
+                persisted = _flush_eo_bmf_batch(
+                    batch=batch,
+                    persistence_service=persistence_service,
+                    progress_session=progress_session,
+                )
+                nonprofits_upserted += persisted.nonprofits_upserted
+                filings_upserted += persisted.filings_upserted
+                nonprofit_upsert_duration_ms += persisted.nonprofit_upsert_duration_ms
+                filing_upsert_duration_ms += persisted.filing_upsert_duration_ms
+                rows_completed += len(batch)
+                _log_record_progress(filename=filename, rows_completed=rows_completed, total_rows=total_rows)
+                batch = []
+
+        if batch:
+            persisted = _flush_eo_bmf_batch(
+                batch=batch,
+                persistence_service=persistence_service,
+                progress_session=progress_session,
             )
-        )
-        _log_record_progress(filename=filename, rows_seen=rows_seen, total_rows=total_rows)
-        filing_upsert_duration_ms += _elapsed_ms(filing_upsert_started_at)
-        nonprofits_upserted += 1
-        filings_upserted += 1
+            nonprofits_upserted += persisted.nonprofits_upserted
+            filings_upserted += persisted.filings_upserted
+            nonprofit_upsert_duration_ms += persisted.nonprofit_upsert_duration_ms
+            filing_upsert_duration_ms += persisted.filing_upsert_duration_ms
+            rows_completed += len(batch)
+            _log_record_progress(filename=filename, rows_completed=rows_completed, total_rows=total_rows)
+    finally:
+        if progress_session is not None:
+            progress_session.complete()
 
     status = "success" if nonprofits_upserted or rows_seen == 0 else "partial_success"
     if nonprofits_upserted == 0 and invalid_rows == rows_seen and rows_seen > 0:
@@ -236,15 +271,28 @@ def _map_row_to_records(
         created_at=processed_at_iso,
         updated_at=processed_at_iso,
     )
+    filing = NonprofitFilingRecord(
+        filing_id=None,
+        nonprofit_id=0,
+        tax_year=tax_year,
+        tax_period=tax_period,
+        form_type=EO_BMF_FILING_FORM_TYPE,
+        filing_date=None,
+        amended=False,
+        parse_status="parsed",
+        total_assets=total_assets,
+        total_income=total_income,
+        total_revenue=total_revenue,
+        source_name=EO_BMF_CANONICAL_SOURCE,
+        source_record_id=f"{ein}:{filename}:{tax_period or ''}",
+        raw_payload=dict(row),
+        created_at=processed_at_iso,
+        updated_at=processed_at_iso,
+    )
     return {
         "nonprofit": nonprofit,
-        "tax_year": tax_year,
-        "tax_period": tax_period,
-        "total_assets": total_assets,
-        "total_income": total_income,
-        "total_revenue": total_revenue,
-        "source_record_id": f"{ein}:{filename}:{tax_period or ''}",
-        "raw_payload": dict(row),
+        "filing": filing,
+        "progress_label": filing.source_record_id or nonprofit.ein,
     }
 
 
@@ -281,17 +329,32 @@ def _elapsed_ms(started_at: float) -> int:
     return max(0, int(round((time.perf_counter() - started_at) * 1000)))
 
 
-def _log_record_progress(*, filename: str, rows_seen: int, total_rows: int | None) -> None:
+def _flush_eo_bmf_batch(
+    *,
+    batch: list[dict[str, Any]],
+    persistence_service: EoBmfNonprofitPersistenceService,
+    progress_session: Any | None,
+):
+    persisted = persistence_service.persist_batch(
+        [(item["nonprofit"], item["filing"]) for item in batch]
+    )
+    if progress_session is not None:
+        for item in batch:
+            progress_session.item_completed({"processed": 1}, last_item=str(item["progress_label"]))
+    return persisted
+
+
+def _log_record_progress(*, filename: str, rows_completed: int, total_rows: int) -> None:
     if not LOGGER.isEnabledFor(logging.DEBUG):
         return
-    if rows_seen % EO_BMF_RECORD_LOG_UPDATE_EVERY != 0 and (total_rows is None or rows_seen != total_rows):
+    if rows_completed % EO_BMF_RECORD_LOG_UPDATE_EVERY != 0 and rows_completed != total_rows:
         return
     log_structured(
         LOGGER,
         "eo_bmf.ingest.record_progress",
         level=logging.DEBUG,
         filename=filename,
-        records_processed=rows_seen,
+        records_processed=rows_completed,
         total_records=total_rows,
     )
 
