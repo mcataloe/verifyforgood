@@ -59,3 +59,23 @@ class Form990IngestResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class Form990CanonicalRawFilingRecord:
+    ein: str | None
+    tax_year: str | None
+    form_type: str | None
+    filing_date: str | None
+    source_name: str | None
+    source_record_id: str | None
+    source_signature: str | None
+    xml_content_hash: str
+    xml_artifact_reference: str | None
+    parse_status: str | None
+    parser_version: str
+    canonicalization_version: str
+    raw_filing_json: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)

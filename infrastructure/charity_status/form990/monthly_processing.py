@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from charity_status.form990.canonical import hash_local_xml_file
 from charity_status.form990.extractors.metadata import extract_metadata_fields
 from charity_status.form990.hardening import classify_error, validate_runtime_config
 from charity_status.form990.ingest import finalize_form990_filing_records, parse_form990_record_xml
@@ -83,6 +84,7 @@ class _LocalXmlParseTask:
     member: LocalExtractedXmlMember
     record: Form990IndexRecord
     source_reference: str
+    xml_content_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +92,7 @@ class _ParsedXmlMemberResult:
     member: LocalExtractedXmlMember
     filing_record: dict[str, Any]
     relationship_records: tuple[dict[str, Any], ...] = ()
+    canonical_raw_filing_record: dict[str, Any] | None = None
 
 
 def run_form990_monthly_processing_task(
@@ -441,7 +444,7 @@ def process_form990_archive(
                     unzip_duration_seconds += time.perf_counter() - extract_started_at
                     extracted_members.append(extracted_member)
                     selection_started_at = time.perf_counter()
-                    content_hash = _hash_local_xml_file(extracted_member.local_path)
+                    content_hash = hash_local_xml_file(extracted_member.local_path)
                     member_hashes[extracted_member.member_name] = content_hash
                     if archive_metadata_service is not None and archive_record is not None:
                         existing = archive_metadata_service.get_extracted_file(
@@ -468,6 +471,7 @@ def process_form990_archive(
                         member=extracted_member,
                         source_key=context.source_key,
                         source_object=source_object,
+                        xml_content_hash=content_hash,
                     )
                     if parse_task is None:
                         _delete_local_xml_file(extracted_member.local_path)
@@ -525,10 +529,16 @@ def process_form990_archive(
         parse_elapsed_ms = _elapsed_ms(parse_started_at)
         nonprofit_persistence_started_at = time.perf_counter()
         filing_records = [result.filing_record for result in parsed_results]
+        canonical_raw_filing_records = [
+            result.canonical_raw_filing_record
+            for result in parsed_results
+            if result.canonical_raw_filing_record is not None
+        ]
         ingest_result = finalize_form990_filing_records(
             filing_records,
             started=started,
             nonprofit_persistence_service=nonprofit_persistence_service,
+            canonical_raw_filing_records=canonical_raw_filing_records,
         ).to_dict()
         nonprofit_persistence_elapsed_ms = _elapsed_ms(nonprofit_persistence_started_at)
     else:
@@ -653,6 +663,7 @@ def _build_local_xml_parse_task(
     member: LocalExtractedXmlMember,
     source_key: str,
     source_object: MonthlyIngestSourceObject,
+    xml_content_hash: str | None = None,
 ) -> _LocalXmlParseTask | None:
     irs_object_id = _object_id_from_member_name(member.member_name)
     if not irs_object_id:
@@ -661,6 +672,7 @@ def _build_local_xml_parse_task(
     return _LocalXmlParseTask(
         member=member,
         source_reference=xml_reference,
+        xml_content_hash=xml_content_hash,
         record=Form990IndexRecord(
             ein=None,
             tax_year=source_object.source_year,
@@ -691,12 +703,14 @@ def _parse_local_xml_parse_task(
                 task.record,
                 xml_bytes=xml_bytes,
                 source_reference=task.source_reference,
+                xml_content_hash=task.xml_content_hash,
                 record_error_handler=record_error_handler,
             )
             return _ParsedXmlMemberResult(
                 member=task.member,
                 filing_record=parsed_record.filing_record,
                 relationship_records=parsed_record.relationship_records,
+                canonical_raw_filing_record=parsed_record.canonical_raw_filing_record,
             )
         except Exception as exc:
             if record_error_handler is not None:
@@ -915,33 +929,6 @@ def _normalize_etag(value: Any) -> str | None:
     return text or None
 
 
-def _hash_local_xml_file(path: str) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    pending = b""
-    first_chunk = True
-    with Path(path).open("rb") as handle:
-        while True:
-            chunk = handle.read(64 * 1024)
-            if not chunk:
-                break
-            if first_chunk:
-                first_chunk = False
-                if chunk.startswith(b"\xef\xbb\xbf"):
-                    chunk = chunk[3:]
-            pending += chunk
-            pending = pending.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-            lines = pending.split(b"\n")
-            pending = lines.pop()
-            for line in lines:
-                digest.update(line.rstrip(b" \t\r\n\f\v"))
-                digest.update(b"\n")
-    if pending:
-        digest.update(pending.rstrip(b" \t\r\n\f\v"))
-    return digest.hexdigest()
-
-
 def _hash_file(path: str) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
@@ -1040,6 +1027,10 @@ def _as_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _hash_local_xml_file(path: str) -> str:
+    return hash_local_xml_file(path)
 
 
 def _log_structured(event: str, **fields: Any) -> None:

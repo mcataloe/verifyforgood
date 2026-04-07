@@ -46,6 +46,16 @@ Source-specific and provenance-heavy records live outside the canonical row:
   and key numeric amounts
 - optional raw filing payload JSON for fields not worth normalizing yet
 
+`nonprofit_raw_filings`
+
+- canonical parsed Form 990 content linked to the logical filing row
+- JSONB source-of-truth payload for the full filing tree after deterministic
+  XML-to-JSON canonicalization
+- filing-version tracking through normalized XML content hashes and parser /
+  canonicalization versions
+- immutable XML artifact/reference location for replay without storing XML
+  bytes on the main serving row
+
 `nonprofit_sources`
 
 - explicit source provenance using `source_id`, `provider_name`, `category`,
@@ -108,9 +118,19 @@ Current key model for the nonprofit/Form 990 slice:
 
 - every table in the slice uses a database-generated `BIGINT` primary key
 - natural unique constraints remain the upsert identity for nonprofit, filing,
-  source, archive, and extracted-file writes
+  source, archive, extracted-file, and canonical raw-filing writes
 - repository writes use PostgreSQL/SQLite `ON CONFLICT` semantics rather than
   Python-generated primary-key values
+
+Phase 27Q extends the nonprofit/Form 990 slice with canonical raw filing
+storage:
+
+- `nonprofit_raw_filings`
+  - one row per logical filing version keyed by `filing_id` plus normalized XML
+    content hash
+  - stores `raw_filing_json` as the durable parsed filing source of truth
+  - keeps `nonprofit_filings` as the lean serving projection for stable query
+    contracts
 
 That metadata is now used by the monthly Form 990 task runtime to skip
 unchanged remote archives when `schedule_context.source_url` is available and

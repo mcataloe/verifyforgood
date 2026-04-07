@@ -12,9 +12,16 @@ from charity_status.form990.extractors import (
     extract_metadata_fields,
     extract_narrative_fields,
 )
+from charity_status.form990.canonical import (
+    CANONICAL_FORM990_CANONICALIZATION_VERSION,
+    CANONICAL_FORM990_PARSER_VERSION,
+    canonicalize_parsed_xml,
+    compute_normalized_xml_content_hash,
+)
 from charity_status.form990.index import parse_index_records
 from charity_status.form990.metrics import compute_derived_metrics
 from charity_status.form990.models import (
+    Form990CanonicalRawFilingRecord,
     Form990IndexRecord,
     Form990IngestResult,
     Form990MetadataRecord,
@@ -65,6 +72,7 @@ class Form990DownloadedXml:
 class Form990ParsedRecord:
     filing_record: dict[str, Any]
     relationship_records: tuple[dict[str, Any], ...] = ()
+    canonical_raw_filing_record: dict[str, Any] | None = None
 
 
 def ingest_form990_records(
@@ -92,6 +100,7 @@ def ingest_form990_records(
 
     filing_records: list[dict[str, Any]] = []
     relationship_records: list[dict[str, Any]] = []
+    canonical_raw_filing_records: list[dict[str, Any]] = []
 
     try:
         for record in records:
@@ -139,6 +148,8 @@ def ingest_form990_records(
                 )
                 filing_records.append(parsed_record.filing_record)
                 relationship_records.extend(parsed_record.relationship_records)
+                if parsed_record.canonical_raw_filing_record is not None:
+                    canonical_raw_filing_records.append(parsed_record.canonical_raw_filing_record)
                 progress_increments = _progress_increments_for_filing(parsed_record.filing_record)
             except Exception as exc:
                 if record_error_handler is not None:
@@ -168,6 +179,7 @@ def ingest_form990_records(
             filing_records,
             started=started,
             nonprofit_persistence_service=nonprofit_persistence_service,
+            canonical_raw_filing_records=canonical_raw_filing_records,
         )
     finally:
         if progress_session is not None:
@@ -179,6 +191,7 @@ def parse_form990_record_xml(
     *,
     xml_bytes: bytes,
     source_reference: str | None = None,
+    xml_content_hash: str | None = None,
     record_error_handler: Callable[[Form990IndexRecord, Exception, str], None] | None = None,
 ) -> Form990ParsedRecord:
     metadata = _from_index_record(record)
@@ -196,6 +209,8 @@ def parse_form990_record_xml(
 
     try:
         parsed = parse_xml(xml_bytes)
+        resolved_content_hash = str(xml_content_hash or compute_normalized_xml_content_hash(xml_bytes)).strip()
+        canonical_raw_filing_json = canonicalize_parsed_xml(parsed)
         extracted_meta = extract_metadata_fields(parsed)
         resolved_return_type = extracted_meta.get("return_type") or metadata.return_type
         if not _is_supported_return_type(resolved_return_type):
@@ -212,6 +227,7 @@ def parse_form990_record_xml(
                 raw_file_reference=resolved_source_reference,
                 parse_status=Form990ParseStatus.UNSUPPORTED_RETURN_TYPE,
             ).to_dict()
+            filing.update(_source_metadata_for_record(record))
             # log_structured(
             #     LOGGER,
             #     "form990.ingest.xml_parse_complete",
@@ -221,7 +237,16 @@ def parse_form990_record_xml(
             #     organization_name=_extract_organization_name(parsed),
             #     parse_status=filing.get("parse_status"),
             # )
-            return Form990ParsedRecord(filing_record=filing)
+            return Form990ParsedRecord(
+                filing_record=filing,
+                canonical_raw_filing_record=_canonical_raw_filing_record(
+                    filing_record=filing,
+                    record=record,
+                    raw_filing_json=canonical_raw_filing_json,
+                    xml_content_hash=resolved_content_hash,
+                    xml_artifact_reference=resolved_source_reference,
+                ),
+            )
 
         extracted_financials = extract_financial_fields(parsed)
         extracted_governance = extract_governance_fields(parsed)
@@ -244,6 +269,7 @@ def parse_form990_record_xml(
             **extracted_financials,
             **extracted_governance,
             **extracted_narratives,
+            **_source_metadata_for_record(record),
         }
         # log_structured(
         #     LOGGER,
@@ -257,6 +283,13 @@ def parse_form990_record_xml(
         return Form990ParsedRecord(
             filing_record=merged_filing,
             relationship_records=tuple(extract_relationship_edges(parsed, merged_filing)),
+            canonical_raw_filing_record=_canonical_raw_filing_record(
+                filing_record=merged_filing,
+                record=record,
+                raw_filing_json=canonical_raw_filing_json,
+                xml_content_hash=resolved_content_hash,
+                xml_artifact_reference=resolved_source_reference,
+            ),
         )
     except XmlParseError as exc:
         if record_error_handler is not None:
@@ -285,6 +318,7 @@ def finalize_form990_filing_records(
     *,
     started: datetime,
     nonprofit_persistence_service: Any | None = None,
+    canonical_raw_filing_records: list[dict[str, Any]] | None = None,
 ) -> Form990IngestResult:
     grouped_filings: dict[str, list[dict[str, Any]]] = {}
     metrics_records: list[dict[str, Any]] = []
@@ -345,6 +379,7 @@ def finalize_form990_filing_records(
     if nonprofit_persistence_service is not None:
         nonprofit_persistence = nonprofit_persistence_service.persist_normalized_records(
             filing_records,
+            canonical_raw_filing_records=canonical_raw_filing_records or [],
             persisted_at=started,
         ).to_dict()
 
@@ -383,6 +418,46 @@ def _from_index_record(record: Form990IndexRecord) -> Form990MetadataRecord:
         raw_file_reference=None,
         parse_status=Form990ParseStatus.INDEX_ONLY,
     )
+
+
+def _source_metadata_for_record(record: Form990IndexRecord) -> dict[str, Any]:
+    return {
+        "source_year": record.source_year,
+        "source_archive": record.source_archive,
+        "source_signature": record.source_signature,
+    }
+
+
+def _canonical_raw_filing_record(
+    *,
+    filing_record: dict[str, Any],
+    record: Form990IndexRecord,
+    raw_filing_json: dict[str, Any],
+    xml_content_hash: str,
+    xml_artifact_reference: str | None,
+) -> dict[str, Any]:
+    return Form990CanonicalRawFilingRecord(
+        ein=_as_optional_text(filing_record.get("ein")),
+        tax_year=_as_optional_text(filing_record.get("tax_year")),
+        form_type=_as_optional_text(filing_record.get("return_type")),
+        filing_date=_as_optional_text(filing_record.get("filing_date")),
+        source_name="irs.form990",
+        source_record_id=_as_optional_text(record.irs_object_id),
+        source_signature=_as_optional_text(record.source_signature),
+        xml_content_hash=xml_content_hash,
+        xml_artifact_reference=_as_optional_text(xml_artifact_reference),
+        parse_status=_as_optional_text(filing_record.get("parse_status")),
+        parser_version=CANONICAL_FORM990_PARSER_VERSION,
+        canonicalization_version=CANONICAL_FORM990_CANONICALIZATION_VERSION,
+        raw_filing_json=raw_filing_json,
+    ).to_dict()
+
+
+def _as_optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _is_supported_return_type(return_type: str | None) -> bool:

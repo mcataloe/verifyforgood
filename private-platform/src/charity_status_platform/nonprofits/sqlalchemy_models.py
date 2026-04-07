@@ -66,6 +66,9 @@ class NonprofitModel(CustomerAccountsBase):
     filings: Mapped[list["NonprofitFilingModel"]] = relationship(
         back_populates="nonprofit", cascade="all, delete-orphan"
     )
+    raw_filings: Mapped[list["NonprofitRawFilingModel"]] = relationship(
+        back_populates="nonprofit", cascade="all, delete-orphan"
+    )
     sources: Mapped[list["NonprofitSourceModel"]] = relationship(
         back_populates="nonprofit", cascade="all, delete-orphan"
     )
@@ -138,6 +141,63 @@ class NonprofitFilingModel(CustomerAccountsBase):
     )
 
     nonprofit: Mapped[NonprofitModel] = relationship(back_populates="filings")
+    raw_filings: Mapped[list["NonprofitRawFilingModel"]] = relationship(
+        back_populates="filing", cascade="all, delete-orphan"
+    )
+
+
+class NonprofitRawFilingModel(CustomerAccountsBase):
+    __tablename__ = "nonprofit_raw_filings"
+    __table_args__ = (
+        UniqueConstraint(
+            "filing_id",
+            "xml_content_hash",
+            name="uq_nonprofit_raw_filings_filing_hash",
+        ),
+        Index(
+            "ix_nonprofit_raw_filings_nonprofit_form_year",
+            "nonprofit_id",
+            "form_type",
+            "tax_year",
+            "filing_date",
+        ),
+        Index(
+            "ix_nonprofit_raw_filings_filing_latest",
+            "filing_id",
+            "updated_at",
+        ),
+    )
+
+    raw_filing_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
+    nonprofit_id: Mapped[int] = mapped_column(
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
+    )
+    filing_id: Mapped[int] = mapped_column(
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofit_filings.filing_id"), nullable=False
+    )
+    tax_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    form_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    filing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_record_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    xml_content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    xml_artifact_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parse_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonicalization_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_filing_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    nonprofit: Mapped[NonprofitModel] = relationship(back_populates="raw_filings")
+    filing: Mapped[NonprofitFilingModel] = relationship(back_populates="raw_filings")
 
 
 class NonprofitSourceModel(CustomerAccountsBase):

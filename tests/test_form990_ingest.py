@@ -43,6 +43,32 @@ def test_ingest_result_success_without_s3_artifacts():
     assert result.artifact_paths is None
 
 
+def test_parse_form990_record_xml_emits_canonical_raw_filing_metadata():
+    from infrastructure.charity_status.form990.ingest import parse_form990_record_xml
+    from infrastructure.charity_status.form990.models import Form990IndexRecord
+
+    xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
+    parsed = parse_form990_record_xml(
+        Form990IndexRecord(
+            ein="123456789",
+            tax_year="2023",
+            filing_date="2024-05-15",
+            return_type="990",
+            irs_object_id="obj-1",
+            xml_url="https://example.org/obj-1.xml",
+            source_signature="sig-obj-1",
+        ),
+        xml_bytes=xml_content,
+        source_reference="https://example.org/obj-1.xml",
+    )
+
+    assert parsed.canonical_raw_filing_record is not None
+    assert parsed.canonical_raw_filing_record["source_record_id"] == "obj-1"
+    assert parsed.canonical_raw_filing_record["source_signature"] == "sig-obj-1"
+    assert parsed.canonical_raw_filing_record["xml_artifact_reference"] == "https://example.org/obj-1.xml"
+    assert parsed.canonical_raw_filing_record["raw_filing_json"]["Return"]["ReturnData"]["IRS990"]["TotalRevenueAmt"] == "1000000"
+
+
 def test_ingest_preserves_record_source_reference_when_source_archive_present():
     records = parse_index_records(
         [

@@ -18,6 +18,7 @@ from .sqlalchemy_models import (
     Form990ExtractedFileModel,
     NonprofitFilingModel,
     NonprofitModel,
+    NonprofitRawFilingModel,
     NonprofitSourceModel,
 )
 
@@ -91,6 +92,27 @@ class NonprofitSourceRecord:
     source_signature: str | None = None
     normalized_data: dict[str, Any] | None = None
     raw_payload: dict[str, Any] | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass(frozen=True)
+class NonprofitRawFilingRecord:
+    raw_filing_id: int | None
+    nonprofit_id: int
+    filing_id: int
+    tax_year: int | None
+    form_type: str
+    filing_date: str | None
+    source_name: str | None
+    source_record_id: str | None
+    source_signature: str | None
+    xml_content_hash: str
+    xml_artifact_reference: str | None
+    parse_status: str | None
+    parser_version: str
+    canonicalization_version: str
+    raw_filing_json: dict[str, Any]
     created_at: str = ""
     updated_at: str = ""
 
@@ -232,6 +254,27 @@ class SqlAlchemyNonprofitRepository:
             assert model is not None
         return _filing_record(model)
 
+    def upsert_raw_filing(self, record: NonprofitRawFilingRecord) -> NonprofitRawFilingRecord:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            normalized_record = _normalized_raw_filing_record(record)
+            _execute_upsert(
+                session,
+                NonprofitRawFilingModel,
+                values=_raw_filing_values(normalized_record),
+                conflict_columns=["filing_id", "xml_content_hash"],
+                update_values=_raw_filing_update_values(normalized_record),
+            )
+            model = session.scalar(
+                select(NonprofitRawFilingModel)
+                .where(
+                    NonprofitRawFilingModel.filing_id == normalized_record.filing_id,
+                    NonprofitRawFilingModel.xml_content_hash == normalized_record.xml_content_hash,
+                )
+                .limit(1)
+            )
+            assert model is not None
+        return _raw_filing_record(model)
+
     def upsert_nonprofits_and_filings_batch(
         self,
         records: list[tuple[NonprofitRecord, NonprofitFilingRecord]],
@@ -324,6 +367,65 @@ class SqlAlchemyNonprofitRepository:
                 statement = statement.limit(limit)
             rows = session.execute(statement).mappings().all()
             return [_filing_query_row(dict(row)) for row in rows]
+
+    def get_raw_filing_by_identity(
+        self,
+        *,
+        nonprofit_id: int,
+        tax_year: int | None,
+        form_type: str,
+        filing_date: str | None = None,
+        source_name: str | None = None,
+        content_hash: str | None = None,
+    ) -> NonprofitRawFilingRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = select(NonprofitRawFilingModel).where(
+                NonprofitRawFilingModel.nonprofit_id == nonprofit_id,
+                NonprofitRawFilingModel.tax_year == tax_year,
+                NonprofitRawFilingModel.form_type == _normalize_optional_text(form_type),
+            )
+            if filing_date is not None:
+                statement = statement.where(NonprofitRawFilingModel.filing_date == _parse_date(filing_date))
+            if source_name is not None:
+                statement = statement.where(NonprofitRawFilingModel.source_name == _normalize_optional_text(source_name))
+            if content_hash is not None:
+                statement = statement.where(
+                    NonprofitRawFilingModel.xml_content_hash == _normalize_optional_text(content_hash)
+                )
+            model = session.scalar(
+                statement.order_by(
+                    desc(NonprofitRawFilingModel.updated_at),
+                    desc(NonprofitRawFilingModel.raw_filing_id),
+                ).limit(1)
+            )
+            return None if model is None else _raw_filing_record(model)
+
+    def get_latest_raw_filing_by_ein(
+        self,
+        ein: str,
+        *,
+        tax_year: int | None = None,
+        form_type: str | None = None,
+    ) -> NonprofitRawFilingRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            statement = (
+                select(NonprofitRawFilingModel)
+                .join(NonprofitModel, NonprofitModel.nonprofit_id == NonprofitRawFilingModel.nonprofit_id)
+                .where(NonprofitModel.ein == _normalize_ein(ein))
+            )
+            if tax_year is not None:
+                statement = statement.where(NonprofitRawFilingModel.tax_year == tax_year)
+            if form_type is not None:
+                statement = statement.where(NonprofitRawFilingModel.form_type == _normalize_optional_text(form_type))
+            model = session.scalar(
+                statement.order_by(
+                    desc(NonprofitRawFilingModel.tax_year),
+                    desc(NonprofitRawFilingModel.filing_date),
+                    desc(NonprofitRawFilingModel.updated_at),
+                    desc(NonprofitRawFilingModel.raw_filing_id),
+                ).limit(1)
+            )
+            return None if model is None else _raw_filing_record(model)
 
     def upsert_source(self, record: NonprofitSourceRecord) -> NonprofitSourceRecord:
         with customer_accounts_session_scope(self._session_factory) as session:
@@ -922,6 +1024,68 @@ def _source_record(model: NonprofitSourceModel) -> NonprofitSourceRecord:
     )
 
 
+def _raw_filing_model(record: NonprofitRawFilingRecord) -> NonprofitRawFilingModel:
+    return NonprofitRawFilingModel(
+        raw_filing_id=record.raw_filing_id,
+        nonprofit_id=record.nonprofit_id,
+        filing_id=record.filing_id,
+        tax_year=record.tax_year,
+        form_type=record.form_type,
+        filing_date=_parse_date(record.filing_date),
+        source_name=record.source_name,
+        source_record_id=record.source_record_id,
+        source_signature=record.source_signature,
+        xml_content_hash=record.xml_content_hash,
+        xml_artifact_reference=record.xml_artifact_reference,
+        parse_status=record.parse_status,
+        parser_version=record.parser_version,
+        canonicalization_version=record.canonicalization_version,
+        raw_filing_json=record.raw_filing_json,
+        created_at=_parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        updated_at=_parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    )
+
+
+def _apply_raw_filing_record(model: NonprofitRawFilingModel, record: NonprofitRawFilingRecord) -> None:
+    model.nonprofit_id = record.nonprofit_id
+    model.filing_id = record.filing_id
+    model.tax_year = record.tax_year
+    model.form_type = record.form_type
+    model.filing_date = _parse_date(record.filing_date)
+    model.source_name = record.source_name
+    model.source_record_id = record.source_record_id
+    model.source_signature = record.source_signature
+    model.xml_content_hash = record.xml_content_hash
+    model.xml_artifact_reference = record.xml_artifact_reference
+    model.parse_status = record.parse_status
+    model.parser_version = record.parser_version
+    model.canonicalization_version = record.canonicalization_version
+    model.raw_filing_json = record.raw_filing_json
+    model.updated_at = _parse_timestamp(record.updated_at) or datetime.now(timezone.utc)
+
+
+def _raw_filing_record(model: NonprofitRawFilingModel) -> NonprofitRawFilingRecord:
+    return NonprofitRawFilingRecord(
+        raw_filing_id=model.raw_filing_id,
+        nonprofit_id=model.nonprofit_id,
+        filing_id=model.filing_id,
+        tax_year=model.tax_year,
+        form_type=model.form_type,
+        filing_date=_format_date(model.filing_date),
+        source_name=model.source_name,
+        source_record_id=model.source_record_id,
+        source_signature=model.source_signature,
+        xml_content_hash=model.xml_content_hash,
+        xml_artifact_reference=model.xml_artifact_reference,
+        parse_status=model.parse_status,
+        parser_version=model.parser_version,
+        canonicalization_version=model.canonicalization_version,
+        raw_filing_json=model.raw_filing_json,
+        created_at=_format_timestamp(model.created_at) or "",
+        updated_at=_format_timestamp(model.updated_at) or "",
+    )
+
+
 def _check_model(record: ComplianceCheckRecord) -> ComplianceCheckModel:
     return ComplianceCheckModel(
         compliance_check_id=record.compliance_check_id,
@@ -1193,6 +1357,28 @@ def _normalized_source_record(record: NonprofitSourceRecord) -> NonprofitSourceR
     )
 
 
+def _normalized_raw_filing_record(record: NonprofitRawFilingRecord) -> NonprofitRawFilingRecord:
+    return NonprofitRawFilingRecord(
+        raw_filing_id=record.raw_filing_id,
+        nonprofit_id=record.nonprofit_id,
+        filing_id=record.filing_id,
+        tax_year=record.tax_year,
+        form_type=_normalize_optional_text(record.form_type) or "unknown",
+        filing_date=_format_date(_parse_date(record.filing_date)),
+        source_name=_normalize_optional_text(record.source_name),
+        source_record_id=_normalize_optional_text(record.source_record_id),
+        source_signature=_normalize_optional_text(record.source_signature),
+        xml_content_hash=_normalize_optional_text(record.xml_content_hash) or "",
+        xml_artifact_reference=_normalize_optional_text(record.xml_artifact_reference),
+        parse_status=_normalize_optional_text(record.parse_status),
+        parser_version=_normalize_optional_text(record.parser_version) or "",
+        canonicalization_version=_normalize_optional_text(record.canonicalization_version) or "",
+        raw_filing_json=record.raw_filing_json,
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or datetime.now(timezone.utc)) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or datetime.now(timezone.utc)) or "",
+    )
+
+
 def _normalized_archive_record(record: Form990ArchiveRecord) -> Form990ArchiveRecord:
     return Form990ArchiveRecord(
         archive_id=record.archive_id,
@@ -1325,6 +1511,37 @@ def _source_values(record: NonprofitSourceRecord) -> dict[str, Any]:
 def _source_update_values(record: NonprofitSourceRecord) -> dict[str, Any]:
     values = _source_values(record)
     values.pop("nonprofit_source_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _raw_filing_values(record: NonprofitRawFilingRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "nonprofit_id": record.nonprofit_id,
+        "filing_id": record.filing_id,
+        "tax_year": record.tax_year,
+        "form_type": record.form_type,
+        "filing_date": _parse_date(record.filing_date),
+        "source_name": record.source_name,
+        "source_record_id": record.source_record_id,
+        "source_signature": record.source_signature,
+        "xml_content_hash": record.xml_content_hash,
+        "xml_artifact_reference": record.xml_artifact_reference,
+        "parse_status": record.parse_status,
+        "parser_version": record.parser_version,
+        "canonicalization_version": record.canonicalization_version,
+        "raw_filing_json": record.raw_filing_json,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.raw_filing_id is not None:
+        values["raw_filing_id"] = record.raw_filing_id
+    return values
+
+
+def _raw_filing_update_values(record: NonprofitRawFilingRecord) -> dict[str, Any]:
+    values = _raw_filing_values(record)
+    values.pop("raw_filing_id", None)
     values.pop("created_at", None)
     return values
 

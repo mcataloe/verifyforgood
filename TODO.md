@@ -633,6 +633,45 @@ The backend runtime now has a local/ECS-style EO/BMF ingest path that writes can
 
 Do not break existing deployment rollback paths until the backend EO/BMF PostgreSQL cutover is validated end to end in deployed environments.
 
+## TODO-ARCH-030
+
+### Title
+
+Project canonical Form 990 raw filing content into graph-oriented nodes and edges once graph-backed use cases are ready.
+
+### Rationale
+
+Phase 27Q adds `nonprofit_raw_filings` as the durable parsed Form 990 source of
+truth in PostgreSQL using canonical `raw_filing_json` payloads plus normalized
+XML content hashes and artifact references. That preserves the full filing for
+future replay, but it intentionally defers graph-specific materialization and
+form-type-specific semantic extraction.
+
+Follow-on work areas include:
+
+- graph node and edge projection contracts derived from canonical raw filings
+- cross-filing person / officer / trustee identity resolution rules
+- organization-to-organization relationship extraction from grant, control, and
+  related-entity sections
+- richer form-type-specific extraction parity for `990`, `990EZ`, `990PF`, and
+  `990T`
+- retirement of `nonprofit_filings.raw_payload` after internal callers migrate
+  to the canonical raw-filing store where appropriate
+
+### Migration Triggers
+
+- first graph database pilot
+- need for cross-filing relationship analytics beyond current normalized filing
+  metrics
+- requirement to query non-normalized filing sections without re-downloading
+  IRS XML
+
+### Constraint
+
+Keep the Phase 27Q canonical raw-filing store stable as the replay source of
+truth so future graph or richer extraction work projects from
+`nonprofit_raw_filings` instead of reintroducing ad hoc XML-fetch assumptions.
+
 ## TODO-ARCH-025
 
 ### Title

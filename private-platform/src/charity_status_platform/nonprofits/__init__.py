@@ -4,6 +4,7 @@ from .sqlalchemy_models import (
     Form990ExtractedFileModel,
     NonprofitFilingModel,
     NonprofitModel,
+    NonprofitRawFilingModel,
     NonprofitSourceModel,
 )
 from .sqlalchemy_repository import (
@@ -12,6 +13,7 @@ from .sqlalchemy_repository import (
     Form990ExtractedFileRecord,
     NonprofitFilingRecord,
     NonprofitRecord,
+    NonprofitRawFilingRecord,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
 )
@@ -23,12 +25,14 @@ from .sqlalchemy_repository import NonprofitBatchUpsertStats
 __all__ = [
     "NonprofitModel",
     "NonprofitFilingModel",
+    "NonprofitRawFilingModel",
     "NonprofitSourceModel",
     "ComplianceCheckModel",
     "Form990ArchiveModel",
     "Form990ExtractedFileModel",
     "NonprofitRecord",
     "NonprofitFilingRecord",
+    "NonprofitRawFilingRecord",
     "NonprofitSourceRecord",
     "ComplianceCheckRecord",
     "Form990ArchiveRecord",

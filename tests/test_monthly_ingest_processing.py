@@ -431,6 +431,55 @@ def test_process_form990_archive_logs_split_persistence_stage_timings(tmp_path, 
     assert stage_event["extracted_member_count"] == 1
 
 
+def test_process_form990_archive_forwards_canonical_raw_filing_records(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_07A.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", _valid_xml())))
+    persistence_calls: list[dict[str, object]] = []
+
+    class RecordingPersistenceService:
+        def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
+            persistence_calls.append(
+                {
+                    "filing_records": filing_records,
+                    "canonical_raw_filing_records": canonical_raw_filing_records,
+                }
+            )
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "nonprofits_upserted": 1,
+                    "filings_upserted": 1,
+                    "sources_upserted": 1,
+                    "skipped_records": 0,
+                }
+            )
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "canonical-raw"),
+        processing_context={
+            "source_key": "local/archive.zip",
+            "job_id": "raw-job",
+            "correlation_id": "raw-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_07a",
+            source_signature="sig-7",
+            source_filename="2026_TEOS_XML_07A.zip",
+        ),
+        nonprofit_persistence_service=RecordingPersistenceService(),
+    )
+
+    assert result["status"] == "success"
+    assert len(persistence_calls) == 1
+    assert len(persistence_calls[0]["canonical_raw_filing_records"]) == 1
+    raw_filing = persistence_calls[0]["canonical_raw_filing_records"][0]
+    assert raw_filing["parser_version"] == "form990.xml_parser.v1"
+    assert raw_filing["raw_filing_json"]["Return"]["ReturnData"]["IRS990"]["Filer"]["EIN"] == "123456789"
+
+
 def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:
     import tempfile
     from pathlib import Path

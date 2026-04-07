@@ -102,6 +102,7 @@ def test_ingest_form990_records_persists_to_nonprofit_repository_when_hook_is_pr
     nonprofit = repository.get_nonprofit_by_ein("123456789")
     filings = repository.list_filings_for_nonprofit(nonprofit.nonprofit_id)
     sources = repository.list_sources_for_nonprofit(nonprofit.nonprofit_id)
+    raw_filing = repository.get_latest_raw_filing_by_ein("123456789", tax_year=2023, form_type="990")
 
     assert result.nonprofit_persistence == {
         "nonprofits_upserted": 1,
@@ -112,6 +113,9 @@ def test_ingest_form990_records_persists_to_nonprofit_repository_when_hook_is_pr
     assert len(filings) == 1
     assert len(sources) == 1
     assert filings[0].raw_file_reference == "https://example.org/obj-1.xml"
+    assert raw_filing is not None
+    assert raw_filing.xml_artifact_reference == "https://example.org/obj-1.xml"
+    assert raw_filing.raw_filing_json["Return"]["ReturnHeader"]["ReturnTypeCd"] == "990"
 
 
 def test_form990_persistence_service_reports_progress_after_service_level_upsert_decisions(tmp_path: Path):

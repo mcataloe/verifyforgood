@@ -8,6 +8,7 @@ from charity_status.ops import ProgressSession
 from .sqlalchemy_repository import (
     NonprofitFilingRecord,
     NonprofitRecord,
+    NonprofitRawFilingRecord,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
 )
@@ -40,6 +41,7 @@ class Form990NonprofitPersistenceService:
         self,
         filing_records: list[dict[str, Any]],
         *,
+        canonical_raw_filing_records: list[dict[str, Any]] | None = None,
         persisted_at: datetime | None = None,
         progress_session: ProgressSession | None = None,
     ) -> Form990PersistenceStats:
@@ -49,6 +51,11 @@ class Form990NonprofitPersistenceService:
         sources_upserted = 0
         skipped_records = 0
         persisted_at_iso = _format_timestamp(persisted_at or datetime.now(timezone.utc))
+        raw_filing_lookup = {
+            _canonical_raw_lookup_key(item): item
+            for item in (canonical_raw_filing_records or [])
+            if _canonical_raw_lookup_key(item) is not None
+        }
 
         for filing in filing_records:
             ein = _normalize_ein(filing.get("ein"))
@@ -92,8 +99,19 @@ class Form990NonprofitPersistenceService:
                 nonprofits_upserted += 1
             assert nonprofit_id is not None
 
-            self._repository.upsert_filing(_to_filing_record(nonprofit_id, filing, persisted_at_iso))
+            persisted_filing = self._repository.upsert_filing(_to_filing_record(nonprofit_id, filing, persisted_at_iso))
             filings_upserted += 1
+
+            raw_filing_payload = raw_filing_lookup.get(_filing_lookup_key(filing))
+            if raw_filing_payload is not None:
+                self._repository.upsert_raw_filing(
+                    _to_raw_filing_record(
+                        nonprofit_id,
+                        persisted_filing.filing_id,
+                        raw_filing_payload,
+                        persisted_at_iso,
+                    )
+                )
 
             parse_status = str(filing.get("parse_status") or "").strip().lower()
             if parse_status in IGNORED_PARSE_STATUSES:
@@ -164,6 +182,51 @@ def _to_source_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_is
         created_at=persisted_at_iso,
         updated_at=persisted_at_iso,
     )
+
+
+def _to_raw_filing_record(
+    nonprofit_id: int,
+    filing_id: int | None,
+    raw_filing: dict[str, Any],
+    persisted_at_iso: str,
+) -> NonprofitRawFilingRecord:
+    assert filing_id is not None
+    return NonprofitRawFilingRecord(
+        raw_filing_id=None,
+        nonprofit_id=nonprofit_id,
+        filing_id=filing_id,
+        tax_year=_to_int(raw_filing.get("tax_year")),
+        form_type=str(raw_filing.get("form_type") or "unknown").strip() or "unknown",
+        filing_date=str(raw_filing.get("filing_date") or "").strip() or None,
+        source_name=str(raw_filing.get("source_name") or "").strip() or None,
+        source_record_id=str(raw_filing.get("source_record_id") or "").strip() or None,
+        source_signature=str(raw_filing.get("source_signature") or "").strip() or None,
+        xml_content_hash=str(raw_filing.get("xml_content_hash") or "").strip(),
+        xml_artifact_reference=str(raw_filing.get("xml_artifact_reference") or "").strip() or None,
+        parse_status=str(raw_filing.get("parse_status") or "").strip() or None,
+        parser_version=str(raw_filing.get("parser_version") or "").strip(),
+        canonicalization_version=str(raw_filing.get("canonicalization_version") or "").strip(),
+        raw_filing_json=dict(raw_filing.get("raw_filing_json") or {}),
+        created_at=persisted_at_iso,
+        updated_at=persisted_at_iso,
+    )
+
+
+def _filing_lookup_key(filing: dict[str, Any]) -> tuple[str | None, str | None]:
+    return (
+        str(filing.get("irs_object_id") or "").strip() or None,
+        str(filing.get("raw_file_reference") or filing.get("xml_source_reference") or "").strip() or None,
+    )
+
+
+def _canonical_raw_lookup_key(raw_filing: dict[str, Any]) -> tuple[str | None, str | None] | None:
+    key = (
+        str(raw_filing.get("source_record_id") or "").strip() or None,
+        str(raw_filing.get("xml_artifact_reference") or "").strip() or None,
+    )
+    if key == (None, None):
+        return None
+    return key
 def _normalize_ein(value: Any) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())[:9]
 

@@ -15,6 +15,7 @@ from charity_status_platform.nonprofits import (
     NonprofitFilingRecord,
     NonprofitModel,
     NonprofitRecord,
+    NonprofitRawFilingRecord,
     PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
@@ -34,6 +35,7 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
 
     assert "nonprofits" in table_names
     assert "nonprofit_filings" in table_names
+    assert "nonprofit_raw_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
     assert "form990_archives" in table_names
@@ -212,6 +214,96 @@ def test_nonprofit_repository_upserts_and_reads_nonprofit_related_records(tmp_pa
     assert latest_check.status == "pass"
     assert latest_check.final_recommendation == "approve"
     assert isinstance(fetched.nonprofit_id, int)
+
+
+def test_nonprofit_repository_tracks_canonical_raw_filing_versions(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="12-3456789",
+            canonical_name="Example Nonprofit",
+            normalized_name="example nonprofit",
+            created_at="2026-04-07T00:00:00+00:00",
+            updated_at="2026-04-07T00:00:00+00:00",
+        )
+    )
+    filing = repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2024,
+            tax_period="202412",
+            form_type="990",
+            filing_date="2025-05-15",
+            amended=False,
+            parse_status="parsed",
+            source_name="irs.form990",
+            source_record_id="return-123",
+            created_at="2026-04-07T00:00:00+00:00",
+            updated_at="2026-04-07T00:00:00+00:00",
+        )
+    )
+
+    first = repository.upsert_raw_filing(
+        NonprofitRawFilingRecord(
+            raw_filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            filing_id=filing.filing_id,
+            tax_year=2024,
+            form_type="990",
+            filing_date="2025-05-15",
+            source_name="irs.form990",
+            source_record_id="return-123",
+            source_signature="sig-1",
+            xml_content_hash="hash-1",
+            xml_artifact_reference="workspace://archive#return-123.xml",
+            parse_status="parsed",
+            parser_version="form990.xml_parser.v1",
+            canonicalization_version="form990.raw_filing_json.v1",
+            raw_filing_json={"Return": {"ReturnHeader": {"ReturnTypeCd": "990"}}},
+            created_at="2026-04-07T00:00:00+00:00",
+            updated_at="2026-04-07T00:00:00+00:00",
+        )
+    )
+    second = repository.upsert_raw_filing(
+        NonprofitRawFilingRecord(
+            raw_filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            filing_id=filing.filing_id,
+            tax_year=2024,
+            form_type="990",
+            filing_date="2025-05-15",
+            source_name="irs.form990",
+            source_record_id="return-123",
+            source_signature="sig-2",
+            xml_content_hash="hash-2",
+            xml_artifact_reference="workspace://archive#return-123.xml",
+            parse_status="parsed",
+            parser_version="form990.xml_parser.v1",
+            canonicalization_version="form990.raw_filing_json.v1",
+            raw_filing_json={"Return": {"ReturnHeader": {"ReturnTypeCd": "990"}, "Version": "2"}},
+            created_at="2026-04-07T00:05:00+00:00",
+            updated_at="2026-04-07T00:05:00+00:00",
+        )
+    )
+
+    fetched_by_identity = repository.get_raw_filing_by_identity(
+        nonprofit_id=nonprofit.nonprofit_id,
+        tax_year=2024,
+        form_type="990",
+        filing_date="2025-05-15",
+        source_name="irs.form990",
+    )
+    fetched_latest = repository.get_latest_raw_filing_by_ein("123456789", tax_year=2024, form_type="990")
+
+    assert first.raw_filing_id is not None
+    assert second.raw_filing_id is not None
+    assert first.raw_filing_id != second.raw_filing_id
+    assert fetched_by_identity is not None
+    assert fetched_by_identity.xml_content_hash == "hash-2"
+    assert fetched_latest is not None
+    assert fetched_latest.source_signature == "sig-2"
 
 
 def test_nonprofit_repository_accepts_iso_datetime_for_filing_date(tmp_path: Path):

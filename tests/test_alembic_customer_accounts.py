@@ -33,5 +33,6 @@ def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_table
     assert "organization_audit_logs" in table_names
     assert "nonprofits" in table_names
     assert "nonprofit_filings" in table_names
+    assert "nonprofit_raw_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
