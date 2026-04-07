@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from charity_status.normalization import map_deductibility, map_entity_type, map_irs_status, map_ntee_category
 from charity_status.ops import ProgressField, ProgressReporter
@@ -110,6 +110,7 @@ def ingest_eo_bmf_csv(
     processed_at: datetime | None = None,
     batch_size: int = DEFAULT_EO_BMF_BATCH_SIZE,
     progress_reporter: ProgressReporter | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> EoBmfFileIngestStats:
     perf_counter = time.perf_counter
     persistence_service = persistence_service or (
@@ -120,6 +121,8 @@ def ingest_eo_bmf_csv(
     processed = processed_at or datetime.now(timezone.utc)
     processed_at_iso = processed.replace(microsecond=0).isoformat()
     total_rows = _count_eo_bmf_rows(path)
+    if progress_callback is not None:
+        progress_callback({"type": "rows_total", "filename": filename, "total_rows": total_rows})
     progress_session = (
         progress_reporter.start(
             total_items=total_rows,
@@ -147,13 +150,29 @@ def ingest_eo_bmf_csv(
         for row in iter_eo_bmf_rows(path):
             rows_seen += 1
             map_started_at = perf_counter()
-            mapped = _map_row_to_records(row=row, filename=filename, processed_at_iso=processed_at_iso)
+            mapped = _map_row_to_records(
+                row=row,
+                filename=filename,
+                processed_at_iso=processed_at_iso,
+                row_number=rows_seen,
+            )
             map_duration_ms += _elapsed_ms(map_started_at)
             if mapped is None:
                 invalid_rows += 1
                 rows_completed += 1
                 if progress_session is not None:
                     progress_session.item_completed({"invalid": 1}, last_item=f"{filename}:row:{rows_seen}")
+                if progress_callback is not None:
+                    progress_callback(
+                        {
+                            "type": "row_progress",
+                            "filename": filename,
+                            "processed": 0,
+                            "invalid": 1,
+                            "completed_items": 1,
+                            "last_item": f"{filename}:row:{rows_seen}",
+                        }
+                    )
                 _log_record_progress(filename=filename, rows_completed=rows_completed, total_rows=total_rows)
                 continue
             batch.append(mapped)
@@ -162,6 +181,7 @@ def ingest_eo_bmf_csv(
                     batch=batch,
                     persistence_service=persistence_service,
                     progress_session=progress_session,
+                    progress_callback=progress_callback,
                 )
                 nonprofits_upserted += persisted.nonprofits_upserted
                 filings_upserted += persisted.filings_upserted
@@ -176,6 +196,7 @@ def ingest_eo_bmf_csv(
                 batch=batch,
                 persistence_service=persistence_service,
                 progress_session=progress_session,
+                progress_callback=progress_callback,
             )
             nonprofits_upserted += persisted.nonprofits_upserted
             filings_upserted += persisted.filings_upserted
@@ -236,6 +257,7 @@ def _map_row_to_records(
     row: Mapping[str, str],
     filename: str,
     processed_at_iso: str,
+    row_number: int,
 ) -> dict[str, Any] | None:
     ein = _normalize_ein(row.get("ein"))
     if len(ein) != 9:
@@ -292,6 +314,8 @@ def _map_row_to_records(
     return {
         "nonprofit": nonprofit,
         "filing": filing,
+        "filename": filename,
+        "row_number": row_number,
         "progress_label": filing.source_record_id or nonprofit.ein,
     }
 
@@ -334,6 +358,7 @@ def _flush_eo_bmf_batch(
     batch: list[dict[str, Any]],
     persistence_service: EoBmfNonprofitPersistenceService,
     progress_session: Any | None,
+    progress_callback: Callable[[dict[str, Any]], None] | None,
 ):
     persisted = persistence_service.persist_batch(
         [(item["nonprofit"], item["filing"]) for item in batch]
@@ -341,6 +366,17 @@ def _flush_eo_bmf_batch(
     if progress_session is not None:
         for item in batch:
             progress_session.item_completed({"processed": 1}, last_item=str(item["progress_label"]))
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "type": "row_progress",
+                "filename": str(batch[-1]["filename"]),
+                "processed": len(batch),
+                "invalid": 0,
+                "completed_items": len(batch),
+                "last_item": f"{batch[-1]['filename']}:rows:{batch[0]['row_number']}-{batch[-1]['row_number']}",
+            }
+        )
     return persisted
 
 

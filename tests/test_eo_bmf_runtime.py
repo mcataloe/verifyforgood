@@ -33,9 +33,15 @@ class RecordingProgressSession:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
         self.completed = False
+        self.total_updates: list[int] = []
 
-    def item_completed(self, increments=None, *, last_item=None) -> None:
-        self.calls.append({"increments": dict(increments or {}), "last_item": last_item})
+    def item_completed(self, increments=None, *, last_item=None, completed_items=1) -> None:
+        self.calls.append(
+            {"increments": dict(increments or {}), "last_item": last_item, "completed_items": completed_items}
+        )
+
+    def set_total_items(self, total_items: int) -> None:
+        self.total_updates.append(int(total_items))
 
     def complete(self) -> None:
         self.completed = True
@@ -154,9 +160,9 @@ def test_ingest_eo_bmf_csv_reports_progress_for_processed_and_invalid_rows(tmp_p
     assert stats.invalid_rows == 1
     assert reporter.starts == [{"total_items": 3, "field_keys": ["processed", "invalid"], "update_every": 10}]
     assert reporter.sessions[0].calls == [
-        {"increments": {"invalid": 1}, "last_item": "eo-progress.csv:row:2"},
-        {"increments": {"processed": 1}, "last_item": "123456789:eo-progress.csv:202412"},
-        {"increments": {"processed": 1}, "last_item": "987654321:eo-progress.csv:202412"},
+        {"increments": {"invalid": 1}, "last_item": "eo-progress.csv:row:2", "completed_items": 1},
+        {"increments": {"processed": 1}, "last_item": "123456789:eo-progress.csv:202412", "completed_items": 1},
+        {"increments": {"processed": 1}, "last_item": "987654321:eo-progress.csv:202412", "completed_items": 1},
     ]
     assert reporter.sessions[0].completed is True
 
@@ -374,3 +380,55 @@ def test_run_local_eo_bmf_ingest_processes_multiple_files_with_workers(tmp_path:
     assert completion_payload["files_processed"] == 2
     assert {item["filename"] for item in completion_payload["files"]} == {"eo1.csv", "eo2.csv"}
     assert completion_payload["rows_seen"] == 2
+
+
+def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp_path: Path, monkeypatch):
+    repository, sqlite_url = _repository(tmp_path)
+    workspace = tmp_path / "workspace"
+    reporter = RecordingProgressReporter()
+
+    def _fake_download(*, url: str, destination: Path, timeout_seconds: int) -> None:
+        destination.write_text(
+            (
+                "12-3456789,Runtime EO Org,,,Chicago,IL,60601,,03,,,,1,,,,1,202412,,,,,,,120000,80000,76000,P20,runtime eo org\n"
+                "bad-ein,Invalid Org,,,Chicago,IL,60601,,03,,,,1,,,,1,202412,,,,,,,120000,80000,76000,P20,invalid org\n"
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(
+        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        _fake_download,
+    )
+    monkeypatch.setattr(
+        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        ["eo1.csv", "eo2.csv"],
+    )
+    monkeypatch.setattr(
+        "charity_status_backend.ingest_task.eo_bmf_runner.build_progress_reporter",
+        lambda: reporter,
+    )
+
+    exit_code = run_local_eo_bmf_ingest(
+        strict=False,
+        keep_temp=False,
+        workspace=str(workspace),
+        workers=2,
+        batch_size=1,
+        env={
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": sqlite_url,
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+            "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
+        },
+    )
+
+    assert exit_code == 0
+    assert reporter.starts == [
+        {"total_items": 0, "field_keys": ["processed", "invalid", "failed_files"], "update_every": 1}
+    ]
+    assert reporter.sessions[0].total_updates[-1] == 4
+    assert sum(int(call["completed_items"]) for call in reporter.sessions[0].calls) == 4
+    assert any(call["increments"] == {"invalid": 1} for call in reporter.sessions[0].calls)
+    assert any(call["increments"] == {"processed": 1} for call in reporter.sessions[0].calls)

@@ -27,7 +27,7 @@ from charity_status.form990.source_catalog import (
     normalize_configured_sources,
 )
 from charity_status.form990.static_source_discovery import discover_static_form990_sources
-from charity_status.ops import build_progress_reporter
+from charity_status.ops import build_progress_reporter, prepare_stream_for_external_write
 from charity_status.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
 from .orchestration import build_workspace_layout
@@ -94,6 +94,7 @@ class _ConsoleStructuredLogger:
             payload["error_type"] = type(error).__name__
             if self._strict or self._include_traceback:
                 payload["traceback"] = traceback.format_exc()
+        prepare_stream_for_external_write()
         print(json.dumps(payload, sort_keys=True))
 
 

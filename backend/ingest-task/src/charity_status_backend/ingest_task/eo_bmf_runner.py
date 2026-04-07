@@ -6,17 +6,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import logging
 import os
+import queue
+import threading
 import time
 import traceback
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from charity_status.form990.hardening import is_transient_network_error, retry_call
 from charity_status.ingest.irs_files import IRS_FILES, source_url_for
-from charity_status.ops import ProgressField, build_progress_reporter
+from charity_status.ops import ProgressField, ProgressSession, build_progress_reporter, prepare_stream_for_external_write
 from charity_status.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
 from .eo_bmf_ingest import ingest_eo_bmf_csv
@@ -38,6 +40,91 @@ class EoBmfRunConfig:
     batch_size: int = DEFAULT_EO_BMF_BATCH_SIZE
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
+
+
+@dataclass(frozen=True)
+class _EoBmfProgressEvent:
+    type: str
+    filename: str
+    total_rows: int = 0
+    processed: int = 0
+    invalid: int = 0
+    completed_items: int = 0
+    last_item: str | None = None
+
+
+class _AggregateEoBmfProgressCoordinator:
+    def __init__(self, *, progress_session: ProgressSession) -> None:
+        self._progress_session = progress_session
+        self._event_queue: queue.Queue[_EoBmfProgressEvent | None] = queue.Queue()
+        self._stop_requested = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="eo-bmf-progress", daemon=True)
+        self._totals_by_file: dict[str, int] = {}
+        self._completed_by_file: dict[str, int] = {}
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def emit(self, event: Mapping[str, Any]) -> None:
+        self._event_queue.put(
+            _EoBmfProgressEvent(
+                type=str(event.get("type") or "").strip(),
+                filename=str(event.get("filename") or "").strip(),
+                total_rows=int(event.get("total_rows") or 0),
+                processed=int(event.get("processed") or 0),
+                invalid=int(event.get("invalid") or 0),
+                completed_items=int(event.get("completed_items") or 0),
+                last_item=str(event.get("last_item") or "").strip() or None,
+            )
+        )
+
+    def stop(self) -> None:
+        self._stop_requested.set()
+        self._event_queue.put(None)
+        self._thread.join()
+
+    def file_failed(self, filename: str) -> None:
+        normalized = str(filename or "").strip()
+        if not normalized:
+            return
+        remaining_rows = max(0, self._totals_by_file.get(normalized, 0) - self._completed_by_file.get(normalized, 0))
+        self._completed_by_file[normalized] = self._completed_by_file.get(normalized, 0) + remaining_rows
+        self._progress_session.item_completed(
+            {"failed_files": 1},
+            last_item=normalized,
+            completed_items=remaining_rows,
+        )
+
+    def _run(self) -> None:
+        while not self._stop_requested.is_set() or not self._event_queue.empty():
+            try:
+                event = self._event_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if event is None:
+                continue
+            self._handle(event)
+
+    def _handle(self, event: _EoBmfProgressEvent) -> None:
+        if event.type == "rows_total":
+            self._totals_by_file[event.filename] = max(0, int(event.total_rows))
+            self._progress_session.set_total_items(sum(self._totals_by_file.values()))
+            return
+        if event.type != "row_progress":
+            return
+        self._completed_by_file[event.filename] = self._completed_by_file.get(event.filename, 0) + max(
+            0, int(event.completed_items)
+        )
+        increments = {}
+        if event.processed:
+            increments["processed"] = int(event.processed)
+        if event.invalid:
+            increments["invalid"] = int(event.invalid)
+        self._progress_session.item_completed(
+            increments,
+            last_item=event.last_item,
+            completed_items=max(0, int(event.completed_items)),
+        )
 
 
 class _ConsoleStructuredLogger:
@@ -81,6 +168,7 @@ class _ConsoleStructuredLogger:
             payload["error_type"] = type(error).__name__
             if self._strict or self._include_traceback:
                 payload["traceback"] = traceback.format_exc()
+        prepare_stream_for_external_write()
         print(json.dumps(payload, sort_keys=True))
 
 
@@ -184,14 +272,19 @@ def run_local_eo_bmf_ingest_config(
         {**source_env, **({"EOBMF_WORKSPACE_DIR": config.workspace} if config.workspace else {})}
     ).ensure()
     progress_reporter = build_progress_reporter()
+    multi_worker = max(1, int(config.workers or 1)) > 1
     progress_session = progress_reporter.start(
-        total_items=len(IRS_FILES),
+        total_items=0 if multi_worker else len(IRS_FILES),
         fields=[
             ProgressField(key="processed", label="processed", color="green"),
-            ProgressField(key="failed", label="failed", color="red"),
+            *([ProgressField(key="invalid", label="invalid", color="red")] if multi_worker else []),
+            ProgressField(key="failed_files" if multi_worker else "failed", label="failed" if not multi_worker else "failed_files", color="red"),
         ],
         update_every=1,
     )
+    progress_coordinator = _AggregateEoBmfProgressCoordinator(progress_session=progress_session) if multi_worker else None
+    if progress_coordinator is not None:
+        progress_coordinator.start()
     logger.log(
         component="eo_bmf.cli",
         level="INFO",
@@ -233,7 +326,8 @@ def run_local_eo_bmf_ingest_config(
                     env=source_env,
                     batch_size=config.batch_size,
                     keep_temp=config.keep_temp,
-                    enable_record_progress=max(1, int(config.workers or 1)) == 1,
+                    enable_record_progress=not multi_worker,
+                    progress_callback=progress_coordinator.emit if progress_coordinator is not None else None,
                     )
                 ] = filename
             for future in as_completed(future_to_filename):
@@ -247,7 +341,10 @@ def run_local_eo_bmf_ingest_config(
                     files.append(file_payload)
                     if file_payload.get("status") == "failed":
                         failure_count += 1
-                        progress_session.item_completed({"failed": 1}, last_item=filename)
+                        if progress_coordinator is not None:
+                            progress_coordinator.file_failed(filename)
+                        else:
+                            progress_session.item_completed({"failed": 1}, last_item=filename)
                         logger.log(
                             component="eo_bmf.file",
                             level="ERROR",
@@ -258,7 +355,8 @@ def run_local_eo_bmf_ingest_config(
                         if config.strict:
                             raise RuntimeError(f"eo_bmf file failed: {filename}")
                     else:
-                        progress_session.item_completed({"processed": 1}, last_item=filename)
+                        if progress_coordinator is None:
+                            progress_session.item_completed({"processed": 1}, last_item=filename)
                         logger.log(
                             component="eo_bmf.file",
                             level="INFO",
@@ -269,7 +367,10 @@ def run_local_eo_bmf_ingest_config(
                 except Exception as exc:
                     failure_count += 1
                     files.append(_failed_file_payload(filename=filename, total_file_duration_ms=0, error=exc))
-                    progress_session.item_completed({"failed": 1}, last_item=filename)
+                    if progress_coordinator is not None:
+                        progress_coordinator.file_failed(filename)
+                    else:
+                        progress_session.item_completed({"failed": 1}, last_item=filename)
                     logger.log(
                         component="eo_bmf.file",
                         level="ERROR",
@@ -280,6 +381,8 @@ def run_local_eo_bmf_ingest_config(
                     if config.strict:
                         raise
     finally:
+        if progress_coordinator is not None:
+            progress_coordinator.stop()
         progress_session.complete()
 
     files.sort(key=lambda item: str(item.get("filename") or ""))
@@ -293,6 +396,7 @@ def run_local_eo_bmf_ingest_config(
             "status": status,
             "files_processed": len(files),
             "total_run_duration_ms": total_run_duration_ms,
+            "files_per_second": _items_per_second(len(files), total_run_duration_ms),
             "rows_seen": rows_seen,
             "nonprofits_upserted": nonprofits_upserted,
             "filings_upserted": filings_upserted,
@@ -303,12 +407,16 @@ def run_local_eo_bmf_ingest_config(
             "invalid_row_rate": _ratio(invalid_rows, rows_seen),
         },
     )
+    prepare_stream_for_external_write()
     print(
         json.dumps(
             {
                 "status": status,
                 "files_processed": len(files),
                 "total_run_duration_ms": total_run_duration_ms,
+                "workers": config.workers,
+                "batch_size": config.batch_size,
+                "files_per_second": _items_per_second(len(files), total_run_duration_ms),
                 "rows_seen": rows_seen,
                 "nonprofits_upserted": nonprofits_upserted,
                 "filings_upserted": filings_upserted,
@@ -352,6 +460,7 @@ def _process_eo_bmf_file(
     batch_size: int,
     keep_temp: bool,
     enable_record_progress: bool,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     layout = build_eo_bmf_workspace_layout({**env, "EOBMF_WORKSPACE_DIR": workspace_root}).ensure()
     file_workspace = layout.for_filename(filename).ensure()
@@ -374,6 +483,7 @@ def _process_eo_bmf_file(
             persistence_service=persistence_service,
             batch_size=batch_size,
             progress_reporter=build_progress_reporter() if enable_record_progress else None,
+            progress_callback=progress_callback,
         )
         return {
             **stats.to_dict(),

@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import threading
 
-from charity_status.ops.progress import ConsoleProgressSession, ProgressField, build_progress_reporter
+from charity_status.ops.progress import ConsoleProgressSession, ProgressField, build_progress_reporter, prepare_stream_for_external_write
 
 
 class _FakeStream(io.StringIO):
@@ -112,4 +112,28 @@ def test_console_progress_session_item_completed_is_thread_safe():
 
     rendered = stream.getvalue()
     assert "\033[32m40\033[0m" in rendered
+    assert "last:" in rendered
+
+
+def test_console_progress_session_supports_dynamic_total_and_external_write(monkeypatch):
+    stream = _FakeStream(is_tty=True)
+    monotonic_values = iter([0.0, 60.0, 120.0, 180.0])
+    monkeypatch.setattr("charity_status.ops.progress.time.monotonic", lambda: next(monotonic_values))
+    session = ConsoleProgressSession(
+        stream=stream,
+        total_items=0,
+        fields=[ProgressField(key="processed", label="processed", color="green")],
+        update_every=1,
+    )
+
+    session.set_total_items(4)
+    session.item_completed({"processed": 2}, last_item="eo1.csv:rows:1-2", completed_items=2)
+    prepare_stream_for_external_write(stream)
+    stream.write('{"component":"test"}\n')
+    session.item_completed({"processed": 2}, last_item="eo2.csv:rows:1-2", completed_items=2)
+    session.complete()
+
+    rendered = stream.getvalue()
+    assert '{"component":"test"}\n' in rendered
+    assert "remaining:" in rendered
     assert "last:" in rendered

@@ -7,6 +7,7 @@ from .progress import (
     ProgressReporter,
     ProgressSession,
     build_progress_reporter,
+    prepare_stream_for_external_write,
 )
 from .run_store import InMemoryRunStore, S3RunStore
 
@@ -21,4 +22,5 @@ __all__ = [
     "ProgressSession",
     "S3RunStore",
     "build_progress_reporter",
+    "prepare_stream_for_external_write",
 ]

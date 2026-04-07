@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence, TextIO
 
 
+_ACTIVE_PROGRESS_LOCK = threading.Lock()
+_ACTIVE_PROGRESS_SESSIONS: dict[int, list["ConsoleProgressSession"]] = {}
+
+
 @dataclass(frozen=True)
 class ProgressField:
     key: str
@@ -15,7 +19,16 @@ class ProgressField:
 
 
 class ProgressSession:
-    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
+    def item_completed(
+        self,
+        increments: Mapping[str, int] | None = None,
+        *,
+        last_item: str | None = None,
+        completed_items: int = 1,
+    ) -> None:
+        raise NotImplementedError
+
+    def set_total_items(self, total_items: int) -> None:
         raise NotImplementedError
 
     def complete(self) -> None:
@@ -43,7 +56,16 @@ class _AnsiPalette:
 
 
 class NoOpProgressSession(ProgressSession):
-    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
+    def item_completed(
+        self,
+        increments: Mapping[str, int] | None = None,
+        *,
+        last_item: str | None = None,
+        completed_items: int = 1,
+    ) -> None:
+        return
+
+    def set_total_items(self, total_items: int) -> None:
         return
 
     def complete(self) -> None:
@@ -85,18 +107,38 @@ class ConsoleProgressSession(ProgressSession):
         self._closed = False
         self._last_item: str | None = None
         self._lock = threading.Lock()
+        self._register()
 
-    def item_completed(self, increments: Mapping[str, int] | None = None, *, last_item: str | None = None) -> None:
+    def item_completed(
+        self,
+        increments: Mapping[str, int] | None = None,
+        *,
+        last_item: str | None = None,
+        completed_items: int = 1,
+    ) -> None:
         with self._lock:
             if self._closed:
                 return
-            self._completed_items += 1
+            self._completed_items += max(0, int(completed_items))
             for key, value in dict(increments or {}).items():
                 self._counts[str(key)] = self._counts.get(str(key), 0) + int(value or 0)
             if last_item is not None:
                 normalized = str(last_item).strip()
                 self._last_item = normalized or None
-            if self._completed_items % self._update_every == 0:
+            if int(completed_items) == 0 and (increments or last_item) and self._last_render_length > 0:
+                self._render(final=False)
+                return
+            if self._completed_items == 0:
+                return
+            if self._completed_items % self._update_every == 0 or int(completed_items) > 1:
+                self._render(final=False)
+
+    def set_total_items(self, total_items: int) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._total_items = max(0, int(total_items))
+            if self._last_render_length > 0:
                 self._render(final=False)
 
     def complete(self) -> None:
@@ -107,6 +149,7 @@ class ConsoleProgressSession(ProgressSession):
             self._render(final=True)
             self._stream.write("\n")
             self._stream.flush()
+        self._unregister()
 
     @property
     def completed_items(self) -> int:
@@ -118,6 +161,14 @@ class ConsoleProgressSession(ProgressSession):
         self._stream.write(f"\r{line}{' ' * padding}")
         self._stream.flush()
         self._last_render_length = len(line)
+
+    def _prepare_for_external_write(self) -> None:
+        with self._lock:
+            if self._closed or self._last_render_length <= 0:
+                return
+            self._stream.write("\n")
+            self._stream.flush()
+            self._last_render_length = 0
 
     def _line(self, *, final: bool) -> str:
         segments = [
@@ -160,6 +211,17 @@ class ConsoleProgressSession(ProgressSession):
             return text
         return f"{text[: self._MAX_LAST_ITEM_LENGTH - 3]}..."
 
+    def _register(self) -> None:
+        with _ACTIVE_PROGRESS_LOCK:
+            _ACTIVE_PROGRESS_SESSIONS.setdefault(id(self._stream), []).append(self)
+
+    def _unregister(self) -> None:
+        with _ACTIVE_PROGRESS_LOCK:
+            sessions = _ACTIVE_PROGRESS_SESSIONS.get(id(self._stream), [])
+            _ACTIVE_PROGRESS_SESSIONS[id(self._stream)] = [session for session in sessions if session is not self]
+            if not _ACTIVE_PROGRESS_SESSIONS[id(self._stream)]:
+                _ACTIVE_PROGRESS_SESSIONS.pop(id(self._stream), None)
+
 
 class ConsoleProgressReporter(ProgressReporter):
     def __init__(self, *, stream: TextIO, palette: _AnsiPalette | None = None) -> None:
@@ -189,6 +251,14 @@ def build_progress_reporter(*, stream: TextIO | None = None) -> ProgressReporter
     return NoOpProgressReporter()
 
 
+def prepare_stream_for_external_write(stream: TextIO | None = None) -> None:
+    target = stream or sys.stdout
+    with _ACTIVE_PROGRESS_LOCK:
+        sessions = list(_ACTIVE_PROGRESS_SESSIONS.get(id(target), []))
+    for session in sessions:
+        session._prepare_for_external_write()
+
+
 def _format_duration_mmss(total_seconds: int) -> str:
     normalized = max(0, int(total_seconds))
     minutes, seconds = divmod(normalized, 60)
@@ -203,5 +273,6 @@ __all__ = [
     "ProgressField",
     "ProgressReporter",
     "ProgressSession",
+    "prepare_stream_for_external_write",
     "build_progress_reporter",
 ]
