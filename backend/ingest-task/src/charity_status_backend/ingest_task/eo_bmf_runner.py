@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import traceback
 import urllib.request
 from dataclasses import dataclass
@@ -185,6 +186,7 @@ def run_local_eo_bmf_ingest_config(
         extra={"workspace_root": str(layout.root)},
     )
 
+    run_started_at = time.perf_counter()
     files: list[dict[str, Any]] = []
     rows_seen = 0
     nonprofits_upserted = 0
@@ -195,6 +197,7 @@ def run_local_eo_bmf_ingest_config(
     try:
         for filename in IRS_FILES:
             file_workspace = layout.for_filename(filename).ensure()
+            file_started_at = time.perf_counter()
             try:
                 url = source_url_for(filename)
                 logger.log(
@@ -204,11 +207,13 @@ def run_local_eo_bmf_ingest_config(
                     file_name=filename,
                     extra={"source_url": url},
                 )
+                download_started_at = time.perf_counter()
                 _download_file_to_path(
                     url=url,
                     destination=file_workspace.download_path,
                     timeout_seconds=int(source_env.get("EO_BMF_DOWNLOAD_TIMEOUT_SECONDS") or "300"),
                 )
+                download_duration_ms = _elapsed_ms(download_started_at)
                 stats = ingest_eo_bmf_csv(
                     path=str(file_workspace.download_path),
                     filename=filename,
@@ -218,14 +223,19 @@ def run_local_eo_bmf_ingest_config(
                 nonprofits_upserted += stats.nonprofits_upserted
                 filings_upserted += stats.filings_upserted
                 invalid_rows += stats.invalid_rows
-                files.append(stats.to_dict())
-                progress_session.item_completed({"processed": 1})
+                file_payload = {
+                    **stats.to_dict(),
+                    "download_duration_ms": download_duration_ms,
+                    "total_file_duration_ms": _elapsed_ms(file_started_at),
+                }
+                files.append(file_payload)
+                progress_session.item_completed({"processed": 1}, last_item=filename)
                 logger.log(
                     component="eo_bmf.file",
                     level="INFO",
                     message="file processed",
                     file_name=filename,
-                    extra=stats.to_dict(),
+                    extra=file_payload,
                 )
                 if stats.status == "failed":
                     failure_count += 1
@@ -241,10 +251,21 @@ def run_local_eo_bmf_ingest_config(
                         "nonprofits_upserted": 0,
                         "filings_upserted": 0,
                         "invalid_rows": 0,
+                        "map_duration_ms": 0,
+                        "nonprofit_upsert_duration_ms": 0,
+                        "filing_upsert_duration_ms": 0,
+                        "db_upsert_duration_ms": 0,
+                        "download_duration_ms": 0,
+                        "total_file_duration_ms": _elapsed_ms(file_started_at),
+                        "rows_per_second": 0.0,
+                        "nonprofit_upserts_per_second": 0.0,
+                        "filing_upserts_per_second": 0.0,
+                        "invalid_row_rate": 0.0,
+                        "db_time_share": 0.0,
                         "error": str(exc),
                     }
                 )
-                progress_session.item_completed({"failed": 1})
+                progress_session.item_completed({"failed": 1}, last_item=filename)
                 logger.log(
                     component="eo_bmf.file",
                     level="ERROR",
@@ -261,6 +282,7 @@ def run_local_eo_bmf_ingest_config(
         progress_session.complete()
 
     status = _result_status(files)
+    total_run_duration_ms = _elapsed_ms(run_started_at)
     logger.log(
         component="eo_bmf.cli",
         level="INFO",
@@ -268,10 +290,15 @@ def run_local_eo_bmf_ingest_config(
         extra={
             "status": status,
             "files_processed": len(files),
+            "total_run_duration_ms": total_run_duration_ms,
             "rows_seen": rows_seen,
             "nonprofits_upserted": nonprofits_upserted,
             "filings_upserted": filings_upserted,
             "invalid_rows": invalid_rows,
+            "rows_per_second": _items_per_second(rows_seen, total_run_duration_ms),
+            "nonprofit_upserts_per_second": _items_per_second(nonprofits_upserted, total_run_duration_ms),
+            "filing_upserts_per_second": _items_per_second(filings_upserted, total_run_duration_ms),
+            "invalid_row_rate": _ratio(invalid_rows, rows_seen),
         },
     )
     print(
@@ -279,10 +306,15 @@ def run_local_eo_bmf_ingest_config(
             {
                 "status": status,
                 "files_processed": len(files),
+                "total_run_duration_ms": total_run_duration_ms,
                 "rows_seen": rows_seen,
                 "nonprofits_upserted": nonprofits_upserted,
                 "filings_upserted": filings_upserted,
                 "invalid_rows": invalid_rows,
+                "rows_per_second": _items_per_second(rows_seen, total_run_duration_ms),
+                "nonprofit_upserts_per_second": _items_per_second(nonprofits_upserted, total_run_duration_ms),
+                "filing_upserts_per_second": _items_per_second(filings_upserted, total_run_duration_ms),
+                "invalid_row_rate": _ratio(invalid_rows, rows_seen),
                 "files": files,
             },
             sort_keys=True,
@@ -320,6 +352,22 @@ def _result_status(files: list[dict[str, Any]]) -> str:
     if failed:
         return "failed"
     return "success"
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, int(round((time.perf_counter() - started_at) * 1000)))
+
+
+def _items_per_second(count: int, duration_ms: int) -> float:
+    if count <= 0 or duration_ms <= 0:
+        return 0.0
+    return round(count / (duration_ms / 1000.0), 2)
+
+
+def _ratio(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 4)
 
 
 def _env_text(source_env: Mapping[str, str], key: str, default: str = "") -> str:

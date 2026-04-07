@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from charity_status_backend.ingest_task.eo_bmf_ingest import EO_BMF_FILING_FORM_TYPE, ingest_eo_bmf_csv
@@ -78,6 +79,15 @@ def test_ingest_eo_bmf_csv_upserts_nonprofit_and_pseudo_filing(tmp_path: Path):
     assert stats.nonprofits_upserted == 1
     assert stats.filings_upserted == 1
     assert stats.invalid_rows == 0
+    assert stats.map_duration_ms >= 0
+    assert stats.nonprofit_upsert_duration_ms >= 0
+    assert stats.filing_upsert_duration_ms >= 0
+    assert stats.db_upsert_duration_ms == stats.nonprofit_upsert_duration_ms + stats.filing_upsert_duration_ms
+    assert stats.rows_per_second >= 0.0
+    assert stats.nonprofit_upserts_per_second >= 0.0
+    assert stats.filing_upserts_per_second >= 0.0
+    assert stats.invalid_row_rate == 0.0
+    assert 0.0 <= stats.db_time_share <= 1.0
     assert snapshot is not None
     assert snapshot["name"] == "Example EO Org"
     assert snapshot["tax_period"] == "202412"
@@ -156,7 +166,7 @@ def test_postgres_query_client_filters_eo_bmf_pseudo_filings(tmp_path: Path):
     ]
 
 
-def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, monkeypatch):
+def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, monkeypatch, capsys):
     repository, sqlite_url = _repository(tmp_path)
     workspace = tmp_path / "workspace"
 
@@ -190,8 +200,26 @@ def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, 
     )
 
     snapshot = repository.get_nonprofit_snapshot_by_ein("123456789")
+    stdout_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    completion_payload = json.loads(stdout_lines[-1])
+    file_log_payload = next(
+        json.loads(line)
+        for line in stdout_lines
+        if '"component": "eo_bmf.file"' in line and '"message": "file processed"' in line
+    )
 
     assert exit_code == 0
     assert snapshot is not None
     assert snapshot["name"] == "Runtime EO Org"
     assert not any((workspace / "downloads").glob("*.csv"))
+    assert completion_payload["total_run_duration_ms"] >= 0
+    assert completion_payload["rows_per_second"] >= 0.0
+    assert completion_payload["nonprofit_upserts_per_second"] >= 0.0
+    assert completion_payload["filing_upserts_per_second"] >= 0.0
+    assert completion_payload["invalid_row_rate"] == 0.0
+    assert completion_payload["files"][0]["download_duration_ms"] >= 0
+    assert completion_payload["files"][0]["total_file_duration_ms"] >= 0
+    assert completion_payload["files"][0]["map_duration_ms"] >= 0
+    assert completion_payload["files"][0]["db_upsert_duration_ms"] >= 0
+    assert file_log_payload["download_duration_ms"] >= 0
+    assert file_log_payload["total_file_duration_ms"] >= 0

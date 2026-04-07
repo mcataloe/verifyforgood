@@ -720,12 +720,12 @@ def _parse_local_xml_parse_task(
             )
     finally:
         _delete_local_xml_file(task.member.local_path)
-        _log_structured(
-            "form990.ingest.xml_file_deleted",
-            level=logging.DEBUG,
-            file_name=Path(task.member.local_path).name,
-            xml_source_reference=task.source_reference,
-        )
+        # _log_structured(
+        #     "form990.ingest.xml_file_deleted",
+        #     level=logging.DEBUG,
+        #     file_name=Path(task.member.local_path).name,
+        #     xml_source_reference=task.source_reference,
+        # )
 
 
 def _collect_parse_results(

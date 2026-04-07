@@ -154,13 +154,13 @@ def ingest_form990_records(
             finally:
                 if record_cleanup_handler is not None:
                     record_cleanup_handler(record)
-                    log_structured(
-                        LOGGER,
-                        "form990.ingest.xml_file_deleted",
-                        level=logging.DEBUG,
-                        file_name=file_name,
-                        xml_source_reference=record.xml_url,
-                    )
+                    # log_structured(
+                    #     LOGGER,
+                    #     "form990.ingest.xml_file_deleted",
+                    #     level=logging.DEBUG,
+                    #     file_name=file_name,
+                    #     xml_source_reference=record.xml_url,
+                    # )
                 if progress_session is not None:
                     progress_session.item_completed(progress_increments)
 
@@ -185,14 +185,14 @@ def parse_form990_record_xml(
     file_name = _record_file_name(record)
     resolved_source_reference = str(source_reference or record.xml_url or "").strip()
 
-    log_structured(
-        LOGGER,
-        "form990.ingest.xml_parse_start",
-        level=logging.DEBUG,
-        file_name=file_name,
-        irs_object_id=record.irs_object_id,
-        xml_source_reference=resolved_source_reference,
-    )
+    # log_structured(
+    #     LOGGER,
+    #     "form990.ingest.xml_parse_start",
+    #     level=logging.DEBUG,
+    #     file_name=file_name,
+    #     irs_object_id=record.irs_object_id,
+    #     xml_source_reference=resolved_source_reference,
+    # )
 
     try:
         parsed = parse_xml(xml_bytes)
@@ -212,15 +212,15 @@ def parse_form990_record_xml(
                 raw_file_reference=resolved_source_reference,
                 parse_status=Form990ParseStatus.UNSUPPORTED_RETURN_TYPE,
             ).to_dict()
-            log_structured(
-                LOGGER,
-                "form990.ingest.xml_parse_complete",
-                level=logging.DEBUG,
-                file_name=file_name,
-                ein=filing.get("ein"),
-                organization_name=_extract_organization_name(parsed),
-                parse_status=filing.get("parse_status"),
-            )
+            # log_structured(
+            #     LOGGER,
+            #     "form990.ingest.xml_parse_complete",
+            #     level=logging.DEBUG,
+            #     file_name=file_name,
+            #     ein=filing.get("ein"),
+            #     organization_name=_extract_organization_name(parsed),
+            #     parse_status=filing.get("parse_status"),
+            # )
             return Form990ParsedRecord(filing_record=filing)
 
         extracted_financials = extract_financial_fields(parsed)
@@ -245,15 +245,15 @@ def parse_form990_record_xml(
             **extracted_governance,
             **extracted_narratives,
         }
-        log_structured(
-            LOGGER,
-            "form990.ingest.xml_parse_complete",
-            level=logging.DEBUG,
-            file_name=file_name,
-            ein=merged_filing.get("ein"),
-            organization_name=_extract_organization_name(parsed),
-            parse_status=merged_filing.get("parse_status"),
-        )
+        # log_structured(
+        #     LOGGER,
+        #     "form990.ingest.xml_parse_complete",
+        #     level=logging.DEBUG,
+        #     file_name=file_name,
+        #     ein=merged_filing.get("ein"),
+        #     organization_name=_extract_organization_name(parsed),
+        #     parse_status=merged_filing.get("parse_status"),
+        # )
         return Form990ParsedRecord(
             filing_record=merged_filing,
             relationship_records=tuple(extract_relationship_edges(parsed, merged_filing)),
