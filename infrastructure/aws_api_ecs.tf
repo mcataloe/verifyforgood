@@ -56,12 +56,8 @@ locals {
     ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
     ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
     ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
-    PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
-    IDENTITY_TABLE_NAME                              = aws_dynamodb_table.identity.name
-    CONTROL_PLANE_TABLE_NAME                         = aws_dynamodb_table.control_plane.name
     APP_ENV                                          = var.environment
     CORS_ALLOWED_ORIGINS                             = join(",", var.cors_allowed_origins)
-    SERVING_DDB_ENABLED                              = tostring(var.serving_dynamodb_enabled)
     BATCH_VERIFY_MAX_SIZE                            = tostring(var.batch_verify_max_size)
     SEARCH_MAX_LIMIT                                 = tostring(var.search_max_limit)
     SEARCH_DEFAULT_LIMIT                             = tostring(var.search_default_limit)
@@ -92,11 +88,7 @@ locals {
     PLATFORM_POSTGRES_PORT                           = tostring(var.platform_postgres_port)
     PLATFORM_POSTGRES_DATABASE                       = var.platform_postgres_database_name
     PLATFORM_POSTGRES_SSLMODE                        = var.platform_postgres_sslmode
-    PLATFORM_IDENTITY_STORE_BACKEND                  = var.platform_identity_store_backend
-    PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND     = var.platform_organization_settings_store_backend
-    PLATFORM_CONTROL_PLANE_STORE_BACKEND             = var.platform_control_plane_store_backend
     PLATFORM_NONPROFIT_QUERY_BACKEND                 = var.platform_nonprofit_query_backend
-    ORGANIZATION_SETTINGS_TABLE_NAME                 = aws_dynamodb_table.organization_settings.name
     OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
     OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
@@ -390,31 +382,6 @@ resource "aws_iam_role_policy" "api_task" {
             aws_lambda_function.form990_orchestrator.arn
           ]
         },
-        {
-          Sid    = "ApiTaskIdentityStores"
-          Effect = "Allow"
-          Action = [
-            "dynamodb:GetItem",
-            "dynamodb:Query",
-            "dynamodb:PutItem",
-            "dynamodb:UpdateItem",
-            "dynamodb:DeleteItem"
-          ]
-          Resource = [
-            aws_dynamodb_table.profiles.arn,
-            aws_dynamodb_table.identity.arn,
-            aws_dynamodb_table.organization_settings.arn,
-            aws_dynamodb_table.control_plane.arn,
-            "${aws_dynamodb_table.identity.arn}/index/email_lookup",
-            "${aws_dynamodb_table.identity.arn}/index/user_memberships",
-            "${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup",
-            "${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup",
-            "${aws_dynamodb_table.identity.arn}/index/api_key_lookup",
-            "${aws_dynamodb_table.organization_settings.arn}/index/account_lookup",
-            "${aws_dynamodb_table.control_plane.arn}/index/credential_lookup",
-            "${aws_dynamodb_table.control_plane.arn}/index/entity_listing",
-          ]
-        }
       ],
       var.platform_postgres_enabled ? [
         {

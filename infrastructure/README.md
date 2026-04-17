@@ -53,11 +53,10 @@ Current assumptions:
 - RDS is placed into existing private subnets supplied through Terraform vars
 - the query Lambda is VPC-attached when PostgreSQL is enabled so later
   repository phases can connect without another network bootstrap
-- PostgreSQL is now the intended backend for the customer-account identity
-  domain when the relational foundation is enabled
-- DynamoDB still remains active for invitations, usage, feature flags,
-  organization settings, control-plane billing, and the serving cache until
-  later cutover phases
+- PostgreSQL is the only supported runtime backend for customer accounts,
+  organization settings, and control-plane/billing storage
+- the materialized nonprofit DynamoDB profile cache has been retired from the
+  runtime and Terraform no longer provisions those tables or env vars
 
 Minimum Terraform inputs when enabling PostgreSQL:
 
@@ -76,8 +75,6 @@ Runtime env wiring added for the query Lambda:
 - `PLATFORM_POSTGRES_PORT`
 - `PLATFORM_POSTGRES_DATABASE`
 - `PLATFORM_POSTGRES_SSLMODE`
-- per-domain backend selectors for identity, organization settings, and
-  control-plane storage
 - `PLATFORM_NONPROFIT_QUERY_BACKEND` for nonprofit lookup/search/filings reads
 
 For local backend development, prefer the backend-owned workflow instead of the
@@ -88,20 +85,13 @@ deployed secret-backed wiring:
 - run `python -m charity_status_backend.shared.local_dev db-upgrade`
 - run `python -m charity_status_backend.api.entrypoint`
 
-Phase 24D rollout order for the identity domain:
+PostgreSQL-only rollout order:
 
 1. run `alembic upgrade head`
 2. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
 3. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
-4. deploy with `platform_identity_store_backend = "postgres"`
-5. if rollback is needed, redeploy with `platform_identity_store_backend = "dynamodb"`
-
-Phase 24H also adds a nonprofit migration wrapper:
-
-- `python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles`
-
-Use that wrapper to validate PostgreSQL nonprofit backfill before switching
-`platform_nonprofit_query_backend` to `postgres`.
+4. deploy with PostgreSQL runtime env wiring only
+5. recreate or reseed any dev-only data that previously lived in DynamoDB
 
 ## ECS Runtime Mapping
 

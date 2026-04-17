@@ -350,7 +350,6 @@ def test_lookup_hit_path_returns_materialized_profile():
     module = _load_module()
     _install_tenant_auth(module)
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: {
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
@@ -388,7 +387,6 @@ def test_lookup_hit_path_refreshes_stale_materialized_profile():
     _install_tenant_auth(module)
     put_calls = []
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: {
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
@@ -422,7 +420,6 @@ def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
     _install_tenant_auth(module)
     put_calls = []
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.APP_ENV = "dev"
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: None,
@@ -534,7 +531,6 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
     module = _load_module()
     _install_tenant_auth(module)
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: {
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
@@ -574,7 +570,6 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
     )
     module = _load_module()
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: {
             "organization": {"ein": "12-3456789", "name": "Cached Org"},
@@ -2828,7 +2823,6 @@ def test_post_verify_batch_enforces_size_limit():
 def test_post_verify_batch_reuses_cache_for_get_style_item():
     module = _load_module()
     module.SERVING_DDB_ENABLED = True
-    module.PROFILE_TABLE_NAME = "profiles"
     module.BATCH_VERIFY_MAX_SIZE = 25
     module.profile_store = SimpleNamespace(
         get_profile=lambda ein: {

@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from .identity_models import (
     ApiKeyRecord,
     ApiKeyStatus,
+    FeatureFlagKey,
+    FeatureFlagRecord,
     IdentityProviderType,
+    InvitationRecord,
+    InvitationStatus,
     MembershipRecord,
     MembershipRole,
     MembershipStatus,
@@ -17,6 +21,8 @@ from .identity_models import (
     PlanRecord,
     SubscriptionRecord,
     SubscriptionStatus,
+    UsageMetricType,
+    UsageRecord,
     UserRecord,
 )
 from .identity_repositories import (
@@ -25,10 +31,13 @@ from .identity_repositories import (
     DuplicateMembershipError,
     DuplicateOrganizationSlugError,
     DuplicateUserEmailError,
+    FeatureFlagRepository,
+    InvitationRepository,
     MembershipRepository,
     OrganizationRepository,
     PlanRepository,
     SubscriptionRepository,
+    UsageRepository,
     UserRepository,
 )
 from .sqlalchemy_db import customer_accounts_session_scope
@@ -37,6 +46,10 @@ from .sqlalchemy_models import (
     OrganizationMembershipModel,
     OrganizationModel,
     OrganizationSubscriptionModel,
+    OrganizationFeatureFlagModel,
+    OrganizationInvitationModel,
+    OrganizationSettingsModel,
+    OrganizationUsageMonthlyModel,
     PlanModel,
     UserModel,
 )
@@ -236,6 +249,189 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
             return True
 
 
+class SqlAlchemyInvitationRepository(InvitationRepository):
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def create(self, invitation: InvitationRecord) -> InvitationRecord:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _invitation_model(invitation)
+            session.add(model)
+            session.flush()
+            session.refresh(model)
+            return _invitation_record(model)
+
+    def get(self, organization_id: str, invitation_id: str) -> InvitationRecord | None:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return None
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.get(OrganizationInvitationModel, str(invitation_id))
+            if model is None or model.organization_id != normalized_org_id:
+                return None
+            return _invitation_record(model)
+
+    def list_for_organization(self, organization_id: str) -> list[InvitationRecord]:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return []
+        with customer_accounts_session_scope(self._session_factory) as session:
+            models = session.scalars(
+                select(OrganizationInvitationModel)
+                .where(OrganizationInvitationModel.organization_id == normalized_org_id)
+                .order_by(OrganizationInvitationModel.created_at, OrganizationInvitationModel.invitation_id)
+            ).all()
+            return [_invitation_record(model) for model in models]
+
+    def get_by_token(self, token: str) -> InvitationRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(OrganizationInvitationModel)
+                .where(OrganizationInvitationModel.token == str(token))
+                .limit(1)
+            )
+            return None if model is None else _invitation_record(model)
+
+    def mark_accepted(self, token: str, accepted_at: str) -> InvitationRecord | None:
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(OrganizationInvitationModel)
+                .where(OrganizationInvitationModel.token == str(token))
+                .limit(1)
+            )
+            if model is None:
+                return None
+            model.status = InvitationStatus.ACCEPTED.value
+            model.accepted_at = _parse_timestamp(accepted_at)
+            session.flush()
+            return _invitation_record(model)
+
+
+class SqlAlchemyUsageRepository(UsageRepository):
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def increment(
+        self,
+        organization_id: str,
+        metric_type: str,
+        period_month: str,
+        *,
+        units: int,
+        last_updated: str,
+    ) -> UsageRecord:
+        normalized_org_id = _require_int_id(organization_id, field_name="organization_id")
+        resolved_units = max(0, int(units))
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _usage_lookup(session, organization_id=normalized_org_id, metric_type=metric_type, period_month=period_month)
+            if model is None:
+                model = OrganizationUsageMonthlyModel(
+                    organization_id=normalized_org_id,
+                    metric_type=metric_type,
+                    period_month=period_month,
+                    request_count=resolved_units,
+                    last_updated=_parse_timestamp(last_updated),
+                )
+                session.add(model)
+            else:
+                model.request_count = int(model.request_count or 0) + resolved_units
+                model.last_updated = _parse_timestamp(last_updated)
+            session.flush()
+            return _usage_record(model)
+
+    def get(self, organization_id: str, metric_type: str, period_month: str) -> UsageRecord | None:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return None
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _usage_lookup(session, organization_id=normalized_org_id, metric_type=metric_type, period_month=period_month)
+            return None if model is None else _usage_record(model)
+
+    def list_for_period(self, organization_id: str, period_month: str) -> list[UsageRecord]:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return []
+        with customer_accounts_session_scope(self._session_factory) as session:
+            models = session.scalars(
+                select(OrganizationUsageMonthlyModel)
+                .where(
+                    OrganizationUsageMonthlyModel.organization_id == normalized_org_id,
+                    OrganizationUsageMonthlyModel.period_month == str(period_month),
+                )
+                .order_by(OrganizationUsageMonthlyModel.metric_type)
+            ).all()
+            return [_usage_record(model) for model in models]
+
+    def put(self, record: UsageRecord) -> UsageRecord:
+        normalized_org_id = _require_int_id(record.organization_id, field_name="organization_id")
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _usage_lookup(
+                session,
+                organization_id=normalized_org_id,
+                metric_type=record.metric_type.value,
+                period_month=record.period_month,
+            )
+            if model is None:
+                model = OrganizationUsageMonthlyModel(
+                    organization_id=normalized_org_id,
+                    metric_type=record.metric_type.value,
+                    period_month=record.period_month,
+                    request_count=int(record.request_count),
+                    last_updated=_parse_timestamp(record.last_updated),
+                )
+                session.add(model)
+            else:
+                model.request_count = int(record.request_count)
+                model.last_updated = _parse_timestamp(record.last_updated)
+            session.flush()
+            return _usage_record(model)
+
+
+class SqlAlchemyFeatureFlagRepository(FeatureFlagRepository):
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def get(self, organization_id: str, flag_key: str) -> FeatureFlagRecord | None:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return None
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _feature_flag_lookup(session, organization_id=normalized_org_id, flag_key=flag_key)
+            return None if model is None else _feature_flag_record(model)
+
+    def list_for_organization(self, organization_id: str) -> list[FeatureFlagRecord]:
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_org_id is None:
+            return []
+        with customer_accounts_session_scope(self._session_factory) as session:
+            models = session.scalars(
+                select(OrganizationFeatureFlagModel)
+                .where(OrganizationFeatureFlagModel.organization_id == normalized_org_id)
+                .order_by(OrganizationFeatureFlagModel.flag_key)
+            ).all()
+            return [_feature_flag_record(model) for model in models]
+
+    def put(self, record: FeatureFlagRecord) -> FeatureFlagRecord:
+        normalized_org_id = _require_int_id(record.organization_id, field_name="organization_id")
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = _feature_flag_lookup(session, organization_id=normalized_org_id, flag_key=record.flag_key.value)
+            if model is None:
+                model = OrganizationFeatureFlagModel(
+                    organization_id=normalized_org_id,
+                    flag_key=record.flag_key.value,
+                    enabled=bool(record.enabled),
+                    created_at=_parse_timestamp(record.created_at),
+                    updated_at=_parse_timestamp(record.updated_at),
+                )
+                session.add(model)
+            else:
+                model.enabled = bool(record.enabled)
+                model.created_at = _parse_timestamp(record.created_at)
+                model.updated_at = _parse_timestamp(record.updated_at)
+            session.flush()
+            return _feature_flag_record(model)
+
+
 class SqlAlchemyPlanRepository(PlanRepository):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -423,6 +619,46 @@ def _membership_lookup(session: Session, *, organization_id: int | str, user_id:
     )
 
 
+def _usage_lookup(
+    session: Session,
+    *,
+    organization_id: int | str,
+    metric_type: str,
+    period_month: str,
+) -> OrganizationUsageMonthlyModel | None:
+    normalized_org_id = _normalize_int_id(organization_id)
+    if normalized_org_id is None:
+        return None
+    return session.scalar(
+        select(OrganizationUsageMonthlyModel)
+        .where(
+            OrganizationUsageMonthlyModel.organization_id == normalized_org_id,
+            OrganizationUsageMonthlyModel.metric_type == str(metric_type),
+            OrganizationUsageMonthlyModel.period_month == str(period_month),
+        )
+        .limit(1)
+    )
+
+
+def _feature_flag_lookup(
+    session: Session,
+    *,
+    organization_id: int | str,
+    flag_key: str,
+) -> OrganizationFeatureFlagModel | None:
+    normalized_org_id = _normalize_int_id(organization_id)
+    if normalized_org_id is None:
+        return None
+    return session.scalar(
+        select(OrganizationFeatureFlagModel)
+        .where(
+            OrganizationFeatureFlagModel.organization_id == normalized_org_id,
+            OrganizationFeatureFlagModel.flag_key == str(flag_key),
+        )
+        .limit(1)
+    )
+
+
 def _normalize_int_id(value: int | str | None) -> int | None:
     if value is None:
         return None
@@ -553,6 +789,38 @@ def _membership_record(model: OrganizationMembershipModel) -> MembershipRecord:
     )
 
 
+def _invitation_model(record: InvitationRecord) -> OrganizationInvitationModel:
+    return OrganizationInvitationModel(
+        invitation_id=str(record.invitation_id),
+        organization_id=_require_int_id(record.organization_id, field_name="organization_id"),
+        email=record.email,
+        normalized_email=record.normalized_email,
+        token=record.token,
+        role=record.role.value,
+        status=record.status.value,
+        invited_by_user_id=_normalize_int_id(record.invited_by_user_id),
+        created_at=_parse_timestamp(record.created_at),
+        expires_at=_parse_timestamp(record.expires_at),
+        accepted_at=_parse_timestamp(record.accepted_at) if record.accepted_at else None,
+    )
+
+
+def _invitation_record(model: OrganizationInvitationModel) -> InvitationRecord:
+    return InvitationRecord(
+        invitation_id=model.invitation_id,
+        organization_id=str(model.organization_id),
+        email=model.email,
+        normalized_email=model.normalized_email,
+        token=model.token,
+        role=MembershipRole(model.role),
+        status=InvitationStatus(model.status),
+        invited_by_user_id=(str(model.invited_by_user_id) if model.invited_by_user_id is not None else None),
+        created_at=_format_timestamp(model.created_at) or "",
+        expires_at=_format_timestamp(model.expires_at) or "",
+        accepted_at=_format_timestamp(model.accepted_at),
+    )
+
+
 def _plan_model(record: PlanRecord) -> PlanModel:
     kwargs = {
         "plan_code": record.plan_code,
@@ -645,4 +913,24 @@ def _api_key_record(model: OrganizationApiKeyModel) -> ApiKeyRecord:
         created_by_user_id=model.created_by_user_id,
         status=ApiKeyStatus(model.status),
         last_used_at=_format_timestamp(model.last_used_at),
+    )
+
+
+def _usage_record(model: OrganizationUsageMonthlyModel) -> UsageRecord:
+    return UsageRecord(
+        organization_id=str(model.organization_id),
+        metric_type=UsageMetricType(model.metric_type),
+        period_month=model.period_month,
+        request_count=int(model.request_count),
+        last_updated=_format_timestamp(model.last_updated) or "",
+    )
+
+
+def _feature_flag_record(model: OrganizationFeatureFlagModel) -> FeatureFlagRecord:
+    return FeatureFlagRecord(
+        organization_id=str(model.organization_id),
+        flag_key=FeatureFlagKey(model.flag_key),
+        enabled=bool(model.enabled),
+        created_at=_format_timestamp(model.created_at) or "",
+        updated_at=_format_timestamp(model.updated_at) or "",
     )

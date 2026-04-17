@@ -15,7 +15,6 @@ from charity_status_platform.customer_accounts import (
     CustomerAccountsBase,
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
-    DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoPlanRepository,
@@ -31,6 +30,7 @@ from charity_status_platform.customer_accounts import (
     PlanRecord,
     SqlAlchemyApiKeyRepository,
     SqlAlchemyAuditLogRepository,
+    SqlAlchemyInvitationRepository,
     SqlAlchemyMembershipRepository,
     SqlAlchemyOrganizationRepository,
     SqlAlchemyPlanRepository,
@@ -42,6 +42,8 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
+from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
+from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
 from charity_status_platform.runtime import (
     backfill_customer_accounts_from_dynamodb,
     build_customer_accounts_repositories,
@@ -63,22 +65,17 @@ def _response_body(response):
 
 
 def _load_module_with_postgres_identity_store(monkeypatch, tmp_path: Path, *, api_auth_enabled: bool = False):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
-
     sqlite_url = _sqlite_url(tmp_path, "lambda_query_postgres.sqlite3")
     engine = build_customer_accounts_engine(sqlite_url)
     CustomerAccountsBase.metadata.create_all(engine)
+    ControlPlaneBase.metadata.create_all(engine)
+    OrganizationSettingsBase.metadata.create_all(engine)
 
-    table = FakeIdentityDynamoTable()
-    resource = FakeIdentityDynamoResource(table)
     monkeypatch.setenv("API_AUTH_ENABLED", "true" if api_auth_enabled else "false")
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "false")
-    monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_IDENTITY_STORE_BACKEND", "postgres")
-    monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
     sys.modules.pop("infrastructure.lambda_query", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.portal_auth_service = None
@@ -93,7 +90,7 @@ def _load_module_with_postgres_identity_store(monkeypatch, tmp_path: Path, *, ap
     module.portal_customer_accounts_repositories = None
     module.auth_context_provider = None
     module.quota_metering_hook = None
-    return module, resource, sqlite_url
+    return module, None, sqlite_url
 
 
 def test_repository_builder_selects_postgres_with_narrow_dynamo_compatibility(tmp_path: Path):
@@ -101,10 +98,7 @@ def test_repository_builder_selects_postgres_with_narrow_dynamo_compatibility(tm
         {
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": _sqlite_url(tmp_path, "builder.sqlite3"),
-            "PLATFORM_IDENTITY_STORE_BACKEND": "postgres",
         },
-        identity_table_name="identity",
-        dynamodb_resource=FakeIdentityDynamoResource(FakeIdentityDynamoTable()),
     )
 
     assert bundle.identity_backend == "postgres"
@@ -115,9 +109,9 @@ def test_repository_builder_selects_postgres_with_narrow_dynamo_compatibility(tm
     assert bundle.subscriptions.__class__.__name__ == "SqlAlchemySubscriptionRepository"
     assert bundle.api_keys.__class__.__name__ == "SqlAlchemyApiKeyRepository"
     assert bundle.audits.__class__.__name__ == "SqlAlchemyAuditLogRepository"
-    assert bundle.invitations.__class__.__name__ == "DynamoInvitationRepository"
-    assert bundle.usage.__class__.__name__ == "DynamoUsageRepository"
-    assert bundle.flags.__class__.__name__ == "DynamoFeatureFlagRepository"
+    assert bundle.invitations.__class__.__name__ == "SqlAlchemyInvitationRepository"
+    assert bundle.usage.__class__.__name__ == "SqlAlchemyUsageRepository"
+    assert bundle.flags.__class__.__name__ == "SqlAlchemyFeatureFlagRepository"
 
 
 def test_backfill_customer_accounts_from_dynamodb_copies_migrated_identity_records(tmp_path: Path):
@@ -306,8 +300,8 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
     assert len(auth_me_payload["data"]["available_organizations"]) == 1
 
 
-def test_postgres_identity_backend_keeps_dynamo_invitations_but_creates_memberships_in_postgres(monkeypatch, tmp_path: Path):
-    module, resource, sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
+def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgres(monkeypatch, tmp_path: Path):
+    module, _resource, sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
 
     admin_response = module.handler(
         {
@@ -377,7 +371,7 @@ def test_postgres_identity_backend_keeps_dynamo_invitations_but_creates_membersh
         org_payload["organization_id"],
         invitee_payload["user"]["user_id"],
     )
-    invitation = DynamoInvitationRepository(dynamodb_resource=resource).get_by_token(invitation_payload["token"])
+    invitation = SqlAlchemyInvitationRepository(session_factory).get_by_token(invitation_payload["token"])
 
     assert accept_response["statusCode"] == 200
     assert membership is not None

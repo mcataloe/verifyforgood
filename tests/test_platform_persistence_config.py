@@ -9,12 +9,9 @@ from charity_status.platform import (
 )
 
 
-def test_load_platform_persistence_config_defaults_to_dynamodb_backends():
+def test_load_platform_persistence_config_defaults_to_postgres_only_platform_runtime():
     config = load_platform_persistence_config({})
 
-    assert config.identity_store_backend == "dynamodb"
-    assert config.organization_settings_store_backend == "dynamodb"
-    assert config.control_plane_store_backend == "dynamodb"
     assert config.nonprofit_store_backend == "disabled"
     assert config.nonprofit_query_backend == "athena"
     assert config.postgres.enabled is False
@@ -25,10 +22,7 @@ def test_load_platform_persistence_config_requires_required_postgres_fields_when
         load_platform_persistence_config({"PLATFORM_POSTGRES_ENABLED": "true"})
 
 
-def test_load_platform_persistence_config_requires_enabled_flag_when_backend_switches_to_postgres():
-    with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
-        load_platform_persistence_config({"PLATFORM_IDENTITY_STORE_BACKEND": "postgres"})
-
+def test_load_platform_persistence_config_requires_enabled_flag_when_postgres_backed_runtime_is_selected():
     with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
         load_platform_persistence_config({"PLATFORM_NONPROFIT_STORE_BACKEND": "postgres"})
 
@@ -69,7 +63,6 @@ def test_load_platform_persistence_config_accepts_local_url_driven_postgres_sett
         {
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform",
-            "PLATFORM_IDENTITY_STORE_BACKEND": "postgres",
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
             "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
         }
@@ -77,7 +70,6 @@ def test_load_platform_persistence_config_accepts_local_url_driven_postgres_sett
 
     assert config.postgres.enabled is True
     assert config.postgres.url == "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform"
-    assert config.identity_store_backend == "postgres"
     assert config.nonprofit_store_backend == "postgres"
     assert config.nonprofit_query_backend == "postgres"
 

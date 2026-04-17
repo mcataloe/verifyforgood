@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import re
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 from charity_status.auth import build_admin_key_record, build_api_key_record
@@ -21,7 +23,10 @@ from charity_status.control_plane import (
     ManagedSubscription,
     ManagedTrialHistory,
 )
+from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
 from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
+from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
 
 
 class _BillingSettingsResolver:
@@ -262,6 +267,33 @@ def test_dynamo_control_plane_supports_stripe_lookup_and_billing_event_round_tri
         )
     )
 
+
+def _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path: Path):
+    sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'control-plane-runtime.sqlite3'}"
+    engine = build_customer_accounts_engine(sqlite_url)
+    CustomerAccountsBase.metadata.create_all(engine)
+    ControlPlaneBase.metadata.create_all(engine)
+    OrganizationSettingsBase.metadata.create_all(engine)
+
+    monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
+    monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
+    sys.modules.pop("infrastructure.lambda_query", None)
+    module = importlib.import_module("infrastructure.lambda_query")
+    module.API_AUTH_ENABLED = True
+    module.OAUTH_M2M_ENABLED = str(os.environ.get("OAUTH_M2M_ENABLED", "false")).lower() == "true"
+    module.API_KEY_RECORDS_JSON = str(os.environ.get("API_KEY_RECORDS_JSON", "[]"))
+    module.OAUTH_TOKEN_RECORDS_JSON = str(os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "[]"))
+    module.OAUTH_CLIENT_RECORDS_JSON = str(os.environ.get("OAUTH_CLIENT_RECORDS_JSON", "[]"))
+    module.ADMIN_KEY_RECORDS_JSON = str(os.environ.get("ADMIN_KEY_RECORDS_JSON", "[]"))
+    module.control_plane_service = None
+    module.organization_integration_settings_store = None
+    module.organization_integration_settings_service = None
+    module.auth_context_provider = None
+    module.quota_metering_hook = None
+    module.athena_client = _query_stub()
+    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    return module
+
     by_customer = store.get_subscription_by_stripe_customer_id("cus_test_123")
     by_subscription = store.get_subscription_by_stripe_subscription_id("sub_test_123")
     billing_event = store.get_billing_event("evt_test_123")
@@ -339,11 +371,7 @@ def test_dynamo_control_plane_persists_trial_history_by_ein():
     assert reloaded.last_termination_reason == "expired_to_free"
 
 
-def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(monkeypatch):
-    import charity_status.control_plane.dynamodb_store as dynamodb_module
-
-    table = FakeDynamoTable()
-    resource = FakeDynamoResource(table)
+def test_lambda_query_uses_postgres_control_plane_runtime(monkeypatch, tmp_path: Path):
     admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
     monkeypatch.setenv("API_AUTH_ENABLED", "true")
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "true")
@@ -351,13 +379,7 @@ def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(mo
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    monkeypatch.setenv("CONTROL_PLANE_TABLE_NAME", "control-plane")
-    monkeypatch.setattr(dynamodb_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
-    module.SERVING_DDB_ENABLED = False
-    module.athena_client = _query_stub()
-    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    module = _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path)
 
     created = module.handler(
         {
@@ -391,11 +413,7 @@ def test_lambda_query_uses_dynamo_control_plane_when_table_name_is_configured(mo
     assert payload["data"]["items"][0]["ein"] == "123456789"
 
 
-def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch):
-    import charity_status.control_plane.dynamodb_store as dynamodb_module
-
-    table = FakeDynamoTable()
-    resource = FakeDynamoResource(table)
+def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch, tmp_path: Path):
     admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
     bootstrap_secret, bootstrap_record = build_api_key_record(
         key_id="dup_key",
@@ -411,13 +429,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch)
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    monkeypatch.setenv("CONTROL_PLANE_TABLE_NAME", "control-plane")
-    monkeypatch.setattr(dynamodb_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
-    module.SERVING_DDB_ENABLED = False
-    module.athena_client = _query_stub()
-    module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
+    module = _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path)
     service = module._get_control_plane_service()
     account = service.create_account({"name": "Managed Account", "ein": "123456789"})
     account_id = account["id"]

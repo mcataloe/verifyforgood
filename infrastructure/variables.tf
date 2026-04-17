@@ -651,39 +651,6 @@ variable "platform_postgres_sslmode" {
   default     = "require"
 }
 
-variable "platform_identity_store_backend" {
-  description = "Persistence backend for portal identity and customer-account repositories."
-  type        = string
-  default     = "postgres"
-
-  validation {
-    condition     = contains(["dynamodb", "postgres"], var.platform_identity_store_backend)
-    error_message = "platform_identity_store_backend must be either dynamodb or postgres."
-  }
-}
-
-variable "platform_organization_settings_store_backend" {
-  description = "Persistence backend for organization settings storage."
-  type        = string
-  default     = "dynamodb"
-
-  validation {
-    condition     = contains(["dynamodb", "postgres"], var.platform_organization_settings_store_backend)
-    error_message = "platform_organization_settings_store_backend must be either dynamodb or postgres."
-  }
-}
-
-variable "platform_control_plane_store_backend" {
-  description = "Persistence backend for control-plane and billing storage."
-  type        = string
-  default     = "dynamodb"
-
-  validation {
-    condition     = contains(["dynamodb", "postgres"], var.platform_control_plane_store_backend)
-    error_message = "platform_control_plane_store_backend must be either dynamodb or postgres."
-  }
-}
-
 variable "platform_nonprofit_query_backend" {
   description = "Read backend for nonprofit lookup, search, and filings query paths."
   type        = string
@@ -1051,12 +1018,6 @@ variable "enrichment_timeout_seconds" {
   description = "Timeout in seconds for enrichment provider calls."
   type        = number
   default     = 5
-}
-
-variable "serving_dynamodb_enabled" {
-  description = "Enable DynamoDB materialized profile serving layer."
-  type        = bool
-  default     = true
 }
 
 variable "refresh_lambda_enabled" {

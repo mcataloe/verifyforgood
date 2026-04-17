@@ -4,7 +4,7 @@
 
 ### Title
 
-Execute the staged PostgreSQL migration for platform relational domains while preserving DynamoDB compatibility during cutover.
+Complete post-cutover cleanup for the PostgreSQL-only platform persistence model.
 
 ### Rationale
 
@@ -19,28 +19,28 @@ footprint spans multiple relational domains:
 - organization settings
 - control-plane accounts, billing events, OAuth clients, and account usage
 
-DynamoDB remains the current runtime backend, but PostgreSQL is now the
-accepted target for platform/application relational persistence.
+The runtime cutover is now on PostgreSQL for the platform's relational domains,
+but the repo still contains historical migration helpers, Dynamo-specific test
+coverage, and documentation that assume the older mixed-mode posture.
 
 ### Migration Triggers
 
-- complete Phase 24B bootstrap/config scaffolding
-- complete identity-domain PostgreSQL repository parity
-- complete org settings and control-plane follow-on migration phases
+- remove historical DynamoDB-only tests and compatibility docs that no longer
+  reflect supported runtime behavior
+- finish retiring obsolete migration-era scripts or move them under explicitly
+  historical tooling boundaries
+- complete the remaining nonprofit read-path simplification work
 
 ### Constraint
 
-Keep service and repository interfaces stable so PostgreSQL adapters can
-replace or coexist with DynamoDB adapters without changing route contracts or
-frontend payloads.
+Keep service and repository interfaces stable while removing stale
+mixed-mode assumptions from tooling, docs, and tests.
 
 ### Follow-On Sequence
 
-1. add PostgreSQL bootstrap/config seams and Terraform scaffolding
-2. migrate identity core runtime to PostgreSQL for users, organizations, memberships, plans, subscriptions, API keys, and audit logs
-3. migrate remaining identity-side Dynamo compatibility layers: invitations, usage, feature flags, and organization settings
-4. migrate control-plane accounts, billing events, OAuth clients, and account usage
-5. reevaluate the DynamoDB `profiles` cache separately
+1. remove stale DynamoDB runtime documentation and rollback guidance
+2. retire or quarantine Dynamo-specific adapter tests that no longer reflect supported deployment paths
+3. complete nonprofit read-model cleanup after the materialized cache retirement
 
 ## TODO-ARCH-002
 

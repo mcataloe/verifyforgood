@@ -248,7 +248,6 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
 
     assert "PLATFORM_POSTGRES_ENABLED=true" in backend_env_example
     assert "PLATFORM_POSTGRES_URL=postgresql+psycopg://" in backend_env_example
-    assert "PLATFORM_IDENTITY_STORE_BACKEND=postgres" in backend_env_example
     assert "PLATFORM_NONPROFIT_STORE_BACKEND=postgres" in backend_env_example
     assert "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres" in backend_env_example
     assert "PORTAL_AUTH_TOKEN_SECRET=dev-portal-auth-secret" in backend_env_example

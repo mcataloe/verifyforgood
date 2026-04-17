@@ -6,6 +6,11 @@ from typing import Any, Mapping
 from urllib.parse import quote_plus
 
 import boto3
+from charity_status.control_plane.sqlalchemy_store import SqlAlchemyControlPlaneStore, build_control_plane_session_factory
+from charity_status.enrichments.organization_store import SqlAlchemyOrganizationIntegrationSettingsStore
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
 
 
 def _mapping_text(source: Mapping[str, str], key: str, default: str = "") -> str:
@@ -44,9 +49,6 @@ class PostgresCredentials:
 @dataclass(frozen=True)
 class PlatformPersistenceConfig:
     postgres: PostgresRuntimeConfig = PostgresRuntimeConfig()
-    identity_store_backend: str = "dynamodb"
-    organization_settings_store_backend: str = "dynamodb"
-    control_plane_store_backend: str = "dynamodb"
     nonprofit_store_backend: str = "disabled"
     nonprofit_query_backend: str = "athena"
 
@@ -64,9 +66,6 @@ def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> Pl
     )
     config = PlatformPersistenceConfig(
         postgres=postgres,
-        identity_store_backend=_mapping_text(source, "PLATFORM_IDENTITY_STORE_BACKEND", "dynamodb") or "dynamodb",
-        organization_settings_store_backend=_mapping_text(source, "PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND", "dynamodb") or "dynamodb",
-        control_plane_store_backend=_mapping_text(source, "PLATFORM_CONTROL_PLANE_STORE_BACKEND", "dynamodb") or "dynamodb",
         nonprofit_store_backend=_mapping_text(source, "PLATFORM_NONPROFIT_STORE_BACKEND", "disabled") or "disabled",
         nonprofit_query_backend=_mapping_text(source, "PLATFORM_NONPROFIT_QUERY_BACKEND", "athena") or "athena",
     )
@@ -127,28 +126,41 @@ def resolve_postgres_sqlalchemy_url(
     return build_postgres_sqlalchemy_url(config.postgres, credentials=credentials)
 
 
-def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> None:
-    valid_dynamo_backends = {"dynamodb", "postgres"}
-    selected = {
-        "PLATFORM_IDENTITY_STORE_BACKEND": config.identity_store_backend,
-        "PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND": config.organization_settings_store_backend,
-        "PLATFORM_CONTROL_PLANE_STORE_BACKEND": config.control_plane_store_backend,
-    }
-    for key, value in selected.items():
-        if value not in valid_dynamo_backends:
-            raise ValueError(f"{key} must be either dynamodb or postgres")
+def build_control_plane_store(
+    env: Mapping[str, str] | None = None,
+    *,
+    sqlalchemy_url: str | None = None,
+    secrets_client: Any | None = None,
+) -> SqlAlchemyControlPlaneStore:
+    source = env or {}
+    resolved_url = sqlalchemy_url or resolve_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
+    session_factory = build_control_plane_session_factory(resolved_url)
+    return SqlAlchemyControlPlaneStore(session_factory)
 
+
+def build_organization_settings_store(
+    env: Mapping[str, str] | None = None,
+    *,
+    sqlalchemy_url: str | None = None,
+    secrets_client: Any | None = None,
+) -> SqlAlchemyOrganizationIntegrationSettingsStore:
+    source = env or {}
+    resolved_url = sqlalchemy_url or resolve_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
+    session_factory = _build_sqlalchemy_session_factory(resolved_url)
+    return SqlAlchemyOrganizationIntegrationSettingsStore(session_factory)
+
+
+def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> None:
     if config.nonprofit_store_backend not in {"disabled", "postgres"}:
         raise ValueError("PLATFORM_NONPROFIT_STORE_BACKEND must be either disabled or postgres")
     if config.nonprofit_query_backend not in {"athena", "postgres"}:
         raise ValueError("PLATFORM_NONPROFIT_QUERY_BACKEND must be either athena or postgres")
 
-    any_postgres_backend = (
-        any(value == "postgres" for value in selected.values())
-        or config.nonprofit_store_backend == "postgres"
+    nonprofit_uses_postgres = (
+        config.nonprofit_store_backend == "postgres"
         or config.nonprofit_query_backend == "postgres"
     )
-    if any_postgres_backend and not config.postgres.enabled:
+    if nonprofit_uses_postgres and not config.postgres.enabled:
         raise ValueError("PLATFORM_POSTGRES_ENABLED must be true when any platform store backend is postgres")
 
     if not config.postgres.enabled:
@@ -163,3 +175,8 @@ def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> 
         raise ValueError("PLATFORM_POSTGRES_DATABASE is required when PLATFORM_POSTGRES_ENABLED=true")
     if not config.postgres.secret_arn:
         raise ValueError("PLATFORM_POSTGRES_SECRET_ARN is required when PLATFORM_POSTGRES_ENABLED=true")
+
+
+def _build_sqlalchemy_session_factory(bind: Engine | str) -> sessionmaker[Session]:
+    engine = bind if isinstance(bind, Engine) else create_engine(bind, future=True)
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False, class_=Session)

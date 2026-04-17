@@ -97,9 +97,6 @@ platform_postgres_skip_final_snapshot    = null
 platform_postgres_existing_secret_arn    = ""
 platform_postgres_secret_kms_key_arn     = ""
 platform_postgres_sslmode                = "require"
-platform_identity_store_backend          = "dynamodb"
-platform_organization_settings_store_backend = "dynamodb"
-platform_control_plane_store_backend     = "dynamodb"
 
 enrichment_mock_enabled          = false
 enrichment_mock_offered          = null
@@ -157,7 +154,6 @@ free_trial_duration_days               = 14
 free_trial_plan_code                   = "growth"
 free_trial_monthly_request_limit       = null
 ops_metadata_prefix                    = "ops/"
-serving_dynamodb_enabled               = true
 
 refresh_lambda_enabled           = true
 refresh_mode                     = "refresh_changed"

@@ -126,7 +126,6 @@ free_trial_duration_days               = 14
 free_trial_plan_code                   = "growth"
 free_trial_monthly_request_limit       = null
 ops_metadata_prefix                    = "ops/"
-serving_dynamodb_enabled               = true
 
 refresh_lambda_enabled           = true
 refresh_mode                     = "refresh_changed"

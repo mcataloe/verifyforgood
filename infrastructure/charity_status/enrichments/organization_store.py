@@ -10,12 +10,14 @@ from .organization_settings_service import (
 from .organization_settings_stores import (
     DynamoOrganizationIntegrationSettingsStore,
     InMemoryOrganizationIntegrationSettingsStore,
+    SqlAlchemyOrganizationIntegrationSettingsStore,
 )
 
 __all__ = [
     "AccountBillingSettings",
     "DynamoOrganizationIntegrationSettingsStore",
     "InMemoryOrganizationIntegrationSettingsStore",
+    "SqlAlchemyOrganizationIntegrationSettingsStore",
     "OrganizationIntegrationSettingsDocument",
     "OrganizationIntegrationSettingsService",
     "OrganizationIntegrationSettingsStore",

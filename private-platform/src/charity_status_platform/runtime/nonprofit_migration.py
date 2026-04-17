@@ -218,9 +218,10 @@ def _build_profile_store(
     include_profile_cache: bool,
     profile_table_name: str | None,
 ) -> Any | None:
+    del source
     if not include_profile_cache:
         return None
-    resolved_name = str(profile_table_name or source.get("PROFILE_TABLE_NAME") or "").strip()
+    resolved_name = str(profile_table_name or "").strip()
     if not resolved_name:
         return None
     return DynamoProfileStore(table_name=resolved_name)
@@ -546,7 +547,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--page-size", type=int, default=100)
     parser.add_argument("--max-eins", type=int, default=None)
     parser.add_argument("--start-after-ein", default="")
-    parser.add_argument("--profile-table-name", default=os.environ.get("PROFILE_TABLE_NAME", ""))
+    parser.add_argument("--profile-table-name", default="")
     parser.add_argument("--skip-profile-cache", action="store_true", help="Do not read the Dynamo materialized profile cache for sources/compliance snapshots.")
     parser.add_argument("--dry-run", action="store_true", help="Skip writes and only validate current PostgreSQL contents against the source datasets.")
     parser.add_argument("--sample-limit", type=int, default=20)

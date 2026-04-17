@@ -225,12 +225,8 @@ resource "aws_lambda_function" "query" {
       ENRICHMENT_OFAC_ENABLED                          = tostring(var.enrichment_ofac_enabled)
       ENRICHMENT_OFAC_MOCK_ENABLED                     = tostring(var.enrichment_ofac_mock_enabled)
       ENRICHMENT_OFAC_ENDPOINT                         = var.enrichment_ofac_endpoint
-      PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
-      IDENTITY_TABLE_NAME                              = aws_dynamodb_table.identity.name
-      CONTROL_PLANE_TABLE_NAME                         = aws_dynamodb_table.control_plane.name
       APP_ENV                                          = var.environment
       CORS_ALLOWED_ORIGINS                             = join(",", var.cors_allowed_origins)
-      SERVING_DDB_ENABLED                              = tostring(var.serving_dynamodb_enabled)
       BATCH_VERIFY_MAX_SIZE                            = tostring(var.batch_verify_max_size)
       SEARCH_MAX_LIMIT                                 = tostring(var.search_max_limit)
       SEARCH_DEFAULT_LIMIT                             = tostring(var.search_default_limit)
@@ -262,11 +258,7 @@ resource "aws_lambda_function" "query" {
       PLATFORM_POSTGRES_PORT                       = tostring(var.platform_postgres_port)
       PLATFORM_POSTGRES_DATABASE                   = var.platform_postgres_database_name
       PLATFORM_POSTGRES_SSLMODE                    = var.platform_postgres_sslmode
-      PLATFORM_IDENTITY_STORE_BACKEND              = var.platform_identity_store_backend
-      PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND = var.platform_organization_settings_store_backend
-      PLATFORM_CONTROL_PLANE_STORE_BACKEND         = var.platform_control_plane_store_backend
       PLATFORM_NONPROFIT_QUERY_BACKEND             = var.platform_nonprofit_query_backend
-      ORGANIZATION_SETTINGS_TABLE_NAME             = aws_dynamodb_table.organization_settings.name
       OPS_METADATA_BUCKET                          = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                          = var.ops_metadata_prefix
       FORM990_ORCHESTRATOR_FUNCTION_NAME           = aws_lambda_function.form990_orchestrator.function_name
@@ -368,7 +360,6 @@ resource "aws_lambda_function" "refresh" {
       PUBLIC_BRAND_NAME                = var.public_brand_name
       SUPPORT_EMAIL                    = var.support_email
       DOMAIN                           = var.domain
-      PROFILE_TABLE_NAME               = aws_dynamodb_table.profiles.name
       APP_ENV                          = var.environment
       REFRESH_MODE                     = var.refresh_mode
       REFRESH_BATCH_SIZE               = tostring(var.refresh_batch_size)

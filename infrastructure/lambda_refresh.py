@@ -18,13 +18,7 @@ from charity_status.platform import (
 from charity_status.normalization import EINValidationError, normalize_ein
 from charity_status.query import VerificationInput, verify_nonprofit
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
-from charity_status.serving import (
-    DynamoProfileStore,
-    PostIngestRefreshConfig,
-    RefreshConfig,
-    refresh_from_ingest_output,
-    refresh_materialized_profiles,
-)
+from charity_status.serving import PostIngestRefreshConfig, RefreshConfig, refresh_from_ingest_output, refresh_materialized_profiles
 from charity_status.serving.change_detection import normalize_mode, parse_explicit_eins
 
 
@@ -54,7 +48,6 @@ ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5
 PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
 
 APP_ENV = os.environ.get("APP_ENV", "dev")
-PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME", "")
 REFRESH_MODE = os.environ.get("REFRESH_MODE", "refresh_changed")
 REFRESH_BATCH_SIZE = int(os.environ.get("REFRESH_BATCH_SIZE", "100"))
 FORCE_REFRESH = os.environ.get("FORCE_REFRESH", "false").lower() == "true"
@@ -134,53 +127,20 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
 
 
 def _get_profile_store() -> ProfileStoreAdapter:
-    global profile_store
-    if profile_store is None:
-        profile_store = DynamoProfileStore(table_name=PROFILE_TABLE_NAME)
-    return profile_store
+    raise RuntimeError("Materialized profile refresh has been retired in the PostgreSQL-only runtime")
 
 
 def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
     del context
-    payload = event if isinstance(event, dict) else {}
-    explicit_eins = _build_explicit_ein_list(payload)
-    config = _build_refresh_config(payload)
-
-    if not PROFILE_TABLE_NAME:
-        return _response(500, {"message": "PROFILE_TABLE_NAME is required"})
-
-    try:
-        if str(payload.get("mode") or "").strip().lower() == "post_ingest_refresh":
-            ingest_output = payload.get("ingest_output")
-            if not isinstance(ingest_output, dict):
-                return _response(400, {"message": "ingest_output object is required for post_ingest_refresh mode"})
-            result = refresh_from_ingest_output(
-                config=PostIngestRefreshConfig(environment=APP_ENV),
-                ingest_output=ingest_output,
-                store=_get_profile_store(),
-                profile_builder=_build_profile_for_ein,
-                refresh_run_id=(str(payload.get("refresh_run_id")).strip() if payload.get("refresh_run_id") else None),
+    return _response(
+        410,
+        {
+            "message": (
+                "Materialized profile refresh has been retired. "
+                "Serve nonprofit data from the PostgreSQL-backed query runtime instead."
             )
-            _persist_refresh_ops_run(result)
-            return _response(200, result)
-
-        result = refresh_materialized_profiles(
-            config=config,
-            explicit_eins=explicit_eins,
-            store=_get_profile_store(),
-            profile_builder=_build_profile_for_ein,
-            source_detector=lambda: _source_changed_eins(payload),
-            source_page_fetcher=_source_population_page,
-            bootstrap_start_after=_bootstrap_start_cursor(payload),
-        )
-        _persist_refresh_ops_run(_normalize_refresh_result(result))
-        return _response(200, result)
-    except (ValueError, EINValidationError) as exc:
-        return _response(400, {"message": str(exc)})
-    except AthenaQueryTimeout as exc:
-        return _response(504, {"message": str(exc)})
-    except AthenaQueryError as exc:
-        return _response(502, {"message": str(exc)})
+        },
+    )
 
 
 def _build_refresh_config(payload: dict[str, Any]) -> RefreshConfig:

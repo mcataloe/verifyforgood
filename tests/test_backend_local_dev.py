@@ -40,7 +40,6 @@ def test_backend_local_dev_commands_use_env_file_for_migrations(tmp_path, capsys
             [
                 "PLATFORM_POSTGRES_ENABLED=true",
                 f"PLATFORM_POSTGRES_URL={sqlite_url}",
-                "PLATFORM_IDENTITY_STORE_BACKEND=postgres",
                 "PLATFORM_NONPROFIT_STORE_BACKEND=postgres",
                 "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres",
             ]

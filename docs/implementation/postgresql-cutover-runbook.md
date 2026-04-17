@@ -1,11 +1,20 @@
 # PostgreSQL Cutover Runbook
 
-This runbook captures the current migration utilities and the intended
-cutover sequence for the PostgreSQL transition.
+This runbook captures the current PostgreSQL-only posture and the remaining
+one-time migration helpers that still exist for historical DynamoDB data.
+
+## Runtime Posture
+
+- runtime persistence is PostgreSQL-only for customer accounts, organization
+  settings, and control-plane/billing storage
+- Terraform and deployment env wiring no longer carry DynamoDB table-name env
+  vars or per-domain backend selectors
+- the DynamoDB nonprofit profile cache is retired from the active runtime path
 
 ## Identity Domain
 
-Use the validation wrapper before switching the runtime selector:
+Use the migration wrapper only if you still need to inspect or copy legacy
+DynamoDB identity data into PostgreSQL:
 
 ```bash
 python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
@@ -25,29 +34,25 @@ Expected report behavior:
 - `invalid_items` and `sample_invalid_items` call out rows that need manual
   review instead of silently dropping them
 
-Identity cutover order:
+Identity migration order:
 
 1. run `alembic upgrade head`
 2. run the identity migration wrapper in `--dry-run`
 3. review any missing or invalid records
 4. run the identity migration wrapper without `--dry-run`
 5. confirm `validation.*.missing == 0`
-6. deploy with `PLATFORM_IDENTITY_STORE_BACKEND=postgres`
-
-Identity rollback:
-
-1. redeploy with `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb`
-2. leave PostgreSQL data in place for investigation
-3. rerun the migration wrapper in `--dry-run` after fixing the mismatch cause
+6. recreate or reseed any remaining dev-only records directly in PostgreSQL
 
 ## Nonprofit Domain
 
-The nonprofit migration utility is intentionally mixed-source:
+The nonprofit migration utility remains available only for historical backfill
+work. The active runtime no longer serves from the materialized DynamoDB
+profile cache.
 
 - canonical nonprofit rows and filing lists come from the existing Athena
   nonprofit client
-- source provenance and compliance snapshots can be lifted from the DynamoDB
-  materialized profile cache when `PROFILE_TABLE_NAME` is available
+- source provenance and compliance snapshots may be lifted from the legacy
+  materialized profile cache when explicitly supplied to the migration utility
 
 Dry-run example:
 
@@ -85,17 +90,11 @@ Nonprofit cutover guidance:
 5. deploy `PLATFORM_NONPROFIT_QUERY_BACKEND=postgres` only after lookup,
    search, and filings validation is clean
 
-Nonprofit rollback:
-
-1. redeploy with `PLATFORM_NONPROFIT_QUERY_BACKEND=athena`
-2. keep PostgreSQL nonprofit rows for investigation and rerun
-3. do not delete the DynamoDB materialized profile cache in this phase
-
 ## Current Exclusions
 
 The current utilities do not attempt to migrate:
 
-- DynamoDB invitations, usage, feature flags, or organization settings
-- control-plane billing and OAuth records
+- already-cut-over PostgreSQL runtime domains such as invitations, usage,
+  feature flags, organization settings, and control-plane billing/OAuth data
 - live source/compliance/federal-awards route assembly beyond what is already
   represented in the materialized nonprofit profile cache

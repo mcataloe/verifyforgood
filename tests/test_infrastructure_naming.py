@@ -84,36 +84,24 @@ def test_lambda_and_schedule_resources_use_neutral_capability_maps():
     assert "local.scheduled_workflow_names.regulatory_data_ingestion" in content
     assert "local.scheduled_workflow_names.platform_refresh" in content
     assert "local.scheduled_workflow_names.monthly_filing_ingestion" in content
-    assert "IDENTITY_TABLE_NAME" in content and "aws_dynamodb_table.identity.name" in content
+    assert "PLATFORM_POSTGRES_ENABLED" in content
+    assert "PLATFORM_POSTGRES_HOST" in content
+    assert "PLATFORM_POSTGRES_DATABASE" in content
+    assert "PLATFORM_NONPROFIT_QUERY_BACKEND" in content
+    assert "IDENTITY_TABLE_NAME" not in content
+    assert "PROFILE_TABLE_NAME" not in content
+    assert "CONTROL_PLANE_TABLE_NAME" not in content
+    assert "ORGANIZATION_SETTINGS_TABLE_NAME" not in content
 
 
-def test_identity_table_is_provisioned_and_authorized_for_query_lambda():
+def test_infrastructure_removes_runtime_dynamodb_tables_and_permissions():
     main_content = Path("infrastructure/main.tf").read_text(encoding="utf-8")
     iam_content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
     outputs_content = Path("infrastructure/outputs.tf").read_text(encoding="utf-8")
 
-    assert 'identity_table                    = "${local.namespace}-${local.platform}-identity-${local.environment_slug}-${local.region_short}"' in main_content
-    assert 'identity_table                    = "identity"' in main_content
-    assert 'resource "aws_dynamodb_table" "identity"' in main_content
-    assert 'name         = local.identity_table_name' in main_content
-    assert 'timeouts {' in main_content
-    assert 'update = "2h"' in main_content
-    assert 'name            = "email_lookup"' in main_content
-    assert 'name            = "user_memberships"' in main_content
-    assert 'name            = "invitation_token_lookup"' in main_content
-    assert 'name            = "organization_slug_lookup"' in main_content
-    assert 'name            = "api_key_lookup"' in main_content
-
-    assert "aws_dynamodb_table.identity.arn" in iam_content
-    assert '"${aws_dynamodb_table.identity.arn}/index/email_lookup"' in iam_content
-    assert '"${aws_dynamodb_table.identity.arn}/index/user_memberships"' in iam_content
-    assert '"${aws_dynamodb_table.identity.arn}/index/invitation_token_lookup"' in iam_content
-    assert '"${aws_dynamodb_table.identity.arn}/index/organization_slug_lookup"' in iam_content
-    assert '"${aws_dynamodb_table.identity.arn}/index/api_key_lookup"' in iam_content
-    assert '"dynamodb:DeleteItem"' in iam_content
-
-    assert 'output "identity_dynamodb_table_name"' in outputs_content
-    assert "aws_dynamodb_table.identity.name" in outputs_content
+    assert 'resource "aws_dynamodb_table"' not in main_content
+    assert "dynamodb:" not in iam_content
+    assert "dynamodb_table_name" not in outputs_content
 
 
 def test_variables_expose_migration_safe_naming_controls():

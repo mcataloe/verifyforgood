@@ -58,26 +58,6 @@ output "form990_quality_glue_table_name" {
   value       = aws_glue_catalog_table.form990_quality.name
 }
 
-output "profiles_dynamodb_table_name" {
-  description = "DynamoDB table for materialized nonprofit serving profiles."
-  value       = aws_dynamodb_table.profiles.name
-}
-
-output "identity_dynamodb_table_name" {
-  description = "DynamoDB table for identity, organizations, memberships, invitations, and audit records."
-  value       = aws_dynamodb_table.identity.name
-}
-
-output "organization_settings_dynamodb_table_name" {
-  description = "DynamoDB table for organization-level integration settings."
-  value       = aws_dynamodb_table.organization_settings.name
-}
-
-output "control_plane_dynamodb_table_name" {
-  description = "DynamoDB table for control-plane accounts, subscriptions, managed credentials, and usage."
-  value       = aws_dynamodb_table.control_plane.name
-}
-
 output "platform_postgres_endpoint" {
   description = "Endpoint address for the platform PostgreSQL RDS instance."
   value       = var.platform_postgres_enabled ? aws_db_instance.platform_postgres[0].address : null

@@ -257,10 +257,8 @@ def test_runtime_builder_returns_postgres_bundle_only_when_selected(tmp_path: Pa
         {
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
-            "PLATFORM_IDENTITY_STORE_BACKEND": "postgres",
         }
     )
-    not_selected = build_customer_accounts_postgres_repositories({"PLATFORM_IDENTITY_STORE_BACKEND": "dynamodb"})
 
     assert bundle is not None
-    assert not_selected is None
+    assert bundle.users.__class__.__name__ == "SqlAlchemyUserRepository"

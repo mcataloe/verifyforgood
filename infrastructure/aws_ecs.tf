@@ -56,7 +56,6 @@ locals {
     PUBLIC_BRAND_NAME                                = var.public_brand_name
     SUPPORT_EMAIL                                    = var.support_email
     DOMAIN                                           = var.domain
-    PROFILE_TABLE_NAME                               = aws_dynamodb_table.profiles.name
     APP_ENV                                          = var.environment
     REFRESH_MODE                                     = var.refresh_mode
     REFRESH_BATCH_SIZE                               = tostring(var.refresh_batch_size)
@@ -224,20 +223,6 @@ resource "aws_iam_role_policy" "worker_task" {
         ]
         Resource = "*"
       },
-      {
-        Sid    = "WorkerTaskProfileStore"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:Query",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem"
-        ]
-        Resource = [
-          aws_dynamodb_table.profiles.arn
-        ]
-      }
     ]
   })
 }

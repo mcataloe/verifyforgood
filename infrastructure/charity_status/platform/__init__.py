@@ -17,6 +17,8 @@ from .auth import (
     load_oauth_token_store,
 )
 from .persistence import (
+    build_control_plane_store,
+    build_organization_settings_store,
     build_postgres_sqlalchemy_url,
     PlatformPersistenceConfig,
     PostgresCredentials,
@@ -63,6 +65,8 @@ __all__ = [
     "PlatformPersistenceConfig",
     "PostgresCredentials",
     "PostgresRuntimeConfig",
+    "build_control_plane_store",
+    "build_organization_settings_store",
     "build_postgres_sqlalchemy_url",
     "load_platform_persistence_config",
     "resolve_postgres_sqlalchemy_url",

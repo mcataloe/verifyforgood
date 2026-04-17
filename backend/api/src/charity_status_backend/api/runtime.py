@@ -52,12 +52,11 @@ from charity_status.billing.runtime import validate_stripe_billing_environment
 from charity_status.billing.visibility import BillingVisibilityService
 from charity_status.billing.webhooks import BillingWebhookError, StripeWebhookService, load_stripe_webhook_config
 from charity_status.billing.service import DEFAULT_PLANS
-from charity_status.control_plane import ControlPlaneError, ControlPlaneService, DynamoControlPlaneStore, InMemoryControlPlaneStore
+from charity_status.control_plane import ControlPlaneError, ControlPlaneService
 from charity_status.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
 from charity_status.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
 from charity_status.core.models import AuthContext
 from charity_status.enrichments import (
-    DynamoOrganizationIntegrationSettingsStore,
     EvaluationContext,
     OrganizationIntegrationSettingsResolver,
     OrganizationIntegrationSettingsService,
@@ -71,11 +70,12 @@ from charity_status.platform import (
     ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
     OAuthClientCredentialsService,
-    PlatformPersistenceConfig,
     QueryRuntimeConfig,
     RefreshRuntimeConfig,
     build_athena_client,
+    build_control_plane_store,
     build_enrichment_service,
+    build_organization_settings_store,
     load_api_key_store,
     load_platform_persistence_config,
     load_oauth_client_store,
@@ -103,8 +103,6 @@ from charity_status.query.source_views import (
 )
 from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
 from charity_status.scoring import SCORING_MODEL_VERSION
-from charity_status.serving import DynamoProfileStore, materialize_profile_item
-from charity_status.serving.writer import MaterializedProfileWriter
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
 from charity_status_platform.customer_accounts import (
     ApiKeyCreateRequest,
@@ -112,7 +110,6 @@ from charity_status_platform.customer_accounts import (
     ApiKeyService,
     AuditEventType,
     AuditLogService,
-    DynamoUsageRepository,
     FeatureFlagService,
     InvitationAcceptRequest,
     InvitationCreateRequest,
@@ -174,11 +171,8 @@ FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality
 
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
 PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
-PROFILE_TABLE_NAME = os.environ.get("PROFILE_TABLE_NAME")
-CONTROL_PLANE_TABLE_NAME = os.environ.get("CONTROL_PLANE_TABLE_NAME", "").strip()
-ORGANIZATION_SETTINGS_TABLE_NAME = os.environ.get("ORGANIZATION_SETTINGS_TABLE_NAME", "").strip()
 APP_ENV = os.environ.get("APP_ENV", "dev")
-SERVING_DDB_ENABLED = _env_bool("SERVING_DDB_ENABLED")
+PERSISTENCE_CONFIG = load_platform_persistence_config(os.environ)
 BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
 SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
 SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
@@ -192,7 +186,6 @@ ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 FORM990_ORCHESTRATOR_FUNCTION_NAME = os.environ.get("FORM990_ORCHESTRATOR_FUNCTION_NAME", "").strip()
-IDENTITY_TABLE_NAME = os.environ.get("IDENTITY_TABLE_NAME", "identity").strip() or "identity"
 PORTAL_AUTH_TOKEN_SECRET = os.environ.get("PORTAL_AUTH_TOKEN_SECRET", "dev-portal-auth-secret")
 PORTAL_AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("PORTAL_AUTH_TOKEN_TTL_SECONDS", "86400"))
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
@@ -203,7 +196,6 @@ validate_stripe_billing_environment(os.environ)
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 TRIAL_CONFIG = load_trial_config(os.environ)
-PERSISTENCE_CONFIG: PlatformPersistenceConfig = load_platform_persistence_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -343,11 +335,6 @@ def _get_nonprofit_service() -> NonprofitService:
 
 
 def _get_profile_store() -> ProfileStoreAdapter | None:
-    global profile_store
-    if not SERVING_DDB_ENABLED or not PROFILE_TABLE_NAME:
-        return None
-    if profile_store is None:
-        profile_store = DynamoProfileStore(table_name=PROFILE_TABLE_NAME)
     return profile_store
 
 
@@ -407,10 +394,7 @@ def _get_admin_key_store():
 def _get_control_plane_service() -> ControlPlaneService:
     global control_plane_service
     if control_plane_service is None:
-        if CONTROL_PLANE_TABLE_NAME:
-            control_plane_service = ControlPlaneService(store=DynamoControlPlaneStore(table_name=CONTROL_PLANE_TABLE_NAME))
-        else:
-            control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+        control_plane_service = ControlPlaneService(store=build_control_plane_store(os.environ))
     return control_plane_service
 
 
@@ -695,15 +679,13 @@ def _get_portal_customer_accounts_repositories() -> CustomerAccountsRepositories
     if portal_customer_accounts_repositories is None:
         portal_customer_accounts_repositories = build_customer_accounts_repositories(
             os.environ,
-            identity_table_name=IDENTITY_TABLE_NAME,
         )
     return portal_customer_accounts_repositories
 
 
 def _load_runtime_api_key_store() -> StaticApiKeyStore:
-    configured_identity_backend = str(os.environ.get("PLATFORM_IDENTITY_STORE_BACKEND") or "").strip().lower()
     fallback_store = load_api_key_store(os.environ.get("API_KEY_RECORDS_JSON", ""))
-    primary_store = _ManagedOrganizationApiKeyStore() if configured_identity_backend else _NoopApiKeyStore()
+    primary_store = _ManagedOrganizationApiKeyStore()
     return _MergedApiKeyStore(
         primary_store,
         _ManagedApiKeyStore(_get_control_plane_service().store),
@@ -882,10 +864,8 @@ def _get_lambda_invoke_client() -> Any:
 
 def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
     global organization_integration_settings_store
-    if not ORGANIZATION_SETTINGS_TABLE_NAME:
-        return None
     if organization_integration_settings_store is None:
-        organization_integration_settings_store = DynamoOrganizationIntegrationSettingsStore(table_name=ORGANIZATION_SETTINGS_TABLE_NAME)
+        organization_integration_settings_store = build_organization_settings_store(os.environ)
     return organization_integration_settings_store
 
 
@@ -3300,7 +3280,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "verification": item.get("verification"),
         "scores": item.get("scores"),
         "score_explanation": item.get("score_explanation"),
-        "model": {"version": item.get("model_version"), "source": "materialized_dynamodb"},
+        "model": {"version": item.get("model_version"), "source": "materialized_profile_cache"},
         "filing_summary": item.get("latest_filing"),
         "enrichment": item.get("enrichment") or {"providers": [], "failures": []},
         "decision": item.get("decision"),
@@ -3316,20 +3296,10 @@ def _load_cached_profile(ein: str) -> dict | None:
 
 
 def _materialize_profile(ein: str, payload: dict) -> None:
-    store = _get_profile_store()
-    if store is None:
-        return
-    source_versions = {
-        "model_version": payload.get("score_explanation", {}).get("model_version"),
-        "score_data_sources": payload.get("score_explanation", {}).get("score_data_sources"),
-    }
-    item = materialize_profile_item(
-        ein=ein,
-        response_payload=payload,
-        environment=APP_ENV,
-        source_data_versions=source_versions,
-    )
-    MaterializedProfileWriter(store).write_if_needed(ein=ein, item=item)
+    del ein, payload
+    return
+
+
 from charity_status.ops import S3RunStore
 
 

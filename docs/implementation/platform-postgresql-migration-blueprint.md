@@ -2,13 +2,14 @@
 
 ## Summary
 
-This document is the implementation blueprint for the platform's incremental
-move from DynamoDB-heavy persistence toward PostgreSQL-backed relational
-storage.
+This document started as the implementation blueprint for the platform's
+incremental move from DynamoDB-heavy persistence toward PostgreSQL-backed
+relational storage.
 
-This phase does not remove DynamoDB or change route contracts. It records the
-current coupling points, the target relational schema direction, and the
-follow-on sequence needed to cut over safely.
+The runtime cutover described here has now been completed for the active
+customer-account, organization-settings, and control-plane domains. Treat the
+older mixed-mode sections below as historical migration context rather than the
+current runtime contract.
 
 ## Current DynamoDB Coupling Inventory
 
@@ -107,12 +108,9 @@ Infrastructure and runtime are coupled through:
 - `infrastructure/aws_iam.tf`
 - `infrastructure/lambda_query.py`
 
-Current table/env assumptions:
-
-- `IDENTITY_TABLE_NAME`
-- `ORGANIZATION_SETTINGS_TABLE_NAME`
-- `CONTROL_PLANE_TABLE_NAME`
-- `PROFILE_TABLE_NAME`
+Historical table/env assumptions included per-domain DynamoDB table-name env
+vars for identity, organization settings, control plane, and the nonprofit
+profile cache.
 
 ### 5. Test suites most affected
 
@@ -348,8 +346,8 @@ Introduce a persistence bootstrap/factory layer in follow-on phases:
 - use per-domain read-source selection
 - keep fallback flags back to DynamoDB until each domain cutover is stable
 - avoid full dual-write unless the domain needs it for safe transition
-- for Phase 24D, keep `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb` as the
-  immediate rollback switch after backfill
+- the earlier Phase 24D plan used an explicit identity rollback selector, which
+  is now historical context only
 
 ### Tests to add in later phases
 

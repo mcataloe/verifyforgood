@@ -2,24 +2,22 @@
 
 ## Intent
 
-Follow-on persistence work should add PostgreSQL support without changing
-service-call sites or route contracts.
+This note now records the completed cutover posture. PostgreSQL is the active
+runtime backend for the platform relational domains, while route and service
+contracts remain stable.
 
-## Bootstrap Rules
+## Current Rules
 
-- choose persistence implementation by domain, not with one global datastore
-  switch
 - keep existing repository and store protocols as the primary seam
-- allow temporary mixed mode
-  - DynamoDB for not-yet-migrated domains
-  - PostgreSQL for migrated domains
-- keep current DynamoDB env vars during the transition
-- add PostgreSQL config additively
+- use PostgreSQL as the only supported runtime datastore for customer accounts,
+  organization settings, and control-plane/billing storage
+- keep nonprofit lookup/search/filings backend selection limited to Athena vs
+  PostgreSQL
+- do not reintroduce DynamoDB runtime env vars or mixed-mode backend selectors
 
-## Expected Runtime Config Additions
+## Active Runtime Config
 
 - PostgreSQL connection string or equivalent host/user/password/db settings
-- per-domain persistence selection flags
 - secret-backed credentials for Lambda/runtime use
 
 Current additive env names for the first PostgreSQL bootstrap phase:
@@ -31,9 +29,6 @@ Current additive env names for the first PostgreSQL bootstrap phase:
 - `PLATFORM_POSTGRES_DATABASE`
 - `PLATFORM_POSTGRES_SSLMODE`
 - `PLATFORM_POSTGRES_URL` as an optional compatibility fallback only
-- `PLATFORM_IDENTITY_STORE_BACKEND`
-- `PLATFORM_ORGANIZATION_SETTINGS_STORE_BACKEND`
-- `PLATFORM_CONTROL_PLANE_STORE_BACKEND`
 
 Current infrastructure rule:
 
@@ -45,34 +40,18 @@ Current infrastructure rule:
 2. organization settings
 3. control-plane and billing
 
-## Current Phase 24D State
+## Cutover Status
 
-- `PLATFORM_IDENTITY_STORE_BACKEND=postgres` is now the intended deployed
-  setting for the customer-account identity domain
-- the identity runtime is mixed by design:
-  - PostgreSQL: users, organizations, memberships, plans, subscriptions,
-    org API keys, and shared audit logs
-  - DynamoDB: invitations, usage, feature flags, and organization settings
-- the rollback switch remains:
-  - `PLATFORM_IDENTITY_STORE_BACKEND=dynamodb`
-- the expected rollout sequence is:
-  1. `alembic upgrade head`
-  2. `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
-  3. `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
-  4. deploy with `PLATFORM_IDENTITY_STORE_BACKEND=postgres`
-
-## Current Phase 24H State
-
-- migration wrappers now exist for identity and nonprofit data:
-  - `python -m charity_status_platform.runtime.customer_accounts_migration`
-  - `python -m charity_status_platform.runtime.nonprofit_migration`
-- both wrappers support dry-run validation before cutover
-- the nonprofit wrapper uses:
-  - Athena for canonical nonprofit rows and filings
-  - the Dynamo materialized profile cache, when available, for source and
-    compliance snapshot backfill
-- the detailed operational runbook now lives in:
-  - `docs/implementation/postgresql-cutover-runbook.md`
+- customer-account identity runtime is PostgreSQL-backed end to end
+- invitations, usage, feature flags, and organization settings are now
+  PostgreSQL-backed as well
+- control-plane and billing runtime storage is PostgreSQL-backed
+- nonprofit materialized DynamoDB profile serving has been retired from the
+  runtime path
+- historical migration wrappers still exist for operators who need to inspect
+  or backfill old DynamoDB data
+- the operational runbook lives in
+  `docs/implementation/postgresql-cutover-runbook.md`
 
 ## Non-Goals
 
