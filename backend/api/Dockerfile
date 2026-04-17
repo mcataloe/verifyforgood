@@ -17,6 +17,6 @@ COPY private-platform/src /app/private-platform/src
 COPY backend/api/src /app/backend/api/src
 COPY backend/shared/src /app/backend/shared/src
 
-EXPOSE 8080
+EXPOSE 8000
 
-CMD ["uvicorn", "charity_status_backend.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "charity_status_backend.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 import pathlib
 import sys
 
@@ -146,3 +147,23 @@ def test_private_platform_api_compat_reexports_backend_owned_app():
     from charity_status_platform.runtime.api_compat import create_app as compat_create_app
 
     assert compat_create_app is backend_create_app
+
+
+def test_backend_api_app_import_loads_shared_local_env(monkeypatch):
+    from charity_status_backend.shared import local_dev
+
+    calls: list[tuple[object, object, object]] = []
+
+    def fake_loader(*, root=None, env_path=None, override=False):
+        calls.append((root, env_path, override))
+        return pathlib.Path("backend/.env.local")
+
+    monkeypatch.setattr(local_dev, "load_backend_local_env", fake_loader)
+    sys.modules.pop("charity_status_backend.api.app", None)
+
+    try:
+        importlib.import_module("charity_status_backend.api.app")
+    finally:
+        sys.modules.pop("charity_status_backend.api.app", None)
+
+    assert calls == [(None, None, False)]

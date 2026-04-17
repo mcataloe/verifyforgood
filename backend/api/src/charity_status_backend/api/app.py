@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from charity_status_backend.shared.local_dev import load_backend_local_env
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 from .compat import API_ROUTE_SPECS, build_api_gateway_event, lambda_response_to_http
+
+
+# Keep direct ASGI imports (`uvicorn ...app:app`) aligned with the documented
+# backend local env contract without overriding already-exported variables.
+load_backend_local_env()
+
 from . import runtime
 
 

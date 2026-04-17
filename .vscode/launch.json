@@ -5,6 +5,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Backend API",
+      "type": "python",
+      "request": "launch",
+      "module": "charity_status_backend.api.entrypoint",
+      "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/backend/.env.local",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
       "name": "Form990 Monthly Pipeline",
       "type": "python",
       "request": "launch",

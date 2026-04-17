@@ -37,13 +37,13 @@ Container build/run:
 
 ```powershell
 docker build -f backend/api/Dockerfile .
-docker run -p 8080:8080 --env-file backend/.env.local <api-image>
+docker run -p 8000:8000 --env-file backend/.env.local <api-image>
 ```
 
 Container contract:
 
 - long-lived HTTP service
-- listens on port `8080`
+- listens on port `8000`
 - starts with `uvicorn charity_status_backend.api.app:app`
 
 Local backend API development should use the shared backend-local env contract:
