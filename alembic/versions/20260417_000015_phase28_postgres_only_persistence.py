@@ -125,7 +125,7 @@ def upgrade() -> None:
         sa.Column("pending_checkout_session_url", sa.Text(), nullable=True),
         sa.Column("pending_checkout_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_control_plane_subscriptions_account_id_control_plane_accounts"),
+        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_cp_subscriptions_account_id"),
         sa.UniqueConstraint("stripe_customer_id", name="uq_control_plane_subscriptions_stripe_customer_id"),
         sa.UniqueConstraint("stripe_subscription_id", name="uq_control_plane_subscriptions_stripe_subscription_id"),
     )
@@ -137,7 +137,7 @@ def upgrade() -> None:
         sa.Column("stripe_customer_id", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_control_plane_billing_customers_account_id_control_plane_accounts"),
+        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_cp_billing_customers_account_id"),
         sa.UniqueConstraint("stripe_customer_id", name="uq_control_plane_billing_customers_stripe_customer_id"),
     )
 
@@ -187,7 +187,7 @@ def upgrade() -> None:
         sa.Column("plan_id", sa.String(length=64), nullable=False),
         sa.Column("rate_limit_profile", sa.String(length=64), nullable=False),
         sa.Column("revoked", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_control_plane_api_keys_account_id_control_plane_accounts"),
+        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_cp_api_keys_account_id"),
     )
     op.create_index("ix_control_plane_api_keys_account_id", "control_plane_api_keys", ["account_id"], unique=False)
 
@@ -203,7 +203,7 @@ def upgrade() -> None:
         sa.Column("plan_id", sa.String(length=64), nullable=False),
         sa.Column("rate_limit_profile", sa.String(length=64), nullable=False),
         sa.Column("revoked", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_control_plane_oauth_clients_account_id_control_plane_accounts"),
+        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_cp_oauth_clients_account_id"),
     )
     op.create_index("ix_control_plane_oauth_clients_account_id", "control_plane_oauth_clients", ["account_id"], unique=False)
 
@@ -214,7 +214,7 @@ def upgrade() -> None:
         sa.Column("month_key", sa.String(length=16), nullable=False),
         sa.Column("request_count", sa.Integer(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_control_plane_usage_monthly_account_id_control_plane_accounts"),
+        sa.ForeignKeyConstraint(["account_id"], ["control_plane_accounts.account_id"], name="fk_cp_usage_monthly_account_id"),
         sa.UniqueConstraint("account_id", "month_key", name="uq_control_plane_usage_account_month"),
     )
 

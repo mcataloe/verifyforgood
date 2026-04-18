@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from alembic import command
 from alembic.config import Config
@@ -36,3 +37,15 @@ def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_table
     assert "nonprofit_raw_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
+
+
+def test_phase28_migration_uses_postgres_safe_explicit_identifier_names():
+    migration_path = (
+        Path("alembic")
+        / "versions"
+        / "20260417_000015_phase28_postgres_only_persistence.py"
+    )
+    contents = migration_path.read_text(encoding="utf-8")
+    identifiers = re.findall(r'name="([^"]+)"', contents)
+
+    assert [name for name in identifiers if len(name) > 63] == []
