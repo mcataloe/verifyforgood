@@ -8,6 +8,11 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconSelector,
+} from "@tabler/icons-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useVerifyForGoodSemanticColors } from "../../theme/useVerifyForGoodTheme";
 import { verifyForGoodTokens } from "../../theme/tokens";
@@ -114,7 +119,9 @@ export function DataTable<T>({
       return result;
     }
 
-    const sortColumn = columns.find((column) => column.key === sortState.columnKey);
+    const sortColumn = columns.find(
+      (column) => column.key === sortState.columnKey,
+    );
     if (!sortColumn || !sortColumn.sortable) {
       return result;
     }
@@ -135,8 +142,9 @@ export function DataTable<T>({
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
+  const pageStartIndex = (currentPage - 1) * pageSize;
   const pagedRows = filteredRows.slice(
-    (currentPage - 1) * pageSize,
+    pageStartIndex,
     currentPage * pageSize,
   );
 
@@ -144,6 +152,22 @@ export function DataTable<T>({
   const isFiltered =
     Boolean(searchValue.trim()) ||
     Object.values(filters).some((value) => value !== "all");
+
+  const clearFilters = () => {
+    setFilters(
+      Object.fromEntries(filterDefinitions.map((filter) => [filter.key, "all"])),
+    );
+    setPage(1);
+    setSearchValue("");
+    setSortState(
+      initialSort
+        ? {
+            columnKey: initialSort.columnKey,
+            direction: initialSort.direction ?? "asc",
+          }
+        : null,
+    );
+  };
 
   if (loading) {
     return (
@@ -169,176 +193,185 @@ export function DataTable<T>({
 
   return (
     <Stack gap="md">
-      {hasFilterSurface ? (
-        <FilterBar
-          filters={filterDefinitions.map((filter) => ({
-            key: filter.key,
-            label: filter.label,
-            options: [{ label: "All", value: "all" }, ...filter.options],
-            value: filters[filter.key] ?? "all",
-          }))}
-          onFilterChange={(key, value) => {
-            setPage(1);
-            setFilters((current) => ({
-              ...current,
-              [key]: value,
-            }));
-          }}
-          onSearchChange={
-            getSearchText
-              ? (value) => {
-                  setPage(1);
-                  setSearchValue(value);
-                }
-              : undefined
-          }
-          searchLabel={searchLabel}
-          searchPlaceholder={searchPlaceholder}
-          searchValue={searchValue}
-        />
-      ) : null}
-
-      {!filteredRows.length ? (
-        noResultsState ? (
-          <>{noResultsState}</>
-        ) : (
-          <EmptyState
-            description="Adjust the current filters or search terms to broaden the result set."
-            title={isFiltered ? "No matching records" : "No records yet"}
-          />
-        )
-      ) : (
-        <>
+      <Box
+        style={{
+          backgroundColor: semantic.surface,
+          border: `1px solid ${semantic.border}`,
+          borderRadius: verifyForGoodTokens.radius.card,
+          overflow: "hidden",
+        }}
+      >
+        {hasFilterSurface ? (
           <Box
+            px="md"
+            py="md"
             style={{
               backgroundColor: semantic.surface,
-              border: `1px solid ${semantic.border}`,
-              borderRadius: verifyForGoodTokens.radius.card,
-              overflow: "hidden",
+              borderBottom: `1px solid ${semantic.border}`,
             }}
           >
-            <Table.ScrollContainer minWidth={720}>
-              <Table
-                aria-label={ariaLabel}
-                highlightOnHover
-                role="table"
-                stickyHeader
-                withRowBorders
-                withTableBorder={false}
-              >
-                {caption ? <Table.Caption>{caption}</Table.Caption> : null}
-                <Table.Thead>
-                  <Table.Tr>
+            <Stack gap="sm">
+              <Group justify="space-between" wrap="wrap">
+                <Text c="dimmed" fz="sm">
+                  {filteredRows.length} record{filteredRows.length === 1 ? "" : "s"}
+                </Text>
+                {isFiltered ? (
+                  <Button onClick={clearFilters} size="xs" variant="subtle">
+                    Clear filters
+                  </Button>
+                ) : null}
+              </Group>
+              <FilterBar
+                filters={filterDefinitions.map((filter) => ({
+                  key: filter.key,
+                  label: filter.label,
+                  options: [{ label: "All", value: "all" }, ...filter.options],
+                  value: filters[filter.key] ?? "all",
+                }))}
+                onFilterChange={(key, value) => {
+                  setPage(1);
+                  setFilters((current) => ({
+                    ...current,
+                    [key]: value,
+                  }));
+                }}
+                onSearchChange={
+                  getSearchText
+                    ? (value) => {
+                        setPage(1);
+                        setSearchValue(value);
+                      }
+                    : undefined
+                }
+                searchLabel={searchLabel}
+                searchPlaceholder={searchPlaceholder}
+                searchValue={searchValue}
+              />
+            </Stack>
+          </Box>
+        ) : null}
+
+        {!filteredRows.length ? (
+          <Box p="md">
+            {noResultsState ? (
+              <>{noResultsState}</>
+            ) : (
+              <EmptyState
+                description="Adjust the current filters or search terms to broaden the result set."
+                title={isFiltered ? "No matching records" : "No records yet"}
+              />
+            )}
+          </Box>
+        ) : (
+          <Table.ScrollContainer minWidth={720}>
+            <Table
+              aria-label={ariaLabel}
+              highlightOnHover
+              role="table"
+              stickyHeader
+              withRowBorders
+              withTableBorder={false}
+            >
+              {caption ? <Table.Caption>{caption}</Table.Caption> : null}
+              <Table.Thead>
+                <Table.Tr>
+                  {columns.map((column) => (
+                    <Table.Th
+                      aria-sort={getAriaSort(sortState, column)}
+                      key={column.key}
+                      style={{
+                        backgroundColor: semantic.surface_subtle,
+                        textAlign: column.align ?? "left",
+                        width: column.width,
+                      }}
+                    >
+                      {column.sortable ? (
+                        <UnstyledButton
+                          aria-label={`Sort by ${String(column.header)}`}
+                          onClick={() => {
+                            setPage(1);
+                            setSortState((current) =>
+                              current?.columnKey === column.key
+                                ? {
+                                    columnKey: column.key,
+                                    direction:
+                                      current.direction === "asc"
+                                        ? "desc"
+                                        : "asc",
+                                  }
+                                : { columnKey: column.key, direction: "asc" },
+                            );
+                          }}
+                          style={{
+                            alignItems: "center",
+                            color: semantic.text_primary,
+                            display: "inline-flex",
+                            gap: verifyForGoodTokens.spacing.scale.xs,
+                            fontWeight:
+                              verifyForGoodTokens.typography.fontWeight.semibold,
+                          }}
+                        >
+                          <span>{column.header}</span>
+                          {renderSortIcon(sortState, column.key)}
+                        </UnstyledButton>
+                      ) : (
+                        column.header
+                      )}
+                    </Table.Th>
+                  ))}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {pagedRows.map((row, index) => (
+                  <Table.Tr
+                    key={
+                      rowKey
+                        ? rowKey(row, pageStartIndex + index)
+                        : String(pageStartIndex + index)
+                    }
+                  >
                     {columns.map((column) => (
-                      <Table.Th
-                        aria-sort={getAriaSort(sortState, column)}
+                      <Table.Td
                         key={column.key}
-                        style={{
-                          backgroundColor: semantic.surface_subtle,
-                          textAlign: column.align ?? "left",
-                          width: column.width,
-                        }}
+                        style={{ textAlign: column.align ?? "left" }}
                       >
-                        {column.sortable ? (
-                          <UnstyledButton
-                            aria-label={`Sort by ${String(column.header)}`}
-                            onClick={() => {
-                              setPage(1);
-                              setSortState((current) =>
-                                current?.columnKey === column.key
-                                  ? {
-                                      columnKey: column.key,
-                                      direction:
-                                        current.direction === "asc"
-                                          ? "desc"
-                                          : "asc",
-                                    }
-                                  : { columnKey: column.key, direction: "asc" },
-                              );
-                            }}
-                            style={{
-                              alignItems: "center",
-                              color: semantic.text_primary,
-                              display: "inline-flex",
-                              gap: verifyForGoodTokens.spacing.scale.xs,
-                              fontWeight:
-                                verifyForGoodTokens.typography.fontWeight.semibold,
-                            }}
-                          >
-                            <span>{column.header}</span>
-                            <span aria-hidden="true">
-                              {sortState?.columnKey === column.key
-                                ? sortState.direction === "asc"
-                                  ? "↑"
-                                  : "↓"
-                                : "↕"}
-                            </span>
-                          </UnstyledButton>
-                        ) : (
-                          column.header
-                        )}
-                      </Table.Th>
+                        {renderColumnValue(column, row, index)}
+                      </Table.Td>
                     ))}
                   </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {pagedRows.map((row, index) => (
-                    <Table.Tr key={rowKey ? rowKey(row, index) : String(index)}>
-                      {columns.map((column) => (
-                        <Table.Td
-                          key={column.key}
-                          style={{ textAlign: column.align ?? "left" }}
-                        >
-                          {renderColumnValue(column, row, index)}
-                        </Table.Td>
-                      ))}
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
-          </Box>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </Box>
 
-          {totalPages > 1 ? (
-            <Group justify="space-between" wrap="wrap">
-              <Text c="dimmed" fz="sm">
-                Showing {(currentPage - 1) * pageSize + 1}-
-                {Math.min(currentPage * pageSize, filteredRows.length)} of{" "}
-                {filteredRows.length}
-              </Text>
-              <Pagination onChange={setPage} total={totalPages} value={currentPage} />
-            </Group>
-          ) : null}
-
-          {hasFilterSurface && isFiltered ? (
-            <Group justify="flex-end">
-              <Button
-                onClick={() => {
-                  setFilters(
-                    Object.fromEntries(
-                      filterDefinitions.map((filter) => [filter.key, "all"]),
-                    ),
-                  );
-                  setPage(1);
-                  setSearchValue("");
-                  setSortState(
-                    initialSort
-                      ? {
-                          columnKey: initialSort.columnKey,
-                          direction: initialSort.direction ?? "asc",
-                        }
-                      : null,
-                  );
-                }}
-                variant="subtle"
-              >
-                Clear filters
-              </Button>
-            </Group>
-          ) : null}
-        </>
-      )}
+      {filteredRows.length > 0 && totalPages > 1 ? (
+        <Group justify="space-between" wrap="wrap">
+          <Text c="dimmed" fz="sm">
+            Showing {pageStartIndex + 1}-
+            {Math.min(currentPage * pageSize, filteredRows.length)} of{" "}
+            {filteredRows.length}
+          </Text>
+          <Pagination onChange={setPage} total={totalPages} value={currentPage} />
+        </Group>
+      ) : null}
     </Stack>
+  );
+}
+
+function renderSortIcon(
+  sortState: { columnKey: string; direction: SortDirection } | null,
+  columnKey: string,
+) {
+  if (sortState?.columnKey !== columnKey) {
+    return <IconSelector aria-hidden="true" size={16} stroke={1.8} />;
+  }
+
+  return sortState.direction === "asc" ? (
+    <IconChevronUp aria-hidden="true" size={16} stroke={1.8} />
+  ) : (
+    <IconChevronDown aria-hidden="true" size={16} stroke={1.8} />
   );
 }
 

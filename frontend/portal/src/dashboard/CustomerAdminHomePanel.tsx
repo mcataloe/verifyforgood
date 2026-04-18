@@ -42,6 +42,8 @@ const activityColumns: DataTableColumn<PortalOrganizationActivityItem>[] = [
     key: "occurred_at",
     header: "Occurred",
     render: (row) => formatDateTime(row.occurred_at),
+    sortable: true,
+    sortValue: (row) => row.occurred_at,
   },
 ];
 
@@ -90,8 +92,8 @@ export function CustomerAdminHomePanel() {
   return (
     <div className="portal-dashboard__activity-grid">
       <SectionContainer
-        title="Recent Organization Activity"
-        description="Newest-first activity across API keys, team changes, organization settings, invitations, and nonprofit access."
+        title="Organization Activity"
+        description={`Recent activity, access changes, and important updates for ${organization.activeOrganization.organization_name}.`}
       >
         {activity.error ? (
           <PortalNotice tone="warning">
@@ -108,7 +110,27 @@ export function CustomerAdminHomePanel() {
           </PortalEmptyState>
         ) : (
           <>
-            <DataTable columns={activityColumns} rows={activity.items} />
+            <DataTable
+              columns={activityColumns}
+              getSearchText={(row) =>
+                [
+                  row.title,
+                  row.description,
+                  row.actor.display_name,
+                  row.actor.email,
+                  row.target.display_name,
+                  row.target.email,
+                  row.target.user_id,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              }
+              initialSort={{ columnKey: "occurred_at", direction: "desc" }}
+              pageSize={10}
+              rowKey={(row) => row.activity_id}
+              rows={activity.items}
+              searchPlaceholder="Search activity"
+            />
             {activity.hasMore ? (
               <div className="portal-form__actions">
                 <Button

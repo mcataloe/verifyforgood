@@ -142,6 +142,8 @@ const recentVerificationColumns: DataTableColumn<VerificationRow>[] = [
     key: "requestedAt",
     header: "Requested",
     render: (row) => row.requestedAt,
+    sortable: true,
+    sortValue: (row) => row.requestedAt,
   },
   {
     key: "status",
@@ -187,6 +189,10 @@ export function DashboardPage({
   runtimeConfig,
   session,
 }: DashboardPageProps) {
+  const showHomePageHeader =
+    session.organization_membership?.role !== "admin" ||
+    session.organization_membership?.status !== "active";
+
   if (pane === "home") {
     return (
       <VerifyForGoodMantineProvider>
@@ -195,10 +201,12 @@ export function DashboardPage({
           data-testid="portal-page-container"
           style={pageStyle}
         >
-          <PageHeader
-            title="Organization Activity"
-            description={`Recent activity, access changes, and important updates for ${session.organization_name}.`}
-          />
+          {showHomePageHeader ? (
+            <PageHeader
+              title="Organization Activity"
+              description={`Recent activity, access changes, and important updates for ${session.organization_name}.`}
+            />
+          ) : null}
           <CustomerAdminHomePanel />
         </div>
       </VerifyForGoodMantineProvider>
@@ -231,7 +239,13 @@ export function DashboardPage({
             >
               <DataTable
                 columns={recentVerificationColumns}
+                getSearchText={(row) =>
+                  `${row.organization} ${row.type} ${row.requestedAt} ${row.status}`
+                }
+                initialSort={{ columnKey: "requestedAt", direction: "desc" }}
+                pageSize={5}
                 rows={recentVerifications}
+                searchPlaceholder="Search verifications"
               />
             </SectionContainer>
           </div>

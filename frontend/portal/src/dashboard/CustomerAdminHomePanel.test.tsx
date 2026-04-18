@@ -92,7 +92,7 @@ describe("CustomerAdminHomePanel", () => {
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Recent Organization Activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByText("Invitation sent")).toBeTruthy();
     expect(screen.getByText("Jamie Admin")).toBeTruthy();

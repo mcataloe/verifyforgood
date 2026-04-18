@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { createSessionPortalOrganization } from "../organization/portalOrganization";
 import {
   PortalOrganizationContext,
@@ -39,9 +40,11 @@ function renderWithOrganization(
   };
 
   render(
-    <PortalOrganizationContext.Provider value={value}>
-      <ApiKeyManager controller={controller} />
-    </PortalOrganizationContext.Provider>,
+    <VerifyForGoodMantineProvider defaultColorScheme="light">
+      <PortalOrganizationContext.Provider value={value}>
+        <ApiKeyManager controller={controller} />
+      </PortalOrganizationContext.Provider>
+    </VerifyForGoodMantineProvider>,
   );
 }
 

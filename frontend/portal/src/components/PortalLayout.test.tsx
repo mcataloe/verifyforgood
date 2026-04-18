@@ -92,9 +92,12 @@ describe("PortalLayout", () => {
       },
     });
 
-    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+    const switcher = screen.getByTestId("portal-organization-switcher");
+    expect(switcher.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(switcher);
 
     expect(screen.getByText("Switch organization")).toBeTruthy();
+    expect(switcher.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
     expect(screen.getByText("Secondary Org")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();

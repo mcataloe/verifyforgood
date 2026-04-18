@@ -1,12 +1,16 @@
 import {
+  ActionIcon,
   AppShell as MantineAppShell,
   Box,
-  Burger,
   Group,
   ScrollArea,
   Text,
   Title,
 } from "@mantine/core";
+import {
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+} from "@tabler/icons-react";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
 import { SidebarProfileSection } from "../components/SidebarProfileSection";
 import type {
@@ -144,18 +148,48 @@ export function VerifyForGoodAppShell({
         <MantineAppShell.Header px="lg">
           <Group h="100%" justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">
-              <Burger
+              <ActionIcon
                 hiddenFrom="md"
+                aria-label={mobileOpened ? "Collapse sidebar" : "Expand sidebar"}
                 onClick={() => setMobileOpened((current) => !current)}
-                opened={mobileOpened}
                 size="sm"
-              />
-              <Burger
+                variant="subtle"
+              >
+                {mobileOpened ? (
+                  <IconLayoutSidebarLeftCollapse
+                    aria-hidden="true"
+                    size={18}
+                    stroke={1.8}
+                  />
+                ) : (
+                  <IconLayoutSidebarLeftExpand
+                    aria-hidden="true"
+                    size={18}
+                    stroke={1.8}
+                  />
+                )}
+              </ActionIcon>
+              <ActionIcon
                 visibleFrom="md"
+                aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 onClick={() => setDesktopCollapsed((current) => !current)}
-                opened={!desktopCollapsed}
                 size="sm"
-              />
+                variant="subtle"
+              >
+                {desktopCollapsed ? (
+                  <IconLayoutSidebarLeftExpand
+                    aria-hidden="true"
+                    size={18}
+                    stroke={1.8}
+                  />
+                ) : (
+                  <IconLayoutSidebarLeftCollapse
+                    aria-hidden="true"
+                    size={18}
+                    stroke={1.8}
+                  />
+                )}
+              </ActionIcon>
               <Box>
                 <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
                   Application Shell

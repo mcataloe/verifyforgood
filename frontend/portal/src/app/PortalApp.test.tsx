@@ -744,10 +744,6 @@ describe("PortalApp", () => {
         name: "Organization Activity",
       }),
     ).toBeTruthy();
-    expect(
-      await screen.findByRole("heading", { name: "Recent Organization Activity" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Organization settings updated")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
@@ -1458,11 +1454,6 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
-    expect(
-      await screen.findByRole("heading", {
-        name: "Recent Organization Activity",
-      }),
     ).toBeTruthy();
     expect(
       screen.getByText("Organization settings updated"),

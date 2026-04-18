@@ -1,4 +1,5 @@
-import { Group, NativeSelect, TextInput } from "@mantine/core";
+import { Group, Select, TextInput } from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
 import type { ChangeEvent } from "react";
 
 export type FilterBarOption = {
@@ -42,6 +43,7 @@ export function FilterBar({
       {onSearchChange ? (
         <TextInput
           aria-label={searchLabel}
+          leftSection={<IconSearch aria-hidden="true" size={16} stroke={1.8} />}
           label={searchLabel}
           miw={280}
           onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -53,13 +55,13 @@ export function FilterBar({
       ) : null}
 
       {filters.map((filter) => (
-        <NativeSelect
+        <Select
           aria-label={filter.label}
           data={filter.options}
           key={filter.key}
           label={filter.label}
           onChange={(event) =>
-            onFilterChange?.(filter.key, event.currentTarget.value)
+            onFilterChange?.(filter.key, event ?? "all")
           }
           value={filter.value}
         />

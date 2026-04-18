@@ -36,6 +36,7 @@ export interface PortalSupportRequestInput {
     | "api"
     | "data_quality"
     | "nonprofit_access"
+    | "recommendation"
     | "settings"
     | "other";
   context?: {

@@ -1,5 +1,6 @@
-import { Button, Group, Menu, Stack, Text } from "@mantine/core";
-import { IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { Button, Menu, Stack, Text } from "@mantine/core";
+import { IconChevronDown, IconChevronUp, IconPlus } from "@tabler/icons-react";
+import { useState } from "react";
 import type { PortalAvailableOrganizationRecord } from "../app/portalSession";
 
 interface PortalOrganizationSwitcherProps {
@@ -19,6 +20,7 @@ export function PortalOrganizationSwitcher({
   onCreateOrganization,
   onSelectOrganization,
 }: PortalOrganizationSwitcherProps) {
+  const [menuOpened, setMenuOpened] = useState(false);
   const hasDropdownActions =
     availableOrganizations.length > 0 || onCreateOrganization !== undefined;
 
@@ -37,12 +39,26 @@ export function PortalOrganizationSwitcher({
   }
 
   return (
-    <Menu keepMounted position="bottom-end" shadow="md" width={320}>
+    <Menu
+      keepMounted
+      onChange={setMenuOpened}
+      opened={menuOpened}
+      position="bottom-end"
+      shadow="md"
+      width={320}
+    >
       <Menu.Target>
         <Button
+          aria-expanded={menuOpened}
           data-testid="portal-organization-switcher"
           justify="space-between"
-          rightSection={<IconChevronDown size={16} stroke={1.8} />}
+          rightSection={
+            menuOpened ? (
+              <IconChevronUp aria-hidden="true" size={16} stroke={1.8} />
+            ) : (
+              <IconChevronDown aria-hidden="true" size={16} stroke={1.8} />
+            )
+          }
           variant="default"
         >
           <Text fw={600} maw={220} truncate>
