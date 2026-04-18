@@ -5,6 +5,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { createPortal } from "react-dom";
 
 export type PortalToastTone = "error" | "success" | "warning";
 
@@ -53,37 +54,43 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
     [],
   );
 
+  const toastRegion = (
+    <div
+      aria-atomic="false"
+      aria-live="polite"
+      className="portal-toast-region"
+    >
+      {toasts.map((toast) => (
+        <div
+          className={`portal-toast portal-toast--${toast.tone}`}
+          key={toast.id}
+          role={toast.tone === "error" ? "alert" : "status"}
+        >
+          <div className="portal-toast__content">
+            <p className="portal-toast__title">{toast.title}</p>
+            <p className="portal-toast__message">{toast.message}</p>
+          </div>
+          <button
+            aria-label="Dismiss notification"
+            className="portal-toast__dismiss"
+            onClick={() => {
+              value.dismissToast(toast.id);
+            }}
+            type="button"
+          >
+            Dismiss
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <PortalToastContext.Provider value={value}>
       {children}
-      <div
-        aria-atomic="false"
-        aria-live="polite"
-        className="portal-toast-region"
-      >
-        {toasts.map((toast) => (
-          <div
-            className={`portal-toast portal-toast--${toast.tone}`}
-            key={toast.id}
-            role={toast.tone === "error" ? "alert" : "status"}
-          >
-            <div className="portal-toast__content">
-              <p className="portal-toast__title">{toast.title}</p>
-              <p className="portal-toast__message">{toast.message}</p>
-            </div>
-            <button
-              aria-label="Dismiss notification"
-              className="portal-toast__dismiss"
-              onClick={() => {
-                value.dismissToast(toast.id);
-              }}
-              type="button"
-            >
-              Dismiss
-            </button>
-          </div>
-        ))}
-      </div>
+      {typeof document === "undefined"
+        ? toastRegion
+        : createPortal(toastRegion, document.body)}
     </PortalToastContext.Provider>
   );
 }

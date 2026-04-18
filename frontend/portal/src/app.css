@@ -899,9 +899,9 @@ code {
 
 .portal-toast-region {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 1200;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  z-index: 10000;
   display: grid;
   gap: var(--vf-space-3);
   width: min(24rem, calc(100vw - 2rem));
