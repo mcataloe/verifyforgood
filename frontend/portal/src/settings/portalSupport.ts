@@ -46,6 +46,7 @@ export interface PortalSupportRequestInput {
   description: string;
   reply_email?: string | null;
   subject: string;
+  watchers?: string[] | null;
 }
 
 export interface PortalSupportRequestReceipt {

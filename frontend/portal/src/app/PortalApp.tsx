@@ -217,6 +217,9 @@ function PortalAppShell({
     return (
       <PortalAuthLayout
         app={appInfo}
+        containerSize={
+          currentRoute.key === signInPortalRoute.key ? "wide" : "narrow"
+        }
         runtimeConfig={runtimeConfig}
         subtitle="Sign in or create an account to continue."
         title={

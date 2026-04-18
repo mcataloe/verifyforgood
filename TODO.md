@@ -672,6 +672,30 @@ Keep the Phase 27Q canonical raw-filing store stable as the replay source of
 truth so future graph or richer extraction work projects from
 `nonprofit_raw_filings` instead of reintroducing ad hoc XML-fetch assumptions.
 
+## TODO-ARCH-031
+
+### Title
+
+Decide whether portal nonprofit recent-search history should remain session-only or become durable organization-scoped history.
+
+### Rationale
+
+The customer portal currently stores recent nonprofit searches only in local
+React state inside the nonprofit search controller. That supports immediate
+"run again" convenience within the current browser session, but it does not
+survive refreshes, new sessions, or cross-user organization access.
+
+### Migration Triggers
+
+- customer expectations that prior searches persist across sessions
+- need for shared organization research history
+- support or audit requests for durable nonprofit search recall
+
+### Constraint
+
+Keep the current nonprofit search route contracts stable; any durable history
+should be additive rather than changing the existing search response payloads.
+
 ## TODO-ARCH-025
 
 ### Title

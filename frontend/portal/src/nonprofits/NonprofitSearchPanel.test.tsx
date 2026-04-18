@@ -135,6 +135,13 @@ describe("NonprofitSearchPanel", () => {
       screen.getByRole("heading", { name: "Recent searches" }),
     ).toBeTruthy();
     expect(screen.getByRole("table", { name: "Recent nonprofit searches" })).toBeTruthy();
+    expect(
+      screen
+        .getByRole("heading", { name: "Search results" })
+        .compareDocumentPosition(
+          screen.getByRole("heading", { name: "Recent searches" }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(
       screen.getAllByTestId("section-divider").length,

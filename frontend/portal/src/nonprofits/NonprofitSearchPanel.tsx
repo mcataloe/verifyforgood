@@ -207,44 +207,6 @@ export function NonprofitSearchPanel({
         </Panel>
       </SectionBlock>
 
-      {search.recentSearches.length > 0 ? (
-        <>
-          <SectionDivider />
-          <SectionBlock>
-            <Panel
-              title="Recent searches"
-              subtitle="Review earlier nonprofit searches and rerun one with a single click."
-            >
-              <DataTable
-                ariaLabel="Recent nonprofit searches"
-                columns={[
-                  ...recentSearchColumns,
-                  {
-                    key: "actions",
-                    header: "Action",
-                    render: (row) => (
-                      <button
-                        className="portal-shell__action"
-                        disabled={search.isLoading}
-                        onClick={() => {
-                          runSearchForQuery(row.query);
-                        }}
-                        type="button"
-                      >
-                        Run again
-                      </button>
-                    ),
-                  },
-                ]}
-                pageSize={5}
-                rows={search.recentSearches}
-                searchPlaceholder="Filter recent searches"
-              />
-            </Panel>
-          </SectionBlock>
-        </>
-      ) : null}
-
       {search.error ? (
         <>
           <SectionDivider />
@@ -362,6 +324,44 @@ export function NonprofitSearchPanel({
           <SectionDivider />
           <SectionBlock>
             <PortalNonprofitDetailView detail={search.detail} />
+          </SectionBlock>
+        </>
+      ) : null}
+
+      {search.recentSearches.length > 0 ? (
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <Panel
+              title="Recent searches"
+              subtitle="Review earlier nonprofit searches and rerun one with a single click."
+            >
+              <DataTable
+                ariaLabel="Recent nonprofit searches"
+                columns={[
+                  ...recentSearchColumns,
+                  {
+                    key: "actions",
+                    header: "Action",
+                    render: (row) => (
+                      <button
+                        className="portal-shell__action"
+                        disabled={search.isLoading}
+                        onClick={() => {
+                          runSearchForQuery(row.query);
+                        }}
+                        type="button"
+                      >
+                        Run again
+                      </button>
+                    ),
+                  },
+                ]}
+                pageSize={5}
+                rows={search.recentSearches}
+                searchPlaceholder="Filter recent searches"
+              />
+            </Panel>
           </SectionBlock>
         </>
       ) : null}

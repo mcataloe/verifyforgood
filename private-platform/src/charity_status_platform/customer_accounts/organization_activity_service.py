@@ -220,6 +220,7 @@ def _summarize_event(
             {
                 "category": category,
                 "reply_email": _masked_email(metadata.get("reply_email")),
+                "watchers": _masked_email_list(metadata.get("watchers")),
                 "support_request_id": _clean_text(metadata.get("support_request_id")),
             },
         )
@@ -333,3 +334,14 @@ def _masked_email(value: Any) -> str | None:
     if len(local) == 1:
         return f"{local}***@{domain}"
     return f"{local[0]}***{local[-1]}@{domain}"
+
+
+def _masked_email_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    results: list[str] = []
+    for item in value:
+        masked = _masked_email(item)
+        if masked:
+            results.append(masked)
+    return results

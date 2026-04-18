@@ -1453,10 +1453,10 @@ def test_post_organization_support_request_records_sanitized_receipt():
             "headers": {"Authorization": "Bearer test"},
             "body": json.dumps(
                 {
-                    "category": "api",
+                    "category": "recommendation",
                     "subject": "Token issue",
                     "description": "The API token request is failing with a 401 response.",
-                    "reply_email": "ops@orgone.example",
+                    "watchers": ["ops@orgone.example", "reviewer@example.org"],
                     "context": {
                         "current_route_hash": "#/settings?nav=customer-admin-settings",
                         "user_agent": "Portal Browser",
@@ -1477,8 +1477,12 @@ def test_post_organization_support_request_records_sanitized_receipt():
     assert len(audit_items) == 1
     assert audit_items[0].event_type is AuditEventType.SUPPORT_REQUEST_SUBMITTED
     assert audit_items[0].metadata["subject"] == "Token issue"
-    assert audit_items[0].metadata["category"] == "api"
+    assert audit_items[0].metadata["category"] == "recommendation"
     assert audit_items[0].metadata["route_hash"] == "#/settings?nav=customer-admin-settings"
+    assert audit_items[0].metadata["watchers"] == [
+        "ops@orgone.example",
+        "reviewer@example.org",
+    ]
     assert "description" not in audit_items[0].metadata
 
 
@@ -1513,7 +1517,7 @@ def test_post_organization_support_request_rejects_invalid_payload():
                     "category": "api",
                     "subject": "Hi",
                     "description": "short",
-                    "reply_email": "bad-email",
+                    "watchers": ["bad-email"],
                 }
             ),
         },

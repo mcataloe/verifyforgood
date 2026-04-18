@@ -24,7 +24,7 @@ describe("SupportPage", () => {
     expect(
       screen.getByRole("heading", { name: "Support & Help" }),
     ).toBeTruthy();
-    expect(screen.getAllByRole("heading", { name: "Contact Support" })).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "Contact Support" })).toHaveLength(1);
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
     expect(screen.queryByText("Portal Test Org")).toBeNull();
     expect(
@@ -42,7 +42,7 @@ describe("SupportPage", () => {
       />,
     );
 
-    expect(screen.getAllByRole("heading", { name: "Report An Issue" })).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "Report An Issue" })).toHaveLength(1);
     expect(
       screen.getByRole("option", { name: "Recommendation" }),
     ).toBeTruthy();
@@ -62,8 +62,11 @@ describe("SupportPage", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Reply email"), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Watchers" }), {
       target: { value: "invalid-email" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Watchers" }), {
+      key: "Enter",
     });
     fireEvent.change(screen.getByLabelText("Subject"), {
       target: { value: "Hi" },
@@ -110,8 +113,11 @@ describe("SupportPage", () => {
     fireEvent.change(screen.getByLabelText("Category"), {
       target: { value: "recommendation" },
     });
-    fireEvent.change(screen.getByLabelText("Reply email"), {
-      target: { value: "ops@example.org" },
+    fireEvent.change(screen.getByRole("textbox", { name: "Watchers" }), {
+      target: { value: "reviewer@example.org" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Watchers" }), {
+      key: "Enter",
     });
     fireEvent.change(screen.getByLabelText("Subject"), {
       target: { value: "Feature idea" },
@@ -134,8 +140,8 @@ describe("SupportPage", () => {
       },
       description:
         "Please add a recommendation workflow for future customer requests.",
-      reply_email: "ops@example.org",
       subject: "Feature idea",
+      watchers: ["reviewer@example.org"],
     });
     expect(screen.getByText(/Support request sent/i)).toBeTruthy();
     expect(screen.queryByText(/support_req_123/i)).toBeNull();

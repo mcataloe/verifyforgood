@@ -12,6 +12,7 @@ import type { PropsWithChildren } from "react";
 
 interface PortalAuthLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
+  containerSize?: "content" | "full" | "narrow" | "wide";
   runtimeConfig: FrontendRuntimeConfig;
   subtitle: string;
   title: string;
@@ -20,6 +21,7 @@ interface PortalAuthLayoutProps extends PropsWithChildren {
 export function PortalAuthLayout({
   app,
   children,
+  containerSize = "narrow",
   runtimeConfig,
   subtitle,
   title,
@@ -27,7 +29,7 @@ export function PortalAuthLayout({
   return (
     <Page className="portal-auth-shell">
       <Section className="portal-auth-shell__section">
-        <Container size="narrow">
+        <Container size={containerSize}>
           <div className="portal-auth-shell__stack">
             <div className="portal-auth-shell__hero">
               <h1>{title}</h1>

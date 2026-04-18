@@ -277,6 +277,11 @@ code {
   align-items: start;
 }
 
+.portal-auth-page--sign-in {
+  gap: clamp(var(--vf-space-5), 4vw, var(--vf-space-7));
+  grid-template-columns: minmax(0, 1.3fr) minmax(24rem, 32rem);
+}
+
 .portal-auth-page__intro,
 .portal-auth-page__card {
   min-width: 0;
@@ -287,15 +292,28 @@ code {
   font-size: clamp(1.65rem, 3vw, 2.25rem);
 }
 
+.portal-auth-page--sign-in .portal-auth-page__copy h2 {
+  max-width: 20ch;
+  font-size: clamp(2rem, 4.2vw, 3.35rem);
+}
+
 .portal-auth-page__copy p {
   margin: 0;
   line-height: 1.7;
   color: var(--vf-theme-muted);
 }
 
+.portal-auth-page--sign-in .portal-auth-page__copy p {
+  max-width: 44rem;
+}
+
 .portal-auth-page__intro {
   display: grid;
   gap: var(--vf-space-4);
+}
+
+.portal-auth-page--sign-in .portal-auth-page__intro {
+  gap: var(--vf-space-5);
 }
 
 .portal-auth-page__trust-band {
@@ -354,6 +372,10 @@ code {
       transparent 34%
     );
   box-shadow: var(--vf-theme-panel-shadow);
+}
+
+.portal-auth-page--sign-in .portal-auth-page__card {
+  padding: 1.45rem;
 }
 
 .portal-auth-page__card-copy {
@@ -937,7 +959,8 @@ code {
   position: fixed;
   top: max(1rem, env(safe-area-inset-top));
   right: max(1rem, env(safe-area-inset-right));
-  z-index: 10000;
+  z-index: 2147483647;
+  isolation: isolate;
   display: grid;
   gap: var(--vf-space-3);
   width: min(24rem, calc(100vw - 2rem));
@@ -954,6 +977,7 @@ code {
   border-radius: var(--vf-radius-md);
   background: color-mix(in srgb, var(--vf-theme-panel-bg) 96%, transparent);
   box-shadow: var(--vf-theme-panel-shadow);
+  backdrop-filter: blur(10px);
   pointer-events: auto;
 }
 

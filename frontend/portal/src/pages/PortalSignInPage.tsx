@@ -54,7 +54,7 @@ export function PortalSignInPage({
   };
 
   return (
-    <div className="portal-auth-page">
+    <div className="portal-auth-page portal-auth-page--sign-in">
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
           <h2>Secure Access for Verification Operations</h2>

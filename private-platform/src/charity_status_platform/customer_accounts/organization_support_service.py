@@ -16,6 +16,7 @@ SUPPORT_REQUEST_CATEGORIES = {
     "api",
     "data_quality",
     "nonprofit_access",
+    "recommendation",
     "settings",
     "other",
 }
@@ -150,6 +151,7 @@ class OrganizationSupportService:
                         "membership_role": membership_role,
                         "organization_name": organization.name,
                         "reply_email": parsed["reply_email"],
+                        "watchers": parsed["watchers"],
                         "route_hash": parsed["route_hash"],
                         "subject": parsed["subject"],
                         "submitted_at": submitted_at,
@@ -188,7 +190,14 @@ def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise OrganizationSupportError("Request body must be a JSON object")
 
-    allowed_fields = {"category", "subject", "description", "reply_email", "context"}
+    allowed_fields = {
+        "category",
+        "subject",
+        "description",
+        "reply_email",
+        "watchers",
+        "context",
+    }
     unknown_fields = sorted(set(payload) - allowed_fields)
     if unknown_fields:
         raise OrganizationSupportError(
@@ -198,7 +207,7 @@ def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     category = _clean_text(payload.get("category"), limit=64)
     if category not in SUPPORT_REQUEST_CATEGORIES:
         raise OrganizationSupportError(
-            "category must be one of account_access, billing, api, data_quality, nonprofit_access, settings, or other"
+            "category must be one of account_access, billing, api, data_quality, nonprofit_access, recommendation, settings, or other"
         )
 
     subject = _clean_text(payload.get("subject"), limit=160)
@@ -210,6 +219,7 @@ def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise OrganizationSupportError("description must be at least 10 characters")
 
     reply_email = _validate_optional_email(payload.get("reply_email"))
+    watchers = _validate_optional_email_list(payload.get("watchers"))
     context = payload.get("context")
     if context is not None and not isinstance(context, dict):
         raise OrganizationSupportError("context must be an object when provided")
@@ -225,6 +235,7 @@ def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "category": category,
         "subject": subject,
         "reply_email": reply_email,
+        "watchers": watchers,
         "route_hash": route_hash,
         "user_agent": user_agent,
         "description_length": len(description),
@@ -242,12 +253,35 @@ def _validate_optional_email(value: Any) -> str | None:
     candidate = _clean_text(value, limit=254)
     if candidate is None:
         return None
-    if "@" not in candidate or candidate.startswith("@") or candidate.endswith("@"):
-        raise OrganizationSupportError("reply_email must be a valid email address")
-    local, domain = candidate.split("@", 1)
-    if "." not in domain or not local.strip() or not domain.strip():
+    if not _looks_like_email(candidate):
         raise OrganizationSupportError("reply_email must be a valid email address")
     return candidate
+
+
+def _validate_optional_email_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise OrganizationSupportError("watchers must be an array of email addresses")
+
+    watchers: list[str] = []
+    for item in value[:20]:
+        candidate = _clean_text(item, limit=254)
+        if candidate is None:
+            continue
+        if not _looks_like_email(candidate):
+            raise OrganizationSupportError("watchers must contain only valid email addresses")
+        normalized = candidate.lower()
+        if normalized not in watchers:
+            watchers.append(normalized)
+    return watchers
+
+
+def _looks_like_email(value: str) -> bool:
+    if "@" not in value or value.startswith("@") or value.endswith("@"):
+        return False
+    local, domain = value.split("@", 1)
+    return "." in domain and bool(local.strip()) and bool(domain.strip())
 
 
 def _utc_now() -> str:

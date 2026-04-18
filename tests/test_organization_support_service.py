@@ -75,10 +75,10 @@ def test_submit_support_request_records_sanitized_audit_event():
         current_plan="growth",
         membership_role="admin",
         payload={
-            "category": "api",
+            "category": "recommendation",
             "subject": "Token issue",
             "description": "The API token request is failing with a 401 response.",
-            "reply_email": "ops@example.org",
+            "watchers": ["ops@example.org", "reviewer@example.org"],
             "context": {
                 "current_route_hash": "#/settings?nav=customer-admin-settings",
                 "user_agent": "Portal Browser",
@@ -92,9 +92,13 @@ def test_submit_support_request_records_sanitized_audit_event():
     assert receipt.delivery_mode == "recorded_only"
     assert len(items) == 1
     assert items[0].event_type is AuditEventType.SUPPORT_REQUEST_SUBMITTED
-    assert items[0].metadata["category"] == "api"
+    assert items[0].metadata["category"] == "recommendation"
     assert items[0].metadata["subject"] == "Token issue"
-    assert items[0].metadata["reply_email"] == "ops@example.org"
+    assert items[0].metadata["reply_email"] is None
+    assert items[0].metadata["watchers"] == [
+        "ops@example.org",
+        "reviewer@example.org",
+    ]
     assert items[0].metadata["route_hash"] == "#/settings?nav=customer-admin-settings"
     assert items[0].metadata["description_length"] >= 10
     assert "description" not in items[0].metadata
@@ -115,7 +119,7 @@ def test_submit_support_request_rejects_invalid_payload():
                 "category": "api",
                 "subject": "Hi",
                 "description": "short",
-                "reply_email": "bad-email",
+                "watchers": ["bad-email"],
             },
         )
     except OrganizationSupportError as exc:

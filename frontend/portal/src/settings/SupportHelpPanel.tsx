@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Pill, PillsInput } from "@mantine/core";
 import {
   PortalErrorState,
   PortalLoadingState,
@@ -31,19 +32,15 @@ export function SupportHelpPanel({
   >("other");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [replyEmail, setReplyEmail] = useState("");
-
-  useEffect(() => {
-    if (controller.context?.account_context.contact_email) {
-      setReplyEmail(controller.context.account_context.contact_email);
-    }
-  }, [controller.context?.account_context.contact_email]);
+  const [watchers, setWatchers] = useState<string[]>([]);
+  const [watcherInput, setWatcherInput] = useState("");
+  const [watcherMessage, setWatcherMessage] = useState<string | null>(null);
 
   const validationMessage = getValidationMessage({
     category,
     description,
-    replyEmail,
     subject,
+    watcherMessage,
   });
 
   if (controller.isLoading) {
@@ -80,11 +77,36 @@ export function SupportHelpPanel({
     );
   }
 
+  const submitterEmail = context.account_context.contact_email?.trim() || null;
+
+  const commitWatcher = (
+    rawValue: string,
+    currentWatchers: string[] = watchers,
+  ): string[] | null => {
+    const candidate = rawValue.trim().toLowerCase();
+    if (!candidate) {
+      setWatcherInput("");
+      setWatcherMessage(null);
+      return currentWatchers;
+    }
+    if (!isValidEmail(candidate)) {
+      setWatcherMessage("Watchers must be valid email addresses.");
+      return null;
+    }
+    const nextWatchers = currentWatchers.includes(candidate)
+      ? currentWatchers
+      : [...currentWatchers, candidate];
+    setWatchers(nextWatchers);
+    setWatcherInput("");
+    setWatcherMessage(null);
+    controller.clearReceipt();
+    return nextWatchers;
+  };
+
   return (
     <div className="portal-budget-form">
       {(pane ?? "contact") === "contact" ? (
         <section className="portal-budget-form__section">
-          <h3>Contact Support</h3>
           <p className="portal-budget-form__hint">
             {context.issue_reporting.honesty_notice}
           </p>
@@ -132,7 +154,6 @@ export function SupportHelpPanel({
 
       {(pane ?? "report") === "report" ? (
         <section className="portal-budget-form__section">
-          <h3>Report An Issue</h3>
           <form className="portal-form portal-form--detail">
             <label className="portal-form__field" htmlFor="support-category">
               <span>Category</span>
@@ -156,20 +177,60 @@ export function SupportHelpPanel({
               </select>
             </label>
 
-            <label className="portal-form__field" htmlFor="support-reply-email">
-              <span>Reply email</span>
-              <input
-                className="portal-form__input"
-                id="support-reply-email"
-                onChange={(event) => {
-                  controller.clearReceipt();
-                  setReplyEmail(event.target.value);
-                }}
-                placeholder="ops@example.org"
-                type="email"
-                value={replyEmail}
-              />
-            </label>
+            <div className="portal-form__field">
+              <span id="support-watchers-label">Watchers</span>
+              <PillsInput>
+                <Pill.Group>
+                  {watchers.map((watcher) => (
+                    <Pill
+                      key={watcher}
+                      onRemove={() => {
+                        controller.clearReceipt();
+                        setWatchers((current) =>
+                          current.filter((item) => item !== watcher),
+                        );
+                      }}
+                      withRemoveButton
+                    >
+                      {watcher}
+                    </Pill>
+                  ))}
+                  <PillsInput.Field
+                    aria-describedby="support-watchers-hint"
+                    aria-labelledby="support-watchers-label"
+                    onBlur={() => {
+                      if (watcherInput.trim()) {
+                        void commitWatcher(watcherInput);
+                      }
+                    }}
+                    onChange={(event) => {
+                      controller.clearReceipt();
+                      setWatcherInput(event.currentTarget.value);
+                      if (watcherMessage) {
+                        setWatcherMessage(null);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" ||
+                        event.key === "," ||
+                        event.key === ";"
+                      ) {
+                        event.preventDefault();
+                        void commitWatcher(watcherInput);
+                      }
+                    }}
+                    placeholder="Add email and press Enter"
+                    value={watcherInput}
+                  />
+                </Pill.Group>
+              </PillsInput>
+              <p className="portal-budget-form__hint" id="support-watchers-hint">
+                Replies go to{" "}
+                <strong>{submitterEmail ?? "the signed-in account"}</strong>.
+                Add other email addresses here to keep them copied on follow-up.
+              </p>
+            </div>
 
             <label className="portal-form__field" htmlFor="support-subject">
               <span>Subject</span>
@@ -234,6 +295,10 @@ export function SupportHelpPanel({
               className="portal-shell__action portal-shell__action--primary"
               disabled={controller.isSubmitting || validationMessage !== null}
               onClick={() => {
+                const nextWatchers = commitWatcher(watcherInput, watchers);
+                if (nextWatchers === null) {
+                  return;
+                }
                 void controller
                   .submit({
                     category,
@@ -249,12 +314,15 @@ export function SupportHelpPanel({
                           : navigator.userAgent,
                     },
                     description: description.trim(),
-                    reply_email: replyEmail.trim() || null,
                     subject: subject.trim(),
+                    watchers: nextWatchers.length > 0 ? nextWatchers : null,
                   })
                   .then(() => {
                     setSubject("");
                     setDescription("");
+                    setWatchers([]);
+                    setWatcherInput("");
+                    setWatcherMessage(null);
                   })
                   .catch(() => {});
               }}
@@ -274,8 +342,8 @@ export function SupportHelpPanel({
 function getValidationMessage(input: {
   category: string;
   description: string;
-  replyEmail: string;
   subject: string;
+  watcherMessage: string | null;
 }): string | null {
   if (!input.category) {
     return "Category is required.";
@@ -286,11 +354,8 @@ function getValidationMessage(input: {
   if (input.description.trim().length < 10) {
     return "Description must be at least 10 characters.";
   }
-  if (
-    input.replyEmail.trim() &&
-    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.replyEmail.trim())
-  ) {
-    return "Reply email must be a valid email address.";
+  if (input.watcherMessage) {
+    return input.watcherMessage;
   }
   return null;
 }
@@ -301,4 +366,8 @@ function formatDateTime(value: string) {
     return value;
   }
   return new Date(parsed).toLocaleString();
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
 }
