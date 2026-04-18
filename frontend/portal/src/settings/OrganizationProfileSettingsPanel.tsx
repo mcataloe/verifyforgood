@@ -14,20 +14,29 @@ export function OrganizationProfileSettingsPanel({
   const [contactEmail, setContactEmail] = useState(
     controller.settings.contactEmail,
   );
+  const [slug, setSlug] = useState(controller.settings.slug ?? "");
 
   useEffect(() => {
     setDisplayName(controller.settings.displayName);
     setContactEmail(controller.settings.contactEmail);
-  }, [controller.settings.contactEmail, controller.settings.displayName]);
+    setSlug(controller.settings.slug ?? "");
+  }, [
+    controller.settings.contactEmail,
+    controller.settings.displayName,
+    controller.settings.slug,
+  ]);
 
   const trimmedDisplayName = displayName.trim();
   const trimmedContactEmail = contactEmail.trim();
+  const trimmedSlug = slug.trim().toLowerCase();
   const isDirty =
     trimmedDisplayName !== controller.settings.displayName ||
-    trimmedContactEmail !== controller.settings.contactEmail.trim();
+    trimmedContactEmail !== controller.settings.contactEmail.trim() ||
+    trimmedSlug !== (controller.settings.slug ?? "").trim().toLowerCase();
   const validationMessage = getValidationMessage({
     contactEmail: trimmedContactEmail,
     displayName: trimmedDisplayName,
+    slug: trimmedSlug,
   });
   const isRecentlySaved = controller.notice !== null && !isDirty;
   const isSaveDisabled =
@@ -54,6 +63,21 @@ export function OrganizationProfileSettingsPanel({
           />
         </label>
 
+        <label className="portal-form__field" htmlFor="organization-slug">
+          <span>Slug</span>
+          <input
+            className="portal-form__input"
+            id="organization-slug"
+            onChange={(event) => {
+              controller.clearNotice();
+              setSlug(event.target.value);
+            }}
+            placeholder="verify-for-good"
+            type="text"
+            value={slug}
+          />
+        </label>
+
         <label className="portal-form__field" htmlFor="organization-contact-email">
           <span>Contact email</span>
           <input
@@ -71,9 +95,9 @@ export function OrganizationProfileSettingsPanel({
       </form>
 
       <p className="portal-budget-form__hint">
-        Keep the organization display name customer-facing and use the contact
-        email for early administrative notices. Leave the contact email blank to
-        clear it.
+        Keep the organization display name customer-facing, use the slug for
+        stable workspace identification, and use the contact email for early
+        administrative notices. Leave the contact email blank to clear it.
       </p>
 
       {validationMessage ? (
@@ -106,6 +130,7 @@ export function OrganizationProfileSettingsPanel({
             void controller.save({
               contactEmail: trimmedContactEmail,
               displayName: trimmedDisplayName,
+              slug: trimmedSlug,
             });
           }}
           type="button"
@@ -124,9 +149,16 @@ export function OrganizationProfileSettingsPanel({
 function getValidationMessage(input: {
   contactEmail: string;
   displayName: string;
+  slug: string;
 }): string | null {
   if (input.displayName.length < 2) {
     return "Display name must be at least 2 characters.";
+  }
+  if (input.slug.length < 2) {
+    return "Slug must be at least 2 characters.";
+  }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug)) {
+    return "Slug may contain lowercase letters, numbers, and single hyphens only.";
   }
   if (
     input.contactEmail &&

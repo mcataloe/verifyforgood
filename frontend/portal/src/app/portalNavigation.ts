@@ -46,7 +46,8 @@ export type CustomerAdminPortalPane =
   | "billing"
   | "usage"
   | "api"
-  | "settings";
+  | "settings"
+  | "profile";
 
 const customerUserPaneByAlias: Record<string, CustomerUserPortalPane> = {
   "customer-user-automation-api": "automation-api",
@@ -62,6 +63,7 @@ const customerAdminPaneByAlias: Record<string, CustomerAdminPortalPane> = {
   "customer-admin-api": "api",
   "customer-admin-billing": "billing",
   "customer-admin-home": "home",
+  "customer-admin-profile": "profile",
   "customer-admin-search": "search",
   "customer-admin-settings": "settings",
   "customer-admin-team": "team",
@@ -213,6 +215,13 @@ export function resolvePortalProfileNavigationTarget(params: {
     };
   }
 
+  if (params.audience === "customer_admin") {
+    return {
+      href: `${settingsRoute.hash}?nav=customer-admin-profile`,
+      label: "Open profile",
+    };
+  }
+
   const suffix = params.audience.replaceAll("_", "-");
 
   return {
@@ -264,7 +273,15 @@ export function resolveCanonicalCustomerAdminHash(params: {
     case "api-access":
       return alias === "customer-admin-api" ? "#/api-access" : null;
     case "settings":
-      return alias === "customer-admin-settings" ? "#/settings" : null;
+      if (alias === "customer-admin-settings") {
+        return "#/settings";
+      }
+
+      if (alias === "customer-admin-profile") {
+        return "#/settings?nav=customer-admin-profile";
+      }
+
+      return null;
     case "workspace":
       if (alias === "customer-admin-team") {
         return "#/team";

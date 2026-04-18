@@ -89,18 +89,21 @@ def test_sqlalchemy_organization_repository_handles_slug_and_soft_delete(tmp_pat
     updated = repository.update_profile(
         created.organization_id,
         name="Renamed Org",
+        slug="renamed-org",
         contact_email="support@example.org",
         updated_at="2026-04-01T00:00:00+00:00",
     )
 
     assert updated is not None
     assert updated.name == "Renamed Org"
-    assert repository.get_by_slug("example-org") is not None
+    assert updated.slug == "renamed-org"
+    assert repository.get_by_slug("example-org") is None
+    assert repository.get_by_slug("renamed-org") is not None
 
     repository.soft_delete(created.organization_id, deleted_at="2026-04-02T00:00:00+00:00", deleted_by_user_id="user_1")
 
     assert repository.get(created.organization_id) is None
-    assert repository.get_by_slug("example-org") is None
+    assert repository.get_by_slug("renamed-org") is None
 
 
 def test_sqlalchemy_membership_repository_create_list_update_and_delete(tmp_path: Path):

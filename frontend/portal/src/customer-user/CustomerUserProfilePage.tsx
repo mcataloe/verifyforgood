@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   PortalDetailSection,
   PortalDetailView,
 } from "../components/PortalDetailView";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
-import { ProfileContextSection } from "../settings/ProfileContextSection";
 
 interface CustomerUserProfilePageProps {
   environment: string;
@@ -17,7 +15,6 @@ export function CustomerUserProfilePage({
   environment: _environment,
   session,
 }: CustomerUserProfilePageProps) {
-  const organization = usePortalOrganization();
   const [firstName, setFirstName] = useState(
     splitDisplayName(session.user.display_name).firstName,
   );
@@ -129,17 +126,6 @@ export function CustomerUserProfilePage({
             </p>
           </div>
         </div>
-      </PortalDetailSection>
-
-      <PortalDetailSection
-        intro="Review the organization and plan connected to your account."
-        title="Account details"
-      >
-        <ProfileContextSection
-          organization={organization.activeOrganization}
-          session={session}
-          showTitle={false}
-        />
       </PortalDetailSection>
 
       <PortalDetailSection

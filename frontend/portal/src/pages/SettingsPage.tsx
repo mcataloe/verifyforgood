@@ -12,18 +12,15 @@ import {
 } from "../components/feedback";
 import {
   DetailPageLayout,
-  PortalActionToolbar,
   PortalPageShell,
   SectionBlock,
   SectionDivider,
 } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
-import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { BudgetLimitVisualization } from "../settings/BudgetLimitVisualization";
 import { OrganizationProfileSettingsPanel } from "../settings/OrganizationProfileSettingsPanel";
 import { OrganizationDeletionPanel } from "../settings/OrganizationDeletionPanel";
-import { ProfileContextSection } from "../settings/ProfileContextSection";
 import { SupportHelpPanel } from "../settings/SupportHelpPanel";
 import {
   usePortalBudgetSettings,
@@ -79,27 +76,15 @@ export function SettingsPage({
 
   return (
     <PortalPageShell
-      description="Manage your organization profile, usage controls, appearance preferences, and support settings."
+      description="Manage your organization profile, plan access, usage controls, and support settings."
       eyebrow={pane === "settings" ? "Customer admin settings" : "Portal settings"}
       title="Workspace settings"
-      toolbar={
-        <PortalActionToolbar>
-          <div className="portal-action-toolbar__group">
-            <span className="portal-shell__summary-pill">
-              {organization.activeOrganization.organization_name}
-            </span>
-            <span className="portal-shell__summary-pill">
-              {session.plan} plan
-            </span>
-          </div>
-        </PortalActionToolbar>
-      }
     >
       <DetailPageLayout>
         <SectionBlock>
           <Panel
             title="Organization Profile"
-            subtitle="Update the name and contact details your team sees."
+            subtitle="Update the display name, slug, and contact details your team sees."
           >
             <OrganizationProfileSettingsPanel controller={organizationProfile} />
           </Panel>
@@ -122,6 +107,10 @@ export function SettingsPage({
                     "No contact email configured"}
                 </dd>
               </div>
+              <div>
+                <dt>Slug</dt>
+                <dd>{organization.activeOrganization.slug ?? "Not configured"}</dd>
+              </div>
             </dl>
           </Panel>
         </SectionBlock>
@@ -134,15 +123,19 @@ export function SettingsPage({
             <dl className="portal-shell__details">
               <div>
                 <dt>Your role</dt>
-                <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
+                <dd>{formatLabelValue(organization.currentMembership?.role)}</dd>
               </div>
               <div>
                 <dt>Plan</dt>
-                <dd>{session.plan}</dd>
+                <dd>{formatLabelValue(session.plan)}</dd>
               </div>
               <div>
                 <dt>Last updated</dt>
-                <dd>{organization.activeOrganization.updated_at ?? "Not recorded"}</dd>
+                <dd>
+                  {formatFriendlyDateTime(
+                    organization.activeOrganization.updated_at,
+                  )}
+                </dd>
               </div>
             </dl>
           </Panel>
@@ -151,9 +144,16 @@ export function SettingsPage({
         <SectionBlock>
           <Panel
             title="Usage budget controls"
-            subtitle="Set request limits and decide how usage should be handled at the threshold."
+            subtitle="Set an optional organization request cap and decide whether requests stop when that threshold is reached."
           >
-            <BudgetConfigurationPanel controller={budget} />
+            <BudgetConfigurationPanel
+              controller={budget}
+              includedPlanLimit={
+                usage.snapshot?.includedLimits?.monthlyRequests ??
+                usage.snapshot?.usage.limit ??
+                null
+              }
+            />
           </Panel>
         </SectionBlock>
         <SectionDivider />
@@ -178,7 +178,7 @@ export function SettingsPage({
           ) : (
             <Panel
               title="Limit visualization"
-              subtitle="Current usage relative to the configured monthly limit."
+              subtitle="Live organization request usage for the current tracking period."
             >
               <BudgetLimitVisualization
                 allowOverage={budget.settings.allowOverage}
@@ -202,17 +202,6 @@ export function SettingsPage({
         </SectionBlock>
         <SectionDivider />
         <SectionBlock>
-          <ProfileContextSection
-            organization={organization.activeOrganization}
-            session={session}
-          />
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
-          <AppearancePreferenceSection />
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
           <Panel
             title="Support & Help"
             subtitle="Get help, review support information, and contact our team."
@@ -223,4 +212,34 @@ export function SettingsPage({
       </DetailPageLayout>
     </PortalPageShell>
   );
+}
+
+function formatLabelValue(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return "Unknown";
+  }
+
+  return candidate
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatFriendlyDateTime(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return "Not recorded";
+  }
+
+  const parsed = Date.parse(candidate);
+  if (Number.isNaN(parsed)) {
+    return candidate;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date(parsed));
 }

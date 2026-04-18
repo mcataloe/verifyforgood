@@ -995,7 +995,7 @@ def test_put_organization_settings_updates_profile_for_admin():
     assert organizations.get("org_1").name == "Org One Updated"
 
 
-def test_put_organization_settings_rejects_slug_update():
+def test_put_organization_settings_persists_slug_update():
     module = _load_module()
     identity_table = FakeIdentityDynamoTable()
     identity_resource = FakeIdentityDynamoResource(identity_table)
@@ -1029,7 +1029,7 @@ def test_put_organization_settings_rejects_slug_update():
                 {
                     "organization": {
                         "displayName": "Org One Updated",
-                        "slug": "renamed-org",
+                        "slug": "Renamed Org",
                     }
                 }
             ),
@@ -1037,8 +1037,10 @@ def test_put_organization_settings_rejects_slug_update():
         None,
     )
 
-    assert result["statusCode"] == 400
-    assert _response_error_message(result) == "organization.slug is read-only"
+    assert result["statusCode"] == 200
+    body = _response_data(result)
+    assert body["organization"]["slug"] == "renamed-org"
+    assert organizations.get("org_1").slug == "renamed-org"
 
 
 def test_get_organization_settings_requires_admin_membership():

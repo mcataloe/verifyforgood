@@ -125,6 +125,7 @@ class SqlAlchemyOrganizationRepository(OrganizationRepository):
         organization_id: int | str,
         *,
         name: str,
+        slug: str,
         contact_email: str | None,
         updated_at: str,
     ) -> OrganizationRecord | None:
@@ -136,9 +137,15 @@ class SqlAlchemyOrganizationRepository(OrganizationRepository):
             if model is None or model.deleted_at is not None:
                 return None
             model.name = name
+            model.slug = str(slug).strip().lower()
             model.contact_email = contact_email
             model.updated_at = _parse_timestamp(updated_at)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError as exc:
+                raise DuplicateOrganizationSlugError(
+                    f"Organization slug already exists: {slug}"
+                ) from exc
             return _organization_record(model)
 
     def soft_delete(

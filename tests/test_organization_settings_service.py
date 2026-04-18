@@ -89,22 +89,34 @@ def test_update_organization_settings_persists_profile_changes():
         payload={
             "organization": {
                 "displayName": "Org One Updated",
+                "slug": "Org One Renamed",
                 "contactEmail": "",
             }
         },
     )
 
     assert document.organization.display_name == "Org One Updated"
+    assert document.organization.slug == "org-one-renamed"
     assert document.organization.contact_email is None
     persisted = organizations.get("org_1")
     assert persisted is not None
     assert persisted.name == "Org One Updated"
+    assert persisted.slug == "org-one-renamed"
     assert persisted.contact_email is None
 
 
-def test_update_organization_settings_rejects_slug_mutation():
+def test_update_organization_settings_rejects_duplicate_slug():
     service, _organizations, _audit_log_service = _service(
         settings_store=InMemoryOrganizationIntegrationSettingsStore()
+    )
+    _organizations.create(
+        OrganizationRecord(
+            organization_id="org_2",
+            name="Org Two",
+            slug="org-two",
+            created_at="2026-03-28T00:00:00+00:00",
+            updated_at="2026-03-28T00:00:00+00:00",
+        )
     )
 
     try:
@@ -112,10 +124,10 @@ def test_update_organization_settings_rejects_slug_mutation():
             organization_id="org_1",
             workspace_id="org_1",
             account_id="org_1",
-            payload={"organization": {"slug": "new-slug"}},
+            payload={"organization": {"slug": "org-two"}},
         )
     except OrganizationIntegrationSettingsValidationError as exc:
-        assert str(exc) == "organization.slug is read-only"
+        assert str(exc) == "organization.slug is already in use"
     else:
         assert False, "Expected validation error"
 
@@ -133,6 +145,7 @@ def test_update_organization_settings_records_sanitized_audit_event():
         payload={
             "organization": {
                 "displayName": "Org One Updated",
+                "slug": "org-one-updated",
                 "contactEmail": "support@orgone.example",
             },
             "billing": {
@@ -147,7 +160,7 @@ def test_update_organization_settings_records_sanitized_audit_event():
 
     assert len(audit_items) == 2
     assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].actor_user_id == "user_admin"
-    assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata["changed_fields"] == ["display_name", "contact_email"]
+    assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata["changed_fields"] == ["display_name", "slug", "contact_email"]
     assert by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata["changed_sections"] == ["billing"]
     assert "support@orgone.example" not in str(by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata)
     assert by_type[AuditEventType.BILLING_OVERAGE_ENABLED].metadata["previous_allow_overage"] is False

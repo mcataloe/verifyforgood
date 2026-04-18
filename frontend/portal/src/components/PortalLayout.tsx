@@ -8,6 +8,7 @@ import type {
 } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import {
+  resolveCustomerAdminPortalPane,
   resolveCustomerUserPortalPane,
   resolveActivePortalNavigationKey,
   resolvePortalProfileNavigationTarget,
@@ -24,6 +25,7 @@ import { PortalOrganizationSwitcher } from "./PortalOrganizationSwitcher";
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
   currentRoute: PortalRouteDefinition;
+  onOpenOrganizationOnboarding: () => void;
   onSignOut: () => Promise<void>;
   routes: PortalRouteDefinition[];
   runtimeConfig: FrontendRuntimeConfig;
@@ -34,6 +36,7 @@ export function PortalLayout({
   app,
   children,
   currentRoute,
+  onOpenOrganizationOnboarding,
   onSignOut,
   routes,
   runtimeConfig: _runtimeConfig,
@@ -65,11 +68,17 @@ export function PortalLayout({
     audience,
     routes,
   });
+  const customerAdminPane =
+    audience === "customer_admin"
+      ? resolveCustomerAdminPortalPane({ currentHash, currentRoute })
+      : null;
   const isProfileActive =
     audience === "customer_user"
       ? resolveCustomerUserPortalPane({ currentHash, currentRoute }) ===
         "profile"
-      : currentRoute.key === "settings";
+      : audience === "customer_admin"
+        ? customerAdminPane === "profile"
+        : currentRoute.key === "settings";
 
   return (
     <VerifyForGoodAppShell
@@ -80,6 +89,7 @@ export function PortalLayout({
           activeOrganizationId={organization.activeOrganization.organization_id}
           activeOrganizationName={organization.activeOrganization.organization_name}
           availableOrganizations={auth.availableOrganizations}
+          onCreateOrganization={onOpenOrganizationOnboarding}
           onSelectOrganization={(nextOrganization) => {
             auth.applyOrganization(nextOrganization);
           }}

@@ -950,7 +950,7 @@ describe("PortalApp", () => {
     expect(
       screen.queryByRole("heading", { name: "Complete setup" }),
     ).toBeNull();
-    expect(screen.getByRole("button", { name: /^Organization\b/i })).toBeTruthy();
+    expect(screen.getByTestId("portal-organization-switcher")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Account\b/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
     expect(screen.getByRole("button", { name: /^Billing\b/i })).toBeTruthy();

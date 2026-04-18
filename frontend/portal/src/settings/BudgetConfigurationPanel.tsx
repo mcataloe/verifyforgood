@@ -4,10 +4,12 @@ import { HardStopEnforcementField } from "./HardStopEnforcementField";
 
 interface BudgetConfigurationPanelProps {
   controller: PortalBudgetSettingsController;
+  includedPlanLimit?: number | null;
 }
 
 export function BudgetConfigurationPanel({
   controller,
+  includedPlanLimit = null,
 }: BudgetConfigurationPanelProps) {
   const [allowOverage, setAllowOverage] = useState(
     controller.settings.allowOverage,
@@ -33,7 +35,7 @@ export function BudgetConfigurationPanel({
     <div className="portal-budget-form">
       <div className="portal-budget-form__section">
         <label className="portal-form__field" htmlFor="monthly-request-cap">
-          <span>Monthly usage cap</span>
+          <span>Organization request cap</span>
           <input
             className="portal-form__input"
             id="monthly-request-cap"
@@ -49,8 +51,7 @@ export function BudgetConfigurationPanel({
           />
         </label>
         <p className="portal-budget-form__hint">
-          Set the maximum number of requests you want to budget for this month.
-          Leave it blank to use the limit included with your plan.
+          {describeCapGuidance(includedPlanLimit)}
         </p>
       </div>
 
@@ -107,6 +108,14 @@ export function BudgetConfigurationPanel({
   );
 }
 
+function describeCapGuidance(includedPlanLimit: number | null): string {
+  if (includedPlanLimit !== null) {
+    return `Set an optional request cap for this organization. Leave it blank to use the ${includedPlanLimit.toLocaleString()} monthly requests included with your plan.`;
+  }
+
+  return "Set an optional request cap for this organization. Leave it blank to use the monthly request allowance included with your plan.";
+}
+
 function parseMonthlyRequestCap(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -126,7 +135,7 @@ function getValidationMessage(value: string): string | null {
   }
   const parsed = Number.parseInt(trimmed, 10);
   if (!Number.isInteger(parsed) || parsed < 1) {
-    return "Monthly usage cap must be a whole number greater than zero.";
+    return "Organization request cap must be a whole number greater than zero.";
   }
   return null;
 }

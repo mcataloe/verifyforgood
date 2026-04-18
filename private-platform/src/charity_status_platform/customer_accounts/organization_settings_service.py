@@ -15,7 +15,10 @@ from charity_status.enrichments.organization_settings_service import (
 
 from .audit_logging import AuditEventType, AuditLogService
 from .identity_models import OrganizationRecord
-from .identity_repositories import OrganizationRepository
+from .identity_repositories import (
+    DuplicateOrganizationSlugError,
+    OrganizationRepository,
+)
 
 
 class OrganizationSettingsNotFoundError(LookupError):
@@ -78,6 +81,7 @@ class OrganizationSettingsDocument:
 @dataclass(frozen=True)
 class OrganizationProfileUpdate:
     display_name: str
+    slug: str
     contact_email: str | None
 
 
@@ -131,14 +135,24 @@ class OrganizationSettingsService:
         changed_fields: list[str] = []
         changed_sections: list[str] = []
         if has_organization_payload:
-            profile_update = self._parse_profile_payload(payload.get("organization"), current=organization)
-            changed_fields = _profile_changed_fields(current=organization, update=profile_update)
-            persisted = self._organizations.update_profile(
-                organization_id,
-                name=profile_update.display_name,
-                contact_email=profile_update.contact_email,
-                updated_at=updated_at,
+            profile_update = self._parse_profile_payload(
+                payload.get("organization"), current=organization
             )
+            changed_fields = _profile_changed_fields(
+                current=organization, update=profile_update
+            )
+            try:
+                persisted = self._organizations.update_profile(
+                    organization_id,
+                    name=profile_update.display_name,
+                    slug=profile_update.slug,
+                    contact_email=profile_update.contact_email,
+                    updated_at=updated_at,
+                )
+            except DuplicateOrganizationSlugError:
+                raise OrganizationIntegrationSettingsValidationError(
+                    "organization.slug is already in use"
+                ) from None
             if persisted is None:
                 raise OrganizationSettingsNotFoundError("Organization was not found")
             organization = persisted
@@ -218,10 +232,14 @@ class OrganizationSettingsService:
     ) -> OrganizationProfileUpdate:
         if not isinstance(payload, dict):
             raise OrganizationIntegrationSettingsValidationError("organization must be an object")
-        allowed_fields = {"displayName", "display_name", "contactEmail", "contact_email"}
-        unknown_fields = sorted(str(key) for key in payload.keys() if key not in allowed_fields and str(key) != "slug")
-        if "slug" in payload:
-            raise OrganizationIntegrationSettingsValidationError("organization.slug is read-only")
+        allowed_fields = {
+            "displayName",
+            "display_name",
+            "contactEmail",
+            "contact_email",
+            "slug",
+        }
+        unknown_fields = sorted(str(key) for key in payload.keys() if key not in allowed_fields)
         if unknown_fields:
             raise OrganizationIntegrationSettingsValidationError(
                 f"Unsupported organization field(s): {', '.join(unknown_fields)}"
@@ -236,8 +254,12 @@ class OrganizationSettingsService:
             contact_email = _validate_contact_email(
                 payload.get("contactEmail", payload.get("contact_email"))
             )
+        slug = current.slug
+        if "slug" in payload:
+            slug = _validate_slug(payload.get("slug"), fallback_display_name=display_name)
         return OrganizationProfileUpdate(
             display_name=display_name,
+            slug=slug,
             contact_email=contact_email,
         )
 
@@ -268,6 +290,18 @@ def _validate_contact_email(value: Any) -> str | None:
     return candidate
 
 
+def _validate_slug(value: Any, *, fallback_display_name: str) -> str:
+    candidate = str(
+        fallback_display_name if value is None else value
+    ).strip().lower()
+    slug_value = re.sub(r"[^a-z0-9]+", "-", candidate).strip("-")
+    if len(slug_value) < 2:
+        raise OrganizationIntegrationSettingsValidationError(
+            "organization.slug must contain at least 2 alphanumeric characters"
+        )
+    return slug_value
+
+
 def _latest_updated_at(*values: str | None) -> str | None:
     candidates = [str(value).strip() for value in values if str(value or "").strip()]
     if not candidates:
@@ -287,6 +321,8 @@ def _profile_changed_fields(
     changed: list[str] = []
     if current.name != update.display_name:
         changed.append("display_name")
+    if current.slug != update.slug:
+        changed.append("slug")
     if current.contact_email != update.contact_email:
         changed.append("contact_email")
     return changed

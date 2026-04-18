@@ -51,6 +51,7 @@ class OrganizationRepository(Protocol):
         organization_id: int | str,
         *,
         name: str,
+        slug: str,
         contact_email: str | None,
         updated_at: str,
     ) -> OrganizationRecord | None:

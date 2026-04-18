@@ -38,15 +38,15 @@ export function describeBudgetConsequence(input: {
   monthlyRequestCap: number | null;
 }): string {
   if (!input.allowOverage && input.monthlyRequestCap !== null) {
-    return `Requests stop once usage reaches ${input.monthlyRequestCap.toLocaleString()} this month.`;
+    return `Requests stop once organization usage reaches ${input.monthlyRequestCap.toLocaleString()} requests in the current period.`;
   }
 
   if (!input.allowOverage) {
-    return "Requests stop at the included plan limit when the monthly allowance is exhausted.";
+    return "Requests stop at the included plan allowance when the monthly limit is exhausted.";
   }
 
   if (input.monthlyRequestCap !== null) {
-    return `Requests can continue beyond ${input.monthlyRequestCap.toLocaleString()} if needed, so this cap acts as a visible budget target while overage remains enabled.`;
+    return `Requests can continue beyond ${input.monthlyRequestCap.toLocaleString()} if needed, so this cap acts as a budget target while overage remains enabled.`;
   }
 
   return "Requests can continue beyond included usage and may incur overage under the active plan.";

@@ -88,7 +88,7 @@ function PortalAppShell({
     ? resolveMembershipRoleFromContext(auth.session.organization_membership)
     : null;
   const [isOrganizationOnboardingOpen, setIsOrganizationOnboardingOpen] =
-    useState(true);
+    useState(false);
   const organizationClient = useMemo(
     () =>
       auth.accessToken
@@ -300,9 +300,7 @@ function PortalAppShell({
         customerUserPane={customerUserPane}
         endpoints={endpoints}
         isOrganizationOnboardingBusy={auth.isBusy}
-        isOrganizationOnboardingOpen={
-          hasPendingOrganization && isOrganizationOnboardingOpen
-        }
+        isOrganizationOnboardingOpen={isOrganizationOnboardingOpen}
         onCloseOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(false)}
         onOpenOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(true)}
         onCreateOrganization={async (request) => {
@@ -312,6 +310,7 @@ function PortalAppShell({
 
           const created = await organizationClient.createOrganization(request);
           auth.applyOrganization(createPortalActiveOrganizationRecord(created));
+          setIsOrganizationOnboardingOpen(false);
           navigateToPortalRoute("#/dashboard");
         }}
         runtimeConfig={runtimeConfig}
@@ -402,6 +401,7 @@ function PortalAuthorizedShell({
     <PortalLayout
       app={appInfo}
       currentRoute={currentRoute}
+      onOpenOrganizationOnboarding={onOpenOrganizationOnboarding}
       onSignOut={onSignOut}
       routes={portalProtectedRoutes.filter(
         (route) => route.key !== organizationOnboardingPortalRoute.key,
@@ -499,7 +499,8 @@ function PortalAuthorizedShell({
         />
       ) : null}
       {currentRoute.key === "settings" ? (
-        audience === "customer_user" && customerUserPane === "profile" ? (
+        (audience === "customer_user" && customerUserPane === "profile") ||
+        (audience === "customer_admin" && customerAdminPane === "profile") ? (
           <CustomerUserProfilePage
             environment={runtimeConfig.environment}
             session={session}

@@ -48,9 +48,7 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
     expect(screen.getByTestId("portal-organization-switcher")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /Profile & preferences/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Open profile/i })).toBeTruthy();
   });
 
   it("keeps the active organization child visible under the organization branch", () => {
@@ -65,7 +63,7 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
   });
 
-  it("shows a multi-organization switcher in the header for users with more than one org", () => {
+  it("shows a multi-organization switcher in the header for users with more than one org", async () => {
     renderPortalLayout({
       availableOrganizations: [
         createOrganizationRecord({
@@ -94,9 +92,10 @@ describe("PortalLayout", () => {
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
     expect(screen.getByText("Secondary Org")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();
+    expect(screen.getByText("Create organization")).toBeTruthy();
   });
 
-  it("shows the organization dropdown when at least one accessible organization is available", () => {
+  it("shows the organization dropdown when at least one accessible organization is available", async () => {
     renderPortalLayout();
 
     fireEvent.click(screen.getByTestId("portal-organization-switcher"));
@@ -104,9 +103,10 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Switch organization")).toBeTruthy();
     expect(screen.getAllByText("VerifyForGood Demo Workspace").length).toBeGreaterThan(0);
     expect(screen.getByText("Current")).toBeTruthy();
+    expect(screen.getByText("Create organization")).toBeTruthy();
   });
 
-  it("keeps a simple label when no accessible organizations are available yet", () => {
+  it("keeps the organization dropdown available when onboarding is still pending", async () => {
     renderPortalLayout({
       availableOrganizations: [],
       session: {
@@ -117,8 +117,10 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByTestId("portal-current-organization")).toBeTruthy();
-    expect(screen.queryByTestId("portal-organization-switcher")).toBeNull();
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+
+    expect(screen.getByText("No organizations available yet")).toBeTruthy();
+    expect(screen.getByText("Create organization")).toBeTruthy();
   });
 
   it("switches active organization through the shared auth seam", () => {
@@ -155,6 +157,25 @@ describe("PortalLayout", () => {
         organization_name: "Secondary Org",
       }),
     );
+  });
+
+  it("opens organization creation from the header switcher menu", async () => {
+    const onOpenOrganizationOnboarding = vi.fn();
+
+    renderPortalLayout({
+      onOpenOrganizationOnboarding,
+    });
+
+    fireEvent.click(screen.getByTestId("portal-organization-switcher"));
+    const createOrganizationLabel = screen.getByText("Create organization");
+    const createOrganizationButton =
+      createOrganizationLabel.closest("button");
+    if (!createOrganizationButton) {
+      throw new Error("Expected create organization button");
+    }
+    fireEvent.click(createOrganizationButton);
+
+    expect(onOpenOrganizationOnboarding).toHaveBeenCalledTimes(1);
   });
 
   it("hides admin-only navigation items when the current membership role is user", () => {
@@ -333,6 +354,7 @@ function renderPortalLayout({
   availableOrganizations,
   currentHash,
   currentRoute = resolvePortalRoute("#/dashboard"),
+  onOpenOrganizationOnboarding = vi.fn(),
   session = createMockPortalSession(),
 }: {
   applyOrganization?: ReturnType<typeof vi.fn>;
@@ -346,6 +368,7 @@ function renderPortalLayout({
   }>;
   currentHash?: string;
   currentRoute?: PortalRouteDefinition;
+  onOpenOrganizationOnboarding?: ReturnType<typeof vi.fn>;
   session?: ReturnType<typeof createMockPortalSession>;
 } = {}) {
   window.location.hash = currentHash ?? currentRoute.hash;
@@ -422,6 +445,7 @@ function renderPortalLayout({
           <PortalLayout
             app={app}
             currentRoute={currentRoute}
+            onOpenOrganizationOnboarding={onOpenOrganizationOnboarding}
             onSignOut={vi.fn(async () => {})}
             routes={portalProtectedRoutes}
             runtimeConfig={runtimeConfig}

@@ -121,16 +121,26 @@ class DynamoOrganizationRepository:
         organization_id: str,
         *,
         name: str,
+        slug: str,
         contact_email: str | None,
         updated_at: str,
     ) -> OrganizationRecord | None:
         existing = self.get(organization_id)
         if existing is None:
             return None
+        normalized_slug = _normalize_slug(slug)
+        existing_with_slug = self.get_by_slug(normalized_slug)
+        if (
+            existing_with_slug is not None
+            and existing_with_slug.organization_id != existing.organization_id
+        ):
+            raise DuplicateOrganizationSlugError(
+                f"Organization slug already exists: {normalized_slug}"
+            )
         updated = OrganizationRecord(
             organization_id=existing.organization_id,
             name=name,
-            slug=existing.slug,
+            slug=normalized_slug,
             created_at=existing.created_at,
             updated_at=updated_at,
             contact_email=contact_email,

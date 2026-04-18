@@ -144,21 +144,25 @@ export function PortalAuthProvider({
     }
 
     const persisted = writeStoredActiveOrganization(organization);
-    const nextSession = createPortalCompatibilitySession(
-      {
-        email: authState.session.user.email,
-        full_name: authState.session.user.display_name,
-        user_id: authState.session.user.subject_id,
-      },
-      persisted,
-    );
     const nextAvailableOrganizations =
-      authState.availableOrganizations.find(
+      authState.availableOrganizations.some(
         (candidate) =>
           candidate.organization_id === persisted.organization_id,
       )
-        ? authState.availableOrganizations
+        ? authState.availableOrganizations.map((candidate) =>
+            candidate.organization_id === persisted.organization_id
+              ? persisted
+              : candidate,
+          )
         : [...authState.availableOrganizations, persisted];
+    const nextSession = {
+      ...authState.session,
+      account_id: persisted.account_id,
+      organization_context_status: "active" as const,
+      organization_membership: persisted.membership,
+      organization_name: persisted.organization_name,
+      workspace_id: persisted.workspace_id,
+    };
     setAuthState((currentState) => ({
       ...currentState,
       availableOrganizations: nextAvailableOrganizations,
@@ -190,14 +194,23 @@ export function PortalAuthProvider({
       clearStoredActiveOrganization();
     }
 
-    const nextSession = createPortalCompatibilitySession(
-      {
-        email: authState.session.user.email,
-        full_name: authState.session.user.display_name,
-        user_id: authState.session.user.subject_id,
-      },
-      nextOrganization,
-    );
+    const nextSession = nextOrganization
+      ? {
+          ...authState.session,
+          account_id: nextOrganization.account_id,
+          organization_context_status: "active" as const,
+          organization_membership: nextOrganization.membership,
+          organization_name: nextOrganization.organization_name,
+          workspace_id: nextOrganization.workspace_id,
+        }
+      : createPortalCompatibilitySession(
+          {
+            email: authState.session.user.email,
+            full_name: authState.session.user.display_name,
+            user_id: authState.session.user.subject_id,
+          },
+          null,
+        );
     setAuthState((currentState) => ({
       ...currentState,
       availableOrganizations: remainingOrganizations,

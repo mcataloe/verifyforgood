@@ -17,7 +17,7 @@ describe("CustomerUserProfilePage", () => {
     });
   });
 
-  it("renders profile fields, account details, and appearance controls", () => {
+  it("renders personal profile fields and appearance controls without organization data", () => {
     const { container } = renderWithOrganization(
       <CustomerUserProfilePage
         environment="test"
@@ -30,9 +30,8 @@ describe("CustomerUserProfilePage", () => {
       screen.getByRole("heading", { name: "Personal information" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Account details" }),
+      screen.getByRole("heading", { name: "Appearance" }),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
     expect(screen.getByLabelText("First Name")).toBeTruthy();
     expect(screen.getByLabelText("Last Name")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
@@ -41,16 +40,13 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
-    expect(screen.getByText("Portal Test Org")).toBeTruthy();
-    expect(screen.getByText("User")).toBeTruthy();
+    expect(screen.queryByText("Portal Test Org")).toBeNull();
+    expect(screen.queryByText("User")).toBeNull();
     expect(screen.queryByText("test")).toBeNull();
     expect(screen.queryByText("Profile details")).toBeNull();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
-    expect(container.querySelector(".vf-detail-field-list")).toBeTruthy();
-    expect(
-      container.querySelector(".portal-settings-profile__details"),
-    ).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(3);
+    expect(container.querySelector(".vf-detail-field-list")).toBeNull();
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(2);
   });
 
   it("persists appearance selection through the shared color-scheme storage key", () => {

@@ -130,13 +130,10 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Plan & access" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Portal Test Org").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/admin/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("Alex Operator")).toBeTruthy();
-    expect(screen.getByText("alex.operator@example.org")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Growth")).toBeTruthy();
     expect(screen.getByDisplayValue("Portal Test Org")).toBeTruthy();
+    expect(screen.getByDisplayValue("portal-test-org")).toBeTruthy();
     expect(screen.getByDisplayValue("ops@example.org")).toBeTruthy();
     expect(screen.getByDisplayValue("800")).toBeTruthy();
     expect(screen.getByText("Budget controls saved.")).toBeTruthy();
@@ -149,9 +146,9 @@ describe("SettingsPage", () => {
     ).toBeTruthy();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(8);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(6);
 
-    fireEvent.change(screen.getByLabelText("Monthly usage cap"), {
+    fireEvent.change(screen.getByLabelText("Organization request cap"), {
       target: { value: "950" },
     });
     fireEvent.click(
@@ -227,7 +224,7 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Overage allowed")).toBeTruthy();
   });
 
-  it("persists the appearance preference through the existing theme storage key", () => {
+  it("keeps user appearance controls off the organization settings page", () => {
     renderWithOrganization(
       <SettingsPage
         endpoints={endpoints}
@@ -235,14 +232,12 @@ describe("SettingsPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
-
-    expect(window.localStorage.getItem("verifyforgood-color-scheme")).toBe(
-      "dark",
-    );
+    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Light" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dark" })).toBeNull();
     expect(
-      screen.getByText(/Current selection:/i).textContent,
-    ).toContain("Dark");
+      window.localStorage.getItem("verifyforgood-color-scheme"),
+    ).toBeNull();
   });
 
   it("submits organization profile updates through the shared settings surface", () => {
@@ -273,6 +268,9 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText("Display name"), {
       target: { value: "Updated Portal Org" },
     });
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "updated-portal-org" },
+    });
     fireEvent.change(screen.getByLabelText("Contact email"), {
       target: { value: "support@example.org" },
     });
@@ -283,6 +281,7 @@ describe("SettingsPage", () => {
     expect(save).toHaveBeenCalledWith({
       contactEmail: "support@example.org",
       displayName: "Updated Portal Org",
+      slug: "updated-portal-org",
     });
   });
 
@@ -412,7 +411,9 @@ describe("SettingsPage", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Report an issue" })).toBeTruthy();
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
-    expect(screen.getAllByText("growth").length).toBeGreaterThan(0);
+    expect(screen.getByText("Growth")).toBeTruthy();
+    expect(screen.queryByText("Alex Operator")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dark" })).toBeNull();
     expect(
       screen.getByText(/There is not yet a customer-visible ticket thread./i),
     ).toBeTruthy();
