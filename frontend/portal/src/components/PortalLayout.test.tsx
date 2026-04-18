@@ -40,10 +40,16 @@ describe("PortalLayout", () => {
 
     expect(getSidebarBranchButton("Organization")).toBeTruthy();
     expect(getSidebarBranchButton("Account")).toBeTruthy();
+    expect(getSidebarBranchButton("Support & Help")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API Keys\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
+
+    fireEvent.click(getSidebarBranchButton("Support & Help") as HTMLElement);
+    expect(screen.getByRole("link", { name: /^Contact Support\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Report An Issue\b/i })).toBeTruthy();
+
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
     expect(screen.getByTestId("portal-organization-switcher")).toBeTruthy();
@@ -212,8 +218,10 @@ describe("PortalLayout", () => {
 
     const organizationBranch = getSidebarBranchButton("Organization");
     const accountBranch = getSidebarBranchButton("Account");
+    const supportBranch = getSidebarBranchButton("Support & Help");
     expect(organizationBranch).toBeTruthy();
     expect(accountBranch).toBeTruthy();
+    expect(supportBranch).toBeTruthy();
     fireEvent.click(accountBranch as HTMLElement);
     const billingButton = screen.getByRole("button", { name: /^Billing\b/i });
     const usageButton = screen.getByRole("button", { name: /^Usage\b/i });
@@ -228,6 +236,16 @@ describe("PortalLayout", () => {
     expect(isUnavailable(usageButton)).toBe(true);
     expect(isUnavailable(apiKeysButton)).toBe(true);
     expect(isUnavailable(settingsButton)).toBe(true);
+
+    fireEvent.click(supportBranch as HTMLElement);
+    const contactSupportButton = screen.getByRole("button", {
+      name: /^Contact Support\b/i,
+    });
+    const reportIssueButton = screen.getByRole("button", {
+      name: /^Report An Issue\b/i,
+    });
+    expect(isUnavailable(contactSupportButton)).toBe(true);
+    expect(isUnavailable(reportIssueButton)).toBe(true);
   });
 
   it("maps customer-user navigation to dashboard, search, automation, and footer profile access", () => {

@@ -13,7 +13,6 @@ import {
 import type { PortalBudgetSettingsController } from "../settings/usePortalBudgetSettings";
 import type { PortalOrganizationProfileSettingsController } from "../settings/usePortalOrganizationProfileSettings";
 import type { PortalOrganizationDeletionController } from "../settings/usePortalOrganizationDeletion";
-import type { PortalSupportController } from "../settings/usePortalSupport";
 import { SettingsPage } from "./SettingsPage";
 
 const endpoints: PortalEndpoints = {
@@ -124,12 +123,8 @@ describe("SettingsPage", () => {
       screen.getByRole("heading", { name: "Organization Profile" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Organization details" }),
-    ).toBeTruthy();
-    expect(
       screen.getByRole("heading", { name: "Plan & access" }),
     ).toBeTruthy();
-    expect(screen.getAllByText("Portal Test Org").length).toBeGreaterThan(0);
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Growth")).toBeTruthy();
     expect(screen.getByDisplayValue("Portal Test Org")).toBeTruthy();
@@ -140,13 +135,18 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Organization profile saved.")).toBeTruthy();
     expect(screen.queryByText("Current backend anchor")).toBeNull();
     expect(screen.queryByText("Settings source")).toBeNull();
-    expect(screen.getByText("240 / 800")).toBeTruthy();
-    expect(
-      screen.getByText(/560 requests remain before the hard stop is reached./i),
-    ).toBeTruthy();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(6);
+    expect(screen.getAllByTestId("section-divider")).toHaveLength(3);
+    expect(
+      screen.queryByRole("heading", { name: "Organization details" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Support & Help" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Limit visualization" }),
+    ).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Organization request cap"), {
       target: { value: "950" },
@@ -218,10 +218,9 @@ describe("SettingsPage", () => {
 
     expect(
       screen.getByText(
-        /This limit has been reached, but requests can continue because hard-stop enforcement is disabled./i,
+        /Requests can continue beyond 500 if needed, so this cap acts as a budget target while overage remains enabled./i,
       ),
     ).toBeTruthy();
-    expect(screen.getByText("Overage allowed")).toBeTruthy();
   });
 
   it("keeps user appearance controls off the organization settings page", () => {
@@ -371,155 +370,6 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("uses the standardized error state when limit visualization cannot load", () => {
-    renderWithOrganization(
-      <SettingsPage
-        endpoints={endpoints}
-        session={createMockPortalSession()}
-        usageController={{
-          error: "Visualization failed.",
-          isLoading: false,
-          reload: vi.fn(async () => {}),
-          snapshot: null,
-        }}
-      />,
-    );
-
-    expect(
-      screen.getByRole("heading", { name: "Limit visualization unavailable" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Visualization failed.")).toBeTruthy();
-  });
-
-  it("renders support context for customer admins", () => {
-    const supportController = createSupportController();
-
-    renderWithOrganization(
-      <SettingsPage
-        endpoints={endpoints}
-        session={createMockPortalSession()}
-        supportController={supportController}
-      />,
-    );
-
-    expect(
-      screen.getByRole("heading", { name: "Support & Help" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Support contact" })).toBeTruthy();
-    expect(
-      screen.getAllByRole("heading", { name: "Account details" }).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeTruthy();
-    expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
-    expect(screen.getByText("Growth")).toBeTruthy();
-    expect(screen.queryByText("Alex Operator")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dark" })).toBeNull();
-    expect(
-      screen.getByText(/There is not yet a customer-visible ticket thread./i),
-    ).toBeTruthy();
-  });
-
-  it("validates support requests before submission", () => {
-    const submit = vi.fn(async () => {});
-    const supportController = createSupportController({ submit });
-
-    renderWithOrganization(
-      <SettingsPage
-        endpoints={endpoints}
-        session={createMockPortalSession()}
-        supportController={supportController}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText("Reply email"), {
-      target: { value: "invalid-email" },
-    });
-    fireEvent.change(screen.getByLabelText("Subject"), {
-      target: { value: "Hi" },
-    });
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "short" },
-    });
-
-    expect(
-      screen.getByText("Subject must be at least 3 characters."),
-    ).toBeTruthy();
-    expect(
-      screen
-        .getByRole("button", { name: "Send support request" })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-
-    fireEvent.change(screen.getByLabelText("Subject"), {
-      target: { value: "API issue" },
-    });
-    expect(
-      screen.getByText("Description must be at least 10 characters."),
-    ).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "Enough detail to satisfy validation." },
-    });
-    expect(
-      screen.getByText("Reply email must be a valid email address."),
-    ).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
-    expect(submit).not.toHaveBeenCalled();
-  });
-
-  it("submits support requests and shows the recorded acknowledgment", async () => {
-    const submit = vi.fn(async () => {});
-    const supportController = createSupportController({
-      clearReceipt: vi.fn(),
-      receipt: {
-        delivery_mode: "recorded_only",
-        status: "received",
-        submitted_at: "2026-03-29T14:15:00Z",
-        support_email: "support@verifyforgood.com",
-        support_request_id: "support_req_123",
-      },
-      submit,
-    });
-
-    renderWithOrganization(
-      <SettingsPage
-        endpoints={endpoints}
-        session={createMockPortalSession()}
-        supportController={supportController}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText("Category"), {
-      target: { value: "billing" },
-    });
-    fireEvent.change(screen.getByLabelText("Reply email"), {
-      target: { value: "ops@example.org" },
-    });
-    fireEvent.change(screen.getByLabelText("Subject"), {
-      target: { value: "Billing question" },
-    });
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "Please confirm which plan includes higher lookup limits." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
-
-    await waitFor(() => {
-      expect(submit).toHaveBeenCalledTimes(1);
-    });
-    expect(submit).toHaveBeenCalledWith({
-      category: "billing",
-      context: {
-        current_route_hash: "#/settings?nav=customer-admin-settings",
-        user_agent: window.navigator.userAgent,
-      },
-      description: "Please confirm which plan includes higher lookup limits.",
-      reply_email: "ops@example.org",
-      subject: "Billing question",
-    });
-    expect(screen.getByText(/Support request sent/i)).toBeTruthy();
-    expect(screen.queryByText(/support_req_123/i)).toBeNull();
-  });
 });
 
 function createStorageMock(): Storage {
@@ -659,47 +509,3 @@ function renderWithOrganization(element: ReactNode) {
   );
 }
 
-function createSupportController(
-  overrides: Partial<PortalSupportController> = {},
-): PortalSupportController {
-  return {
-    clearReceipt: vi.fn(),
-    context: {
-      account_context: {
-        account_id: "acct_portal_test",
-        contact_email: "ops@example.org",
-        current_plan: "growth",
-        membership_role: "admin",
-        organization_id: "org_portal_test",
-        organization_name: "Portal Test Org",
-        workspace_id: "ws_portal_test",
-      },
-      issue_reporting: {
-        delivery_mode: "recorded_only",
-        honesty_notice:
-          "Support requests are recorded for follow-up. There is not yet a customer-visible ticket thread.",
-        urgent_contact_notice:
-          "Urgent issues should still go through the listed support email.",
-      },
-      product_links: {
-        api_access_hash: "#/api-access?nav=customer-admin-api",
-        billing_hash: "#/usage-billing?nav=customer-admin-billing",
-        homepage_url: "https://verifyforgood.com",
-        usage_hash: "#/usage-billing?nav=customer-admin-usage",
-      },
-      support_contact: {
-        brand_name: "VerifyForGood",
-        homepage_url: "https://verifyforgood.com",
-        support_email: "support@verifyforgood.com",
-        support_mailto: "mailto:support@verifyforgood.com",
-      },
-    },
-    error: null,
-    isLoading: false,
-    isSubmitting: false,
-    receipt: null,
-    reload: vi.fn(async () => {}),
-    submit: vi.fn(async () => {}),
-    ...overrides,
-  };
-}

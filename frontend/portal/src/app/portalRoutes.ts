@@ -5,6 +5,7 @@ export type PortalProtectedRouteKey =
   | "dashboard"
   | "search"
   | "team"
+  | "support"
   | "billing"
   | "usage"
   | "workspace"
@@ -86,6 +87,14 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
     hash: "#/team",
     description:
       "Manage team access and review organization details.",
+  },
+  {
+    access: "protected",
+    key: "support",
+    label: "Support & Help",
+    hash: "#/support",
+    description:
+      "Contact support and report issues for your organization.",
   },
   {
     access: "protected",

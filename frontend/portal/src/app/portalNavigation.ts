@@ -43,6 +43,8 @@ export type CustomerAdminPortalPane =
   | "home"
   | "search"
   | "team"
+  | "support-contact"
+  | "support-report-issue"
   | "billing"
   | "usage"
   | "api"
@@ -66,6 +68,8 @@ const customerAdminPaneByAlias: Record<string, CustomerAdminPortalPane> = {
   "customer-admin-profile": "profile",
   "customer-admin-search": "search",
   "customer-admin-settings": "settings",
+  "customer-admin-support-contact": "support-contact",
+  "customer-admin-support-report-issue": "support-report-issue",
   "customer-admin-team": "team",
   "customer-admin-usage": "usage",
 };
@@ -181,6 +185,8 @@ export function resolveCustomerAdminPortalPane(params: {
       return "search";
     case "team":
       return "team";
+    case "support":
+      return "support-contact";
     case "workspace":
       return "search";
     case "billing":
@@ -266,6 +272,12 @@ export function resolveCanonicalCustomerAdminHash(params: {
       return "#/search";
     case "team":
       return "#/team";
+    case "support":
+      if (alias === "customer-admin-support-report-issue") {
+        return "#/support?nav=customer-admin-support-report-issue";
+      }
+
+      return "#/support?nav=customer-admin-support-contact";
     case "billing":
       return "#/billing";
     case "usage":
@@ -585,6 +597,34 @@ function buildAudienceNavigationSections(
                   "Settings",
                   {
                     helpText: "Manage organization settings and preferences.",
+                  },
+                ),
+              ],
+            },
+            {
+              key: "customer-admin-support",
+              label: "Support & Help",
+              helpText:
+                "Contact support and report issues without mixing support into organization settings.",
+              children: [
+                navigationItem(
+                  routeByKey,
+                  "support",
+                  "customer-admin-support-contact",
+                  "Contact Support",
+                  {
+                    helpText:
+                      "Support contact details and helpful product links.",
+                  },
+                ),
+                navigationItem(
+                  routeByKey,
+                  "support",
+                  "customer-admin-support-report-issue",
+                  "Report An Issue",
+                  {
+                    helpText:
+                      "Send support requests and product recommendations.",
                   },
                 ),
               ],

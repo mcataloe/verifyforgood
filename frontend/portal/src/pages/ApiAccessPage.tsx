@@ -4,7 +4,6 @@ import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
 import { ApiKeyManager } from "../api-access/ApiKeyManager";
 import {
-  PortalActionToolbar,
   PortalPageShell,
   PortalSectionHeader,
 } from "../components/shell";
@@ -25,18 +24,6 @@ export function ApiAccessPage({
       description="Create and manage API keys for your organization."
       eyebrow={pane === "api" ? "Customer admin API" : "Customer portal API"}
       title="API access"
-      toolbar={
-        <PortalActionToolbar>
-          <div className="portal-action-toolbar__group">
-            <span className="portal-shell__summary-pill">
-              Auth {session.auth_method.replaceAll("_", " ")}
-            </span>
-            <span className="portal-shell__summary-pill">
-              {session.scopes.length} scopes
-            </span>
-          </div>
-        </PortalActionToolbar>
-      }
     >
       <Panel
         title="API credentials"

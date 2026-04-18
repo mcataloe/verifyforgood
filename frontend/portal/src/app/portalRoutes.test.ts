@@ -29,6 +29,10 @@ describe("portal route resolution", () => {
       hash: "#/team",
       key: "team",
     });
+    expect(resolvePortalRoute("#/support")).toMatchObject({
+      hash: "#/support",
+      key: "support",
+    });
     expect(resolvePortalRoute("#/billing")).toMatchObject({
       hash: "#/billing",
       key: "billing",

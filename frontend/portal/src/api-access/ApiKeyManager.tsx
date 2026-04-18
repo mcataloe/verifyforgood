@@ -173,8 +173,8 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
             </div>
           </label>
           <Inline className="portal-form__actions">
-            <span className="portal-key-chip">
-              {apiKeys.visibleSecret.key.display_name}
+            <span>
+              Key name: <strong>{apiKeys.visibleSecret.key.display_name}</strong>
             </span>
             <button
               className="portal-shell__action"

@@ -24,14 +24,13 @@ export function SubscriptionSummaryCard({
             {presentation.description}
           </p>
         </div>
-        <span
-          className={`portal-subscription-status portal-subscription-status--${presentation.tone}`}
-        >
-          {presentation.label}
-        </span>
       </div>
 
       <dl className="portal-subscription-summary__grid">
+        <div>
+          <dt>Summary</dt>
+          <dd>{presentation.label}</dd>
+        </div>
         <div>
           <dt>Current plan</dt>
           <dd>

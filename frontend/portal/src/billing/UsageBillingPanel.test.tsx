@@ -297,31 +297,12 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Current subscription" }),
     ).toBeTruthy();
-    expect(screen.getByText("19,000 / 100,000")).toBeTruthy();
-    expect(
-      screen.getByText("Hard stop enabled at the monthly request limit"),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", {
-        name: "Usage compared with this plan's included quota",
-      }),
-    ).toBeTruthy();
-    expect(screen.getByText("10,000 requests")).toBeTruthy();
-    expect(screen.getByText("905 requests / day")).toBeTruthy();
-    expect(screen.getByText("About 28,048 requests")).toBeTruthy();
-    expect(
-      screen.getByText(
-        /At this pace, usage would likely exceed the included quota by about 18,048 requests/i,
-      ),
-    ).toBeTruthy();
-    expect(screen.getByText(/\$0\.003 per extra request/i)).toBeTruthy();
     expect(
       screen.getByText(/Use this page to review usage, manage billing, and make plan changes./i),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Manage plans" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
-    expect(screen.getAllByText("Current access").length).toBeGreaterThan(0);
     expect(screen.getByText("Scheduled downgrade")).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Schedule downgrade" }).length,
@@ -405,8 +386,8 @@ describe("UsageBillingPanel", () => {
     expect(screen.getByText("Nonprofit lookups")).toBeTruthy();
     expect(screen.getByText("Usage metrics recorded this month")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Subscription is in good standing" }),
-    ).toBeTruthy();
+      screen.queryByRole("heading", { name: "Subscription is in good standing" }),
+    ).toBeNull();
   });
 
   it("renders a read-only billing visibility mode without payment actions", () => {

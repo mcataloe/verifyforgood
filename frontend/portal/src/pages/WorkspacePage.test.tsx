@@ -39,7 +39,6 @@ describe("WorkspacePage", () => {
     expect(
       screen.getByRole("heading", { name: "Nonprofit search" }),
     ).toBeTruthy();
-    expect(screen.getByText("admin access")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
     expect(
       screen.queryByRole("heading", { name: "Organization details" }),

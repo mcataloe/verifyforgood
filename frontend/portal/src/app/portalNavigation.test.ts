@@ -38,6 +38,11 @@ describe("portal navigation config", () => {
       key: "customer-admin-api",
       label: "API Keys",
     });
+    expect(sections[0]?.items[2]?.children?.[0]).toMatchObject({
+      href: "#/support?nav=customer-admin-support-contact",
+      key: "customer-admin-support-contact",
+      label: "Contact Support",
+    });
   });
 
   it("chooses one navigation audience per session instead of merging role menus", () => {
@@ -81,7 +86,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Organization", "Account"],
+        items: ["Organization", "Account", "Support & Help"],
         label: "",
       },
     ]);
@@ -186,6 +191,7 @@ describe("portal navigation config", () => {
     expect(section?.items.map((item) => item.label)).toEqual([
       "Organization",
       "Account",
+      "Support & Help",
     ]);
     expect(accountBranch?.children?.map((item) => [item.label, item.visibilityState])).toEqual([
       ["Billing", "locked"],
@@ -194,6 +200,16 @@ describe("portal navigation config", () => {
       ["Settings", "locked"],
     ]);
     expect(accountBranch?.children?.every((item) => !item.href)).toBe(true);
+    const supportBranch = section?.items.find(
+      (item) => item.key === "customer-admin-support",
+    );
+    expect(
+      supportBranch?.children?.map((item) => [item.label, item.visibilityState]),
+    ).toEqual([
+      ["Contact Support", "locked"],
+      ["Report An Issue", "locked"],
+    ]);
+    expect(supportBranch?.children?.every((item) => !item.href)).toBe(true);
   });
 
   it("resolves the active navigation item from the current hash alias before falling back to the base route", () => {

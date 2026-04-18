@@ -8,6 +8,7 @@ import type { PortalSupportController } from "./usePortalSupport";
 
 interface SupportHelpPanelProps {
   controller: PortalSupportController;
+  pane?: "contact" | "report";
 }
 
 const supportCategories = [
@@ -16,11 +17,15 @@ const supportCategories = [
   { label: "API", value: "api" },
   { label: "Data quality", value: "data_quality" },
   { label: "Nonprofit access", value: "nonprofit_access" },
+  { label: "Recommendation", value: "recommendation" },
   { label: "Settings", value: "settings" },
   { label: "Other", value: "other" },
 ] as const;
 
-export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
+export function SupportHelpPanel({
+  controller,
+  pane,
+}: SupportHelpPanelProps) {
   const [category, setCategory] = useState<
     (typeof supportCategories)[number]["value"]
   >("other");
@@ -77,205 +82,191 @@ export function SupportHelpPanel({ controller }: SupportHelpPanelProps) {
 
   return (
     <div className="portal-budget-form">
-      <section className="portal-budget-form__section">
-        <h3>Support contact</h3>
-        <p className="portal-budget-form__hint">
-          {context.issue_reporting.honesty_notice}
-        </p>
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Support email</dt>
-            <dd>
-              <a href={context.support_contact.support_mailto}>
-                {context.support_contact.support_email}
-              </a>
-            </dd>
-          </div>
-          <div>
-            <dt>Brand</dt>
-            <dd>{context.support_contact.brand_name}</dd>
-          </div>
-          <div>
-            <dt>Homepage</dt>
-            <dd>
-              <a
-                href={context.support_contact.homepage_url}
-                rel="noreferrer"
-                target="_blank"
+      {(pane ?? "contact") === "contact" ? (
+        <section className="portal-budget-form__section">
+          <h3>Contact Support</h3>
+          <p className="portal-budget-form__hint">
+            {context.issue_reporting.honesty_notice}
+          </p>
+          <dl className="portal-shell__details">
+            <div>
+              <dt>Support email</dt>
+              <dd>
+                <a href={context.support_contact.support_mailto}>
+                  {context.support_contact.support_email}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt>Brand</dt>
+              <dd>{context.support_contact.brand_name}</dd>
+            </div>
+            <div>
+              <dt>Homepage</dt>
+              <dd>
+                <a
+                  href={context.support_contact.homepage_url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {context.support_contact.homepage_url}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt>Helpful links</dt>
+              <dd>
+                <a href={context.product_links.api_access_hash}>API access</a>
+                {" | "}
+                <a href={context.product_links.usage_hash}>Usage</a>
+                {" | "}
+                <a href={context.product_links.billing_hash}>Billing</a>
+              </dd>
+            </div>
+          </dl>
+          <p className="portal-budget-form__hint">
+            {context.issue_reporting.urgent_contact_notice}
+          </p>
+        </section>
+      ) : null}
+
+      {(pane ?? "report") === "report" ? (
+        <section className="portal-budget-form__section">
+          <h3>Report An Issue</h3>
+          <form className="portal-form portal-form--detail">
+            <label className="portal-form__field" htmlFor="support-category">
+              <span>Category</span>
+              <select
+                className="portal-form__input"
+                id="support-category"
+                onChange={(event) => {
+                  controller.clearReceipt();
+                  setCategory(
+                    event.target
+                      .value as (typeof supportCategories)[number]["value"],
+                  );
+                }}
+                value={category}
               >
-                {context.support_contact.homepage_url}
-              </a>
-            </dd>
-          </div>
-          <div>
-            <dt>Helpful links</dt>
-            <dd>
-              <a href={context.product_links.api_access_hash}>API access</a>
-              {" | "}
-              <a href={context.product_links.usage_hash}>Usage visibility</a>
-              {" | "}
-              <a href={context.product_links.billing_hash}>Billing visibility</a>
-            </dd>
-          </div>
-        </dl>
-        <p className="portal-budget-form__hint">
-          {context.issue_reporting.urgent_contact_notice}
-        </p>
-      </section>
+                {supportCategories.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      <section className="portal-budget-form__section">
-        <h3>Account details</h3>
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Organization</dt>
-            <dd>{context.account_context.organization_name ?? "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Plan</dt>
-            <dd>{context.account_context.current_plan ?? "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Your role</dt>
-            <dd>{context.account_context.membership_role ?? "Unknown"}</dd>
-          </div>
-        </dl>
-      </section>
+            <label className="portal-form__field" htmlFor="support-reply-email">
+              <span>Reply email</span>
+              <input
+                className="portal-form__input"
+                id="support-reply-email"
+                onChange={(event) => {
+                  controller.clearReceipt();
+                  setReplyEmail(event.target.value);
+                }}
+                placeholder="ops@example.org"
+                type="email"
+                value={replyEmail}
+              />
+            </label>
 
-      <section className="portal-budget-form__section">
-        <h3>Report an issue</h3>
-        <form className="portal-form portal-form--detail">
-          <label className="portal-form__field" htmlFor="support-category">
-            <span>Category</span>
-            <select
-              className="portal-form__input"
-              id="support-category"
-              onChange={(event) => {
-                controller.clearReceipt();
-                setCategory(
-                  event.target
-                    .value as (typeof supportCategories)[number]["value"],
-                );
-              }}
-              value={category}
-            >
-              {supportCategories.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="portal-form__field" htmlFor="support-subject">
+              <span>Subject</span>
+              <input
+                className="portal-form__input"
+                id="support-subject"
+                onChange={(event) => {
+                  controller.clearReceipt();
+                  setSubject(event.target.value);
+                }}
+                placeholder="Short summary of the issue"
+                type="text"
+                value={subject}
+              />
+            </label>
 
-          <label className="portal-form__field" htmlFor="support-reply-email">
-            <span>Reply email</span>
-            <input
-              className="portal-form__input"
-              id="support-reply-email"
-              onChange={(event) => {
-                controller.clearReceipt();
-                setReplyEmail(event.target.value);
-              }}
-              placeholder="ops@example.org"
-              type="email"
-              value={replyEmail}
-            />
-          </label>
+            <label className="portal-form__field" htmlFor="support-description">
+              <span>Description</span>
+              <textarea
+                className="portal-form__input"
+                id="support-description"
+                onChange={(event) => {
+                  controller.clearReceipt();
+                  setDescription(event.target.value);
+                }}
+                placeholder="Describe the issue, what you expected, and what happened."
+                rows={5}
+                value={description}
+              />
+            </label>
+          </form>
 
-          <label className="portal-form__field" htmlFor="support-subject">
-            <span>Subject</span>
-            <input
-              className="portal-form__input"
-              id="support-subject"
-              onChange={(event) => {
-                controller.clearReceipt();
-                setSubject(event.target.value);
-              }}
-              placeholder="Short summary of the issue"
-              type="text"
-              value={subject}
-            />
-          </label>
-
-          <label className="portal-form__field" htmlFor="support-description">
-            <span>Description</span>
-            <textarea
-              className="portal-form__input"
-              id="support-description"
-              onChange={(event) => {
-                controller.clearReceipt();
-                setDescription(event.target.value);
-              }}
-              placeholder="Describe the issue, what you expected, and what happened."
-              rows={5}
-              value={description}
-            />
-          </label>
-        </form>
-
-        <p className="portal-budget-form__hint">
-          Requests are recorded for follow-up. Our team will respond using the
-          contact details you provide.
-        </p>
-
-        {validationMessage ? (
-          <p className="portal-feedback portal-feedback--error">
-            {validationMessage}
+          <p className="portal-budget-form__hint">
+            Requests are recorded for follow-up. Use the Recommendation category
+            for constructive feedback about future capabilities.
           </p>
-        ) : null}
 
-        {controller.error ? (
-          <p className="portal-feedback portal-feedback--error">
-            {controller.error}
-          </p>
-        ) : null}
-
-        {controller.receipt ? (
-          <PortalNotice title="Support request sent" tone="warning">
-            <p>
-              Your request was sent on{" "}
-              {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
-              through {controller.receipt.support_email}.
+          {validationMessage ? (
+            <p className="portal-feedback portal-feedback--error">
+              {validationMessage}
             </p>
-          </PortalNotice>
-        ) : null}
+          ) : null}
 
-        <div className="portal-form__actions">
-          <button
-            className="portal-shell__action portal-shell__action--primary"
-            disabled={controller.isSubmitting || validationMessage !== null}
-            onClick={() => {
-              void controller
-                .submit({
-                  category,
-                  context: {
-                    current_route_hash:
-                      typeof window === "undefined"
-                        ? "#/settings?nav=customer-admin-settings"
-                        : window.location.hash ||
-                          "#/settings?nav=customer-admin-settings",
-                    user_agent:
-                      typeof navigator === "undefined"
-                        ? null
-                        : navigator.userAgent,
-                  },
-                  description: description.trim(),
-                  reply_email: replyEmail.trim() || null,
-                  subject: subject.trim(),
-                })
-                .then(() => {
-                  setSubject("");
-                  setDescription("");
-                })
-                .catch(() => {});
-            }}
-            type="button"
-          >
-            {controller.isSubmitting
-              ? "Sending support request..."
-              : "Send support request"}
-          </button>
-        </div>
-      </section>
+          {controller.error ? (
+            <p className="portal-feedback portal-feedback--error">
+              {controller.error}
+            </p>
+          ) : null}
+
+          {controller.receipt ? (
+            <PortalNotice title="Support request sent" tone="warning">
+              <p>
+                Your request was sent on{" "}
+                {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
+                through {controller.receipt.support_email}.
+              </p>
+            </PortalNotice>
+          ) : null}
+
+          <div className="portal-form__actions">
+            <button
+              className="portal-shell__action portal-shell__action--primary"
+              disabled={controller.isSubmitting || validationMessage !== null}
+              onClick={() => {
+                void controller
+                  .submit({
+                    category,
+                    context: {
+                      current_route_hash:
+                        typeof window === "undefined"
+                          ? "#/support?nav=customer-admin-support-report-issue"
+                          : window.location.hash ||
+                            "#/support?nav=customer-admin-support-report-issue",
+                      user_agent:
+                        typeof navigator === "undefined"
+                          ? null
+                          : navigator.userAgent,
+                    },
+                    description: description.trim(),
+                    reply_email: replyEmail.trim() || null,
+                    subject: subject.trim(),
+                  })
+                  .then(() => {
+                    setSubject("");
+                    setDescription("");
+                  })
+                  .catch(() => {});
+              }}
+              type="button"
+            >
+              {controller.isSubmitting
+                ? "Sending support request..."
+                : "Send support request"}
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { PortalHomePage } from "../pages/PortalHomePage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { SupportPage } from "../pages/SupportPage";
 import { TeamPage } from "../pages/TeamPage";
 import { UsagePage } from "../pages/UsagePage";
 import { WorkspacePage } from "../pages/WorkspacePage";
@@ -459,6 +460,9 @@ function PortalAuthorizedShell({
       ) : null}
       {currentRoute.key === "team" ? (
         <TeamPage session={session} />
+      ) : null}
+      {currentRoute.key === "support" ? (
+        <SupportPage pane={customerAdminPane} />
       ) : null}
       {currentRoute.key === "api-access" ? (
         audience === "customer_user" && customerUserPane ? (

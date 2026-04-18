@@ -39,13 +39,10 @@ export function UsageContextPanel({
             this month.
           </p>
         </div>
-        <span
-          className={`portal-key-chip ${resolveForecastChipClass(
-            forecast.status,
-          )}`}
-        >
-          {forecast.projectedPercent}% projected
-        </span>
+        <p className="portal-usage-context__forecast">
+          Projected month end:{" "}
+          <strong>{forecast.projectedPercent}% of included quota</strong>
+        </p>
       </div>
 
       <div className="portal-usage-context__bars">
@@ -215,16 +212,3 @@ function formatUsdMicros(amountUsdMicros: number): string {
   }).format(amountUsdMicros / 1_000_000);
 }
 
-function resolveForecastChipClass(
-  status: "within_quota" | "near_quota" | "over_quota",
-): string {
-  if (status === "within_quota") {
-    return "portal-key-chip--active";
-  }
-
-  if (status === "over_quota") {
-    return "portal-key-chip--revoked";
-  }
-
-  return "";
-}

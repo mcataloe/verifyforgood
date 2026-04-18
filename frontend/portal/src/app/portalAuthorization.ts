@@ -19,6 +19,7 @@ const customerAdminRouteAccess: Partial<
   dashboard: "user",
   search: "user",
   settings: "admin",
+  support: "admin",
   team: "user",
   "usage-billing": "admin",
   usage: "admin",
@@ -34,6 +35,8 @@ const customerAdminNavigationAccess: Record<
   "customer-admin-home": "user",
   "customer-admin-search": "user",
   "customer-admin-settings": "admin",
+  "customer-admin-support-contact": "admin",
+  "customer-admin-support-report-issue": "admin",
   "customer-admin-team": "user",
   "customer-admin-usage": "admin",
 };
@@ -46,6 +49,7 @@ const nearestAllowedCustomerAdminRouteByKey: Partial<
   billing: "#/billing",
   usage: "#/usage",
   dashboard: "#/dashboard?nav=customer-admin-home",
+  support: "#/support?nav=customer-admin-support-contact",
   workspace: "#/search",
   "usage-billing": "#/billing",
 };

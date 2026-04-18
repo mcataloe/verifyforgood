@@ -44,7 +44,9 @@ export function BudgetLimitVisualization({
             })}
           </p>
         </div>
-        <span className="portal-key-chip">{usagePercent}%</span>
+        <p className="portal-budget-visualization__percent">
+          {usagePercent}% of this limit
+        </p>
       </div>
 
       <div className="portal-usage-meter__track" aria-hidden="true">

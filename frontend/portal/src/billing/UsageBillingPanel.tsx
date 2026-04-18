@@ -169,9 +169,9 @@ export function UsageBillingPanel({
               in {snapshot.usage.periodLabel.toLowerCase()}.
             </p>
           </div>
-          <span className="portal-key-chip">
-            {snapshot.usage.usagePercent}%
-          </span>
+          <p className="portal-usage-meter__percent">
+            {snapshot.usage.usagePercent}% of the current limit
+          </p>
         </div>
         <div className="portal-usage-meter__track" aria-hidden="true">
           <div
@@ -228,40 +228,6 @@ export function UsageBillingPanel({
           </PortalNotice>
         ) : null}
 
-        {focus === "usage" ? subscriptionSummary : usageSummary}
-
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Current access</dt>
-            <dd>{snapshot.effectiveAccessPlan}</dd>
-          </div>
-          <div>
-            <dt>Budget mode</dt>
-            <dd>{snapshot.budgetStatus.label}</dd>
-          </div>
-          <div>
-            <dt>Included monthly requests</dt>
-            <dd>
-              {effectivePlan
-                ? effectivePlan.included_usage.monthly_requests.toLocaleString()
-                : snapshot.usage.limit.toLocaleString()}
-            </dd>
-          </div>
-          <div>
-            <dt>Overage price</dt>
-            <dd>
-              {effectivePlan
-                ? formatUsdMicros(
-                    effectivePlan.per_request_pricing.amount_usd_micros,
-                  )
-                : "Unavailable"}
-            </dd>
-          </div>
-          <div>
-            <dt>Pending change</dt>
-            <dd>{pendingSummary.label}</dd>
-          </div>
-        </dl>
       </Panel>
 
       <Panel
