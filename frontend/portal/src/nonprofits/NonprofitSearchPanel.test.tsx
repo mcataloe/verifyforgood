@@ -6,7 +6,10 @@ import {
   type PortalOrganizationContextValue,
 } from "../organization/usePortalOrganization";
 import { createSessionPortalOrganization } from "../organization/portalOrganization";
-import { type PortalNonprofitSearchController } from "./usePortalNonprofitSearch";
+import {
+  type PortalNonprofitSearchController,
+  type PortalNonprofitSearchHistoryEntry,
+} from "./usePortalNonprofitSearch";
 import { NonprofitSearchPanel } from "./NonprofitSearchPanel";
 
 function renderWithOrganization(controller: PortalNonprofitSearchController) {
@@ -46,6 +49,16 @@ function renderWithOrganization(controller: PortalNonprofitSearchController) {
 
 describe("NonprofitSearchPanel", () => {
   it("renders summary results and detail data for nonprofit search", () => {
+    const recentSearches: PortalNonprofitSearchHistoryEntry[] = [
+      {
+        id: "search_1",
+        outcome: "results_loaded",
+        query: "Helping Hands",
+        resultsCount: 1,
+        searchMode: "name",
+        searchedAt: "2026-04-18T18:40:00Z",
+      },
+    ];
     const controller: PortalNonprofitSearchController = {
       detail: {
         ein: "12-3456789",
@@ -81,6 +94,7 @@ describe("NonprofitSearchPanel", () => {
       isLoading: false,
       isLoadingMore: false,
       lastQuery: "Helping Hands",
+      recentSearches,
       loadMoreResults: vi.fn(async () => {}),
       results: [
         {
@@ -115,6 +129,12 @@ describe("NonprofitSearchPanel", () => {
     expect(screen.queryByText("irs.eo_bmf")).toBeNull();
     expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByText("Search type")).toBeNull();
+    expect(screen.queryByText("Results loaded")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Recent searches" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Recent nonprofit searches" })).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
     expect(
       screen.getAllByTestId("section-divider").length,
@@ -125,6 +145,9 @@ describe("NonprofitSearchPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(controller.viewResultDetail).toHaveBeenCalledWith("12-3456789");
+
+    fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+    expect(controller.runSearch).toHaveBeenLastCalledWith("Helping Hands");
   });
 
   it("renders loading, empty, and error states consistently", () => {
@@ -136,6 +159,7 @@ describe("NonprofitSearchPanel", () => {
       isLoading: false,
       isLoadingMore: false,
       lastQuery: "Helping Hands",
+      recentSearches: [],
       loadMoreResults: vi.fn(async () => {}),
       results: [],
       runSearch: vi.fn(async () => {}),
@@ -148,5 +172,36 @@ describe("NonprofitSearchPanel", () => {
     expect(screen.getByText("Nonprofit lookup unavailable")).toBeTruthy();
     expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
     expect(container.querySelector(".portal-page-grid")).toBeNull();
+  });
+
+  it("keeps the search button available and validates an empty query explicitly", () => {
+    const controller: PortalNonprofitSearchController = {
+      detail: null,
+      error: null,
+      hasSearched: false,
+      hasMoreResults: false,
+      isLoading: false,
+      isLoadingMore: false,
+      lastQuery: "",
+      recentSearches: [],
+      loadMoreResults: vi.fn(async () => {}),
+      results: [],
+      runSearch: vi.fn(async () => {}),
+      searchMode: null,
+      viewResultDetail: vi.fn(async () => {}),
+    };
+
+    renderWithOrganization(controller);
+
+    const searchButton = screen.getByRole("button", {
+      name: "Search nonprofit",
+    }) as HTMLButtonElement;
+    expect(searchButton.disabled).toBe(false);
+
+    fireEvent.click(searchButton);
+    expect(controller.runSearch).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Enter an EIN or organization name to search."),
+    ).toBeTruthy();
   });
 });

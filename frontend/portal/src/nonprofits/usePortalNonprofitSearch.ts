@@ -18,11 +18,26 @@ export interface PortalNonprofitSearchController {
   isLoading: boolean;
   isLoadingMore: boolean;
   lastQuery: string;
+  recentSearches: PortalNonprofitSearchHistoryEntry[];
   loadMoreResults: () => Promise<void>;
   results: PortalNonprofitSearchSummary[];
   runSearch: (query: string) => Promise<void>;
   searchMode: "ein" | "name" | null;
   viewResultDetail: (ein: string) => Promise<void>;
+}
+
+export interface PortalNonprofitSearchHistoryEntry {
+  id: string;
+  outcome:
+    | "match_found"
+    | "no_match"
+    | "results_loaded"
+    | "no_results"
+    | "failed";
+  query: string;
+  resultsCount: number | null;
+  searchMode: "ein" | "name";
+  searchedAt: string;
 }
 
 export function usePortalNonprofitSearch(
@@ -39,6 +54,9 @@ export function usePortalNonprofitSearch(
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastQuery, setLastQuery] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<
+    PortalNonprofitSearchHistoryEntry[]
+  >([]);
   const [results, setResults] = useState<PortalNonprofitSearchSummary[]>([]);
   const [searchMode, setSearchMode] = useState<"ein" | "name" | null>(null);
 
@@ -52,6 +70,12 @@ export function usePortalNonprofitSearch(
   const runSearch = useCallback(
     async (query: string) => {
       const trimmedQuery = query.trim();
+      if (!trimmedQuery) {
+        return;
+      }
+      const inferredSearchMode: "ein" | "name" = looksLikeEinQuery(trimmedQuery)
+        ? "ein"
+        : "name";
 
       setHasSearched(true);
       setIsLoading(true);
@@ -62,11 +86,19 @@ export function usePortalNonprofitSearch(
       setHasMoreResults(false);
 
       try {
-        if (looksLikeEinQuery(trimmedQuery)) {
+        if (inferredSearchMode === "ein") {
           const nonprofitDetail = await service.lookupByEin(trimmedQuery);
           setDetail(nonprofitDetail);
           setResults([]);
           setSearchMode("ein");
+          setRecentSearches((current) =>
+            prependSearchHistory(current, {
+              outcome: nonprofitDetail ? "match_found" : "no_match",
+              query: trimmedQuery,
+              resultsCount: nonprofitDetail ? 1 : 0,
+              searchMode: "ein",
+            }),
+          );
           if (!nonprofitDetail) {
             setError(null);
           }
@@ -79,12 +111,28 @@ export function usePortalNonprofitSearch(
         setNextCursor(searchResults.nextCursor);
         setHasMoreResults(Boolean(searchResults.nextCursor));
         setSearchMode("name");
+        setRecentSearches((current) =>
+          prependSearchHistory(current, {
+            outcome: searchResults.items.length ? "results_loaded" : "no_results",
+            query: trimmedQuery,
+            resultsCount: searchResults.items.length,
+            searchMode: "name",
+          }),
+        );
       } catch (caughtError) {
         setDetail(null);
         setResults([]);
         setNextCursor(null);
         setHasMoreResults(false);
         setError(normalizeErrorMessage(caughtError));
+        setRecentSearches((current) =>
+          prependSearchHistory(current, {
+            outcome: "failed",
+            query: trimmedQuery,
+            resultsCount: null,
+            searchMode: inferredSearchMode,
+          }),
+        );
       } finally {
         setIsLoading(false);
       }
@@ -145,6 +193,7 @@ export function usePortalNonprofitSearch(
     isLoading,
     isLoadingMore,
     lastQuery,
+    recentSearches,
     loadMoreResults,
     results,
     runSearch,
@@ -155,4 +204,18 @@ export function usePortalNonprofitSearch(
 
 function normalizeErrorMessage(error: unknown): string {
   return normalizePortalError(error, "The nonprofit lookup failed. Try again.");
+}
+
+function prependSearchHistory(
+  current: PortalNonprofitSearchHistoryEntry[],
+  input: Omit<PortalNonprofitSearchHistoryEntry, "id" | "searchedAt">,
+): PortalNonprofitSearchHistoryEntry[] {
+  return [
+    {
+      ...input,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      searchedAt: new Date().toISOString(),
+    },
+    ...current,
+  ].slice(0, 10);
 }

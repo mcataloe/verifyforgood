@@ -22,6 +22,7 @@ import {
 } from "./PortalNonprofitDetailView";
 import {
   usePortalNonprofitSearch,
+  type PortalNonprofitSearchHistoryEntry,
   type PortalNonprofitSearchController,
 } from "./usePortalNonprofitSearch";
 import type { PortalNonprofitSearchSummary } from "./nonprofitSearch";
@@ -75,6 +76,37 @@ const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
   },
 ];
 
+const recentSearchColumns: DataTableColumn<PortalNonprofitSearchHistoryEntry>[] = [
+  {
+    key: "query",
+    header: "Query",
+    sortable: true,
+    render: (row) => row.query,
+    sortValue: (row) => row.query,
+  },
+  {
+    key: "search-mode",
+    header: "Search method",
+    sortable: true,
+    render: (row) => (row.searchMode === "ein" ? "EIN lookup" : "Name search"),
+    sortValue: (row) => row.searchMode,
+  },
+  {
+    key: "outcome",
+    header: "Outcome",
+    sortable: true,
+    render: (row) => describeRecentSearchOutcome(row),
+    sortValue: (row) => describeRecentSearchOutcome(row),
+  },
+  {
+    key: "searched-at",
+    header: "Searched",
+    sortable: true,
+    render: (row) => formatSearchTimestamp(row.searchedAt),
+    sortValue: (row) => row.searchedAt,
+  },
+];
+
 export function NonprofitSearchPanel({
   controller,
 }: NonprofitSearchPanelProps) {
@@ -104,6 +136,20 @@ export function NonprofitSearchPanel({
           ]
         : []),
     ];
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+
+  const runSearchForQuery = (nextQuery: string) => {
+    const trimmedQuery = nextQuery.trim();
+    setQuery(nextQuery);
+
+    if (!trimmedQuery) {
+      setValidationMessage("Enter an EIN or organization name to search.");
+      return;
+    }
+
+    setValidationMessage(null);
+    void search.runSearch(trimmedQuery);
+  };
 
   return (
     <DetailPageLayout>
@@ -121,7 +167,7 @@ export function NonprofitSearchPanel({
             className="portal-form portal-form--detail"
             onSubmit={(event) => {
               event.preventDefault();
-              void search.runSearch(query);
+              runSearchForQuery(query);
             }}
           >
             <label className="portal-form__field">
@@ -131,6 +177,9 @@ export function NonprofitSearchPanel({
                 className="portal-form__input"
                 name="query"
                 onChange={(event) => {
+                  if (validationMessage) {
+                    setValidationMessage(null);
+                  }
                   setQuery(event.target.value);
                 }}
                 placeholder="12-3456789 or Helping Hands Foundation"
@@ -139,39 +188,62 @@ export function NonprofitSearchPanel({
               />
             </label>
 
+            {validationMessage ? (
+              <p className="portal-feedback portal-feedback--error">
+                {validationMessage}
+              </p>
+            ) : null}
+
             <div className="portal-form__actions">
               <button
                 className="portal-shell__action portal-shell__action--primary"
-                disabled={search.isLoading || !query.trim()}
+                disabled={search.isLoading}
                 type="submit"
               >
                 {search.isLoading ? "Searching..." : "Search nonprofit"}
               </button>
             </div>
           </form>
-
-          <dl className="portal-shell__details">
-            <div>
-              <dt>Search type</dt>
-              <dd>
-                {search.searchMode === "ein"
-                  ? "EIN"
-                  : search.searchMode === "name"
-                    ? "Name"
-                    : "Not run yet"}
-              </dd>
-            </div>
-            <div>
-              <dt>Last search</dt>
-              <dd>{search.lastQuery || "None"}</dd>
-            </div>
-            <div>
-              <dt>Results loaded</dt>
-              <dd>{String(search.results.length)}</dd>
-            </div>
-          </dl>
         </Panel>
       </SectionBlock>
+
+      {search.recentSearches.length > 0 ? (
+        <>
+          <SectionDivider />
+          <SectionBlock>
+            <Panel
+              title="Recent searches"
+              subtitle="Review earlier nonprofit searches and rerun one with a single click."
+            >
+              <DataTable
+                ariaLabel="Recent nonprofit searches"
+                columns={[
+                  ...recentSearchColumns,
+                  {
+                    key: "actions",
+                    header: "Action",
+                    render: (row) => (
+                      <button
+                        className="portal-shell__action"
+                        disabled={search.isLoading}
+                        onClick={() => {
+                          runSearchForQuery(row.query);
+                        }}
+                        type="button"
+                      >
+                        Run again
+                      </button>
+                    ),
+                  },
+                ]}
+                pageSize={5}
+                rows={search.recentSearches}
+                searchPlaceholder="Filter recent searches"
+              />
+            </Panel>
+          </SectionBlock>
+        </>
+      ) : null}
 
       {search.error ? (
         <>
@@ -295,4 +367,31 @@ export function NonprofitSearchPanel({
       ) : null}
     </DetailPageLayout>
   );
+}
+
+function describeRecentSearchOutcome(
+  row: PortalNonprofitSearchHistoryEntry,
+): string {
+  if (row.outcome === "match_found") {
+    return "1 nonprofit found";
+  }
+  if (row.outcome === "no_match") {
+    return "No nonprofit found";
+  }
+  if (row.outcome === "results_loaded") {
+    return `${row.resultsCount ?? 0} matches loaded`;
+  }
+  if (row.outcome === "no_results") {
+    return "No matches found";
+  }
+  return "Search failed";
+}
+
+function formatSearchTimestamp(value: string): string {
+  const parsedValue = Date.parse(value);
+  if (Number.isNaN(parsedValue)) {
+    return value;
+  }
+
+  return new Date(parsedValue).toLocaleString();
 }
