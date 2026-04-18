@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalLoginRequest } from "../auth/portalAuthClient";
+import { usePortalToast } from "../components/feedback";
 
 interface PortalSignInPageProps {
   endpoints: PortalEndpoints;
@@ -18,21 +19,24 @@ export function PortalSignInPage({
 }: PortalSignInPageProps) {
   const emailId = useId();
   const passwordId = useId();
+  const { dismissToast, showToast } = usePortalToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [validationMessage, setValidationMessage] = useState<string | null>(
-    null,
-  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
-      setValidationMessage("Enter both email and password to continue.");
+      showToast({
+        id: "portal-sign-in",
+        message: "Enter both email and password to continue.",
+        title: "Sign-in details required",
+        tone: "warning",
+      });
       return;
     }
 
-    setValidationMessage(null);
+    dismissToast("portal-sign-in");
 
     try {
       await onLogin({
@@ -40,9 +44,12 @@ export function PortalSignInPage({
         password,
       });
     } catch (error) {
-      setValidationMessage(
-        error instanceof Error ? error.message : "Sign-in failed.",
-      );
+      showToast({
+        id: "portal-sign-in",
+        message: error instanceof Error ? error.message : "Sign-in failed.",
+        title: "Unable to sign in",
+        tone: "error",
+      });
     }
   };
 
@@ -111,7 +118,10 @@ export function PortalSignInPage({
             className="portal-form__input"
             id={emailId}
             name="email"
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              dismissToast("portal-sign-in");
+              setEmail(event.target.value);
+            }}
             placeholder="name@company.com"
             type="email"
             value={email}
@@ -125,22 +135,15 @@ export function PortalSignInPage({
             className="portal-form__input"
             id={passwordId}
             name="password"
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              dismissToast("portal-sign-in");
+              setPassword(event.target.value);
+            }}
             placeholder="Enter your password"
             type="password"
             value={password}
           />
         </label>
-
-        {validationMessage ? (
-          <p
-            aria-live="polite"
-            className="portal-auth-page__error"
-            role="alert"
-          >
-            {validationMessage}
-          </p>
-        ) : null}
 
         <div className="portal-form__actions">
           <button

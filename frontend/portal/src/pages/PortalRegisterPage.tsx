@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalRegisterRequest } from "../auth/portalAuthClient";
+import { usePortalToast } from "../components/feedback";
 
 interface PortalRegisterPageProps {
   endpoints: PortalEndpoints;
@@ -19,22 +20,25 @@ export function PortalRegisterPage({
   const fullNameId = useId();
   const emailId = useId();
   const passwordId = useId();
+  const { dismissToast, showToast } = usePortalToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [validationMessage, setValidationMessage] = useState<string | null>(
-    null,
-  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
-      setValidationMessage("Enter an email and password to create your account.");
+      showToast({
+        id: "portal-register",
+        message: "Enter an email and password to create your account.",
+        title: "Account details required",
+        tone: "warning",
+      });
       return;
     }
 
-    setValidationMessage(null);
+    dismissToast("portal-register");
 
     try {
       await onRegister({
@@ -43,9 +47,12 @@ export function PortalRegisterPage({
         password,
       });
     } catch (error) {
-      setValidationMessage(
-        error instanceof Error ? error.message : "Registration failed.",
-      );
+      showToast({
+        id: "portal-register",
+        message: error instanceof Error ? error.message : "Registration failed.",
+        title: "Unable to create account",
+        tone: "error",
+      });
     }
   };
 
@@ -111,7 +118,10 @@ export function PortalRegisterPage({
             className="portal-form__input"
             id={fullNameId}
             name="full_name"
-            onChange={(event) => setFullName(event.target.value)}
+            onChange={(event) => {
+              dismissToast("portal-register");
+              setFullName(event.target.value);
+            }}
             placeholder="Alex Operator"
             type="text"
             value={fullName}
@@ -125,7 +135,10 @@ export function PortalRegisterPage({
             className="portal-form__input"
             id={emailId}
             name="email"
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              dismissToast("portal-register");
+              setEmail(event.target.value);
+            }}
             placeholder="name@company.com"
             type="email"
             value={email}
@@ -139,22 +152,15 @@ export function PortalRegisterPage({
             className="portal-form__input"
             id={passwordId}
             name="password"
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              dismissToast("portal-register");
+              setPassword(event.target.value);
+            }}
             placeholder="Choose a password"
             type="password"
             value={password}
           />
         </label>
-
-        {validationMessage ? (
-          <p
-            aria-live="polite"
-            className="portal-auth-page__error"
-            role="alert"
-          >
-            {validationMessage}
-          </p>
-        ) : null}
 
         <div className="portal-form__actions">
           <button

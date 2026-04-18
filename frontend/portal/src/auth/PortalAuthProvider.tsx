@@ -104,28 +104,38 @@ export function PortalAuthProvider({
 
   const login = async (request: PortalLoginRequest) => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
-    const state = await resolvedAuthClient.login(request);
-    setAuthState({
-      accessToken: state.accessToken,
-      availableOrganizations: state.availableOrganizations,
-      isBusy: false,
-      session: state.session,
-      status: "authenticated",
-    });
-    return state.session;
+    try {
+      const state = await resolvedAuthClient.login(request);
+      setAuthState({
+        accessToken: state.accessToken,
+        availableOrganizations: state.availableOrganizations,
+        isBusy: false,
+        session: state.session,
+        status: "authenticated",
+      });
+      return state.session;
+    } catch (error) {
+      setAuthState((currentState) => ({ ...currentState, isBusy: false }));
+      throw error;
+    }
   };
 
   const register = async (request: PortalRegisterRequest) => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
-    const state = await resolvedAuthClient.register(request);
-    setAuthState({
-      accessToken: state.accessToken,
-      availableOrganizations: state.availableOrganizations,
-      isBusy: false,
-      session: state.session,
-      status: "authenticated",
-    });
-    return state.session;
+    try {
+      const state = await resolvedAuthClient.register(request);
+      setAuthState({
+        accessToken: state.accessToken,
+        availableOrganizations: state.availableOrganizations,
+        isBusy: false,
+        session: state.session,
+        status: "authenticated",
+      });
+      return state.session;
+    } catch (error) {
+      setAuthState((currentState) => ({ ...currentState, isBusy: false }));
+      throw error;
+    }
   };
 
   const applyOrganization = (organization: PortalActiveOrganizationRecord) => {
@@ -199,14 +209,19 @@ export function PortalAuthProvider({
 
   const signOut = async () => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
-    await resolvedAuthClient.signOut();
-    setAuthState({
-      accessToken: null,
-      availableOrganizations: [],
-      isBusy: false,
-      session: null,
-      status: "unauthenticated",
-    });
+    try {
+      await resolvedAuthClient.signOut();
+      setAuthState({
+        accessToken: null,
+        availableOrganizations: [],
+        isBusy: false,
+        session: null,
+        status: "unauthenticated",
+      });
+    } catch (error) {
+      setAuthState((currentState) => ({ ...currentState, isBusy: false }));
+      throw error;
+    }
   };
 
   return (

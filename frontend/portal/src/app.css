@@ -371,16 +371,6 @@ code {
   line-height: 1.6;
 }
 
-.portal-auth-page__error {
-  margin: 0;
-  padding: 0.85rem 0.95rem;
-  border-radius: var(--vf-radius-md);
-  border: 1px solid rgba(141, 46, 46, 0.16);
-  background: rgba(141, 46, 46, 0.08);
-  color: #8d2e2e;
-  line-height: 1.5;
-}
-
 .portal-auth-page__divider {
   position: relative;
   display: flex;
@@ -905,6 +895,73 @@ code {
 .portal-notice--error {
   background: rgba(141, 46, 46, 0.08);
   color: #7a2626;
+}
+
+.portal-toast-region {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1200;
+  display: grid;
+  gap: var(--vf-space-3);
+  width: min(24rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.portal-toast {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--vf-space-3);
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-md);
+  background: color-mix(in srgb, var(--vf-theme-panel-bg) 96%, transparent);
+  box-shadow: var(--vf-theme-panel-shadow);
+  pointer-events: auto;
+}
+
+.portal-toast--error {
+  border-color: rgba(141, 46, 46, 0.18);
+  background: rgba(141, 46, 46, 0.08);
+  color: #7a2626;
+}
+
+.portal-toast--warning {
+  border-color: rgba(15, 42, 33, 0.14);
+  background: rgba(111, 167, 145, 0.12);
+  color: var(--vf-color-forest-900);
+}
+
+.portal-toast--success {
+  border-color: rgba(15, 42, 33, 0.14);
+  background: rgba(15, 42, 33, 0.08);
+  color: var(--vf-color-forest-900);
+}
+
+.portal-toast__content {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.portal-toast__title,
+.portal-toast__message {
+  margin: 0;
+}
+
+.portal-toast__title {
+  font-weight: 700;
+}
+
+.portal-toast__dismiss {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  padding: 0;
 }
 
 .portal-feedback--error {
