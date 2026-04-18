@@ -604,6 +604,45 @@ code {
   gap: var(--vf-space-3);
 }
 
+.portal-secret-field {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+
+.portal-secret-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.portal-secret-field__actions {
+  gap: 0;
+}
+
+.portal-secret-field__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.9rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--vf-theme-panel-border);
+  border-left: 0;
+  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 84%, transparent);
+  color: var(--vf-theme-text);
+  cursor: pointer;
+}
+
+.portal-secret-field__action:last-child {
+  border-top-right-radius: var(--vf-radius-md);
+  border-bottom-right-radius: var(--vf-radius-md);
+}
+
+.portal-secret-field__action:hover {
+  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 72%, transparent);
+}
+
 .portal-form--two-column {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

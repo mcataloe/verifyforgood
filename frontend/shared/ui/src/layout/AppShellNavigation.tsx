@@ -1,5 +1,5 @@
 import { Box, NavLink, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -38,16 +38,31 @@ export function AppShellNavigation({
   const [openedTopLevelBranchKey, setOpenedTopLevelBranchKey] = useState<
     string | null
   >(() => resolveInitialTopLevelBranchKey(visibleSections, activeNavigationKey));
+  const previousActiveNavigationKeyRef = useRef(activeNavigationKey);
 
   useEffect(() => {
     const activeBranchKey = resolveInitialTopLevelBranchKey(
       visibleSections,
       activeNavigationKey,
     );
+    const activeNavigationChanged =
+      previousActiveNavigationKeyRef.current !== activeNavigationKey;
+    previousActiveNavigationKeyRef.current = activeNavigationKey;
 
-    if (activeBranchKey) {
-      setOpenedTopLevelBranchKey(activeBranchKey);
-    }
+    setOpenedTopLevelBranchKey((current) => {
+      if (activeNavigationChanged) {
+        return activeBranchKey;
+      }
+
+      if (
+        current &&
+        topLevelBranchExists(visibleSections, current)
+      ) {
+        return current;
+      }
+
+      return activeBranchKey;
+    });
   }, [activeNavigationKey, visibleSections]);
 
   return (
@@ -395,6 +410,17 @@ function shouldItemStartOpened(
 
   return children.some((child) =>
     hasActiveNavigationItem(child, activeNavigationKey),
+  );
+}
+
+function topLevelBranchExists(
+  sections: readonly AppShellNavigationSectionInput[],
+  branchKey: string,
+) {
+  return sections.some((section) =>
+    section.items.some(
+      (item) => item.key === branchKey && (item.children ?? []).length > 0,
+    ),
   );
 }
 

@@ -95,7 +95,11 @@ describe("ApiKeyManager", () => {
     const stackedRoot = document.querySelector(".portal-stacked-sections");
     expect(stackedRoot).toBeTruthy();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
-    expect(screen.getByDisplayValue("csk_demo.secret")).toBeTruthy();
+    const secretInput = screen.getByLabelText(
+      "Plaintext API key",
+    ) as HTMLInputElement;
+    expect(secretInput.value).not.toBe("");
+    expect(secretInput.type).toBe("password");
     expect(screen.getByText("Existing key")).toBeTruthy();
     expect(screen.getByText("Never used")).toBeTruthy();
     expect(screen.queryByText("ws_portal_test")).toBeNull();
@@ -122,10 +126,17 @@ describe("ApiKeyManager", () => {
       display_name: "New production key",
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Reveal API key" }));
+    expect(secretInput.type).toBe("text");
+    expect(secretInput.value).toBe("csk_demo.secret");
+
     fireEvent.click(screen.getByRole("button", { name: "Copy key" }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "csk_demo.secret",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide API key" }));
+    expect(secretInput.type).toBe("password");
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke key" }));
     expect(state.revokeKey).not.toHaveBeenCalled();

@@ -286,6 +286,37 @@ describe("SettingsPage", () => {
     });
   });
 
+  it("keeps the profile save action visually actionable after a successful save", () => {
+    const organizationProfileController: PortalOrganizationProfileSettingsController = {
+      clearNotice: vi.fn(),
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      notice: "Organization profile saved.",
+      save: vi.fn(async () => {}),
+      settings: {
+        contactEmail: "ops@example.org",
+        displayName: "Portal Test Org",
+        slug: "portal-test-org",
+        updatedAt: "2026-03-21T00:00:00Z",
+      },
+    };
+
+    renderWithOrganization(
+      <SettingsPage
+        endpoints={endpoints}
+        organizationProfileController={organizationProfileController}
+        session={createMockPortalSession()}
+      />,
+    );
+
+    const saveButton = screen.getByRole("button", {
+      name: "Organization profile saved",
+    }) as HTMLButtonElement;
+
+    expect(saveButton.disabled).toBe(false);
+  });
+
   it("requires an exact slug match before deleting an organization", async () => {
     const deleteOrganization = vi.fn(
       async (_input: { slug: string }) => {},

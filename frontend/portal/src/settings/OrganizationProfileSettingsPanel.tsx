@@ -29,6 +29,12 @@ export function OrganizationProfileSettingsPanel({
     contactEmail: trimmedContactEmail,
     displayName: trimmedDisplayName,
   });
+  const isRecentlySaved = controller.notice !== null && !isDirty;
+  const isSaveDisabled =
+    controller.isLoading ||
+    controller.isSaving ||
+    validationMessage !== null ||
+    (!isDirty && !isRecentlySaved);
 
   return (
     <div className="portal-budget-form">
@@ -91,23 +97,24 @@ export function OrganizationProfileSettingsPanel({
       <div className="portal-form__actions">
         <button
           className="portal-shell__action portal-shell__action--primary"
-          disabled={
-            controller.isLoading ||
-            controller.isSaving ||
-            !isDirty ||
-            validationMessage !== null
-          }
-          onClick={() =>
+          disabled={isSaveDisabled}
+          onClick={() => {
+            if (!isDirty || validationMessage !== null) {
+              return;
+            }
+
             void controller.save({
               contactEmail: trimmedContactEmail,
               displayName: trimmedDisplayName,
-            })
-          }
+            });
+          }}
           type="button"
         >
           {controller.isSaving
             ? "Saving organization profile..."
-            : "Save organization profile"}
+            : isRecentlySaved
+              ? "Organization profile saved"
+              : "Save organization profile"}
         </button>
       </div>
     </div>

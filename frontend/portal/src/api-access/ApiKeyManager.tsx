@@ -1,3 +1,4 @@
+import { IconCopy, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useState } from "react";
 import { Inline, Panel } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
@@ -23,6 +24,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
     null,
   );
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [isSecretVisible, setIsSecretVisible] = useState(false);
 
   const sortedKeys = [...apiKeys.items].sort((left, right) =>
     right.created_at.localeCompare(left.created_at),
@@ -60,6 +62,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
             onSubmit={(event) => {
               event.preventDefault();
               setCopyFeedback(null);
+              setIsSecretVisible(false);
               void apiKeys.createKey({
                 display_name: displayName,
               });
@@ -125,33 +128,59 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
               <p>{copyFeedback}</p>
             </PortalNotice>
           ) : null}
-          <textarea
-            aria-label="Plaintext API key"
-            className="portal-form__input"
-            readOnly
-            rows={3}
-            value={apiKeys.visibleSecret.secret}
-          />
+          <label className="portal-form__field" htmlFor="plaintext-api-key">
+            <span>Plaintext API key</span>
+            <div className="portal-secret-field">
+              <input
+                aria-label="Plaintext API key"
+                className="portal-form__input portal-secret-field__input"
+                id="plaintext-api-key"
+                readOnly
+                type={isSecretVisible ? "text" : "password"}
+                value={apiKeys.visibleSecret.secret}
+              />
+              <Inline className="portal-secret-field__actions">
+                <button
+                  aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
+                  className="portal-secret-field__action"
+                  onClick={() => {
+                    setIsSecretVisible((current) => !current);
+                  }}
+                  title={isSecretVisible ? "Hide API key" : "Reveal API key"}
+                  type="button"
+                >
+                  {isSecretVisible ? (
+                    <IconEyeOff aria-hidden="true" size={16} />
+                  ) : (
+                    <IconEye aria-hidden="true" size={16} />
+                  )}
+                </button>
+                <button
+                  aria-label="Copy key"
+                  className="portal-secret-field__action"
+                  onClick={() => {
+                    void copySecretToClipboard({
+                      onResult: setCopyFeedback,
+                      secret: apiKeys.visibleSecret?.secret ?? "",
+                    });
+                  }}
+                  title="Copy key"
+                  type="button"
+                >
+                  <IconCopy aria-hidden="true" size={16} />
+                </button>
+              </Inline>
+            </div>
+          </label>
           <Inline className="portal-form__actions">
             <span className="portal-key-chip">
               {apiKeys.visibleSecret.key.display_name}
             </span>
             <button
-              className="portal-shell__action portal-shell__action--primary"
-              onClick={() => {
-                void copySecretToClipboard({
-                  onResult: setCopyFeedback,
-                  secret: apiKeys.visibleSecret?.secret ?? "",
-                });
-              }}
-              type="button"
-            >
-              Copy key
-            </button>
-            <button
               className="portal-shell__action"
               onClick={() => {
                 setCopyFeedback(null);
+                setIsSecretVisible(false);
                 apiKeys.dismissSecret();
               }}
               type="button"

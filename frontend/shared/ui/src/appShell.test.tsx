@@ -175,6 +175,52 @@ describe("VerifyForGoodAppShell", () => {
     expect(organizationsButton.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("preserves a manually opened top-level branch across parent rerenders", () => {
+    const view = renderAppShell({
+      activeNavigationKey: "org-directory",
+      navigationSections: sectionedNavigation,
+    });
+
+    const organizationsButton = screen.getByRole("button", {
+      name: /^Organizations\b/i,
+    });
+    const automationButton = screen.getByRole("button", {
+      name: /^Automation\b/i,
+    });
+
+    fireEvent.click(automationButton);
+
+    expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
+    expect(screen.getByRole("link", { name: "API Keys" })).toBeTruthy();
+    expect(automationButton.getAttribute("aria-expanded")).toBe("true");
+    expect(organizationsButton.getAttribute("aria-expanded")).toBe("false");
+
+    view.rerender(
+      <VerifyForGoodMantineProvider>
+        <VerifyForGoodAppShell
+          activeNavigationKey="org-directory"
+          appName="Shared Shell"
+          navigationSections={sectionedNavigation}
+        >
+          <div>Shell content</div>
+        </VerifyForGoodAppShell>
+      </VerifyForGoodMantineProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
+    expect(screen.getByRole("link", { name: "API Keys" })).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: /^Automation\b/i })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByRole("button", { name: /^Organizations\b/i })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
   it("marks the active child and parent states", () => {
     renderAppShell({
       activeNavigationKey: "org-credentials",
@@ -413,7 +459,7 @@ function renderAppShell(
           ...props,
         };
 
-  render(
+  return render(
     <VerifyForGoodMantineProvider>
       <VerifyForGoodAppShell appName="Shared Shell" {...resolvedProps}>
         <div>Shell content</div>
