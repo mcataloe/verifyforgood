@@ -54,7 +54,7 @@ export function CustomerAdminHomePanel() {
 
   if (!canViewActivity) {
     return (
-      <PortalNotice title="Activity visibility unavailable" tone="empty">
+      <PortalNotice title="Activity Visibility Unavailable" tone="empty">
         <p>
           Organization activity is visible only to active organization admins.
         </p>
@@ -66,7 +66,7 @@ export function CustomerAdminHomePanel() {
     return (
       <PortalLoadingState
         subtitle="Loading recent organization activity."
-        title="Loading activity"
+        title="Loading Activity"
       >
         <p>Fetching recent API, membership, invitation, settings, and nonprofit access activity.</p>
       </PortalLoadingState>
@@ -76,13 +76,13 @@ export function CustomerAdminHomePanel() {
   if (activity.error && activity.items.length === 0) {
     return (
       <PortalErrorState
-        actionLabel="Retry activity"
+        actionLabel="Retry"
         message={activity.error}
         onAction={() => {
           void activity.reload();
         }}
         subtitle="The portal could not load recent organization activity."
-        title="Activity unavailable"
+        title="Activity Unavailable"
       />
     );
   }
@@ -90,7 +90,7 @@ export function CustomerAdminHomePanel() {
   return (
     <div className="portal-dashboard__activity-grid">
       <SectionContainer
-        title="Recent organization activity"
+        title="Recent Organization Activity"
         description="Newest-first activity across API keys, team changes, organization settings, invitations, and nonprofit access."
       >
         {activity.error ? (
@@ -102,7 +102,7 @@ export function CustomerAdminHomePanel() {
         {activity.items.length === 0 ? (
           <PortalEmptyState
             subtitle="Activity appears here once the organization starts inviting teammates, managing keys, updating settings, or accessing nonprofit data."
-            title="No organization activity yet"
+            title="No Organization Activity Yet"
           >
             <p>The current organization does not have any visible audit activity yet.</p>
           </PortalEmptyState>
@@ -118,7 +118,7 @@ export function CustomerAdminHomePanel() {
                   }}
                   variant="default"
                 >
-                  Load more activity
+                  Load More
                 </Button>
               </div>
             ) : null}
@@ -127,18 +127,34 @@ export function CustomerAdminHomePanel() {
       </SectionContainer>
 
       <SectionContainer
-        title="Activity categories"
+        title="Activity Categories"
         description="The current phase focuses on readable, sanitized organization events."
       >
         <div className="portal-dashboard__metrics">
           <SummaryCard label="Organization" value={organization.activeOrganization.organization_name} />
-          <SummaryCard label="Role" value={organization.currentMembership?.role ?? "unknown"} />
+          <SummaryCard
+            label="Role"
+            value={formatLabelValue(organization.currentMembership?.role)}
+          />
           <SummaryCard label="Scope" value={organization.activeOrganization.organization_id ?? organization.activeOrganization.account_id} />
           <SummaryCard label="Feed order" value="Newest first" />
         </div>
       </SectionContainer>
     </div>
   );
+}
+
+function formatLabelValue(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return "Unknown";
+  }
+
+  return candidate
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function SummaryCard(input: { label: string; value: string }) {

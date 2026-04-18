@@ -17,16 +17,18 @@ describe("PortalHomePage", () => {
     );
 
     expect(
-      screen.getByText("Sign in to manage your organization"),
+      screen.getByText("Sign In to Manage Your Organization"),
     ).toBeTruthy();
     const cta = screen.getByTestId("public-home-auth-cta");
     expect(cta).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
-    expect(cta.textContent).toContain("Sign in");
-    expect(cta.textContent).toContain("Create account");
+    expect(screen.getByRole("link", { name: "Sign In" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create Account" })).toBeTruthy();
+    expect(cta.textContent).toContain("Sign In");
+    expect(cta.textContent).toContain("Create Account");
     expect(
-      screen.getByText("Your account is always authenticated before organization setup."),
+      screen.getByText(
+        "Your account is always authenticated before organization setup.",
+      ),
     ).toBeTruthy();
     expect(screen.queryByText("Portal scope")).toBeNull();
   });

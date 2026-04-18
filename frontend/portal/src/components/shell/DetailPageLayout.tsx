@@ -16,7 +16,6 @@ export function DetailPageLayout({
   children,
   className,
   contentTestId,
-  eyebrow,
   header,
   intro,
   testId,
@@ -37,7 +36,6 @@ export function DetailPageLayout({
         header
       ) : title ? (
         <header className="portal-detail-layout__header">
-          {eyebrow ? <p className="portal-shell__eyebrow">{eyebrow}</p> : null}
           <h1>{title}</h1>
           {intro ? <p className="portal-detail-layout__intro">{intro}</p> : null}
         </header>

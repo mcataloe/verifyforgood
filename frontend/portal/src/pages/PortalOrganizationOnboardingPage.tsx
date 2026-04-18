@@ -1,6 +1,7 @@
 import { Modal } from "@mantine/core";
 import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
+import { normalizeSlugCandidate } from "../lib/slug";
 import type { PortalOrganizationCreateRequest } from "../organization/portalOrganization";
 
 interface PortalOrganizationOnboardingPageProps {
@@ -39,7 +40,7 @@ export function PortalOrganizationOnboardingPage({
     try {
       await onCreateOrganization({
         name,
-        slug: slug.trim() || undefined,
+        slug: normalizeSlugCandidate(slug) || undefined,
       });
     } catch (error) {
       setValidationMessage(
@@ -58,7 +59,7 @@ export function PortalOrganizationOnboardingPage({
       }}
       onClose={onClose}
       opened
-      title="Create your first organization"
+      title="Create Your Organization"
     >
       <div data-testid="organization-onboarding-page">
         <div className="portal-auth-page__card-copy">
@@ -80,7 +81,18 @@ export function PortalOrganizationOnboardingPage({
               className="portal-form__input"
               id={nameId}
               name="name"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                const nextName = event.target.value;
+                const previousAutoSlug = normalizeSlugCandidate(name);
+                const nextAutoSlug = normalizeSlugCandidate(nextName);
+
+                setName(nextName);
+                setSlug((currentSlug) =>
+                  !currentSlug || currentSlug === previousAutoSlug
+                    ? nextAutoSlug
+                    : currentSlug,
+                );
+              }}
               placeholder="Verify For Good Org"
               type="text"
               value={name}
@@ -93,12 +105,19 @@ export function PortalOrganizationOnboardingPage({
               className="portal-form__input"
               id={slugId}
               name="slug"
-              onChange={(event) => setSlug(event.target.value)}
+              onChange={(event) => {
+                setSlug(normalizeSlugCandidate(event.target.value));
+              }}
               placeholder="verify-for-good-org"
               type="text"
               value={slug}
             />
           </label>
+
+          <p className="portal-budget-form__hint">
+            The slug is generated from the organization name and can be adjusted
+            before creation.
+          </p>
 
           {validationMessage ? (
             <p
@@ -116,7 +135,7 @@ export function PortalOrganizationOnboardingPage({
               disabled={isBusy}
               type="submit"
             >
-              {isBusy ? "Creating organization..." : "Create organization"}
+              {isBusy ? "Creating..." : "Create Organization"}
             </button>
           </div>
         </form>

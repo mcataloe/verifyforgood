@@ -44,7 +44,7 @@ export function SettingsPage({
   deletionController,
   endpoints: _endpoints,
   organizationProfileController,
-  pane,
+  pane: _pane,
   session,
   usageController,
 }: SettingsPageProps) {
@@ -63,8 +63,7 @@ export function SettingsPage({
   return (
     <PortalPageShell
       description="Manage your organization profile, plan access, and usage controls."
-      eyebrow={pane === "settings" ? "Customer admin settings" : "Portal settings"}
-      title="Workspace settings"
+      title="Workspace Settings"
     >
       <DetailPageLayout>
         <SectionBlock>
@@ -78,7 +77,7 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Plan & access"
+            title="Plan & Access"
             subtitle="A quick summary of your current plan and access level."
           >
             <dl className="portal-shell__details">
@@ -104,7 +103,7 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Usage budget controls"
+            title="Usage Budget Controls"
             subtitle="Set an optional organization request cap and decide whether requests stop when that threshold is reached."
           >
             <BudgetConfigurationPanel
@@ -120,7 +119,7 @@ export function SettingsPage({
         <SectionDivider />
         <SectionBlock>
           <Panel
-            title="Delete organization"
+            title="Delete Organization"
             subtitle="Remove this organization from the portal when it is no longer needed."
           >
             <OrganizationDeletionPanel

@@ -21,9 +21,8 @@ export function ProfileContextSection({
       aria-labelledby={showTitle ? "profile-context-title" : undefined}
       className="portal-settings-profile"
     >
-      {showTitle ? <h3 id="profile-context-title">Account details</h3> : null}
+      {showTitle ? <h3 id="profile-context-title">Account Details</h3> : null}
       <div className="portal-settings-profile__summary">
-        <p className="portal-shell__eyebrow">Current profile</p>
         <p className="portal-settings-profile__name">
           {session.user.display_name}
         </p>

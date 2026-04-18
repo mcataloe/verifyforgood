@@ -43,7 +43,7 @@ export function OrganizationDeletionPanel({
             }}
             type="button"
           >
-            Delete organization
+            Delete Organization
           </button>
         </div>
       </div>
@@ -54,7 +54,7 @@ export function OrganizationDeletionPanel({
           setOpened(false);
         }}
         opened={opened}
-        title="Delete organization"
+        title="Delete Organization"
       >
         <Stack gap="md">
           <Text size="sm">
@@ -109,7 +109,7 @@ export function OrganizationDeletionPanel({
                 });
               }}
             >
-              {controller.isDeleting ? "Deleting organization..." : "Delete organization"}
+              {controller.isDeleting ? "Deleting..." : "Delete Organization"}
             </Button>
           </Group>
         </Stack>

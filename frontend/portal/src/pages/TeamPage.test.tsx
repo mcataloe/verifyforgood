@@ -72,7 +72,7 @@ describe("TeamPage", () => {
       setMembers,
     });
 
-    expect(screen.getByRole("heading", { name: "Team access" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Team Access" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite user" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Organization details" }),
@@ -112,7 +112,7 @@ describe("TeamPage", () => {
       ],
     });
 
-    expect(screen.getByRole("heading", { name: "Team access" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Team Access" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
     expect(screen.getByText("Read-only team view")).toBeTruthy();
     expect(

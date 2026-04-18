@@ -60,8 +60,7 @@ export function PortalRegisterPage({
     <div className="portal-auth-page">
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
-          <p className="portal-shell__eyebrow">Create access</p>
-          <h2>Start your portal account</h2>
+          <h2>Start Your Portal Account</h2>
           <p>
             Create an account to continue to {requestedRoute.label}. Once your
             account is ready, you can sign in and finish setting up your
@@ -85,8 +84,7 @@ export function PortalRegisterPage({
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What happens next</p>
-          <h3>Create your account first</h3>
+          <h3>Create Your Account First</h3>
           <ul className="portal-list">
             <li>Create your account with your work details.</li>
             <li>
@@ -106,8 +104,7 @@ export function PortalRegisterPage({
         onSubmit={handleSubmit}
       >
         <div className="portal-auth-page__card-copy">
-          <p className="portal-shell__eyebrow">New to VerifyForGood</p>
-          <h3>Create account</h3>
+          <h3>Create Account</h3>
           <p>Use your work email to create your portal login.</p>
         </div>
 
@@ -168,13 +165,13 @@ export function PortalRegisterPage({
             disabled={isBusy}
             type="submit"
           >
-            {isBusy ? "Creating account..." : "Create account"}
+            {isBusy ? "Creating..." : "Create Account"}
           </button>
           <a
             className="portal-shell__action portal-shell__action--secondary"
             href="#/sign-in"
           >
-            Back to sign in
+            Back
           </a>
         </div>
 

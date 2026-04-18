@@ -13,7 +13,6 @@ interface PortalPageShellProps
 export function PortalPageShell({
   children,
   description,
-  eyebrow,
   title,
   toolbar,
   ...rest
@@ -26,7 +25,6 @@ export function PortalPageShell({
     >
       <PageHeader
         description={description}
-        eyebrow={eyebrow}
         title={title}
       />
       {toolbar ? <div className="portal-page-shell__toolbar">{toolbar}</div> : null}

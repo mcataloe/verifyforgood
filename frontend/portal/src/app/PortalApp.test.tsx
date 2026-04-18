@@ -570,12 +570,12 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer portal entry",
+        name: "Customer Portal Entry",
       }),
     ).toBeTruthy();
     expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Create account" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sign In" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create Account" })).toBeTruthy();
     expect(window.location.hash).toBe("#/");
   });
 
@@ -586,12 +586,12 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer portal entry",
+        name: "Customer Portal Entry",
       }),
     ).toBeTruthy();
     expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(
-      screen.queryByRole("heading", { name: "Create your first organization" }),
+      screen.queryByRole("heading", { name: "Create Your Organization" }),
     ).toBeNull();
   });
 
@@ -600,7 +600,7 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Sign in to the customer portal",
+        name: "Sign In to the Customer Portal",
       }),
     ).toBeTruthy();
     expect(
@@ -614,7 +614,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     await screen.findByRole("heading", {
-      name: "Sign in to the customer portal",
+      name: "Sign In to the Customer Portal",
     });
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jamie.admin@example.org" },
@@ -622,9 +622,9 @@ describe("PortalApp", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
-    expect(await screen.findByRole("heading", { name: "Organization activity" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Organization Activity" })).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
@@ -639,13 +639,13 @@ describe("PortalApp", () => {
     render(<App />);
 
     await screen.findByRole("heading", {
-      name: "Sign in to the customer portal",
+      name: "Sign In to the Customer Portal",
     });
-    fireEvent.click(screen.getByRole("link", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("link", { name: "Create Account" }));
 
     expect(
       await screen.findByRole("heading", {
-        name: "Create your customer portal account",
+        name: "Create Your Customer Portal Account",
       }),
     ).toBeTruthy();
 
@@ -658,9 +658,9 @@ describe("PortalApp", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
-    expect(await screen.findByRole("heading", { name: "Organization activity" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Organization Activity" })).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
@@ -697,7 +697,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     await screen.findByRole("heading", {
-      name: "Sign in to the customer portal",
+      name: "Sign In to the Customer Portal",
     });
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jamie.admin@example.org" },
@@ -705,11 +705,11 @@ describe("PortalApp", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Subscription visibility" }),
+        await screen.findByRole("heading", { name: "Subscription Visibility" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/billing");
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
@@ -721,7 +721,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     await screen.findByRole("heading", {
-      name: "Sign in to the customer portal",
+      name: "Sign In to the Customer Portal",
     });
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jamie.admin@example.org" },
@@ -729,7 +729,7 @@ describe("PortalApp", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
     await screen.findByTestId("organization-onboarding-page");
     fireEvent.change(screen.getByLabelText("Organization name"), {
       target: { value: "Verify For Good Org" },
@@ -737,15 +737,15 @@ describe("PortalApp", () => {
     fireEvent.change(screen.getByLabelText("Slug"), {
       target: { value: "verify-for-good-org" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
 
     expect(
       await screen.findByRole("heading", {
-        name: "Organization activity",
+        name: "Organization Activity",
       }),
     ).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Recent organization activity" }),
+      await screen.findByRole("heading", { name: "Recent Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByText("Organization settings updated")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
@@ -785,7 +785,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
@@ -823,7 +823,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
@@ -835,12 +835,12 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer portal entry",
+        name: "Customer Portal Entry",
       }),
     ).toBeTruthy();
     expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
     expect(
-      screen.queryByRole("heading", { name: "Create your first organization" }),
+      screen.queryByRole("heading", { name: "Create Your Organization" }),
     ).toBeNull();
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
@@ -852,7 +852,7 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer portal entry",
+        name: "Customer Portal Entry",
       }),
     ).toBeTruthy();
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
@@ -914,7 +914,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(
@@ -940,12 +940,12 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Create your first organization" }),
+      screen.getByRole("heading", { name: "Create Your Organization" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Complete setup" }),
@@ -976,7 +976,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
 
@@ -998,11 +998,11 @@ describe("PortalApp", () => {
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
     expect(screen.getByTestId("pending-organization-callout")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Open organization setup" }),
+      screen.getByRole("button", { name: "Create Organization" }),
     ).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open organization setup" }),
+      screen.getByRole("button", { name: "Create Organization" }),
     );
 
     expect(await screen.findByTestId("organization-onboarding-page")).toBeTruthy();
@@ -1098,7 +1098,7 @@ describe("PortalApp", () => {
     fireEvent.click(screen.getByTestId("portal-organization-option-secondary-org"));
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
@@ -1122,7 +1122,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
@@ -1161,7 +1161,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
@@ -1199,7 +1199,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit search" }),
+      await screen.findByRole("heading", { name: "Nonprofit Search" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Nonprofit verification search" }),
@@ -1239,7 +1239,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit search" }),
+      await screen.findByRole("heading", { name: "Nonprofit Search" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/search");
   });
@@ -1282,10 +1282,10 @@ describe("PortalApp", () => {
       }),
     ).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Subscription visibility" }),
+      await screen.findByRole("heading", { name: "Subscription Visibility" }),
     ).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Enabled capabilities" }),
+      await screen.findByRole("heading", { name: "Enabled Capabilities" }),
     ).toBeTruthy();
   });
 
@@ -1408,7 +1408,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit search" }),
+      await screen.findByRole("heading", { name: "Nonprofit Search" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
 
@@ -1457,11 +1457,11 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Organization activity" }),
+      await screen.findByRole("heading", { name: "Organization Activity" }),
     ).toBeTruthy();
     expect(
       await screen.findByRole("heading", {
-        name: "Recent organization activity",
+        name: "Recent Organization Activity",
       }),
     ).toBeTruthy();
     expect(
@@ -1469,7 +1469,7 @@ describe("PortalApp", () => {
     ).toBeTruthy();
     expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Load more activity" }),
+      screen.getByRole("button", { name: "Load More" }),
     ).toBeTruthy();
   });
 

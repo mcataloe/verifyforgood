@@ -32,7 +32,6 @@ export function BudgetLimitVisualization({
     <div className="portal-budget-visualization">
       <div className="portal-budget-visualization__header">
         <div>
-          <p className="portal-shell__eyebrow">{limitLabel}</p>
           <h3>
             {snapshot.usage.used.toLocaleString()} / {limit.toLocaleString()}
           </h3>

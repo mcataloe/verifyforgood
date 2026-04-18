@@ -9,12 +9,12 @@ describe("PortalOrganizationOnboardingPage", () => {
 
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Create your first organization" }),
+      screen.getByRole("heading", { name: "Create Your Organization" }),
     ).toBeTruthy();
     expect(screen.getByLabelText("Organization name")).toBeTruthy();
     expect(screen.getByLabelText("Slug")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Create organization" }),
+      screen.getByRole("button", { name: "Create Organization" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Close organization setup" }),
@@ -48,12 +48,24 @@ describe("PortalOrganizationOnboardingPage", () => {
     const onCreateOrganization = vi.fn(async () => undefined);
     renderPage(onCreateOrganization);
 
-    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
 
     expect(screen.getByRole("alert").textContent).toContain(
       "Enter an organization name to continue.",
     );
     expect(onCreateOrganization).not.toHaveBeenCalled();
+  });
+
+  it("auto-generates the slug from the organization name", () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Organization name"), {
+      target: { value: "Verify For Good Org" },
+    });
+
+    expect((screen.getByLabelText("Slug") as HTMLInputElement).value).toBe(
+      "verify-for-good-org",
+    );
   });
 
   it("submits the typed organization create contract", () => {
@@ -63,10 +75,7 @@ describe("PortalOrganizationOnboardingPage", () => {
     fireEvent.change(screen.getByLabelText("Organization name"), {
       target: { value: "Verify For Good Org" },
     });
-    fireEvent.change(screen.getByLabelText("Slug"), {
-      target: { value: "verify-for-good-org" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
 
     expect(onCreateOrganization).toHaveBeenCalledWith({
       name: "Verify For Good Org",
@@ -84,9 +93,9 @@ describe("PortalOrganizationOnboardingPage", () => {
       target: { value: "Verify For Good Org" },
     });
     fireEvent.change(screen.getByLabelText("Slug"), {
-      target: { value: "verify-for-good-org" },
+      target: { value: "Verify For Good Org !!" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
 
     expect(
       await screen.findByText("Organization slug is already in use"),

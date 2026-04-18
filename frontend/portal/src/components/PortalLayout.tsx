@@ -110,7 +110,6 @@ export function PortalLayout({
               ? `${profileNavigationTarget.label} for ${session.user.display_name}`
               : undefined
           }
-          eyebrow="Signed in"
           href={profileNavigationTarget?.href}
           primaryLabel={session.user.display_name}
         />

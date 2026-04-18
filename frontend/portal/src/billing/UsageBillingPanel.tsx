@@ -141,10 +141,10 @@ export function UsageBillingPanel({
       );
   const subscriptionPanelTitle =
     focus === "usage"
-      ? "Usage overview"
+      ? "Usage Overview"
       : visibilityOnly
-        ? "Subscription visibility"
-        : "Current subscription";
+        ? "Subscription Visibility"
+        : "Current Subscription";
   const subscriptionPanelSubtitle =
     focus === "usage"
       ? "Review usage, budget settings, and plan access in one place."
@@ -159,7 +159,6 @@ export function UsageBillingPanel({
       <div className="portal-usage-meter" aria-label="Request usage meter">
         <div className="portal-usage-meter__header">
           <div>
-            <p className="portal-shell__eyebrow">Request usage</p>
             <h3>
               {snapshot.usage.used.toLocaleString()} /{" "}
               {snapshot.usage.limit.toLocaleString()}
@@ -231,7 +230,7 @@ export function UsageBillingPanel({
       </Panel>
 
       <Panel
-        title="Subscription details"
+        title="Subscription Details"
         subtitle="Review plan details, billing dates, and scheduled changes."
       >
         <dl className="portal-shell__details">
@@ -287,7 +286,7 @@ export function UsageBillingPanel({
 
       {visibilityOnly ? (
         <Panel
-          title="Included limits"
+          title="Included Limits"
           subtitle="These limits apply to your current plan."
         >
           <div className="portal-usage-summary-grid">
@@ -312,7 +311,7 @@ export function UsageBillingPanel({
         </Panel>
       ) : (
         <Panel
-          title="Manage plans"
+          title="Manage Plans"
           subtitle="Compare plans and choose the next billing action."
         >
           <PricingPlanGrid items={planItems} />
@@ -321,14 +320,14 @@ export function UsageBillingPanel({
 
       {visibilityOnly ? (
         <Panel
-          title="Enabled capabilities"
+          title="Enabled Capabilities"
           subtitle="Features available with your current plan."
         >
           <CapabilityVisibilityPanel snapshot={snapshot} />
         </Panel>
       ) : (
         <Panel
-          title="Billing tools"
+          title="Billing Tools"
           subtitle="Open invoice history and payment settings."
         >
           {billingActions.error ? (
@@ -339,9 +338,8 @@ export function UsageBillingPanel({
 
           <div className="portal-billing-tools">
             <div className="portal-billing-tools__copy">
-              <p className="portal-shell__eyebrow">Invoices & payment methods</p>
               <h4 className="portal-billing-tools__title">
-                Open the billing portal
+                Open the Billing Portal
               </h4>
               <p className="portal-billing-tools__description">
                 Manage invoices and payment methods in the billing portal.
@@ -369,7 +367,7 @@ export function UsageBillingPanel({
                 }}
                 variant="filled"
               >
-                Open billing portal
+                Open Portal
               </Button>
             </Group>
           </div>
@@ -505,8 +503,7 @@ function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
     >
       <div className="portal-usage-breakdown__header">
         <div>
-          <p className="portal-shell__eyebrow">Current period breakdown</p>
-          <h3>Usage metrics recorded this month</h3>
+          <h3>Usage Metrics Recorded This Month</h3>
         </div>
       </div>
       <div className="portal-usage-breakdown__table" role="table">

@@ -16,7 +16,6 @@ export function SubscriptionSummaryCard({
     <section className="portal-subscription-summary">
       <div className="portal-subscription-summary__header">
         <div>
-          <p className="portal-shell__eyebrow">Subscription summary</p>
           <h3 className="portal-subscription-summary__title">
             {presentation.title}
           </h3>

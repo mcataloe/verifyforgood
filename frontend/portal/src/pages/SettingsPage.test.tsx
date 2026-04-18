@@ -114,16 +114,16 @@ describe("SettingsPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Usage budget controls" }),
+      screen.getByRole("heading", { name: "Usage Budget Controls" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Workspace settings" }),
+      screen.getByRole("heading", { name: "Workspace Settings" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Organization Profile" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Plan & access" }),
+      screen.getByRole("heading", { name: "Plan & Access" }),
     ).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Growth")).toBeTruthy();
@@ -152,7 +152,7 @@ describe("SettingsPage", () => {
       target: { value: "950" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save budget controls" }),
+      screen.getByRole("button", { name: "Save Budget" }),
     );
 
     expect(save).toHaveBeenCalledWith({
@@ -274,7 +274,7 @@ describe("SettingsPage", () => {
       target: { value: "support@example.org" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save organization profile" }),
+      screen.getByRole("button", { name: "Save Changes" }),
     );
 
     expect(save).toHaveBeenCalledWith({
@@ -284,7 +284,7 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("keeps the profile save action visually actionable after a successful save", () => {
+  it("keeps successful profile save feedback visible after a successful save", () => {
     const organizationProfileController: PortalOrganizationProfileSettingsController = {
       clearNotice: vi.fn(),
       error: null,
@@ -309,10 +309,11 @@ describe("SettingsPage", () => {
     );
 
     const saveButton = screen.getByRole("button", {
-      name: "Organization profile saved",
+      name: "Save Changes",
     }) as HTMLButtonElement;
 
-    expect(saveButton.disabled).toBe(false);
+    expect(screen.getByText("Organization profile saved.")).toBeTruthy();
+    expect(saveButton.disabled).toBe(true);
   });
 
   it("requires an exact slug match before deleting an organization", async () => {
@@ -338,9 +339,9 @@ describe("SettingsPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete organization" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Organization" }));
 
-    expect(screen.getAllByRole("heading", { name: "Delete organization" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { name: "Delete Organization" }).length).toBeGreaterThan(0);
     const modal = await screen.findByRole("dialog");
     const slugInput = await screen.findByLabelText("Organization slug");
     expect(document.body.textContent).toContain(
@@ -348,7 +349,7 @@ describe("SettingsPage", () => {
     );
     expect(document.body.textContent).toContain("portal-test-org");
     const confirmDeleteButton = within(modal).getByRole("button", {
-      name: "Delete organization",
+      name: "Delete Organization",
     });
 
     expect((confirmDeleteButton as HTMLButtonElement).disabled).toBe(true);

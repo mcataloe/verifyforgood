@@ -37,7 +37,7 @@ describe("WorkspacePage", () => {
       screen.getByRole("heading", { name: "Nonprofit verification search" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Nonprofit search" }),
+      screen.getByRole("heading", { name: "Nonprofit Search" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
     expect(

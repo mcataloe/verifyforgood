@@ -57,8 +57,7 @@ export function PortalSignInPage({
     <div className="portal-auth-page">
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
-          <p className="portal-shell__eyebrow">Portal entry</p>
-          <h2>Secure access for verification operations</h2>
+          <h2>Secure Access for Verification Operations</h2>
           <p>
             Sign in to continue to {requestedRoute.label}. Use your work email
             and password to access your organization dashboard, billing, team
@@ -82,16 +81,15 @@ export function PortalSignInPage({
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What happens after sign-in</p>
-          <h3>We’ll take you to the right place</h3>
+          <h3>We&apos;ll Take You There</h3>
           <ul className="portal-list">
             <li>
-              If you requested a specific area, we’ll return you there after
+              If you requested a specific area, we&apos;ll return you there after
               sign-in.
             </li>
             <li>
-              If your account does not belong to an organization yet, you’ll be
-              guided through organization setup next.
+              If your account does not belong to an organization yet, you&apos;ll
+              be guided through organization setup next.
             </li>
             <li>
               Help is available if you need support accessing your account.
@@ -106,8 +104,7 @@ export function PortalSignInPage({
         onSubmit={handleSubmit}
       >
         <div className="portal-auth-page__card-copy">
-          <p className="portal-shell__eyebrow">Welcome back</p>
-          <h3>Sign in</h3>
+          <h3>Sign In</h3>
           <p>Use your work email and password to access the portal.</p>
         </div>
 
@@ -151,13 +148,13 @@ export function PortalSignInPage({
             disabled={isBusy}
             type="submit"
           >
-            {isBusy ? "Signing in..." : "Sign in"}
+            {isBusy ? "Signing..." : "Sign In"}
           </button>
           <a
             className="portal-shell__action portal-shell__action--secondary"
             href="#/register"
           >
-            Create account
+            Create Account
           </a>
         </div>
 

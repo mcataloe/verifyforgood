@@ -196,8 +196,7 @@ export function DashboardPage({
           style={pageStyle}
         >
           <PageHeader
-            eyebrow="Customer admin home"
-            title="Organization activity"
+            title="Organization Activity"
             description={`Recent activity, access changes, and important updates for ${session.organization_name}.`}
           />
           <CustomerAdminHomePanel />
@@ -214,8 +213,7 @@ export function DashboardPage({
         style={pageStyle}
       >
         <PageHeader
-          eyebrow="Operations overview"
-          title="Verification dashboard"
+          title="Verification Dashboard"
           description={`Track verification activity, usage, and current priorities for ${session.organization_name}.`}
         />
 
@@ -228,7 +226,7 @@ export function DashboardPage({
         <div className="portal-dashboard__content" data-testid="dashboard-content-layout">
           <div className="portal-dashboard__main" data-testid="dashboard-main-column">
             <SectionContainer
-              title="Recent verifications"
+              title="Recent Verifications"
               description="Recent verification requests across your organization."
             >
               <DataTable
@@ -240,7 +238,7 @@ export function DashboardPage({
 
           <div className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column">
             <SectionContainer
-              title="Verification trend"
+              title="Verification Trend"
               description="Monthly verification volume."
             >
               <TrendChartPlaceholder />

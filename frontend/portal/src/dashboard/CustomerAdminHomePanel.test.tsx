@@ -92,14 +92,14 @@ describe("CustomerAdminHomePanel", () => {
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Recent organization activity" }),
+      await screen.findByRole("heading", { name: "Recent Organization Activity" }),
     ).toBeTruthy();
     expect(screen.getByText("Invitation sent")).toBeTruthy();
     expect(screen.getByText("Jamie Admin")).toBeTruthy();
     expect(screen.getByText("i***@example.org")).toBeTruthy();
     expect(screen.queryByText(/invtok_/i)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Load more activity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
 
     await waitFor(() => {
       expect(screen.getByText("API key created")).toBeTruthy();
@@ -125,7 +125,7 @@ describe("CustomerAdminHomePanel", () => {
       },
     });
 
-    expect(screen.getByText("Activity visibility unavailable")).toBeTruthy();
+    expect(screen.getByText("Activity Visibility Unavailable")).toBeTruthy();
     expect(
       screen.getByText(/Organization activity is visible only to active organization admins/i),
     ).toBeTruthy();

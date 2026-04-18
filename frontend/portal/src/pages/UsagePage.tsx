@@ -15,7 +15,6 @@ export function UsagePage({ endpoints, session }: UsagePageProps) {
   return (
     <PortalPageShell
       description={`Track request usage, limits, and budget settings for ${organization.activeOrganization.organization_name}.`}
-      eyebrow="Usage"
       title="Usage"
     >
       <UsageBillingPanel

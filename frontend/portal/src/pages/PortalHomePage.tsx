@@ -9,8 +9,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
     <div className="portal-auth-page">
       <div className="portal-auth-page__intro">
         <div className="portal-auth-page__copy">
-          <p className="portal-shell__eyebrow">Customer portal</p>
-          <h2>Sign in to manage your organization</h2>
+          <h2>Sign In to Manage Your Organization</h2>
           <p>
             Access billing, team access, API credentials, and verification
             activity from one secure account. Sign in first, then create or
@@ -41,8 +40,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
         </div>
 
         <div className="portal-auth-page__onboarding">
-          <p className="portal-shell__eyebrow">What happens next</p>
-          <h3>Get started quickly</h3>
+          <h3>Get Started Quickly</h3>
           <ul className="portal-list">
             <li>
               If you already belong to an organization, you go straight to your
@@ -61,8 +59,7 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
 
       <div className="portal-auth-page__card portal-form">
         <div className="portal-auth-page__card-copy">
-          <p className="portal-shell__eyebrow">Portal entry</p>
-          <h3>Start with authentication</h3>
+          <h3>Start with Authentication</h3>
           <p>Choose the account flow that fits your current state.</p>
         </div>
 
@@ -71,13 +68,13 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
             className="portal-shell__action portal-shell__action--primary"
             href="#/sign-in"
           >
-            Sign in
+            Sign In
           </a>
           <a
             className="portal-shell__action portal-shell__action--secondary"
             href="#/register"
           >
-            Create account
+            Create Account
           </a>
         </div>
 

@@ -33,7 +33,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   return (
     <StackedDetailSections>
       <Panel
-        title="API key management"
+        title="API Key Management"
         subtitle="Create, review, and revoke API keys for your organization."
       >
         <p>
@@ -45,12 +45,12 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         <dl className="portal-shell__details">
           <div>
             <dt>Your role</dt>
-            <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
+            <dd>{formatLabelValue(organization.currentMembership?.role)}</dd>
           </div>
         </dl>
 
         {!canManageKeys ? (
-          <PortalNotice title="Admin access required" tone="warning">
+          <PortalNotice title="Admin Access Required" tone="warning">
             <p>
               Only organization admins may create or revoke API keys for this
               organization.
@@ -89,7 +89,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 disabled={apiKeys.isCreating}
                 type="submit"
               >
-                {apiKeys.isCreating ? "Creating key..." : "Create API key"}
+                {apiKeys.isCreating ? "Creating..." : "Create Key"}
               </button>
               <button
                 className="portal-shell__action portal-shell__action--secondary"
@@ -100,7 +100,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 }}
                 type="button"
               >
-                Refresh keys
+                Refresh Keys
               </button>
             </Inline>
           </form>
@@ -115,7 +115,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
 
       {apiKeys.visibleSecret ? (
         <Panel
-          title="Copy this secret now"
+          title="Copy Secret"
           subtitle="The plaintext API key is shown once and cannot be recovered later."
         >
           <PortalNotice tone="warning">
@@ -185,14 +185,14 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
               }}
               type="button"
             >
-              Dismiss secret
+              Dismiss Secret
             </button>
           </Inline>
         </Panel>
       ) : null}
 
       <Panel
-        title="Organization API keys"
+        title="Organization API Keys"
         subtitle="Secrets are never shown again after creation."
       >
         {apiKeys.isLoading ? (
@@ -201,81 +201,93 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           </PortalNotice>
         ) : null}
         {!apiKeys.isLoading && sortedKeys.length === 0 ? (
-          <PortalNotice title="Nothing to show yet" tone="empty">
+          <PortalNotice title="Nothing to Show Yet" tone="empty">
             <p>Create a key to start authenticating API traffic.</p>
           </PortalNotice>
         ) : null}
 
         {sortedKeys.length > 0 ? (
-          <table className="portal-table">
-            <thead>
-              <tr>
-                <th>Display name</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Last used</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedKeys.map((key) => (
-                <tr key={key.key_id}>
-                  <td>{key.display_name}</td>
-                  <td>{key.status}</td>
-                  <td>{formatDateTime(key.created_at)}</td>
-                  <td>
-                    {key.last_used_at
-                      ? formatDateTime(key.last_used_at)
-                      : "Never used"}
-                  </td>
-                  <td>
-                    {key.status === "revoked" || !canManageKeys ? (
-                      <span>
-                        {key.status === "revoked" ? "Revoked" : "Read only"}
-                      </span>
-                    ) : pendingRevokeKeyId === key.key_id ? (
-                      <Inline className="portal-form__actions">
-                        <button
-                          className="portal-shell__action portal-shell__action--danger"
-                          disabled={apiKeys.isRevokingKeyId === key.key_id}
-                          onClick={() => {
-                            void apiKeys.revokeKey(key.key_id);
-                            setPendingRevokeKeyId(null);
-                          }}
-                          type="button"
-                        >
-                          {apiKeys.isRevokingKeyId === key.key_id
-                            ? "Revoking..."
-                            : "Confirm revoke"}
-                        </button>
-                        <button
-                          className="portal-shell__action"
-                          disabled={apiKeys.isRevokingKeyId === key.key_id}
-                          onClick={() => {
-                            setPendingRevokeKeyId(null);
-                          }}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      </Inline>
-                    ) : (
+          <div className="portal-key-list">
+            {sortedKeys.map((key) => (
+              <article className="portal-key-card" key={key.key_id}>
+                <div className="portal-key-card__header">
+                  <div>
+                    <h3>{key.display_name}</h3>
+                    <p>Created {formatDateTime(key.created_at)}</p>
+                  </div>
+                  <span
+                    className={`portal-key-chip ${
+                      key.status === "revoked"
+                        ? "portal-key-chip--revoked"
+                        : "portal-key-chip--active"
+                    }`}
+                  >
+                    {formatLabelValue(key.status)}
+                  </span>
+                </div>
+
+                <dl className="portal-key-card__meta">
+                  <div>
+                    <dt>Last Used</dt>
+                    <dd>
+                      {key.last_used_at
+                        ? formatDateTime(key.last_used_at)
+                        : "Never Used"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Key Access</dt>
+                    <dd>{canManageKeys ? "Managed Here" : "Read Only"}</dd>
+                  </div>
+                </dl>
+
+                <div className="portal-key-card__actions">
+                  {key.status === "revoked" || !canManageKeys ? (
+                    <span className="portal-key-card__action-note">
+                      {key.status === "revoked" ? "Revoked" : "Read Only"}
+                    </span>
+                  ) : pendingRevokeKeyId === key.key_id ? (
+                    <Inline className="portal-form__actions">
                       <button
                         className="portal-shell__action portal-shell__action--danger"
                         disabled={apiKeys.isRevokingKeyId === key.key_id}
                         onClick={() => {
-                          setPendingRevokeKeyId(key.key_id);
+                          void apiKeys.revokeKey(key.key_id);
+                          setPendingRevokeKeyId(null);
                         }}
                         type="button"
                       >
-                        Revoke key
+                        {apiKeys.isRevokingKeyId === key.key_id
+                          ? "Revoking..."
+                          : "Confirm Revoke"}
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      <button
+                        className="portal-shell__action"
+                        disabled={apiKeys.isRevokingKeyId === key.key_id}
+                        onClick={() => {
+                          setPendingRevokeKeyId(null);
+                        }}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    </Inline>
+                  ) : (
+                    <button
+                      className="portal-shell__action portal-shell__action--danger"
+                      disabled={apiKeys.isRevokingKeyId === key.key_id}
+                      onClick={() => {
+                        setPendingRevokeKeyId(key.key_id);
+                      }}
+                      type="button"
+                    >
+                      Revoke Key
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
         ) : null}
       </Panel>
     </StackedDetailSections>
@@ -306,5 +318,21 @@ function formatDateTime(value: string): string {
     return value;
   }
 
-  return new Date(parsedValue).toLocaleString();
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(parsedValue));
+}
+
+function formatLabelValue(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return "Unknown";
+  }
+
+  return candidate
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
 }

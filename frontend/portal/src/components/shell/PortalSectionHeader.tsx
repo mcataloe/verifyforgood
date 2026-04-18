@@ -10,13 +10,11 @@ interface PortalSectionHeaderProps {
 export function PortalSectionHeader({
   action,
   description,
-  eyebrow,
   title,
 }: PortalSectionHeaderProps) {
   return (
     <div className="portal-section-header">
       <div className="portal-section-header__copy">
-        {eyebrow ? <p className="portal-shell__eyebrow">{eyebrow}</p> : null}
         <h2>{title}</h2>
         {description ? (
           <p className="portal-section-header__description">{description}</p>

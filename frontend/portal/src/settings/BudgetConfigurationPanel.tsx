@@ -99,9 +99,7 @@ export function BudgetConfigurationPanel({
           }
           type="button"
         >
-          {controller.isSaving
-            ? "Saving budget controls..."
-            : "Save budget controls"}
+          {controller.isSaving ? "Saving..." : "Save Budget"}
         </button>
       </div>
     </div>

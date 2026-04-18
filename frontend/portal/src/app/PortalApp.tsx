@@ -221,10 +221,10 @@ function PortalAppShell({
         subtitle="Sign in or create an account to continue."
         title={
           currentRoute.key === homePortalRoute.key
-            ? "Customer portal entry"
+            ? "Customer Portal Entry"
             : currentRoute.key === registerPortalRoute.key
-              ? "Create your customer portal account"
-              : "Sign in to the customer portal"
+              ? "Create Your Customer Portal Account"
+              : "Sign In to the Customer Portal"
         }
       >
         {currentRoute.key === homePortalRoute.key ? (
@@ -414,8 +414,7 @@ function PortalAuthorizedShell({
       !isOrganizationOnboardingOpen ? (
         <div className="portal-auth-page" data-testid="pending-organization-callout">
           <div className="portal-auth-page__card-copy">
-            <p className="portal-shell__eyebrow">Organization setup</p>
-            <h2>Create your organization to continue</h2>
+            <h2>Create Your Organization to Continue</h2>
             <p>
               Finish creating your organization to unlock billing, team access,
               and verification tools.
@@ -428,7 +427,7 @@ function PortalAuthorizedShell({
               onClick={onOpenOrganizationOnboarding}
               type="button"
             >
-              Open organization setup
+              Create Organization
             </button>
           </div>
         </div>

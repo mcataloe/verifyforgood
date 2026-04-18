@@ -25,7 +25,6 @@ export function PortalNonprofitDetailView({
     <DetailPageLayout
       header={
         <header className="portal-detail-layout__header">
-          <p className="portal-shell__eyebrow">Entity review</p>
           <div className="portal-nonprofit-embedded-detail__title-row">
             <h1>{detail.name}</h1>
             <StatusBadge status={detailStatus(detail)} />

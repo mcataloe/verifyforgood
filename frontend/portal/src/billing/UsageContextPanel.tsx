@@ -32,7 +32,6 @@ export function UsageContextPanel({
     <section className="portal-usage-context" aria-label="Usage context">
       <div className="portal-usage-context__header">
         <div>
-          <p className="portal-shell__eyebrow">Usage context</p>
           <h3>Usage compared with this plan&apos;s included quota</h3>
           <p>
             Simple month-end estimate based on average daily requests so far in

@@ -98,7 +98,7 @@ describe("PortalLayout", () => {
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
     expect(screen.getByText("Secondary Org")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();
-    expect(screen.getByText("Create organization")).toBeTruthy();
+    expect(screen.getByText("Create Organization")).toBeTruthy();
   });
 
   it("shows the organization dropdown when at least one accessible organization is available", async () => {
@@ -109,7 +109,7 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Switch organization")).toBeTruthy();
     expect(screen.getAllByText("VerifyForGood Demo Workspace").length).toBeGreaterThan(0);
     expect(screen.getByText("Current")).toBeTruthy();
-    expect(screen.getByText("Create organization")).toBeTruthy();
+    expect(screen.getByText("Create Organization")).toBeTruthy();
   });
 
   it("keeps the organization dropdown available when onboarding is still pending", async () => {
@@ -126,7 +126,7 @@ describe("PortalLayout", () => {
     fireEvent.click(screen.getByTestId("portal-organization-switcher"));
 
     expect(screen.getByText("No organizations available yet")).toBeTruthy();
-    expect(screen.getByText("Create organization")).toBeTruthy();
+    expect(screen.getByText("Create Organization")).toBeTruthy();
   });
 
   it("switches active organization through the shared auth seam", () => {
@@ -173,7 +173,7 @@ describe("PortalLayout", () => {
     });
 
     fireEvent.click(screen.getByTestId("portal-organization-switcher"));
-    const createOrganizationLabel = screen.getByText("Create organization");
+    const createOrganizationLabel = screen.getByText("Create Organization");
     const createOrganizationButton =
       createOrganizationLabel.closest("button");
     if (!createOrganizationButton) {

@@ -16,8 +16,7 @@ export function TeamPage({ session: _session }: TeamPageProps) {
   return (
     <PortalPageShell
       description={`Manage team access for ${organization.activeOrganization.organization_name}.`}
-      eyebrow="Team"
-      title="Team access"
+      title="Team Access"
     >
       <DetailPageLayout>
         <SectionBlock>

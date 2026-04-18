@@ -295,13 +295,13 @@ describe("UsageBillingPanel", () => {
       screen.queryByRole("heading", { name: "Usage and billing state" }),
     ).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Current subscription" }),
+      screen.getByRole("heading", { name: "Current Subscription" }),
     ).toBeTruthy();
     expect(
       screen.getByText(/Use this page to review usage, manage billing, and make plan changes./i),
     ).toBeTruthy();
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Manage plans" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Manage Plans" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
     expect(screen.getByText("Scheduled downgrade")).toBeTruthy();
     expect(
@@ -380,11 +380,11 @@ describe("UsageBillingPanel", () => {
       focus: "usage",
     });
 
-    expect(screen.getByRole("heading", { name: "Usage overview" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Usage Overview" })).toBeTruthy();
     expect(screen.getByText("800 / 10,000")).toBeTruthy();
     expect(screen.getByText("API requests")).toBeTruthy();
     expect(screen.getByText("Nonprofit lookups")).toBeTruthy();
-    expect(screen.getByText("Usage metrics recorded this month")).toBeTruthy();
+    expect(screen.getByText("Usage Metrics Recorded This Month")).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Subscription is in good standing" }),
     ).toBeNull();
@@ -455,17 +455,17 @@ describe("UsageBillingPanel", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Subscription visibility" }),
+      screen.getByRole("heading", { name: "Subscription Visibility" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Included limits" }),
+      screen.getByRole("heading", { name: "Included Limits" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Enabled capabilities" }),
+      screen.getByRole("heading", { name: "Enabled Capabilities" }),
     ).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Manage plans" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Manage Plans" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Open billing portal" }),
+      screen.queryByRole("button", { name: "Open Portal" }),
     ).toBeNull();
     expect(screen.getByText("Advanced reporting")).toBeTruthy();
   });
@@ -661,7 +661,7 @@ describe("UsageBillingPanel", () => {
     renderWithOrganization(controller, plansController);
 
     expect(
-      screen.getByRole("heading", { name: "Trial in progress" }),
+      screen.getByRole("heading", { name: "Trial in Progress" }),
     ).toBeTruthy();
     expect(screen.getByText("3 days left")).toBeTruthy();
     expect(screen.getByText("6,900 requests")).toBeTruthy();
@@ -756,7 +756,7 @@ describe("UsageBillingPanel", () => {
     expect(screen.queryByRole("button", { name: "Current plan" })).toBeNull();
     expect(
       (
-        screen.getByRole("button", { name: "Open billing portal" }) as
+        screen.getByRole("button", { name: "Open Portal" }) as
           | HTMLButtonElement
           | null
       )?.disabled,
@@ -1111,7 +1111,7 @@ describe("UsageBillingPanel", () => {
       billingActionsController,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open billing portal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Portal" }));
 
     await waitFor(() => {
       expect(cancelSubscription).toHaveBeenCalledWith({

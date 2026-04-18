@@ -17,11 +17,11 @@ describe("DashboardPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Verification dashboard" }),
+      screen.getByRole("heading", { name: "Verification Dashboard" }),
     ).toBeTruthy();
     expect(screen.getByText("Verifications this month")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Recent verifications" }),
+      screen.getByRole("heading", { name: "Recent Verifications" }),
     ).toBeTruthy();
     expect(screen.getByLabelText("Verification trend chart")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Alerts" })).toBeTruthy();

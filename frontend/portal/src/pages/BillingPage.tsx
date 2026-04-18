@@ -18,7 +18,6 @@ export function BillingPage({
   return (
     <PortalPageShell
       description={`Review billing, plan details, and included features for ${organization.activeOrganization.organization_name}.`}
-      eyebrow="Billing"
       title="Billing"
     >
       <UsageBillingPanel

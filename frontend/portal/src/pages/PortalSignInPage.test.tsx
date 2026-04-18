@@ -10,7 +10,7 @@ describe("PortalSignInPage", () => {
 
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Password")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeTruthy();
     expect(
       screen
         .getByRole("button", { name: "Google available soon" })
@@ -37,7 +37,7 @@ describe("PortalSignInPage", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(onLogin).toHaveBeenCalledWith({
       email: "jamie.admin@example.org",
@@ -49,9 +49,11 @@ describe("PortalSignInPage", () => {
     const onLogin = vi.fn(async () => undefined);
     renderSignInPage(onLogin);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
-    expect(screen.getByText("Enter both email and password to continue.")).toBeTruthy();
+    expect(
+      screen.getByText("Enter both email and password to continue."),
+    ).toBeTruthy();
     expect(screen.getByText("Sign-in details required")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain(
       "Enter both email and password to continue.",
@@ -71,7 +73,7 @@ describe("PortalSignInPage", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrong-pass" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(
       await screen.findByText("Invalid email or password"),
@@ -90,7 +92,7 @@ describe("PortalSignInPage", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrong-pass" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(
       await screen.findByText("Invalid email or password"),

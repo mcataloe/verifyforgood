@@ -11,7 +11,7 @@ describe("PortalRegisterPage", () => {
     expect(screen.getByLabelText("Full name")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Password")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create account" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create Account" })).toBeTruthy();
     expect(
       screen
         .getByRole("button", { name: "Google available soon" })
@@ -39,7 +39,7 @@ describe("PortalRegisterPage", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "top-secret-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
     expect(onRegister).toHaveBeenCalledWith({
       email: "jamie.admin@example.org",
@@ -52,7 +52,7 @@ describe("PortalRegisterPage", () => {
     const onRegister = vi.fn(async () => undefined);
     renderRegisterPage(onRegister);
 
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
     expect(
       screen.getByText("Enter an email and password to create your account."),

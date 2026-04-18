@@ -28,9 +28,8 @@ export function TrialOnboardingPanel({
       <PortalNotice tone="warning">
         <div className="portal-onboarding-panel">
           <div>
-            <p className="portal-shell__eyebrow">Optional trial</p>
             <h3 className="portal-onboarding-panel__title">
-              Trial in progress
+              Trial in Progress
             </h3>
             <p className="portal-onboarding-panel__copy">
               You are still on the free tier for billing, with temporary access
@@ -76,9 +75,8 @@ export function TrialOnboardingPanel({
     <PortalNotice tone="loading">
       <div className="portal-onboarding-panel">
         <div>
-          <p className="portal-shell__eyebrow">Start on free</p>
           <h3 className="portal-onboarding-panel__title">
-            Clear limits, optional upgrade path
+            Clear Limits, Optional Upgrade Path
           </h3>
           <p className="portal-onboarding-panel__copy">
             Begin with the free tier, then activate a time-limited trial when it

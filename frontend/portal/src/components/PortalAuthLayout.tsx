@@ -30,7 +30,6 @@ export function PortalAuthLayout({
         <Container size="narrow">
           <div className="portal-auth-shell__stack">
             <div className="portal-auth-shell__hero">
-              <p className="portal-shell__eyebrow">VerifyForGood</p>
               <h1>{title}</h1>
               <p>{subtitle}</p>
             </div>

@@ -101,7 +101,7 @@ describe("ApiKeyManager", () => {
     expect(secretInput.value).not.toBe("");
     expect(secretInput.type).toBe("password");
     expect(screen.getByText("Existing key")).toBeTruthy();
-    expect(screen.getByText("Never used")).toBeTruthy();
+    expect(screen.getByText("Never Used")).toBeTruthy();
     expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByText("acct_portal_test")).toBeNull();
     expect(screen.queryByText("key_existing")).toBeNull();
@@ -121,7 +121,7 @@ describe("ApiKeyManager", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
       target: { value: "New production key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Key" }));
     expect(state.createKey).toHaveBeenCalledWith({
       display_name: "New production key",
     });
@@ -138,12 +138,12 @@ describe("ApiKeyManager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide API key" }));
     expect(secretInput.type).toBe("password");
 
-    fireEvent.click(screen.getByRole("button", { name: "Revoke key" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revoke Key" }));
     expect(state.revokeKey).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm revoke" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Revoke" }));
     expect(state.revokeKey).toHaveBeenCalledWith("key_existing");
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss secret" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss Secret" }));
     expect(state.dismissSecret).toHaveBeenCalled();
   });
 
@@ -166,7 +166,7 @@ describe("ApiKeyManager", () => {
 
     const stackedRoot = document.querySelector(".portal-stacked-sections");
     expect(stackedRoot).toBeTruthy();
-    expect(screen.queryByText("Copy this secret now")).toBeNull();
+    expect(screen.queryByText("Copy Secret")).toBeNull();
 
     const dividers =
       stackedRoot?.querySelectorAll(".portal-stacked-sections__divider") ?? [];

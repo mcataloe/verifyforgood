@@ -92,7 +92,7 @@ export function PortalOrganizationSwitcher({
               leftSection={<IconPlus size={16} stroke={1.8} />}
               onClick={onCreateOrganization}
             >
-              Create organization
+              Create Organization
             </Menu.Item>
           </>
         ) : null}

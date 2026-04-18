@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { normalizeSlugCandidate } from "../lib/slug";
 import type { PortalOrganizationProfileSettingsController } from "./usePortalOrganizationProfileSettings";
 
 interface OrganizationProfileSettingsPanelProps {
@@ -28,7 +29,7 @@ export function OrganizationProfileSettingsPanel({
 
   const trimmedDisplayName = displayName.trim();
   const trimmedContactEmail = contactEmail.trim();
-  const trimmedSlug = slug.trim().toLowerCase();
+  const trimmedSlug = normalizeSlugCandidate(slug);
   const isDirty =
     trimmedDisplayName !== controller.settings.displayName ||
     trimmedContactEmail !== controller.settings.contactEmail.trim() ||
@@ -38,12 +39,11 @@ export function OrganizationProfileSettingsPanel({
     displayName: trimmedDisplayName,
     slug: trimmedSlug,
   });
-  const isRecentlySaved = controller.notice !== null && !isDirty;
   const isSaveDisabled =
     controller.isLoading ||
     controller.isSaving ||
     validationMessage !== null ||
-    (!isDirty && !isRecentlySaved);
+    !isDirty;
 
   return (
     <div className="portal-budget-form">
@@ -70,7 +70,7 @@ export function OrganizationProfileSettingsPanel({
             id="organization-slug"
             onChange={(event) => {
               controller.clearNotice();
-              setSlug(event.target.value);
+              setSlug(normalizeSlugCandidate(event.target.value));
             }}
             placeholder="verify-for-good"
             type="text"
@@ -135,11 +135,7 @@ export function OrganizationProfileSettingsPanel({
           }}
           type="button"
         >
-          {controller.isSaving
-            ? "Saving organization profile..."
-            : isRecentlySaved
-              ? "Organization profile saved"
-              : "Save organization profile"}
+          {controller.isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>

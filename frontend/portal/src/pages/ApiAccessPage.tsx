@@ -16,23 +16,21 @@ interface ApiAccessPageProps {
 
 export function ApiAccessPage({
   endpoints,
-  pane,
+  pane: _pane,
   session,
 }: ApiAccessPageProps) {
   return (
     <PortalPageShell
       description="Create and manage API keys for your organization."
-      eyebrow={pane === "api" ? "Customer admin API" : "Customer portal API"}
-      title="API access"
+      title="API Access"
     >
       <Panel
-        title="API credentials"
+        title="API Credentials"
         subtitle="Manage API keys for your organization and review available access."
       >
         <PortalSectionHeader
           description="Use this page to manage API access for your organization."
-          eyebrow="Organization access"
-          title="Manage API access"
+          title="Manage API Access"
         />
         <p>
           Use API keys for server-to-server integrations. If your team also uses

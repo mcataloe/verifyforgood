@@ -18,8 +18,7 @@ export function WorkspacePage({
   return (
     <PortalPageShell
       description={`Search, review, and manage nonprofit records for ${organization.activeOrganization.organization_name}.`}
-      eyebrow="Nonprofit search"
-      title="Nonprofit search"
+      title="Nonprofit Search"
     >
       <NonprofitSearchPanel />
     </PortalPageShell>
