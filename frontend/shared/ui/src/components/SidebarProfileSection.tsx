@@ -8,7 +8,7 @@ export type SidebarProfileSectionProps = {
   actionLabel?: string;
   actionOnClick?: () => void;
   ariaLabel?: string;
-  eyebrow?: string;
+  eyebrow?: string | null;
   href?: string;
   onClick?: () => void;
   primaryLabel: string;
@@ -27,7 +27,7 @@ export function SidebarProfileSection({
   actionLabel,
   actionOnClick,
   ariaLabel,
-  eyebrow = "Profile",
+  eyebrow,
   href,
   onClick,
   primaryLabel,
@@ -42,9 +42,11 @@ export function SidebarProfileSection({
         </Box>
 
         <Stack gap={2}>
-          <Text className="vf-sidebar-profile__eyebrow" fz="xs" fw={600}>
-            {eyebrow}
-          </Text>
+          {eyebrow ? (
+            <Text className="vf-sidebar-profile__eyebrow" fz="xs" fw={600}>
+              {eyebrow}
+            </Text>
+          ) : null}
           <Text className="vf-sidebar-profile__primary" fw={700}>
             {primaryLabel}
           </Text>

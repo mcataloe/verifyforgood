@@ -279,7 +279,7 @@
 }
 
 .vf-sidebar-profile__action-link {
-  align-self: flex-start;
+  align-self: flex-end;
   padding: 0;
   border: 0;
   background: transparent;

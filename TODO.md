@@ -696,6 +696,36 @@ survive refreshes, new sessions, or cross-user organization access.
 Keep the current nonprofit search route contracts stable; any durable history
 should be additive rather than changing the existing search response payloads.
 
+## TODO-ARCH-032
+
+### Title
+
+Complete the portal UI migration from bespoke form/feedback primitives to Mantine equivalents.
+
+### Rationale
+
+The authenticated portal still mixes Mantine shell/table/menu primitives with a
+large custom layer for:
+
+- form fields and button treatments
+- inline notice/feedback surfaces
+- detail lists and usage summary cards
+- page-specific layout treatments in `frontend/portal/src/app.css`
+
+That inconsistency is now causing duplicated styling work, browser-native
+dropdown regressions, and uneven interaction patterns across the product.
+
+### Migration Triggers
+
+- replacing remaining native or custom-styled form controls with Mantine inputs
+- consolidating section notifications onto dismissible Mantine alert patterns
+- retiring portal-specific button/input CSS where Mantine variants are sufficient
+
+### Constraint
+
+Preserve current route behavior and payload contracts while moving presentation
+surfaces onto Mantine components incrementally.
+
 ## TODO-ARCH-025
 
 ### Title

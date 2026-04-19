@@ -7,6 +7,8 @@ import {
   PortalErrorState,
   PortalLoadingState,
   PortalNotice,
+  PortalNoticeList,
+  type PortalNoticeListItem,
 } from "../components/feedback";
 import { StackedDetailSections } from "../components/shell";
 import {
@@ -63,6 +65,9 @@ export function UsageBillingPanel({
   const [liveSnapshot, setLiveSnapshot] =
     useState<PortalUsageBillingSnapshot | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [dismissedUsageNoticeIds, setDismissedUsageNoticeIds] = useState<
+    string[]
+  >([]);
 
   useEffect(() => {
     setLiveSnapshot(billing.snapshot);
@@ -194,6 +199,47 @@ export function UsageBillingPanel({
       <UsageMetricBreakdown metrics={resolveUsageMetrics(snapshot)} />
     </>
   );
+  const usageSectionNotices: PortalNoticeListItem[] = [];
+  if (!visibilityOnly && statusMessage) {
+    usageSectionNotices.push({
+      body: statusMessage,
+      id: `status:${statusMessage}`,
+      tone: "warning",
+    });
+  }
+  if (snapshot.notice) {
+    usageSectionNotices.push({
+      body: snapshot.notice,
+      id: `snapshot:${snapshot.notice}`,
+      tone: "warning",
+    });
+  }
+  if (!isAdmin) {
+    usageSectionNotices.push({
+      body:
+        "Only organization admins can make billing changes. Billing details are still visible here.",
+      id: "billing-admin-visibility",
+      tone: "warning",
+    });
+  }
+  if (focus === "usage" && resolveUsageMetrics(snapshot).length === 0) {
+    usageSectionNotices.push({
+      body:
+        "No tracked usage has been recorded for this organization in the current period yet.",
+      id: "usage-metrics-empty",
+      tone: "empty",
+    });
+  }
+  const usageNoticeSignature = usageSectionNotices
+    .map((notice) => notice.id)
+    .join("|");
+  const visibleUsageSectionNotices = usageSectionNotices.filter(
+    (notice) => !dismissedUsageNoticeIds.includes(notice.id),
+  );
+
+  useEffect(() => {
+    setDismissedUsageNoticeIds([]);
+  }, [usageNoticeSignature]);
 
   return (
     <StackedDetailSections
@@ -203,30 +249,16 @@ export function UsageBillingPanel({
         title={subscriptionPanelTitle}
         subtitle={subscriptionPanelSubtitle}
       >
+        <PortalNoticeList
+          notices={visibleUsageSectionNotices}
+          onDismiss={(id) => {
+            setDismissedUsageNoticeIds((current) =>
+              current.includes(id) ? current : [...current, id],
+            );
+          }}
+        />
         <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
         {focus === "usage" ? usageSummary : subscriptionSummary}
-
-        {!visibilityOnly && statusMessage ? (
-          <PortalNotice tone="warning">
-            <p>{statusMessage}</p>
-          </PortalNotice>
-        ) : null}
-
-        {snapshot.notice ? (
-          <PortalNotice tone="warning">
-            <p>{snapshot.notice}</p>
-          </PortalNotice>
-        ) : null}
-
-        {!isAdmin ? (
-          <PortalNotice tone="warning">
-            <p>
-              Only organization admins can make billing changes. Billing details
-              are still visible here.
-            </p>
-          </PortalNotice>
-        ) : null}
-
       </Panel>
 
       <Panel
@@ -486,14 +518,7 @@ function UsageSummaryCard(input: { label: string; value: string }) {
 
 function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
   if (input.metrics.length === 0) {
-    return (
-      <PortalNotice tone="warning">
-        <p>
-          No tracked usage has been recorded for this organization in the current
-          period yet.
-        </p>
-      </PortalNotice>
-    );
+    return null;
   }
 
   return (

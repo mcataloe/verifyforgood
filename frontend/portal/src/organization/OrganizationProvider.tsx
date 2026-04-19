@@ -1,5 +1,11 @@
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
-import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
+import {
+  type PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createPortalApiClient } from "../app/portalApiClient";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -133,7 +139,7 @@ export function OrganizationProvider({
     };
   }, [loaderClient, organizationLoader, sessionScope]);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setStatus("loading");
     const organization = await organizationLoader({
       apiClient: loaderClient,
@@ -141,32 +147,33 @@ export function OrganizationProvider({
     });
     setActiveOrganization(organization);
     setStatus("ready");
-  };
+  }, [loaderClient, organizationLoader, sessionScope]);
 
-  const setMembers = (nextMembers: OrganizationMemberSummary[]) => {
+  const setMembers = useCallback((nextMembers: OrganizationMemberSummary[]) => {
     setMembersState(nextMembers);
     setMembersStatus("ready");
-  };
+  }, []);
 
-  const refreshMembers = async () => {
+  const refreshMembers = useCallback(async () => {
     setMembersStatus("loading");
     const nextMembers = await membershipClient.listMembers();
     setMembers(nextMembers);
     return nextMembers;
-  };
+  }, [membershipClient, setMembers]);
 
-  const currentMembership =
-    members.find((member) => member.user_id === session.user.subject_id)
-      ? {
-          role:
-            members.find((member) => member.user_id === session.user.subject_id)
-              ?.role ?? "",
-          status:
-            members.find((member) => member.user_id === session.user.subject_id)
-              ?.status ?? "",
-          user_id: session.user.subject_id,
-        }
-      : session.organization_membership;
+  const activeMember = useMemo(
+    () =>
+      members.find((member) => member.user_id === session.user.subject_id) ??
+      null,
+    [members, session.user.subject_id],
+  );
+  const currentMembership = activeMember
+    ? {
+        role: activeMember.role ?? "",
+        status: activeMember.status ?? "",
+        user_id: session.user.subject_id,
+      }
+    : session.organization_membership;
   const selectionStatus: OrganizationSelectionStatus =
     session.organization_context_status;
 
@@ -191,7 +198,10 @@ export function OrganizationProvider({
       currentMembership,
       members,
       membersStatus,
+      refresh,
+      refreshMembers,
       selectionStatus,
+      setMembers,
       status,
     ],
   );

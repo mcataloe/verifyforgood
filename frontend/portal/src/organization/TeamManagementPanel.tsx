@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActionIcon,
+  Button,
   Group,
   Modal,
   NativeSelect,
+  Select,
   Stack,
   Text,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { IconEdit, IconTrash } from "@tabler/icons-react";
@@ -237,7 +240,7 @@ export function TeamManagementPanel() {
     return () => {
       cancelled = true;
     };
-  }, [organization]);
+  }, [organization.refreshMembers, teamClient]);
 
   useEffect(() => {
     setEditingRole(normalizeMemberRole(editingMember?.role));
@@ -398,52 +401,47 @@ export function TeamManagementPanel() {
           </PortalNotice>
         ) : (
           <form className="portal-form" onSubmit={handleInvite}>
-            <label className="portal-form__field">
-              <span>Invite email</span>
-              <input
-                className="portal-form__input"
+            <Stack gap="md">
+              <TextInput
+                label="Invite email"
                 name="invite-email"
-                onChange={(event) => setInviteEmail(event.target.value)}
+                onChange={(event) => setInviteEmail(event.currentTarget.value)}
                 placeholder="teammate@example.org"
                 type="email"
                 value={inviteEmail}
               />
-            </label>
 
-            <label className="portal-form__field">
-              <span>Role</span>
-              <select
-                className="portal-form__input"
+              <Select
+                allowDeselect={false}
+                comboboxProps={{ withinPortal: false }}
+                data={[
+                  { label: "User", value: "user" },
+                  { label: "Admin", value: "admin" },
+                ]}
+                label="Role"
                 name="invite-role"
-                onChange={(event) =>
-                  setInviteRole(event.target.value as "admin" | "user")
-                }
-                value={inviteRole}
-              >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-
-            <Inline className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                disabled={isInviting}
-                type="submit"
-              >
-                {isInviting ? "Sending invite..." : "Invite user"}
-              </button>
-              <button
-                className="portal-shell__action"
-                disabled={isRefreshing}
-                onClick={() => {
-                  void handleRefresh();
+                onChange={(value) => {
+                  setInviteRole(normalizeMemberRole(value));
                 }}
-                type="button"
-              >
-                {isRefreshing ? "Refreshing..." : "Refresh team"}
-              </button>
-            </Inline>
+                value={inviteRole}
+              />
+
+              <Inline className="portal-form__actions">
+                <Button loading={isInviting} type="submit">
+                  Invite user
+                </Button>
+                <Button
+                  disabled={isRefreshing}
+                  onClick={() => {
+                    void handleRefresh();
+                  }}
+                  type="button"
+                  variant="default"
+                >
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </Button>
+              </Inline>
+            </Stack>
           </form>
         )}
       </Panel>
@@ -535,22 +533,22 @@ export function TeamManagementPanel() {
             disabled={!editingMember || updatingMemberId === editingMember.user_id}
             label="Role"
             onChange={(event) => {
-              setEditingRole(event.currentTarget.value as "admin" | "user");
+              setEditingRole(
+                normalizeMemberRole(event.currentTarget.value),
+              );
             }}
             value={editingRole}
           />
           <Group justify="flex-end">
-            <button
-              className="portal-shell__action"
+            <Button
               onClick={() => {
                 setEditingMember(null);
               }}
               type="button"
             >
               Cancel
-            </button>
-            <button
-              className="portal-shell__action portal-shell__action--primary"
+            </Button>
+            <Button
               disabled={!editingMember || updatingMemberId === editingMember.user_id}
               onClick={() => {
                 if (!editingMember) {
@@ -570,7 +568,7 @@ export function TeamManagementPanel() {
               {editingMember && updatingMemberId === editingMember.user_id
                 ? "Saving..."
                 : "Save"}
-            </button>
+            </Button>
           </Group>
         </Stack>
       </Modal>
@@ -590,17 +588,16 @@ export function TeamManagementPanel() {
               : ""}
           </Text>
           <Group justify="flex-end">
-            <button
-              className="portal-shell__action"
+            <Button
               onClick={() => {
                 setPendingRemovalMember(null);
               }}
               type="button"
             >
               Cancel
-            </button>
-            <button
-              className="portal-shell__action portal-shell__action--danger"
+            </Button>
+            <Button
+              color="red"
               disabled={
                 !pendingRemovalMember ||
                 removingMemberId === pendingRemovalMember.user_id
@@ -617,7 +614,7 @@ export function TeamManagementPanel() {
               removingMemberId === pendingRemovalMember.user_id
                 ? "Deleting..."
                 : "Delete"}
-            </button>
+            </Button>
           </Group>
         </Stack>
       </Modal>
