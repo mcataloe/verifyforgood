@@ -1,9 +1,4 @@
-import {
-  Card,
-  DataTable,
-  SectionContainer,
-  type DataTableColumn,
-} from "@charity-status/shared-ui";
+import { DataTable, SectionContainer, type DataTableColumn } from "@charity-status/shared-ui";
 import { Button } from "@mantine/core";
 import {
   PortalEmptyState,
@@ -147,43 +142,7 @@ export function CustomerAdminHomePanel() {
           </>
         )}
       </SectionContainer>
-
-      <SectionContainer
-        title="Activity Categories"
-        description="The current phase focuses on readable, sanitized organization events."
-      >
-        <div className="portal-dashboard__metrics">
-          <SummaryCard label="Organization" value={organization.activeOrganization.organization_name} />
-          <SummaryCard
-            label="Role"
-            value={formatLabelValue(organization.currentMembership?.role)}
-          />
-          <SummaryCard label="Scope" value={organization.activeOrganization.organization_id ?? organization.activeOrganization.account_id} />
-          <SummaryCard label="Feed order" value="Newest first" />
-        </div>
-      </SectionContainer>
     </div>
-  );
-}
-
-function formatLabelValue(value: string | null | undefined): string {
-  const candidate = String(value ?? "").trim();
-  if (!candidate) {
-    return "Unknown";
-  }
-
-  return candidate
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function SummaryCard(input: { label: string; value: string }) {
-  return (
-    <Card title={input.label} withBorder>
-      <strong>{input.value}</strong>
-    </Card>
   );
 }
 

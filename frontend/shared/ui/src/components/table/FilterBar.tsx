@@ -44,12 +44,19 @@ export function FilterBar({
         <TextInput
           aria-label={searchLabel}
           leftSection={<IconSearch aria-hidden="true" size={16} stroke={1.8} />}
+          leftSectionPointerEvents="none"
+          leftSectionWidth={40}
           label={searchLabel}
           miw={280}
           onChange={(event: ChangeEvent<HTMLInputElement>) =>
             onSearchChange(event.currentTarget.value)
           }
           placeholder={searchPlaceholder}
+          styles={{
+            input: {
+              paddingLeft: "2.75rem",
+            },
+          }}
           value={searchValue}
         />
       ) : null}

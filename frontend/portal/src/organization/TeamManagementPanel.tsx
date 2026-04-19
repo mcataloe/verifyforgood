@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActionIcon,
+  Group,
+  Modal,
+  NativeSelect,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { IconEdit, IconTrash } from "@tabler/icons-react";
+import {
   DataTable,
   Inline,
   Panel,
@@ -27,7 +37,13 @@ export function TeamManagementPanel() {
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   const [invitations, setInvitations] = useState<PortalOrganizationInvitationSummary[]>([]);
   const [invitationsStatus, setInvitationsStatus] = useState<"idle" | "loading" | "ready">("idle");
-  const [pendingRemovalMemberId, setPendingRemovalMemberId] = useState<string | null>(null);
+  const [editingMember, setEditingMember] = useState<
+    (typeof organization.members)[number] | null
+  >(null);
+  const [editingRole, setEditingRole] = useState<"admin" | "user">("user");
+  const [pendingRemovalMember, setPendingRemovalMember] = useState<
+    (typeof organization.members)[number] | null
+  >(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inviteResult, setInviteResult] =
@@ -55,38 +71,14 @@ export function TeamManagementPanel() {
       key: "role",
       header: "Role",
       sortable: true,
-      render: (member) => {
-        const isSelf =
-          member.user_id === organization.currentMembership?.user_id;
-        const isEditable = canManageMembers && !isSelf;
-
-        return isEditable ? (
-          <select
-            aria-label={`Role for ${member.email ?? member.user_id}`}
-            className="portal-form__input"
-            disabled={updatingMemberId === member.user_id}
-            onChange={(event) =>
-              void handleRoleChange(
-                member.user_id,
-                event.target.value as "admin" | "user",
-              )
-            }
-            value={member.role}
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-        ) : (
-          <span>{member.role}</span>
-        );
-      },
+      render: (member) => formatLabelValue(member.role),
       sortValue: (member) => member.role,
     },
     {
       key: "status",
       header: "Status",
       sortable: true,
-      render: (member) => member.status,
+      render: (member) => formatLabelValue(member.status),
       sortValue: (member) => member.status,
     },
     {
@@ -108,46 +100,45 @@ export function TeamManagementPanel() {
           return <span>{isSelf ? "Current user" : "Read only"}</span>;
         }
 
-        if (pendingRemovalMemberId === member.user_id) {
-          return (
-            <Inline className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--danger"
-                disabled={removingMemberId === member.user_id}
-                onClick={() => {
-                  void handleRemove(member.user_id);
-                }}
-                type="button"
-              >
-                {removingMemberId === member.user_id
-                  ? "Removing..."
-                  : "Confirm remove"}
-              </button>
-              <button
-                className="portal-shell__action"
-                disabled={removingMemberId === member.user_id}
-                onClick={() => {
-                  setPendingRemovalMemberId(null);
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-            </Inline>
-          );
-        }
+        const isUpdating = updatingMemberId === member.user_id;
+        const isRemoving = removingMemberId === member.user_id;
 
         return (
-          <button
-            className="portal-shell__action portal-shell__action--danger"
-            disabled={removingMemberId === member.user_id}
-            onClick={() => {
-              setPendingRemovalMemberId(member.user_id);
-            }}
-            type="button"
-          >
-            Remove
-          </button>
+          <Group gap="xs" wrap="nowrap">
+            <Tooltip label="Edit member" withArrow withinPortal>
+              <ActionIcon
+                aria-label={`Edit member ${member.email ?? member.user_id}`}
+                color="gray"
+                disabled={isUpdating || isRemoving}
+                onClick={() => {
+                  setEditingMember(member);
+                  setEditingRole(normalizeMemberRole(member.role));
+                }}
+                radius="xl"
+                size="lg"
+                type="button"
+                variant="subtle"
+              >
+                <IconEdit aria-hidden="true" size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Delete member" withArrow withinPortal>
+              <ActionIcon
+                aria-label={`Delete member ${member.email ?? member.user_id}`}
+                color="red"
+                disabled={isUpdating || isRemoving}
+                onClick={() => {
+                  setPendingRemovalMember(member);
+                }}
+                radius="xl"
+                size="lg"
+                type="button"
+                variant="subtle"
+              >
+                <IconTrash aria-hidden="true" size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         );
       },
     },
@@ -248,6 +239,10 @@ export function TeamManagementPanel() {
     };
   }, [organization]);
 
+  useEffect(() => {
+    setEditingRole(normalizeMemberRole(editingMember?.role));
+  }, [editingMember]);
+
   const handleRefresh = async () => {
     setError(null);
     setIsRefreshing(true);
@@ -316,12 +311,14 @@ export function TeamManagementPanel() {
           member.user_id === memberId ? updated : member,
         ),
       );
+      return true;
     } catch (nextError) {
       setError(
         nextError instanceof Error
           ? nextError.message
           : "Unable to update member role.",
       );
+      return false;
     } finally {
       setUpdatingMemberId(null);
     }
@@ -335,15 +332,17 @@ export function TeamManagementPanel() {
       organization.setMembers(
         organization.members.filter((member) => member.user_id !== memberId),
       );
+      setPendingRemovalMember(null);
+      return true;
     } catch (nextError) {
       setError(
         nextError instanceof Error
           ? nextError.message
           : "Unable to remove member.",
       );
+      return false;
     } finally {
       setRemovingMemberId(null);
-      setPendingRemovalMemberId(null);
     }
   };
 
@@ -513,6 +512,115 @@ export function TeamManagementPanel() {
           />
         ) : null}
       </Panel>
+
+      <Modal
+        centered
+        onClose={() => {
+          setEditingMember(null);
+        }}
+        opened={Boolean(editingMember)}
+        title="Edit Member"
+      >
+        <Stack>
+          <Text>
+            {editingMember
+              ? `Update access for ${editingMember.full_name ?? editingMember.email ?? editingMember.user_id}.`
+              : ""}
+          </Text>
+          <NativeSelect
+            data={[
+              { label: "User", value: "user" },
+              { label: "Admin", value: "admin" },
+            ]}
+            disabled={!editingMember || updatingMemberId === editingMember.user_id}
+            label="Role"
+            onChange={(event) => {
+              setEditingRole(event.currentTarget.value as "admin" | "user");
+            }}
+            value={editingRole}
+          />
+          <Group justify="flex-end">
+            <button
+              className="portal-shell__action"
+              onClick={() => {
+                setEditingMember(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="portal-shell__action portal-shell__action--primary"
+              disabled={!editingMember || updatingMemberId === editingMember.user_id}
+              onClick={() => {
+                if (!editingMember) {
+                  return;
+                }
+
+                void handleRoleChange(editingMember.user_id, editingRole).then(
+                  (didUpdate) => {
+                    if (didUpdate) {
+                      setEditingMember(null);
+                    }
+                  },
+                );
+              }}
+              type="button"
+            >
+              {editingMember && updatingMemberId === editingMember.user_id
+                ? "Saving..."
+                : "Save"}
+            </button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        centered
+        onClose={() => {
+          setPendingRemovalMember(null);
+        }}
+        opened={Boolean(pendingRemovalMember)}
+        title="Delete Member"
+      >
+        <Stack>
+          <Text>
+            {pendingRemovalMember
+              ? `Remove ${pendingRemovalMember.full_name ?? pendingRemovalMember.email ?? pendingRemovalMember.user_id} from ${organization.activeOrganization.organization_name}?`
+              : ""}
+          </Text>
+          <Group justify="flex-end">
+            <button
+              className="portal-shell__action"
+              onClick={() => {
+                setPendingRemovalMember(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="portal-shell__action portal-shell__action--danger"
+              disabled={
+                !pendingRemovalMember ||
+                removingMemberId === pendingRemovalMember.user_id
+              }
+              onClick={() => {
+                if (!pendingRemovalMember) {
+                  return;
+                }
+                void handleRemove(pendingRemovalMember.user_id);
+              }}
+              type="button"
+            >
+              {pendingRemovalMember &&
+              removingMemberId === pendingRemovalMember.user_id
+                ? "Deleting..."
+                : "Delete"}
+            </button>
+          </Group>
+        </Stack>
+      </Modal>
     </StackedDetailSections>
   );
 }
@@ -524,4 +632,21 @@ function formatDateTime(value: string) {
   }
 
   return new Date(parsed).toLocaleString();
+}
+
+function formatLabelValue(value: string | null | undefined) {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return "Unknown";
+  }
+
+  return candidate
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function normalizeMemberRole(value: string | null | undefined): "admin" | "user" {
+  return value === "admin" ? "admin" : "user";
 }

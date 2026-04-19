@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -18,7 +18,7 @@ function resolveMockPath(path: unknown) {
 }
 
 describe("TeamManagementPanel", () => {
-  it("renders invitation lifecycle rows and requires confirmation before removal", async () => {
+  it("renders invitation lifecycle rows and exposes edit/delete member actions", async () => {
     const deleteMember = vi.fn(async () => ({
       organization_id: "acct_portal_test",
       removed_member_id: "user_member",
@@ -110,9 +110,29 @@ describe("TeamManagementPanel", () => {
     expect(screen.getByText("accepted")).toBeTruthy();
     expect(screen.getByText("pending")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-    expect(screen.getByRole("button", { name: "Confirm remove" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm remove" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit member member@example.org",
+      }),
+    );
+    const editDialog = await screen.findByRole("dialog", { name: "Edit Member" });
+    fireEvent.change(within(editDialog).getByLabelText("Role"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Edit Member" })).toBeNull();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Delete member member@example.org",
+      }),
+    );
+    const deleteDialog = await screen.findByRole("dialog", { name: "Delete Member" });
+    expect(within(deleteDialog).getByRole("button", { name: "Delete" })).toBeTruthy();
+    fireEvent.click(within(deleteDialog).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(deleteMember).toHaveBeenCalledOnce();
@@ -155,7 +175,12 @@ describe("TeamManagementPanel", () => {
 
     expect(screen.getByText("Read-only team view")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Edit member/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Delete member/i }),
+    ).toBeNull();
   });
 
   it("shows newly created invitations in the invitation table after refresh", async () => {

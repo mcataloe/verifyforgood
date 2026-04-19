@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -81,9 +81,17 @@ describe("TeamPage", () => {
       screen.queryByRole("heading", { name: "Signed-in account" }),
     ).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Role for member@example.org"), {
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit member member@example.org",
+      }),
+    );
+
+    const editDialog = await screen.findByRole("dialog", { name: "Edit Member" });
+    fireEvent.change(within(editDialog).getByLabelText("Role"), {
       target: { value: "admin" },
     });
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledOnce();
