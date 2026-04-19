@@ -8,6 +8,8 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from charity_status.platform import load_platform_persistence_config, resolve_nonprofit_postgres_sqlalchemy_url
+from charity_status_platform.nonprofits import build_nonprofit_engine, create_nonprofit_tables
 
 
 def repo_root() -> Path:
@@ -74,13 +76,37 @@ def run_db_current(*, root: Path | None = None, env_path: Path | None = None) ->
     command.current(_alembic_config(root=root), verbose=False)
 
 
+def run_db_upgrade_nonprofit(*, env: dict[str, str] | None = None) -> None:
+    source_env = env or dict(os.environ)
+    persistence_config = load_platform_persistence_config(source_env)
+    if (
+        persistence_config.nonprofit_store_backend != "postgres"
+        and persistence_config.nonprofit_query_backend != "postgres"
+    ):
+        return
+    resolved_url = resolve_nonprofit_postgres_sqlalchemy_url(source_env)
+    create_nonprofit_tables(build_nonprofit_engine(resolved_url))
+
+
+def run_db_upgrade_all(*, root: Path | None = None, env_path: Path | None = None) -> None:
+    load_backend_local_env(root=root, env_path=env_path)
+    run_db_upgrade(root=root, env_path=env_path)
+    run_db_upgrade_nonprofit()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="charity_status_backend.shared.local_dev")
-    parser.add_argument("command", choices=("db-upgrade", "db-current"))
+    parser.add_argument("command", choices=("db-upgrade", "db-upgrade-nonprofit", "db-upgrade-all", "db-current"))
     args = parser.parse_args(argv)
 
     if args.command == "db-upgrade":
         run_db_upgrade()
+        return 0
+    if args.command == "db-upgrade-nonprofit":
+        run_db_upgrade_nonprofit()
+        return 0
+    if args.command == "db-upgrade-all":
+        run_db_upgrade_all()
         return 0
 
     run_db_current()

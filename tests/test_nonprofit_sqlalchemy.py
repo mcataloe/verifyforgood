@@ -19,15 +19,18 @@ from charity_status_platform.nonprofits import (
     PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
+    build_nonprofit_engine,
+    build_nonprofit_session_factory,
+    create_nonprofit_tables,
 )
 from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
 
 def _session_factory(tmp_path: Path):
     db_path = tmp_path / "nonprofits.sqlite3"
-    engine = build_customer_accounts_engine(f"sqlite+pysqlite:///{db_path}")
-    CustomerAccountsBase.metadata.create_all(engine)
-    return build_customer_accounts_session_factory(engine)
+    engine = build_nonprofit_engine(f"sqlite+pysqlite:///{db_path}")
+    create_nonprofit_tables(engine)
+    return build_nonprofit_session_factory(engine)
 
 
 def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
@@ -512,8 +515,8 @@ def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
 
 def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selected(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_runtime.sqlite3'}"
-    engine = build_customer_accounts_engine(sqlite_url)
-    CustomerAccountsBase.metadata.create_all(engine)
+    engine = build_nonprofit_engine(sqlite_url)
+    create_nonprofit_tables(engine)
 
     repository = build_nonprofit_postgres_repository(
         {
@@ -530,9 +533,9 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
 
 def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selected(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_runtime.sqlite3'}"
-    engine = build_customer_accounts_engine(sqlite_url)
-    CustomerAccountsBase.metadata.create_all(engine)
-    repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
+    engine = build_nonprofit_engine(sqlite_url)
+    create_nonprofit_tables(engine)
+    repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(engine))
     repository.upsert_nonprofit(
         NonprofitRecord(
             nonprofit_id=None,
@@ -565,3 +568,41 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
     assert isinstance(client, PostgresNonprofitQueryClient)
     assert disabled is athena_delegate
     assert client.lookup_nonprofit("123456789")[1]["name"] == "Query Runtime Org"
+
+
+def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_path: Path):
+    nonprofit_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_dedicated.sqlite3'}"
+    platform_url = f"sqlite+pysqlite:///{tmp_path / 'platform.sqlite3'}"
+    engine = build_nonprofit_engine(nonprofit_url)
+    create_nonprofit_tables(engine)
+    repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(engine))
+    repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="123456789",
+            canonical_name="Dedicated Nonprofit DB Org",
+            normalized_name="dedicated nonprofit db org",
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+
+    athena_delegate = type(
+        "AthenaDelegate",
+        (),
+        {
+            "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
+            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
+        },
+    )()
+    client = build_nonprofit_query_client(
+        athena_client=athena_delegate,
+        env={
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": platform_url,
+            "PLATFORM_NONPROFIT_POSTGRES_URL": nonprofit_url,
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+        },
+    )
+
+    assert client.lookup_nonprofit("123456789")[1]["name"] == "Dedicated Nonprofit DB Org"

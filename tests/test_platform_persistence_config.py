@@ -4,6 +4,7 @@ from charity_status.platform import (
     build_postgres_sqlalchemy_url,
     PostgresRuntimeConfig,
     load_platform_persistence_config,
+    resolve_nonprofit_postgres_sqlalchemy_url,
     resolve_postgres_sqlalchemy_url,
     resolve_postgres_credentials,
 )
@@ -74,6 +75,22 @@ def test_load_platform_persistence_config_accepts_local_url_driven_postgres_sett
     assert config.nonprofit_query_backend == "postgres"
 
 
+def test_load_platform_persistence_config_accepts_dedicated_nonprofit_postgres_settings():
+    config = load_platform_persistence_config(
+        {
+            "PLATFORM_NONPROFIT_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_nonprofit",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+        }
+    )
+
+    assert config.postgres.enabled is False
+    assert config.nonprofit_postgres.enabled is True
+    assert config.nonprofit_postgres.url.endswith("/verification_nonprofit")
+    assert config.nonprofit_store_backend == "postgres"
+    assert config.nonprofit_query_backend == "postgres"
+
+
 def test_resolve_postgres_credentials_reads_secret_backed_username_and_password():
     class _SecretsClient:
         def get_secret_value(self, *, SecretId):
@@ -129,3 +146,16 @@ def test_resolve_postgres_sqlalchemy_url_uses_secret_when_raw_url_absent():
     )
 
     assert url.startswith("postgresql+psycopg://platform_app:super-secret@db.example.internal:5432/verification_platform")
+
+
+def test_resolve_nonprofit_postgres_sqlalchemy_url_prefers_dedicated_nonprofit_config():
+    url = resolve_nonprofit_postgres_sqlalchemy_url(
+        {
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform",
+            "PLATFORM_NONPROFIT_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_nonprofit",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+        }
+    )
+
+    assert url.endswith("/verification_nonprofit")

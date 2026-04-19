@@ -49,23 +49,21 @@ class PostgresCredentials:
 @dataclass(frozen=True)
 class PlatformPersistenceConfig:
     postgres: PostgresRuntimeConfig = PostgresRuntimeConfig()
+    nonprofit_postgres: PostgresRuntimeConfig = PostgresRuntimeConfig()
     nonprofit_store_backend: str = "disabled"
     nonprofit_query_backend: str = "athena"
 
 
 def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> PlatformPersistenceConfig:
     source = env or {}
-    postgres = PostgresRuntimeConfig(
-        enabled=_mapping_bool(source, "PLATFORM_POSTGRES_ENABLED"),
-        host=_mapping_text(source, "PLATFORM_POSTGRES_HOST"),
-        port=_mapping_int(source, "PLATFORM_POSTGRES_PORT", 5432),
-        database=_mapping_text(source, "PLATFORM_POSTGRES_DATABASE"),
-        sslmode=_mapping_text(source, "PLATFORM_POSTGRES_SSLMODE", "require") or "require",
-        secret_arn=_mapping_text(source, "PLATFORM_POSTGRES_SECRET_ARN"),
-        url=_mapping_text(source, "PLATFORM_POSTGRES_URL"),
+    postgres = _load_postgres_runtime_config(source, prefix="PLATFORM_POSTGRES")
+    nonprofit_postgres = _load_postgres_runtime_config(
+        source,
+        prefix="PLATFORM_NONPROFIT_POSTGRES",
     )
     config = PlatformPersistenceConfig(
         postgres=postgres,
+        nonprofit_postgres=nonprofit_postgres,
         nonprofit_store_backend=_mapping_text(source, "PLATFORM_NONPROFIT_STORE_BACKEND", "disabled") or "disabled",
         nonprofit_query_backend=_mapping_text(source, "PLATFORM_NONPROFIT_QUERY_BACKEND", "athena") or "athena",
     )
@@ -126,6 +124,23 @@ def resolve_postgres_sqlalchemy_url(
     return build_postgres_sqlalchemy_url(config.postgres, credentials=credentials)
 
 
+def resolve_nonprofit_postgres_sqlalchemy_url(
+    env: Mapping[str, str] | None = None,
+    *,
+    secrets_client: Any | None = None,
+) -> str:
+    config = load_platform_persistence_config(env)
+    runtime_config = (
+        config.nonprofit_postgres
+        if _postgres_runtime_config_is_configured(config.nonprofit_postgres)
+        else config.postgres
+    )
+    if runtime_config.url:
+        return runtime_config.url
+    credentials = resolve_postgres_credentials(runtime_config, secrets_client=secrets_client)
+    return build_postgres_sqlalchemy_url(runtime_config, credentials=credentials)
+
+
 def build_control_plane_store(
     env: Mapping[str, str] | None = None,
     *,
@@ -160,21 +175,80 @@ def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> 
         config.nonprofit_store_backend == "postgres"
         or config.nonprofit_query_backend == "postgres"
     )
-    if nonprofit_uses_postgres and not config.postgres.enabled:
+    nonprofit_has_dedicated_postgres = _postgres_runtime_config_is_configured(config.nonprofit_postgres)
+
+    if nonprofit_has_dedicated_postgres:
+        _validate_postgres_runtime_config(
+            config.nonprofit_postgres,
+            enabled_key="PLATFORM_NONPROFIT_POSTGRES_ENABLED",
+            host_key="PLATFORM_NONPROFIT_POSTGRES_HOST",
+            database_key="PLATFORM_NONPROFIT_POSTGRES_DATABASE",
+            secret_key="PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN",
+        )
+    if config.postgres.enabled or not nonprofit_has_dedicated_postgres or not nonprofit_uses_postgres:
+        _validate_postgres_runtime_config(
+            config.postgres,
+            enabled_key="PLATFORM_POSTGRES_ENABLED",
+            host_key="PLATFORM_POSTGRES_HOST",
+            database_key="PLATFORM_POSTGRES_DATABASE",
+            secret_key="PLATFORM_POSTGRES_SECRET_ARN",
+        )
+    if nonprofit_uses_postgres and not (config.postgres.enabled or nonprofit_has_dedicated_postgres):
         raise ValueError("PLATFORM_POSTGRES_ENABLED must be true when any platform store backend is postgres")
 
-    if not config.postgres.enabled:
-        return
 
-    if config.postgres.url:
-        return
+def _load_postgres_runtime_config(
+    source: Mapping[str, str],
+    *,
+    prefix: str,
+) -> PostgresRuntimeConfig:
+    prefixed_values_present = _postgres_runtime_env_present(source, prefix=prefix)
+    return PostgresRuntimeConfig(
+        enabled=_mapping_bool(source, f"{prefix}_ENABLED", prefixed_values_present),
+        host=_mapping_text(source, f"{prefix}_HOST"),
+        port=_mapping_int(source, f"{prefix}_PORT", 5432),
+        database=_mapping_text(source, f"{prefix}_DATABASE"),
+        sslmode=_mapping_text(source, f"{prefix}_SSLMODE", "require") or "require",
+        secret_arn=_mapping_text(source, f"{prefix}_SECRET_ARN"),
+        url=_mapping_text(source, f"{prefix}_URL"),
+    )
 
-    if not config.postgres.host:
-        raise ValueError("PLATFORM_POSTGRES_HOST is required when PLATFORM_POSTGRES_ENABLED=true")
-    if not config.postgres.database:
-        raise ValueError("PLATFORM_POSTGRES_DATABASE is required when PLATFORM_POSTGRES_ENABLED=true")
-    if not config.postgres.secret_arn:
-        raise ValueError("PLATFORM_POSTGRES_SECRET_ARN is required when PLATFORM_POSTGRES_ENABLED=true")
+
+def _postgres_runtime_env_present(source: Mapping[str, str], *, prefix: str) -> bool:
+    for suffix in ("HOST", "PORT", "DATABASE", "SSLMODE", "SECRET_ARN", "URL"):
+        if _mapping_text(source, f"{prefix}_{suffix}"):
+            return True
+    return False
+
+
+def _postgres_runtime_config_is_configured(config: PostgresRuntimeConfig) -> bool:
+    return bool(
+        config.enabled
+        or config.host
+        or config.database
+        or config.secret_arn
+        or config.url
+    )
+
+
+def _validate_postgres_runtime_config(
+    config: PostgresRuntimeConfig,
+    *,
+    enabled_key: str,
+    host_key: str,
+    database_key: str,
+    secret_key: str,
+) -> None:
+    if not config.enabled:
+        return
+    if config.url:
+        return
+    if not config.host:
+        raise ValueError(f"{host_key} is required when {enabled_key}=true")
+    if not config.database:
+        raise ValueError(f"{database_key} is required when {enabled_key}=true")
+    if not config.secret_arn:
+        raise ValueError(f"{secret_key} is required when {enabled_key}=true")
 
 
 def _build_sqlalchemy_session_factory(bind: Engine | str) -> sessionmaker[Session]:

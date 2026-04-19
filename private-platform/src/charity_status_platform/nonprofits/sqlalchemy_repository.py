@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
-from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
+from .sqlalchemy_db import nonprofit_session_scope
 
 from .sqlalchemy_models import (
     ComplianceCheckModel,
@@ -187,7 +187,7 @@ class SqlAlchemyNonprofitRepository:
         self._session_factory = session_factory
 
     def upsert_nonprofit(self, record: NonprofitRecord) -> NonprofitRecord:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             normalized_record = _normalized_nonprofit_record(record)
             _execute_upsert(
                 session,
@@ -203,13 +203,13 @@ class SqlAlchemyNonprofitRepository:
             return _nonprofit_record(model)
 
     def get_nonprofit_by_ein(self, ein: str) -> NonprofitRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = session.scalar(select(NonprofitModel).where(NonprofitModel.ein == _normalize_ein(ein)).limit(1))
             return None if model is None else _nonprofit_record(model)
 
     def get_nonprofit_snapshot_by_ein(self, ein: str) -> dict[str, Any] | None:
         latest_filing = _latest_filing_subquery()
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             row = session.execute(
                 select(
                     NonprofitModel.ein,
@@ -231,7 +231,7 @@ class SqlAlchemyNonprofitRepository:
             return None if row is None else _snapshot_row(dict(row))
 
     def upsert_filing(self, record: NonprofitFilingRecord) -> NonprofitFilingRecord:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             normalized_record = _normalized_filing_record(record)
             _execute_upsert(
                 session,
@@ -255,7 +255,7 @@ class SqlAlchemyNonprofitRepository:
         return _filing_record(model)
 
     def upsert_raw_filing(self, record: NonprofitRawFilingRecord) -> NonprofitRawFilingRecord:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             normalized_record = _normalized_raw_filing_record(record)
             _execute_upsert(
                 session,
@@ -296,7 +296,7 @@ class SqlAlchemyNonprofitRepository:
             nonprofits_by_ein[nonprofit.ein] = nonprofit
 
         perf_counter = time.perf_counter
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             nonprofit_started_at = perf_counter()
             nonprofit_values = [_nonprofit_values(record) for record in nonprofits_by_ein.values()]
             _execute_upsert_many(
@@ -338,7 +338,7 @@ class SqlAlchemyNonprofitRepository:
         )
 
     def list_filings_for_nonprofit(self, nonprofit_id: int, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(NonprofitFilingModel)
                 .where(NonprofitFilingModel.nonprofit_id == nonprofit_id)
@@ -349,7 +349,7 @@ class SqlAlchemyNonprofitRepository:
             return [_filing_record(model) for model in session.scalars(statement).all()]
 
     def list_filings_by_ein(self, ein: str, *, limit: int | None = None) -> list[dict[str, Any]]:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(
                     NonprofitModel.ein,
@@ -378,7 +378,7 @@ class SqlAlchemyNonprofitRepository:
         source_name: str | None = None,
         content_hash: str | None = None,
     ) -> NonprofitRawFilingRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = select(NonprofitRawFilingModel).where(
                 NonprofitRawFilingModel.nonprofit_id == nonprofit_id,
                 NonprofitRawFilingModel.tax_year == tax_year,
@@ -407,7 +407,7 @@ class SqlAlchemyNonprofitRepository:
         tax_year: int | None = None,
         form_type: str | None = None,
     ) -> NonprofitRawFilingRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(NonprofitRawFilingModel)
                 .join(NonprofitModel, NonprofitModel.nonprofit_id == NonprofitRawFilingModel.nonprofit_id)
@@ -428,7 +428,7 @@ class SqlAlchemyNonprofitRepository:
             return None if model is None else _raw_filing_record(model)
 
     def upsert_source(self, record: NonprofitSourceRecord) -> NonprofitSourceRecord:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             normalized_record = _normalized_source_record(record)
             _execute_upsert(
                 session,
@@ -457,7 +457,7 @@ class SqlAlchemyNonprofitRepository:
         source_id: str | None = None,
         limit: int | None = None,
     ) -> list[NonprofitSourceRecord]:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(NonprofitSourceModel)
                 .where(NonprofitSourceModel.nonprofit_id == nonprofit_id)
@@ -476,7 +476,7 @@ class SqlAlchemyNonprofitRepository:
         source_id: str | None = None,
         limit: int | None = None,
     ) -> list[NonprofitSourceRecord]:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(NonprofitSourceModel)
                 .join(NonprofitModel, NonprofitModel.nonprofit_id == NonprofitSourceModel.nonprofit_id)
@@ -490,7 +490,7 @@ class SqlAlchemyNonprofitRepository:
             return [_source_record(model) for model in session.scalars(statement).all()]
 
     def create_compliance_check(self, record: ComplianceCheckRecord) -> ComplianceCheckRecord:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = _check_model(record)
             session.add(model)
             session.flush()
@@ -502,7 +502,7 @@ class SqlAlchemyNonprofitRepository:
         *,
         check_type: str | None = None,
     ) -> ComplianceCheckRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(ComplianceCheckModel)
                 .where(ComplianceCheckModel.nonprofit_id == nonprofit_id)
@@ -519,7 +519,7 @@ class SqlAlchemyNonprofitRepository:
         *,
         check_type: str | None = None,
     ) -> ComplianceCheckRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(ComplianceCheckModel)
                 .join(NonprofitModel, NonprofitModel.nonprofit_id == ComplianceCheckModel.nonprofit_id)
@@ -546,7 +546,7 @@ class SqlAlchemyNonprofitRepository:
         normalized_query = str(name_query or "").strip().lower()
         cursor_name_normalized = str(cursor_name or "").strip().lower() or None
 
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(
                     NonprofitModel.ein,
@@ -578,7 +578,7 @@ class SqlAlchemyNonprofitRepository:
 
     def list_nonprofit_eins_page(self, *, limit: int, start_after_ein: str | None = None) -> list[str]:
         normalized_start = _normalize_ein(start_after_ein) if start_after_ein else None
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = select(NonprofitModel.ein).order_by(NonprofitModel.ein.asc()).limit(limit)
             if normalized_start:
                 statement = statement.where(NonprofitModel.ein > normalized_start)
@@ -586,20 +586,20 @@ class SqlAlchemyNonprofitRepository:
 
     def get_archive_by_source_url(self, source_url: str) -> Form990ArchiveRecord | None:
         normalized_source_url = _normalize_source_url(source_url)
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = session.scalar(
                 select(Form990ArchiveModel).where(Form990ArchiveModel.source_url == normalized_source_url).limit(1)
             )
             return None if model is None else _archive_record(model)
 
     def get_archive_by_id(self, archive_id: int) -> Form990ArchiveRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
             return None if model is None else _archive_record(model)
 
     def upsert_archive_probe(self, record: Form990ArchiveRecord) -> Form990ArchiveRecord:
         normalized_record = _normalized_archive_record(record)
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             _execute_upsert(
                 session,
                 Form990ArchiveModel,
@@ -624,7 +624,7 @@ class SqlAlchemyNonprofitRepository:
         processed_at: str | None = None,
         status: str,
     ) -> Form990ArchiveRecord | None:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = session.scalar(select(Form990ArchiveModel).where(Form990ArchiveModel.archive_id == archive_id).limit(1))
             if model is None:
                 return None
@@ -641,7 +641,7 @@ class SqlAlchemyNonprofitRepository:
 
     def get_extracted_file(self, archive_id: int, filename: str) -> Form990ExtractedFileRecord | None:
         normalized_filename = _normalize_optional_text(filename) or ""
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             model = session.scalar(
                 select(Form990ExtractedFileModel)
                 .where(
@@ -653,7 +653,7 @@ class SqlAlchemyNonprofitRepository:
             return None if model is None else _extracted_file_record(model)
 
     def list_extracted_files_for_archive(self, archive_id: int) -> list[Form990ExtractedFileRecord]:
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             statement = (
                 select(Form990ExtractedFileModel)
                 .where(Form990ExtractedFileModel.archive_id == archive_id)
@@ -663,7 +663,7 @@ class SqlAlchemyNonprofitRepository:
 
     def upsert_extracted_file(self, record: Form990ExtractedFileRecord) -> Form990ExtractedFileRecord:
         normalized_record = _normalized_extracted_file_record(record)
-        with customer_accounts_session_scope(self._session_factory) as session:
+        with nonprofit_session_scope(self._session_factory) as session:
             _execute_upsert(
                 session,
                 Form990ExtractedFileModel,

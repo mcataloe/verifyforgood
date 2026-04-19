@@ -169,6 +169,7 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "PostgreSQL 16" in backend_text
     assert "createdb verification_platform" in backend_text
     assert "python -m charity_status_backend.shared.local_dev db-upgrade" in backend_text
+    assert "python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit" in backend_text
     assert "python -m charity_status_backend.shared.local_dev db-current" in backend_text
     assert "python -m charity_status_backend.api.entrypoint" in backend_text
     assert "python -m charity_status_backend.worker.entrypoint" in backend_text
@@ -182,6 +183,7 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "charity_status_backend.api.app:app" in backend_api_text
     assert "backend/.env.local" in backend_api_text
     assert "PLATFORM_POSTGRES_URL" in backend_api_text
+    assert "PLATFORM_NONPROFIT_POSTGRES_URL" in backend_api_text
     assert "backend/api/Dockerfile" in backend_api_text
     assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
     assert "backend/worker/Dockerfile" in backend_worker_text
@@ -248,6 +250,7 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
 
     assert "PLATFORM_POSTGRES_ENABLED=true" in backend_env_example
     assert "PLATFORM_POSTGRES_URL=postgresql+psycopg://" in backend_env_example
+    assert "PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://" in backend_env_example
     assert "PLATFORM_NONPROFIT_STORE_BACKEND=postgres" in backend_env_example
     assert "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres" in backend_env_example
     assert "PORTAL_AUTH_TOKEN_SECRET=dev-portal-auth-secret" in backend_env_example
@@ -257,7 +260,7 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     assert "load_backend_local_env" in api_entrypoint
     assert "load_backend_local_env" in worker_entrypoint
     assert "load_backend_local_env" in ingest_entrypoint
-    assert 'choices=("db-upgrade", "db-current")' in local_dev
+    assert 'choices=("db-upgrade", "db-upgrade-nonprofit", "db-upgrade-all", "db-current")' in local_dev
     assert "from .cli import main as cli_main" in ingest_entrypoint
 
 

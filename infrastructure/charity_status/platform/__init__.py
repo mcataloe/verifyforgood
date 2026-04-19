@@ -24,6 +24,7 @@ from .persistence import (
     PostgresCredentials,
     PostgresRuntimeConfig,
     load_platform_persistence_config,
+    resolve_nonprofit_postgres_sqlalchemy_url,
     resolve_postgres_sqlalchemy_url,
     resolve_postgres_credentials,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "build_organization_settings_store",
     "build_postgres_sqlalchemy_url",
     "load_platform_persistence_config",
+    "resolve_nonprofit_postgres_sqlalchemy_url",
     "resolve_postgres_sqlalchemy_url",
     "resolve_postgres_credentials",
     "DEFAULT_NAMESPACE",

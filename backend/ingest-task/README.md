@@ -71,6 +71,7 @@ Container contract:
 ECS/local parity env aliases:
 
 - `DATABASE_URL` maps to `PLATFORM_POSTGRES_URL` when the native env is absent
+- `DATABASE_URL` also maps to `PLATFORM_NONPROFIT_POSTGRES_URL` when the native nonprofit URL is absent
 - `WORKSPACE_PATH` maps to `FORM990_WORKSPACE_DIR` when the native env is absent
 - `WORKSPACE_PATH` also maps to `EOBMF_WORKSPACE_DIR` for the EO/BMF runtime when the native env is absent
 - `STRICT_MODE` maps to strict failure behavior

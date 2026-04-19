@@ -50,7 +50,9 @@ Local backend API development should use the shared backend-local env contract:
 
 - copy `backend/.env.local.example` to `backend/.env.local`
 - point `PLATFORM_POSTGRES_URL` at a direct local PostgreSQL 16 endpoint
+- optionally point `PLATFORM_NONPROFIT_POSTGRES_URL` at a separate PostgreSQL endpoint when nonprofit/query data should be isolated from customer and billing data
 - run `python -m charity_status_backend.shared.local_dev db-upgrade`
+- run `python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
 - then run `python -m charity_status_backend.api.entrypoint`
 
 The API entrypoint loads `backend/.env.local` automatically before importing

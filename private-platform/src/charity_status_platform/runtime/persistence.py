@@ -4,7 +4,11 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from charity_status.platform import load_platform_persistence_config, resolve_postgres_sqlalchemy_url
+from charity_status.platform import (
+    load_platform_persistence_config,
+    resolve_nonprofit_postgres_sqlalchemy_url,
+    resolve_postgres_sqlalchemy_url,
+)
 from charity_status_platform.customer_accounts import (
     AuditLogRepository,
     ApiKeyRepository,
@@ -28,7 +32,11 @@ from charity_status_platform.customer_accounts import (
     UserRepository,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.nonprofits import PostgresNonprofitQueryClient, SqlAlchemyNonprofitRepository
+from charity_status_platform.nonprofits import (
+    PostgresNonprofitQueryClient,
+    SqlAlchemyNonprofitRepository,
+    build_nonprofit_session_factory,
+)
 
 
 @dataclass(frozen=True)
@@ -73,8 +81,8 @@ def build_nonprofit_postgres_repository(
         and persistence_config.nonprofit_query_backend != "postgres"
     ):
         return None
-    resolved_url = sqlalchemy_url or resolve_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
-    session_factory = build_customer_accounts_session_factory(resolved_url)
+    resolved_url = sqlalchemy_url or resolve_nonprofit_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
+    session_factory = build_nonprofit_session_factory(resolved_url)
     return SqlAlchemyNonprofitRepository(session_factory)
 
 

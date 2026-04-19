@@ -181,6 +181,11 @@ def resolve_eo_bmf_runtime_environment_aliases(env: Mapping[str, str] | None = N
         if database_url:
             resolved["PLATFORM_POSTGRES_URL"] = database_url
             resolved.setdefault("PLATFORM_POSTGRES_ENABLED", "true")
+    if not str(resolved.get("PLATFORM_NONPROFIT_POSTGRES_URL") or "").strip():
+        database_url = str(source_env.get("DATABASE_URL") or "").strip()
+        if database_url:
+            resolved["PLATFORM_NONPROFIT_POSTGRES_URL"] = database_url
+            resolved.setdefault("PLATFORM_NONPROFIT_POSTGRES_ENABLED", "true")
 
     if not str(resolved.get("EOBMF_WORKSPACE_DIR") or "").strip():
         workspace_path = str(source_env.get("WORKSPACE_PATH") or "").strip()

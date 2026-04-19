@@ -10,14 +10,8 @@ from typing import Any, Mapping
 from sqlalchemy import select
 
 from charity_status.normalization import map_deductibility, map_entity_type, map_irs_status, map_ntee_category
-from charity_status.platform import QueryRuntimeConfig, build_athena_client, resolve_postgres_sqlalchemy_url
+from charity_status.platform import QueryRuntimeConfig, build_athena_client, resolve_nonprofit_postgres_sqlalchemy_url
 from charity_status.serving import DynamoProfileStore
-from charity_status_platform.customer_accounts import (
-    CustomerAccountsBase,
-    build_customer_accounts_engine,
-    build_customer_accounts_session_factory,
-    customer_accounts_session_scope,
-)
 from charity_status_platform.nonprofits import (
     ComplianceCheckModel,
     ComplianceCheckRecord,
@@ -28,6 +22,10 @@ from charity_status_platform.nonprofits import (
     NonprofitSourceModel,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
+    build_nonprofit_engine,
+    build_nonprofit_session_factory,
+    create_nonprofit_tables,
+    nonprofit_session_scope,
 )
 
 from .migration_validation import MigrationEntityValidation, build_entity_validation
@@ -71,10 +69,10 @@ def run_nonprofit_migration(
     secrets_client: Any | None = None,
 ) -> NonprofitMigrationReport:
     source = env or os.environ
-    resolved_url = sqlalchemy_url or resolve_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
-    engine = build_customer_accounts_engine(resolved_url)
-    CustomerAccountsBase.metadata.create_all(engine)
-    session_factory = build_customer_accounts_session_factory(engine)
+    resolved_url = sqlalchemy_url or resolve_nonprofit_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
+    engine = build_nonprofit_engine(resolved_url)
+    create_nonprofit_tables(engine)
+    session_factory = build_nonprofit_session_factory(engine)
     repository = SqlAlchemyNonprofitRepository(session_factory)
     effective_query_client = query_client or build_athena_client(_query_runtime_config(source))
     effective_profile_store = profile_store or _build_profile_store(
@@ -391,7 +389,7 @@ def _validate_nonprofit_targets(
     expected_checks: set[tuple[int, str, str]],
     sample_limit: int,
 ) -> tuple[NonprofitMigrationCounts, dict[str, MigrationEntityValidation]]:
-    with customer_accounts_session_scope(session_factory) as session:
+    with nonprofit_session_scope(session_factory) as session:
         expected_nonprofit_ids = {key for key in expected_nonprofits if isinstance(key, int)}
         expected_nonprofit_eins = {key for key in expected_nonprofits if isinstance(key, str)}
         present_nonprofits = (
@@ -543,7 +541,13 @@ def _text(value: Any) -> str | None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Backfill nonprofit PostgreSQL tables from Athena and the optional materialized profile cache.")
-    parser.add_argument("--sqlalchemy-url", default=os.environ.get("PLATFORM_POSTGRES_URL", ""))
+    parser.add_argument(
+        "--sqlalchemy-url",
+        default=(
+            os.environ.get("PLATFORM_NONPROFIT_POSTGRES_URL", "")
+            or os.environ.get("PLATFORM_POSTGRES_URL", "")
+        ),
+    )
     parser.add_argument("--page-size", type=int, default=100)
     parser.add_argument("--max-eins", type=int, default=None)
     parser.add_argument("--start-after-ein", default="")

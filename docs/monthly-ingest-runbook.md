@@ -87,6 +87,8 @@ ECS parity env aliases supported by the runtime:
 - `LOG_LEVEL` -> runtime logging level
 - `DATABASE_URL` -> `PLATFORM_POSTGRES_URL` when a direct URL-style Postgres
   configuration is provided externally
+- `DATABASE_URL` -> `PLATFORM_NONPROFIT_POSTGRES_URL` when a dedicated
+  nonprofit database is used and the native nonprofit URL is absent
 
 Expected source object:
 

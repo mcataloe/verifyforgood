@@ -13,6 +13,8 @@ def test_runtime_environment_aliases_map_only_when_repo_native_values_are_absent
 
     assert resolved["PLATFORM_POSTGRES_URL"] == "postgresql+psycopg://alias"
     assert resolved["PLATFORM_POSTGRES_ENABLED"] == "true"
+    assert resolved["PLATFORM_NONPROFIT_POSTGRES_URL"] == "postgresql+psycopg://alias"
+    assert resolved["PLATFORM_NONPROFIT_POSTGRES_ENABLED"] == "true"
     assert resolved["FORM990_WORKSPACE_DIR"] == "/tmp/from-alias"
 
     preserved = local_runner.resolve_runtime_environment_aliases(
@@ -25,6 +27,7 @@ def test_runtime_environment_aliases_map_only_when_repo_native_values_are_absent
     )
 
     assert preserved["PLATFORM_POSTGRES_URL"] == "postgresql+psycopg://native"
+    assert preserved["PLATFORM_NONPROFIT_POSTGRES_URL"] == "postgresql+psycopg://alias"
     assert preserved["FORM990_WORKSPACE_DIR"] == "/tmp/native"
 
 
@@ -105,6 +108,7 @@ def test_ecs_runtime_creates_workspace_and_calls_shared_local_runner(monkeypatch
     assert captured["config"].workspace == str(workspace)
     assert captured["config"].log_level == "WARNING"
     assert captured["env"]["PLATFORM_POSTGRES_URL"] == "postgresql+psycopg://ecs"
+    assert captured["env"]["PLATFORM_NONPROFIT_POSTGRES_URL"] == "postgresql+psycopg://ecs"
 
 
 def test_ecs_runtime_rejects_positional_arguments():

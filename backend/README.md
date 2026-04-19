@@ -58,17 +58,27 @@ Local PostgreSQL workflow:
 - use PostgreSQL 16 locally until infrastructure pins a deployed engine version
 - use `backend/.env.local` as the canonical backend local env file
 - start from `backend/.env.local.example` and keep `PLATFORM_POSTGRES_URL` as the primary local database setting
+- set `PLATFORM_NONPROFIT_POSTGRES_URL` only when you want nonprofit/entity data and Form 990 ingest state on a separate database from customer accounts, billing, and organization settings
 
 ```powershell
 Copy-Item .\backend\.env.local.example .\backend\.env.local
 createdb verification_platform
+createdb verification_nonprofit
 python -m charity_status_backend.shared.local_dev db-upgrade
+python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit
 python -m charity_status_backend.shared.local_dev db-current
 ```
 
 The documented local database name is `verification_platform`. For a full local
 reset, use `dropdb verification_platform`, `createdb verification_platform`,
 then rerun `python -m charity_status_backend.shared.local_dev db-upgrade`.
+
+If you enable a dedicated nonprofit database, provision that database
+separately and run `python -m charity_status_backend.shared.local_dev
+db-upgrade-nonprofit` after the platform migration step. The current nonprofit
+bootstrap creates only the nonprofit/Form 990 tables on the nonprofit database;
+customer-account, billing, and organization-setting migrations remain on the
+platform database.
 
 Scaffold runtime commands:
 
@@ -138,6 +148,9 @@ Migration/source-of-truth note:
 
 - `python -m charity_status_backend.shared.local_dev db-upgrade` is the
   backend-owned wrapper for local development
+- `python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit`
+  bootstraps the dedicated nonprofit database when `PLATFORM_NONPROFIT_POSTGRES_*`
+  settings are used
 - `alembic upgrade head` remains the underlying schema source-of-truth command
 - local backfill/cutover utilities still run from `private-platform`:
   - `python -m charity_status_platform.runtime.customer_accounts_migration`

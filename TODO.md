@@ -739,6 +739,43 @@ The main portal UI migration is now largely complete:
 - added explicit browser-local save actions for editable customer profile sections that previously had mutable controls without a commit point
 - kept a small set of portal-local classes only for shell/layout structure, stacked section dividers, and toast positioning
 
+## TODO-ARCH-033
+
+### Title
+
+Finish the dedicated nonprofit-database migration and schema-management flow after the runtime split.
+
+### Rationale
+
+The runtime can now isolate nonprofit/Form 990 data onto a dedicated PostgreSQL
+endpoint so scheduled ingest failures or maintenance on the nonprofit data plane
+do not share a database with customer accounts, subscriptions, billing events,
+or organization settings.
+
+The remaining follow-on work is operational rather than service-contract
+shape:
+
+- dedicated deployment wiring and secrets for the nonprofit PostgreSQL endpoint
+- nonprofit-specific migration/bootstrap tooling beyond the current runtime
+  table bootstrap helper
+- data migration/cutover planning for existing shared-database nonprofit rows in
+  environments that already co-locate nonprofit and customer data
+
+### Migration Triggers
+
+- first deployed environment that uses separate PostgreSQL databases for
+  control-plane and nonprofit data
+- nonprofit schema revisions that need first-class migration history instead of
+  bootstrap `create_all` semantics
+- operational runbooks for independent backup, restore, or failover of the
+  nonprofit data plane
+
+### Constraint
+
+Keep the existing customer-account, billing, nonprofit query, and ingest
+service contracts stable while the schema-management path for the dedicated
+nonprofit database is hardened.
+
 ## TODO-ARCH-025
 
 ### Title
