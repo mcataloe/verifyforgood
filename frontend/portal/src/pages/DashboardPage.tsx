@@ -9,6 +9,7 @@ import {
   type DataTableColumn,
   type StatusBadgeStatus,
 } from "@charity-status/shared-ui";
+import { Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type { CSSProperties } from "react";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
@@ -225,14 +226,19 @@ export function DashboardPage({
           description={`Track verification activity, usage, and current priorities for ${session.organization_name}.`}
         />
 
-        <div className="portal-dashboard__metrics" data-testid="dashboard-metrics-grid">
+        <SimpleGrid cols={{ base: 1, sm: 2, xl: 4 }} data-testid="dashboard-metrics-grid" spacing="md">
           {dashboardMetrics.map((metric) => (
             <MetricCard key={metric.title} metric={metric} />
           ))}
-        </div>
+        </SimpleGrid>
 
-        <div className="portal-dashboard__content" data-testid="dashboard-content-layout">
-          <div className="portal-dashboard__main" data-testid="dashboard-main-column">
+        <SimpleGrid
+          className="portal-dashboard__content"
+          cols={{ base: 1, lg: 2 }}
+          data-testid="dashboard-content-layout"
+          spacing="md"
+        >
+          <Stack className="portal-dashboard__main" data-testid="dashboard-main-column" gap="md">
             <SectionContainer
               title="Recent Verifications"
               description="Recent verification requests across your organization."
@@ -248,9 +254,9 @@ export function DashboardPage({
                 searchPlaceholder="Search verifications"
               />
             </SectionContainer>
-          </div>
+          </Stack>
 
-          <div className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column">
+          <Stack className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column" gap="md">
             <SectionContainer
               title="Verification Trend"
               description="Monthly verification volume."
@@ -264,8 +270,8 @@ export function DashboardPage({
             >
               <AlertsPanel />
             </SectionContainer>
-          </div>
-        </div>
+          </Stack>
+        </SimpleGrid>
       </div>
     </VerifyForGoodMantineProvider>
   );
@@ -276,7 +282,6 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
 
   return (
     <Card
-      className="portal-dashboard__metric-card"
       description={metric.detail}
       style={{
         borderTop: `${verifyForGoodTokens.spacing.baseUnit / 2}px solid ${toneStyles.border}`,
@@ -312,66 +317,69 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
 function TrendChartPlaceholder() {
   return (
     <Card
-      className="portal-dashboard__chart-card"
       description="Monthly verification activity."
       title="Monthly throughput"
       withBorder
     >
-      <div
+      <SimpleGrid
         aria-label="Verification trend chart"
         className="portal-dashboard__chart-placeholder"
+        cols={verificationTrend.length}
+        spacing="sm"
         role="img"
-        style={{
-          gridTemplateColumns: `repeat(${verificationTrend.length}, minmax(0, 1fr))`,
-        }}
       >
         {verificationTrend.map((point) => (
-          <div
-            className="portal-dashboard__chart-column"
-            key={point.label}
-          >
-            <div
+          <Stack align="center" gap="xs" key={point.label}>
+            <Paper
               aria-hidden="true"
-              className="portal-dashboard__chart-track"
+              p="xs"
+              radius="md"
               style={{
                 background:
                   "linear-gradient(180deg, rgba(219, 234, 254, 0.45) 0%, rgba(219, 234, 254, 0.12) 100%)",
                 minHeight: `${verifyForGoodTokens.spacing.baseUnit * 18}px`,
+                width: "100%",
+                display: "flex",
+                alignItems: "end",
               }}
             >
               <div
-                className="portal-dashboard__chart-fill"
                 style={{
                   background:
                     "linear-gradient(180deg, #3277d6 0%, #197a83 100%)",
                   height: `${point.value}%`,
                   minHeight: `${verifyForGoodTokens.spacing.baseUnit * 2}px`,
+                  width: "100%",
+                  borderRadius: verifyForGoodTokens.radius.button,
                 }}
               />
-            </div>
-            <span
+            </Paper>
+            <Text
+              c="dimmed"
+              fw={500}
+              size="xs"
               style={{
-                color: semantic.text_secondary,
-                fontSize: verifyForGoodTokens.typography.fontSize.xs,
-                fontWeight: verifyForGoodTokens.typography.fontWeight.medium,
+                textAlign: "center",
               }}
             >
               {point.label}
-            </span>
-          </div>
+            </Text>
+          </Stack>
         ))}
-      </div>
+      </SimpleGrid>
     </Card>
   );
 }
 
 function AlertsPanel() {
   return (
-    <div className="portal-dashboard__alerts" style={alertListStyle}>
+    <Stack gap="sm" style={alertListStyle}>
       {dashboardAlerts.map((alert) => (
-        <div
-          className="portal-dashboard__alert"
+        <Paper
           key={alert.title}
+          p="sm"
+          radius="md"
+          withBorder
           style={alertItemStyle}
         >
           <div
@@ -383,20 +391,21 @@ function AlertsPanel() {
               marginBottom: spacing.xs,
             }}
           >
-            <strong
+            <Text
+              component="strong"
               style={{
                 color: semantic.text_primary,
                 fontSize: verifyForGoodTokens.typography.fontSize.sm,
               }}
             >
               {alert.title}
-            </strong>
+            </Text>
             <StatusBadge status={alert.status} />
           </div>
-          <p style={metricDetailStyle}>{alert.detail}</p>
-        </div>
+          <Text style={metricDetailStyle}>{alert.detail}</Text>
+        </Paper>
       ))}
-    </div>
+    </Stack>
   );
 }
 

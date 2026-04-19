@@ -1,12 +1,4 @@
 import {
-  IconCopy,
-  IconEdit,
-  IconEye,
-  IconEyeOff,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useEffect, useState, type ReactNode } from "react";
-import {
   ActionIcon,
   Group,
   Modal,
@@ -18,13 +10,25 @@ import {
 } from "@mantine/core";
 import {
   DataTable,
-  Inline,
   Panel,
   type DataTableColumn,
 } from "@charity-status/shared-ui";
+import {
+  IconCopy,
+  IconEdit,
+  IconEye,
+  IconEyeOff,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
-import { InfoTooltip } from "../components/InfoTooltip";
 import { StackedDetailSections } from "../components/shell";
+import { InfoTooltip } from "../components/InfoTooltip";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
 
@@ -61,12 +65,14 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
       header: "Display Name",
       sortable: true,
       render: (row) => (
-        <div className="portal-key-row">
-          <div className="portal-key-row__name">{row.display_name}</div>
+        <Stack gap={2}>
+          <Text fw={600}>{row.display_name}</Text>
           {row.description ? (
-            <div className="portal-key-row__description">{row.description}</div>
+            <Text c="dimmed" size="sm">
+              {row.description}
+            </Text>
           ) : null}
-        </div>
+        </Stack>
       ),
       sortValue: (row) => row.display_name,
     },
@@ -98,9 +104,9 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
       render: (row) => {
         if (row.status === "revoked" || !canManageKeys) {
           return (
-            <span className="portal-key-card__action-note">
+            <Text c="dimmed" fw={600} size="sm">
               {row.status === "revoked" ? "Revoked" : "Read Only"}
-            </span>
+            </Text>
           );
         }
 
@@ -112,22 +118,22 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           <Group gap="xs" wrap="nowrap">
             <IconActionButton
               ariaLabel={`Edit key ${row.display_name}`}
+              disabled={isBusy}
               icon={<IconEdit aria-hidden="true" size={16} />}
               onClick={() => {
                 setEditingKey(row);
               }}
               tooltip="Edit key"
-              disabled={isBusy}
             />
             <IconActionButton
               ariaLabel={`Revoke key ${row.display_name}`}
+              disabled={isBusy}
               icon={<IconTrash aria-hidden="true" size={16} />}
               onClick={() => {
                 setPendingRevokeKey(row);
               }}
-              tooltip="Revoke key"
-              disabled={isBusy}
               tone="danger"
+              tooltip="Revoke key"
             />
           </Group>
         );
@@ -136,192 +142,208 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   ];
 
   return (
-    <StackedDetailSections>
-      <Panel
-        title="API Key Management"
-        subtitle="Create, review, and update API keys for your organization."
-      >
-        {!canManageKeys ? (
-          <PortalNotice title="Admin Access Required" tone="warning">
-            <p>
-              Only organization admins may create, edit, or revoke API keys for
-              this organization.
-            </p>
-          </PortalNotice>
-        ) : (
-          <form
-            className="portal-form portal-form--detail"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setCopyFeedback(null);
-              setIsSecretVisible(false);
-              void apiKeys.createKey({
-                description,
-                display_name: displayName,
-              });
-              setDisplayName("");
-              setDescription("");
-            }}
-          >
-            <TextInput
-              label="Display name"
-              onChange={(event) => {
-                setDisplayName(event.currentTarget.value);
-              }}
-              placeholder="Server Integration"
-              value={displayName}
-            />
-            <Textarea
-              autosize
-              label="Description"
-              minRows={3}
-              onChange={(event) => {
-                setDescription(event.currentTarget.value);
-              }}
-              placeholder="What this key is used for."
-              value={description}
-            />
-
-            <Inline className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                disabled={apiKeys.isCreating}
-                type="submit"
-              >
-                {apiKeys.isCreating ? "Creating..." : "Create Key"}
-              </button>
-              <button
-                className="portal-shell__action portal-shell__action--secondary"
-                disabled={apiKeys.isLoading}
-                onClick={() => {
-                  setCopyFeedback(null);
-                  void apiKeys.refresh();
-                }}
-                type="button"
-              >
-                Refresh
-              </button>
-            </Inline>
-          </form>
-        )}
-
-        {apiKeys.error ? (
-          <PortalNotice tone="error">
-            <p>{apiKeys.error}</p>
-          </PortalNotice>
-        ) : null}
-      </Panel>
-
-      {apiKeys.visibleSecret ? (
+    <>
+      <StackedDetailSections>
         <Panel
-          title="Copy Secret"
-          subtitle="The plaintext API key is shown once and cannot be recovered later."
+          title="API Key Management"
+          subtitle="Create, review, and update API keys for your organization."
         >
-          {copyFeedback ? (
-            <PortalNotice tone="warning">
-              <p>{copyFeedback}</p>
-            </PortalNotice>
-          ) : null}
-          <label className="portal-form__field" htmlFor="plaintext-api-key">
-            <span className="portal-form__label-with-tooltip">
-              <span>Plaintext API Key</span>
-              <InfoTooltip label="Store this key in your secrets manager before leaving the page. It will not be shown again." />
-            </span>
-            <div className="portal-secret-field">
-              <input
-                aria-label="Plaintext API key"
-                className="portal-form__input portal-secret-field__input"
-                id="plaintext-api-key"
-                readOnly
-                type={isSecretVisible ? "text" : "password"}
-                value={apiKeys.visibleSecret.secret}
-              />
-              <Inline className="portal-secret-field__actions">
-                <Tooltip
-                  label={isSecretVisible ? "Hide key" : "Show key"}
-                  withArrow
-                  withinPortal
-                >
-                  <button
-                    aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
-                    className="portal-secret-field__action"
-                    onClick={() => {
-                      setIsSecretVisible((current) => !current);
+          <Stack gap="md">
+            <PortalHint>
+              API keys shown here belong to{" "}
+              <strong>{organization.activeOrganization.organization_name}</strong>.
+            </PortalHint>
+
+            {!canManageKeys ? (
+              <PortalNotice title="Admin Access Required" tone="warning">
+                <p>
+                  Only organization admins may create, edit, or revoke API keys for
+                  this organization.
+                </p>
+              </PortalNotice>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setCopyFeedback(null);
+                  setIsSecretVisible(false);
+                  void apiKeys.createKey({
+                    description,
+                    display_name: displayName,
+                  });
+                  setDisplayName("");
+                  setDescription("");
+                }}
+              >
+                <Stack maw={540}>
+                  <TextInput
+                    label="Display name"
+                    onChange={(event) => {
+                      setDisplayName(event.currentTarget.value);
                     }}
-                    type="button"
-                  >
-                    {isSecretVisible ? (
-                      <IconEyeOff aria-hidden="true" size={16} />
-                    ) : (
-                      <IconEye aria-hidden="true" size={16} />
-                    )}
-                  </button>
-                </Tooltip>
-                <Tooltip label="Copy key" withArrow withinPortal>
-                  <button
-                    aria-label="Copy key"
-                    className="portal-secret-field__action"
-                    onClick={() => {
-                      void copySecretToClipboard({
-                        onResult: setCopyFeedback,
-                        secret: apiKeys.visibleSecret?.secret ?? "",
-                      });
+                    placeholder="Server Integration"
+                    value={displayName}
+                  />
+                  <Textarea
+                    autosize
+                    label="Description"
+                    minRows={3}
+                    onChange={(event) => {
+                      setDescription(event.currentTarget.value);
                     }}
-                    type="button"
-                  >
-                    <IconCopy aria-hidden="true" size={16} />
-                  </button>
-                </Tooltip>
-              </Inline>
-            </div>
-          </label>
-          <Inline className="portal-form__actions">
-            <span>
-              Key name: <strong>{apiKeys.visibleSecret.key.display_name}</strong>
-            </span>
-            <button
-              className="portal-shell__action"
-              onClick={() => {
-                setCopyFeedback(null);
-                setIsSecretVisible(false);
-                apiKeys.dismissSecret();
-              }}
-              type="button"
-            >
-              Dismiss
-            </button>
-          </Inline>
+                    placeholder="What this key is used for."
+                    value={description}
+                  />
+
+                  <PortalActionGroup>
+                    <PortalButton
+                      loading={apiKeys.isCreating}
+                      tone="primary"
+                      type="submit"
+                    >
+                      {apiKeys.isCreating ? "Creating..." : "Create Key"}
+                    </PortalButton>
+                    <PortalButton
+                      disabled={apiKeys.isLoading}
+                      onClick={() => {
+                        setCopyFeedback(null);
+                        void apiKeys.refresh();
+                      }}
+                      tone="secondary"
+                      type="button"
+                    >
+                      Refresh
+                    </PortalButton>
+                  </PortalActionGroup>
+                </Stack>
+              </form>
+            )}
+
+            {apiKeys.error ? (
+              <PortalNotice tone="error">
+                <p>{apiKeys.error}</p>
+              </PortalNotice>
+            ) : null}
+          </Stack>
         </Panel>
-      ) : null}
 
-      <Panel title="Organization API Keys" subtitle="Manage active and revoked keys.">
-        {apiKeys.isLoading ? (
-          <PortalNotice title="Loading" tone="loading">
-            <p>Loading API keys for the current organization.</p>
-          </PortalNotice>
-        ) : null}
-        {!apiKeys.isLoading && sortedKeys.length === 0 ? (
-          <PortalNotice title="Nothing to Show Yet" tone="empty">
-            <p>Create a key to start authenticating API traffic.</p>
-          </PortalNotice>
+        {apiKeys.visibleSecret ? (
+          <Panel
+            title="Copy Secret"
+            subtitle="The plaintext API key is shown once and cannot be recovered later."
+          >
+            <Stack gap="md">
+              {copyFeedback ? (
+                <PortalNotice tone="warning">
+                  <p>{copyFeedback}</p>
+                </PortalNotice>
+              ) : null}
+              <div>
+                <Text fw={600} size="sm">
+                  Plaintext API Key
+                </Text>
+                <Group align="end" mt="xs" wrap="nowrap">
+                  <TextInput
+                    aria-label="Plaintext API key"
+                    readOnly
+                    style={{ flex: 1 }}
+                    type={isSecretVisible ? "text" : "password"}
+                    value={apiKeys.visibleSecret.secret}
+                  />
+                  <Tooltip
+                    label={isSecretVisible ? "Hide key" : "Show key"}
+                    withArrow
+                    withinPortal
+                  >
+                    <ActionIcon
+                      aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
+                      onClick={() => {
+                        setIsSecretVisible((current) => !current);
+                      }}
+                      radius="xl"
+                      size="lg"
+                      type="button"
+                      variant="light"
+                    >
+                      {isSecretVisible ? (
+                        <IconEyeOff aria-hidden="true" size={16} />
+                      ) : (
+                        <IconEye aria-hidden="true" size={16} />
+                      )}
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Copy key" withArrow withinPortal>
+                    <ActionIcon
+                      aria-label="Copy key"
+                      onClick={() => {
+                        void copySecretToClipboard({
+                          onResult: setCopyFeedback,
+                          secret: apiKeys.visibleSecret?.secret ?? "",
+                        });
+                      }}
+                      radius="xl"
+                      size="lg"
+                      type="button"
+                      variant="light"
+                    >
+                      <IconCopy aria-hidden="true" size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+                <Group gap={4} mt={6}>
+                  <Text size="sm">Plaintext API Key</Text>
+                  <InfoTooltip label="Store this key in your secrets manager before leaving the page. It will not be shown again." />
+                </Group>
+              </div>
+              <PortalActionGroup>
+                <Text size="sm">
+                  Key name: <strong>{apiKeys.visibleSecret.key.display_name}</strong>
+                </Text>
+                <PortalButton
+                  onClick={() => {
+                    setCopyFeedback(null);
+                    setIsSecretVisible(false);
+                    apiKeys.dismissSecret();
+                  }}
+                  type="button"
+                >
+                  Dismiss
+                </PortalButton>
+              </PortalActionGroup>
+            </Stack>
+          </Panel>
         ) : null}
 
-        {sortedKeys.length > 0 ? (
-          <DataTable
-            ariaLabel="Organization API keys"
-            columns={keyColumns}
-            getSearchText={(row) =>
-              `${row.display_name} ${row.description} ${row.status} ${row.created_at} ${row.last_used_at ?? ""}`
-            }
-            initialSort={{ columnKey: "created_at", direction: "desc" }}
-            pageSize={8}
-            rowKey={(row) => row.key_id}
-            rows={sortedKeys}
-            searchPlaceholder="Search API keys"
-          />
-        ) : null}
-      </Panel>
+        <Panel title="Organization API Keys" subtitle="Manage active and revoked keys.">
+          <Stack gap="md">
+            {apiKeys.isLoading ? (
+              <PortalNotice title="Loading" tone="loading">
+                <p>Loading API keys for the current organization.</p>
+              </PortalNotice>
+            ) : null}
+            {!apiKeys.isLoading && sortedKeys.length === 0 ? (
+              <PortalNotice title="Nothing to Show Yet" tone="empty">
+                <p>Create a key to start authenticating API traffic.</p>
+              </PortalNotice>
+            ) : null}
 
+            {sortedKeys.length > 0 ? (
+              <DataTable
+                ariaLabel="Organization API keys"
+                columns={keyColumns}
+                getSearchText={(row) =>
+                  `${row.display_name} ${row.description} ${row.status} ${row.created_at} ${row.last_used_at ?? ""}`
+                }
+                initialSort={{ columnKey: "created_at", direction: "desc" }}
+                pageSize={8}
+                rowKey={(row) => row.key_id}
+                rows={sortedKeys}
+                searchPlaceholder="Search API keys"
+              />
+            ) : null}
+          </Stack>
+        </Panel>
+      </StackedDetailSections>
       <ApiKeyEditModal
         keyRecord={editingKey}
         onClose={() => {
@@ -341,7 +363,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         }}
         revokingKeyId={apiKeys.isRevokingKeyId}
       />
-    </StackedDetailSections>
+    </>
   );
 }
 
@@ -396,11 +418,10 @@ function ApiKeyEditModal({
           value={description}
         />
         <Group justify="flex-end">
-          <button className="portal-shell__action" onClick={onClose} type="button">
+          <PortalButton onClick={onClose} tone="secondary" type="button">
             Cancel
-          </button>
-          <button
-            className="portal-shell__action portal-shell__action--primary"
+          </PortalButton>
+          <PortalButton
             disabled={isSubmitting || !keyRecord}
             onClick={() => {
               if (!keyRecord) {
@@ -415,10 +436,11 @@ function ApiKeyEditModal({
                 })
                 .catch(() => {});
             }}
+            tone="primary"
             type="button"
           >
             {isSubmitting ? "Saving..." : "Save"}
-          </button>
+          </PortalButton>
         </Group>
       </Stack>
     </Modal>
@@ -452,21 +474,21 @@ function ApiKeyRevokeModal({
             : ""}
         </Text>
         <Group justify="flex-end">
-          <button className="portal-shell__action" onClick={onClose} type="button">
+          <PortalButton onClick={onClose} tone="secondary" type="button">
             Cancel
-          </button>
-          <button
-            className="portal-shell__action portal-shell__action--danger"
+          </PortalButton>
+          <PortalButton
             disabled={!keyRecord || isRevoking}
             onClick={() => {
               if (keyRecord) {
                 onConfirm(keyRecord.key_id);
               }
             }}
+            tone="danger"
             type="button"
           >
             {isRevoking ? "Revoking..." : "Revoke"}
-          </button>
+          </PortalButton>
         </Group>
       </Stack>
     </Modal>

@@ -1,19 +1,22 @@
 import { render, screen } from "@testing-library/react";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it } from "vitest";
 import { PortalHomePage } from "./PortalHomePage";
 
 describe("PortalHomePage", () => {
   it("renders the public portal CTA hierarchy", () => {
     render(
-      <PortalHomePage
-        requestedRoute={{
-          access: "protected",
-          description: "Dashboard overview route.",
-          hash: "#/dashboard",
-          key: "dashboard",
-          label: "Dashboard",
-        }}
-      />,
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <PortalHomePage
+          requestedRoute={{
+            access: "protected",
+            description: "Dashboard overview route.",
+            hash: "#/dashboard",
+            key: "dashboard",
+            label: "Dashboard",
+          }}
+        />
+      </VerifyForGoodMantineProvider>,
     );
 
     expect(

@@ -6,6 +6,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { createPortal } from "react-dom";
+import { CloseButton, Paper, Stack, Text } from "@mantine/core";
 
 export type PortalToastTone = "error" | "success" | "warning";
 
@@ -61,26 +62,39 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
       className="portal-toast-region"
     >
       {toasts.map((toast) => (
-        <div
-          className={`portal-toast portal-toast--${toast.tone}`}
+        <Paper
           key={toast.id}
+          p="md"
+          radius="md"
           role={toast.tone === "error" ? "alert" : "status"}
+          shadow="md"
+          style={{
+            borderColor: resolveToastBorderColor(toast.tone),
+            borderStyle: "solid",
+            borderWidth: 1,
+          }}
+          withBorder
         >
-          <div className="portal-toast__content">
-            <p className="portal-toast__title">{toast.title}</p>
-            <p className="portal-toast__message">{toast.message}</p>
-          </div>
-          <button
-            aria-label="Dismiss notification"
-            className="portal-toast__dismiss"
-            onClick={() => {
-              value.dismissToast(toast.id);
+          <div
+            style={{
+              alignItems: "flex-start",
+              display: "flex",
+              gap: "0.75rem",
+              justifyContent: "space-between",
             }}
-            type="button"
           >
-            Dismiss
-          </button>
-        </div>
+            <Stack gap={2} style={{ minWidth: 0 }}>
+              <Text fw={700}>{toast.title}</Text>
+              <Text size="sm">{toast.message}</Text>
+            </Stack>
+            <CloseButton
+              aria-label="Dismiss notification"
+              onClick={() => {
+                value.dismissToast(toast.id);
+              }}
+            />
+          </div>
+        </Paper>
       ))}
     </div>
   );
@@ -107,4 +121,16 @@ function defaultToastTitle(tone: PortalToastTone): string {
     return "Done";
   }
   return "Heads up";
+}
+
+function resolveToastBorderColor(tone: PortalToastTone) {
+  switch (tone) {
+    case "error":
+      return "var(--mantine-color-red-4)";
+    case "success":
+      return "var(--mantine-color-green-4)";
+    case "warning":
+    default:
+      return "var(--mantine-color-teal-4)";
+  }
 }

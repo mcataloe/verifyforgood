@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it } from "vitest";
 import { DetailPageLayout } from "./DetailPageLayout";
 import { SectionBlock } from "./SectionBlock";
@@ -7,13 +8,15 @@ import { SectionDivider } from "./SectionDivider";
 describe("DetailPageLayout", () => {
   it("renders stacked sections in document order with dividers", () => {
     render(
-      <DetailPageLayout eyebrow="Profile" intro="Intro copy" title="Profile">
-        <SectionBlock title="First">Alpha</SectionBlock>
-        <SectionDivider />
-        <SectionBlock title="Second">Beta</SectionBlock>
-        <SectionDivider />
-        <SectionBlock title="Third">Gamma</SectionBlock>
-      </DetailPageLayout>,
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <DetailPageLayout eyebrow="Profile" intro="Intro copy" title="Profile">
+          <SectionBlock title="First">Alpha</SectionBlock>
+          <SectionDivider />
+          <SectionBlock title="Second">Beta</SectionBlock>
+          <SectionDivider />
+          <SectionBlock title="Third">Gamma</SectionBlock>
+        </DetailPageLayout>
+      </VerifyForGoodMantineProvider>,
     );
 
     expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
@@ -45,15 +48,17 @@ describe("DetailPageLayout", () => {
 
   it("supports custom header content", () => {
     render(
-      <DetailPageLayout
-        header={
-          <header>
-            <h1>Custom header</h1>
-          </header>
-        }
-      >
-        <SectionBlock title="Only section">Body</SectionBlock>
-      </DetailPageLayout>,
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <DetailPageLayout
+          header={
+            <header>
+              <h1>Custom header</h1>
+            </header>
+          }
+        >
+          <SectionBlock title="Only section">Body</SectionBlock>
+        </DetailPageLayout>
+      </VerifyForGoodMantineProvider>,
     );
 
     expect(screen.getByRole("heading", { name: "Custom header" })).toBeTruthy();

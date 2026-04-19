@@ -1,3 +1,9 @@
+import { Divider, List, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import {
+  PortalActionGroup,
+  PortalAnchorButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 
 interface PortalHomePageProps {
@@ -6,88 +12,98 @@ interface PortalHomePageProps {
 
 export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
   return (
-    <div className="portal-auth-page">
-      <div className="portal-auth-page__intro">
-        <div className="portal-auth-page__copy">
-          <h2>Sign In to Manage Your Organization</h2>
-          <p>
+    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
+      <Stack gap="lg">
+        <Stack gap="xs">
+          <Title order={2}>Sign In to Manage Your Organization</Title>
+          <PortalHint>
             Access billing, team access, API credentials, and verification
             activity from one secure account. Sign in first, then create or
             join an organization if needed.
-          </p>
-        </div>
+          </PortalHint>
+        </Stack>
 
-        <div className="portal-auth-page__trust-band">
-          <div>
-            <strong>Primary next step</strong>
-            <span>Sign in or create an account</span>
-          </div>
-          <div>
-            <strong>After authentication</strong>
-            <span>
-              {requestedRoute.key === "home"
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <AuthInfoCard
+            label="Primary next step"
+            value="Sign in or create an account"
+          />
+          <AuthInfoCard
+            label="After authentication"
+            value={
+              requestedRoute.key === "home"
                 ? "You will continue to your dashboard or organization setup."
-                : `You will continue to ${requestedRoute.label}.`}
-            </span>
-          </div>
-          <div>
-            <strong>Organization setup</strong>
-            <span>
-              Organization setup appears only if your account does not already
-              belong to an organization.
-            </span>
-          </div>
-        </div>
+                : `You will continue to ${requestedRoute.label}.`
+            }
+          />
+          <AuthInfoCard
+            label="Organization setup"
+            value="Organization setup appears only if your account does not already belong to an organization."
+          />
+        </SimpleGrid>
 
-        <div className="portal-auth-page__onboarding">
-          <h3>Get Started Quickly</h3>
-          <ul className="portal-list">
-            <li>
-              If you already belong to an organization, you go straight to your
-              dashboard.
-            </li>
-            <li>
-              If you are new, you can create your organization in a dedicated
-              setup step.
-            </li>
-            <li>
-              Your account is always authenticated before organization setup.
-            </li>
-          </ul>
-        </div>
-      </div>
+        <Paper p="lg" radius="lg" withBorder>
+          <Stack gap="sm">
+            <Title order={3}>Get Started Quickly</Title>
+            <List spacing="xs">
+              <List.Item>
+                If you already belong to an organization, you go straight to your
+                dashboard.
+              </List.Item>
+              <List.Item>
+                If you are new, you can create your organization in a dedicated
+                setup step.
+              </List.Item>
+              <List.Item>
+                Your account is always authenticated before organization setup.
+              </List.Item>
+            </List>
+          </Stack>
+        </Paper>
+      </Stack>
 
-      <div className="portal-auth-page__card portal-form">
-        <div className="portal-auth-page__card-copy">
-          <h3>Start with Authentication</h3>
-          <p>Choose the account flow that fits your current state.</p>
-        </div>
+      <Paper p="lg" radius="xl" withBorder>
+        <Stack gap="lg">
+          <Stack gap="xs">
+            <Title order={3}>Start with Authentication</Title>
+            <PortalHint>Choose the account flow that fits your current state.</PortalHint>
+          </Stack>
 
-        <div className="portal-form__actions" data-testid="public-home-auth-cta">
-          <a
-            className="portal-shell__action portal-shell__action--primary"
-            href="#/sign-in"
-          >
-            Sign In
-          </a>
-          <a
-            className="portal-shell__action portal-shell__action--secondary"
-            href="#/register"
-          >
-            Create Account
-          </a>
-        </div>
+          <PortalActionGroup>
+            <div data-testid="public-home-auth-cta">
+              <PortalActionGroup>
+                <PortalAnchorButton href="#/sign-in" tone="primary">
+                  Sign In
+                </PortalAnchorButton>
+                <PortalAnchorButton href="#/register" tone="secondary">
+                  Create Account
+                </PortalAnchorButton>
+              </PortalActionGroup>
+            </div>
+          </PortalActionGroup>
 
-        <div className="portal-auth-page__divider" role="presentation">
-          <span>What you can manage</span>
-        </div>
+          <Divider label="What you can manage" labelPosition="center" />
 
-        <ul className="portal-auth-page__list portal-list">
-          <li>Verification dashboard and organization activity</li>
-          <li>Nonprofit search and detailed review</li>
-          <li>Usage, billing, settings, and API credential management</li>
-        </ul>
-      </div>
-    </div>
+          <List spacing="xs">
+            <List.Item>Verification dashboard and organization activity</List.Item>
+            <List.Item>Nonprofit search and detailed review</List.Item>
+            <List.Item>Usage, billing, settings, and API credential management</List.Item>
+          </List>
+        </Stack>
+      </Paper>
+    </SimpleGrid>
+  );
+}
+
+function AuthInfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Paper p="md" radius="md" withBorder>
+      <Stack gap={4}>
+        <Text c="dimmed" fw={700} fz="xs" tt="uppercase">
+          {label}
+        </Text>
+        <Text size="sm">{value}</Text>
+      </Stack>
+    </Paper>
   );
 }

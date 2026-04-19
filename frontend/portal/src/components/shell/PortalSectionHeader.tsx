@@ -1,3 +1,4 @@
+import { PageHeader } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 
 interface PortalSectionHeaderProps {
@@ -13,14 +14,6 @@ export function PortalSectionHeader({
   title,
 }: PortalSectionHeaderProps) {
   return (
-    <div className="portal-section-header">
-      <div className="portal-section-header__copy">
-        <h2>{title}</h2>
-        {description ? (
-          <p className="portal-section-header__description">{description}</p>
-        ) : null}
-      </div>
-      {action ? <div className="portal-section-header__action">{action}</div> : null}
-    </div>
+    <PageHeader actions={action} description={description} title={title} />
   );
 }

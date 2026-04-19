@@ -23,6 +23,15 @@ describe("TeamManagementPanel", () => {
       organization_id: "acct_portal_test",
       removed_member_id: "user_member",
     }));
+    const patchMember = vi.fn(async () => ({
+      created_at: "2026-03-27T00:00:00Z",
+      email: "member@example.org",
+      full_name: "Member User",
+      role: "admin",
+      status: "active",
+      updated_at: "2026-03-28T00:00:00Z",
+      user_id: "user_member",
+    }));
     const get = vi.fn(async (path: unknown) => {
       if (resolveMockPath(path).includes("/invitations")) {
         return {
@@ -57,15 +66,7 @@ describe("TeamManagementPanel", () => {
       apiClient: {
         delete: deleteMember,
         get,
-        patch: vi.fn(async () => ({
-          created_at: "2026-03-27T00:00:00Z",
-          email: "member@example.org",
-          full_name: "Member User",
-          role: "admin",
-          status: "active",
-          updated_at: "2026-03-28T00:00:00Z",
-          user_id: "user_member",
-        })),
+        patch: patchMember,
         post: vi.fn(async () => ({
           email: "newinvite@example.org",
           invitation_id: "invite_new",
@@ -122,7 +123,7 @@ describe("TeamManagementPanel", () => {
     fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Edit Member" })).toBeNull();
+      expect(patchMember).toHaveBeenCalledOnce();
     });
 
     fireEvent.click(

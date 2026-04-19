@@ -1,4 +1,10 @@
+import { Group, Paper, Progress, Stack, Text, Title } from "@mantine/core";
 import type { PricingPlanMetadata } from "@charity-status/shared-types";
+import {
+  PortalDetailList,
+  PortalMetricCard,
+  PortalMetricGrid,
+} from "../components/PortalPrimitives";
 import type {
   PortalBudgetStatus,
   PortalUsageSnapshot,
@@ -29,22 +35,21 @@ export function UsageContextPanel({
       : projectedOverageRequests * overageUnitPriceMicros;
 
   return (
-    <section className="portal-usage-context" aria-label="Usage context">
-      <div className="portal-usage-context__header">
-        <div>
-          <h3>Usage compared with this plan&apos;s included quota</h3>
-          <p>
-            Simple month-end estimate based on average daily requests so far in
-            this month.
-          </p>
-        </div>
-        <p className="portal-usage-context__forecast">
-          Projected month end:{" "}
-          <strong>{forecast.projectedPercent}% of included quota</strong>
-        </p>
-      </div>
+    <Paper p="lg" radius="lg" withBorder>
+      <Stack gap="md">
+        <Group align="start" justify="space-between" wrap="wrap">
+          <div>
+            <Title order={3}>Usage compared with this plan&apos;s included quota</Title>
+            <Text c="dimmed" mt={4} size="sm">
+              Simple month-end estimate based on average daily requests so far in
+              this month.
+            </Text>
+          </div>
+          <Text fw={700} size="sm">
+            Projected month end: {forecast.projectedPercent}% of included quota
+          </Text>
+        </Group>
 
-      <div className="portal-usage-context__bars">
         <UsageProgressRow
           label="Current usage"
           progress={usage.usagePercent}
@@ -55,48 +60,52 @@ export function UsageContextPanel({
           progress={forecast.projectedPercent}
           value={`About ${forecast.projectedTotal.toLocaleString()} requests`}
         />
-      </div>
 
-      <div className="portal-usage-context__metrics">
-        <MetricCard
-          label="Included quota"
-          value={`${includedQuota.toLocaleString()} requests`}
-        />
-        <MetricCard
-          label="Current pace"
-          value={`${forecast.dailyAverage.toLocaleString()} requests / day`}
-        />
-        <MetricCard
-          label="Projected month end"
-          value={`${forecast.projectedTotal.toLocaleString()} requests`}
-        />
-        <MetricCard
-          label="Cost scaling"
-          value={
-            overageUnitPriceMicros === null
-              ? "Unavailable"
-              : `${formatUsdMicros(overageUnitPriceMicros)} per extra request`
-          }
-        />
-      </div>
+        <PortalMetricGrid>
+          <PortalMetricCard
+            label="Included quota"
+            value={`${includedQuota.toLocaleString()} requests`}
+          />
+          <PortalMetricCard
+            label="Current pace"
+            value={`${forecast.dailyAverage.toLocaleString()} requests / day`}
+          />
+          <PortalMetricCard
+            label="Projected month end"
+            value={`${forecast.projectedTotal.toLocaleString()} requests`}
+          />
+          <PortalMetricCard
+            label="Cost scaling"
+            value={
+              overageUnitPriceMicros === null
+                ? "Unavailable"
+                : `${formatUsdMicros(overageUnitPriceMicros)} per extra request`
+            }
+          />
+        </PortalMetricGrid>
 
-      <p className="portal-usage-context__summary">
-        {describeForecast({
-          budgetStatus,
-          forecast,
-          includedQuota,
-          projectedOverageCostMicros,
-          projectedOverageRequests,
-        })}
-      </p>
-
-      <p className="portal-usage-context__footnote">
-        Based on {forecast.daysElapsed} day
-        {forecast.daysElapsed === 1 ? "" : "s"} completed so far, with{" "}
-        {forecast.daysRemaining} day
-        {forecast.daysRemaining === 1 ? "" : "s"} left in the month.
-      </p>
-    </section>
+        <PortalDetailList
+          items={[
+            {
+              key: "forecast-summary",
+              label: "Forecast summary",
+              value: describeForecast({
+                budgetStatus,
+                forecast,
+                includedQuota,
+                projectedOverageCostMicros,
+                projectedOverageRequests,
+              }),
+            },
+            {
+              key: "forecast-window",
+              label: "Forecast window",
+              value: `Based on ${forecast.daysElapsed} day${forecast.daysElapsed === 1 ? "" : "s"} completed so far, with ${forecast.daysRemaining} day${forecast.daysRemaining === 1 ? "" : "s"} left in the month.`,
+            },
+          ]}
+        />
+      </Stack>
+    </Paper>
   );
 }
 
@@ -106,27 +115,17 @@ function UsageProgressRow(input: {
   value: string;
 }) {
   return (
-    <div className="portal-usage-context__bar-row">
-      <div className="portal-usage-context__bar-copy">
-        <strong>{input.label}</strong>
-        <span>{input.value}</span>
-      </div>
-      <div className="portal-usage-context__bar-track" aria-hidden="true">
-        <div
-          className="portal-usage-context__bar-fill"
-          style={{ width: `${Math.min(100, input.progress)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function MetricCard(input: { label: string; value: string }) {
-  return (
-    <div className="portal-usage-context__metric">
-      <span>{input.label}</span>
-      <strong>{input.value}</strong>
-    </div>
+    <Stack gap={6}>
+      <Group justify="space-between" wrap="wrap">
+        <Text fw={600} size="sm">
+          {input.label}
+        </Text>
+        <Text c="dimmed" size="sm">
+          {input.value}
+        </Text>
+      </Group>
+      <Progress radius="xl" value={Math.min(100, input.progress)} />
+    </Stack>
   );
 }
 
@@ -210,4 +209,3 @@ function formatUsdMicros(amountUsdMicros: number): string {
     style: "currency",
   }).format(amountUsdMicros / 1_000_000);
 }
-

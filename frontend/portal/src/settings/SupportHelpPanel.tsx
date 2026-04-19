@@ -1,11 +1,22 @@
 import { useState } from "react";
-import { Pill, PillsInput } from "@mantine/core";
+import {
+  Button,
+  NativeSelect,
+  Stack,
+  TagsInput,
+  TextInput,
+  Textarea,
+} from "@mantine/core";
+import {
+  PortalActionGroup,
+  PortalDetailList,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import {
   PortalErrorState,
   PortalLoadingState,
   PortalNotice,
 } from "../components/feedback";
-import { InfoTooltip } from "../components/InfoTooltip";
 import type { PortalSupportController } from "./usePortalSupport";
 
 interface SupportHelpPanelProps {
@@ -34,7 +45,6 @@ export function SupportHelpPanel({
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [watchers, setWatchers] = useState<string[]>([]);
-  const [watcherInput, setWatcherInput] = useState("");
   const [watcherMessage, setWatcherMessage] = useState<string | null>(null);
 
   const validationMessage = getValidationMessage({
@@ -80,205 +90,130 @@ export function SupportHelpPanel({
 
   const submitterEmail = context.account_context.contact_email?.trim() || null;
 
-  const commitWatcher = (
-    rawValue: string,
-    currentWatchers: string[] = watchers,
-  ): string[] | null => {
-    const candidate = rawValue.trim().toLowerCase();
-    if (!candidate) {
-      setWatcherInput("");
-      setWatcherMessage(null);
-      return currentWatchers;
-    }
-    if (!isValidEmail(candidate)) {
-      setWatcherMessage("Watchers must be valid email addresses.");
-      return null;
-    }
-    const nextWatchers = currentWatchers.includes(candidate)
-      ? currentWatchers
-      : [...currentWatchers, candidate];
-    setWatchers(nextWatchers);
-    setWatcherInput("");
-    setWatcherMessage(null);
-    controller.clearReceipt();
-    return nextWatchers;
-  };
-
   return (
-    <div className="portal-budget-form">
+    <Stack gap="md">
       {(pane ?? "contact") === "contact" ? (
-        <section className="portal-budget-form__section">
-          <p className="portal-budget-form__hint">
-            {context.issue_reporting.honesty_notice}
-          </p>
-          <dl className="portal-shell__details">
-            <div>
-              <dt>Support email</dt>
-              <dd>
-                <a href={context.support_contact.support_mailto}>
-                  {context.support_contact.support_email}
-                </a>
-              </dd>
-            </div>
-            <div>
-              <dt>Brand</dt>
-              <dd>{context.support_contact.brand_name}</dd>
-            </div>
-            <div>
-              <dt>Homepage</dt>
-              <dd>
-                <a
-                  href={context.support_contact.homepage_url}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {context.support_contact.homepage_url}
-                </a>
-              </dd>
-            </div>
-            <div>
-              <dt>Helpful links</dt>
-              <dd>
-                <a href={context.product_links.api_access_hash}>API access</a>
-                {" | "}
-                <a href={context.product_links.usage_hash}>Usage</a>
-                {" | "}
-                <a href={context.product_links.billing_hash}>Billing</a>
-              </dd>
-            </div>
-          </dl>
-          <p className="portal-budget-form__hint">
-            {context.issue_reporting.urgent_contact_notice}
-          </p>
-        </section>
+        <Stack gap="md">
+          <PortalHint>{context.issue_reporting.honesty_notice}</PortalHint>
+          <PortalDetailList
+            items={[
+              {
+                key: "support-email",
+                label: "Support email",
+                value: (
+                  <a href={context.support_contact.support_mailto}>
+                    {context.support_contact.support_email}
+                  </a>
+                ),
+              },
+              {
+                key: "brand",
+                label: "Brand",
+                value: context.support_contact.brand_name,
+              },
+              {
+                key: "homepage",
+                label: "Homepage",
+                value: (
+                  <a
+                    href={context.support_contact.homepage_url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {context.support_contact.homepage_url}
+                  </a>
+                ),
+              },
+              {
+                key: "helpful-links",
+                label: "Helpful links",
+                value: (
+                  <>
+                    <a href={context.product_links.api_access_hash}>API access</a>
+                    {" | "}
+                    <a href={context.product_links.usage_hash}>Usage</a>
+                    {" | "}
+                    <a href={context.product_links.billing_hash}>Billing</a>
+                  </>
+                ),
+              },
+            ]}
+          />
+          <PortalHint>{context.issue_reporting.urgent_contact_notice}</PortalHint>
+        </Stack>
       ) : null}
 
       {(pane ?? "report") === "report" ? (
-        <section className="portal-budget-form__section">
-          <form className="portal-form portal-form--detail">
-            <label className="portal-form__field" htmlFor="support-category">
-              <span className="portal-form__label-with-tooltip">
-                <span>Category</span>
-                <InfoTooltip label="Use Recommendation for constructive feedback or feature suggestions." />
-              </span>
-              <select
-                className="portal-form__input"
-                id="support-category"
-                onChange={(event) => {
-                  controller.clearReceipt();
-                  setCategory(
-                    event.target
-                      .value as (typeof supportCategories)[number]["value"],
-                  );
-                }}
-                value={category}
-              >
-                {supportCategories.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <Stack gap="md">
+          <NativeSelect
+            data={supportCategories.map((option) => ({
+              label: option.label,
+              value: option.value,
+            }))}
+            description="Use Recommendation for constructive feedback or feature suggestions."
+            id="support-category"
+            label="Category"
+            onChange={(value) => {
+              controller.clearReceipt();
+              setCategory(
+                (value.currentTarget.value ||
+                  "other") as (typeof supportCategories)[number]["value"],
+              );
+            }}
+            value={category}
+          />
 
-            <div className="portal-form__field">
-              <span
-                className="portal-form__label-with-tooltip"
-                id="support-watchers-label"
-              >
-                <span>Watchers</span>
-                <InfoTooltip
-                  label={`Replies go to ${submitterEmail ?? "the signed-in account"} by default. Add other email addresses here to keep them copied on follow-up.`}
-                />
-              </span>
-              <PillsInput>
-                <Pill.Group>
-                  {watchers.map((watcher) => (
-                    <Pill
-                      key={watcher}
-                      onRemove={() => {
-                        controller.clearReceipt();
-                        setWatchers((current) =>
-                          current.filter((item) => item !== watcher),
-                        );
-                      }}
-                      withRemoveButton
-                    >
-                      {watcher}
-                    </Pill>
-                  ))}
-                  <PillsInput.Field
-                    aria-labelledby="support-watchers-label"
-                    onBlur={() => {
-                      if (watcherInput.trim()) {
-                        void commitWatcher(watcherInput);
-                      }
-                    }}
-                    onChange={(event) => {
-                      controller.clearReceipt();
-                      setWatcherInput(event.currentTarget.value);
-                      if (watcherMessage) {
-                        setWatcherMessage(null);
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        event.key === "Enter" ||
-                        event.key === "," ||
-                        event.key === ";"
-                      ) {
-                        event.preventDefault();
-                        void commitWatcher(watcherInput);
-                      }
-                    }}
-                    placeholder="Add email and press Enter"
-                    value={watcherInput}
-                  />
-                </Pill.Group>
-              </PillsInput>
-            </div>
+          <TagsInput
+            clearable
+            data={[]}
+            description={`Replies go to ${submitterEmail ?? "the signed-in account"} by default. Add other email addresses here to keep them copied on follow-up.`}
+            label="Watchers"
+            onChange={(values) => {
+              controller.clearReceipt();
+              setWatchers(values);
+              const invalidWatcher = values.find((value) => !isValidEmail(value));
+              setWatcherMessage(
+                invalidWatcher ? "Watchers must be valid email addresses." : null,
+              );
+            }}
+            placeholder="Add email and press Enter"
+            value={watchers}
+          />
 
-            <label className="portal-form__field" htmlFor="support-subject">
-              <span>Subject</span>
-              <input
-                className="portal-form__input"
-                id="support-subject"
-                onChange={(event) => {
-                  controller.clearReceipt();
-                  setSubject(event.target.value);
-                }}
-                placeholder="Short summary of the issue"
-                type="text"
-                value={subject}
-              />
-            </label>
+          <TextInput
+            id="support-subject"
+            label="Subject"
+            onChange={(event) => {
+              controller.clearReceipt();
+              setSubject(event.target.value);
+            }}
+            placeholder="Short summary of the issue"
+            value={subject}
+          />
 
-            <label className="portal-form__field" htmlFor="support-description">
-              <span>Description</span>
-              <textarea
-                className="portal-form__input"
-                id="support-description"
-                onChange={(event) => {
-                  controller.clearReceipt();
-                  setDescription(event.target.value);
-                }}
-                placeholder="Describe the issue, what you expected, and what happened."
-                rows={5}
-                value={description}
-              />
-            </label>
-          </form>
+          <Textarea
+            autosize
+            id="support-description"
+            label="Description"
+            minRows={5}
+            onChange={(event) => {
+              controller.clearReceipt();
+              setDescription(event.target.value);
+            }}
+            placeholder="Describe the issue, what you expected, and what happened."
+            value={description}
+          />
 
           {validationMessage ? (
-            <p className="portal-feedback portal-feedback--error">
-              {validationMessage}
-            </p>
+            <PortalNotice tone="error">
+              <p>{validationMessage}</p>
+            </PortalNotice>
           ) : null}
 
           {controller.error ? (
-            <p className="portal-feedback portal-feedback--error">
-              {controller.error}
-            </p>
+            <PortalNotice tone="error">
+              <p>{controller.error}</p>
+            </PortalNotice>
           ) : null}
 
           {controller.receipt ? (
@@ -291,13 +226,16 @@ export function SupportHelpPanel({
             </PortalNotice>
           ) : null}
 
-          <div className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
+          <PortalActionGroup>
+            <Button
               disabled={controller.isSubmitting || validationMessage !== null}
+              loading={controller.isSubmitting}
               onClick={() => {
-                const nextWatchers = commitWatcher(watcherInput, watchers);
-                if (nextWatchers === null) {
+                const cleanedWatchers = watchers
+                  .map((value) => value.trim().toLowerCase())
+                  .filter(Boolean);
+                if (cleanedWatchers.some((value) => !isValidEmail(value))) {
+                  setWatcherMessage("Watchers must be valid email addresses.");
                   return;
                 }
                 void controller
@@ -316,13 +254,12 @@ export function SupportHelpPanel({
                     },
                     description: description.trim(),
                     subject: subject.trim(),
-                    watchers: nextWatchers.length > 0 ? nextWatchers : null,
+                    watchers: cleanedWatchers.length > 0 ? cleanedWatchers : null,
                   })
                   .then(() => {
                     setSubject("");
                     setDescription("");
                     setWatchers([]);
-                    setWatcherInput("");
                     setWatcherMessage(null);
                   })
                   .catch(() => {});
@@ -332,11 +269,11 @@ export function SupportHelpPanel({
               {controller.isSubmitting
                 ? "Sending support request..."
                 : "Send support request"}
-            </button>
-          </div>
-        </section>
+            </Button>
+          </PortalActionGroup>
+        </Stack>
       ) : null}
-    </div>
+    </Stack>
   );
 }
 

@@ -1,7 +1,8 @@
+import { Stack, Text, Title } from "@mantine/core";
+import { DetailFieldList } from "@charity-status/shared-ui";
 import { getPortalAccessLabel } from "../app/portalNavigation";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { PortalOrganizationContextValue } from "../organization/usePortalOrganization";
-import { DetailFieldList } from "@charity-status/shared-ui";
 
 interface ProfileContextSectionProps {
   environment?: string;
@@ -17,18 +18,17 @@ export function ProfileContextSection({
   showTitle = true,
 }: ProfileContextSectionProps) {
   return (
-    <section
+    <Stack
       aria-labelledby={showTitle ? "profile-context-title" : undefined}
-      className="portal-settings-profile"
+      gap="md"
     >
-      {showTitle ? <h3 id="profile-context-title">Account Details</h3> : null}
-      <div className="portal-settings-profile__summary">
-        <p className="portal-settings-profile__name">
+      {showTitle ? <Title id="profile-context-title" order={3}>Account Details</Title> : null}
+      <Stack gap={2}>
+        <Text fw={700} size="lg">
           {session.user.display_name}
-        </p>
-        <p>{session.user.email}</p>
-      </div>
-
+        </Text>
+        <Text c="dimmed">{session.user.email}</Text>
+      </Stack>
       <DetailFieldList
         items={[
           {
@@ -48,6 +48,6 @@ export function ProfileContextSection({
           },
         ]}
       />
-    </section>
+    </Stack>
   );
 }

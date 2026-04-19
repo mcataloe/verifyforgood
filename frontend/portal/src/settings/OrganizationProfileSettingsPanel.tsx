@@ -1,4 +1,11 @@
+import { Stack, TextInput } from "@mantine/core";
 import { useEffect, useState } from "react";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
+import { PortalNotice } from "../components/feedback";
 import { normalizeSlugCandidate } from "../lib/slug";
 import type { PortalOrganizationProfileSettingsController } from "./usePortalOrganizationProfileSettings";
 
@@ -46,82 +53,69 @@ export function OrganizationProfileSettingsPanel({
     !isDirty;
 
   return (
-    <div className="portal-budget-form">
-      <form className="portal-form portal-form--detail">
-        <label className="portal-form__field" htmlFor="organization-display-name">
-          <span>Display name</span>
-          <input
-            className="portal-form__input"
-            id="organization-display-name"
-            onChange={(event) => {
-              controller.clearNotice();
-              setDisplayName(event.target.value);
-            }}
-            placeholder="VerifyForGood"
-            type="text"
-            value={displayName}
-          />
-        </label>
+    <Stack gap="md">
+      <TextInput
+        id="organization-display-name"
+        label="Display name"
+        onChange={(event) => {
+          controller.clearNotice();
+          setDisplayName(event.target.value);
+        }}
+        placeholder="VerifyForGood"
+        value={displayName}
+      />
 
-        <label className="portal-form__field" htmlFor="organization-slug">
-          <span>Slug</span>
-          <input
-            className="portal-form__input"
-            id="organization-slug"
-            onChange={(event) => {
-              controller.clearNotice();
-              setSlug(normalizeSlugCandidate(event.target.value));
-            }}
-            placeholder="verify-for-good"
-            type="text"
-            value={slug}
-          />
-        </label>
+      <TextInput
+        id="organization-slug"
+        label="Slug"
+        onChange={(event) => {
+          controller.clearNotice();
+          setSlug(normalizeSlugCandidate(event.target.value));
+        }}
+        placeholder="verify-for-good"
+        value={slug}
+      />
 
-        <label className="portal-form__field" htmlFor="organization-contact-email">
-          <span>Contact email</span>
-          <input
-            className="portal-form__input"
-            id="organization-contact-email"
-            onChange={(event) => {
-              controller.clearNotice();
-              setContactEmail(event.target.value);
-            }}
-            placeholder="ops@example.org"
-            type="email"
-            value={contactEmail}
-          />
-        </label>
-      </form>
+      <TextInput
+        id="organization-contact-email"
+        label="Contact email"
+        onChange={(event) => {
+          controller.clearNotice();
+          setContactEmail(event.target.value);
+        }}
+        placeholder="ops@example.org"
+        type="email"
+        value={contactEmail}
+      />
 
-      <p className="portal-budget-form__hint">
+      <PortalHint>
         Keep the organization display name customer-facing, use the slug for
         stable workspace identification, and use the contact email for early
         administrative notices. Leave the contact email blank to clear it.
-      </p>
+      </PortalHint>
 
       {validationMessage ? (
-        <p className="portal-feedback portal-feedback--error">
-          {validationMessage}
-        </p>
+        <PortalNotice tone="error">
+          <p>{validationMessage}</p>
+        </PortalNotice>
       ) : null}
 
       {controller.error ? (
-        <p className="portal-feedback portal-feedback--error">
-          {controller.error}
-        </p>
+        <PortalNotice tone="error">
+          <p>{controller.error}</p>
+        </PortalNotice>
       ) : null}
 
       {controller.notice ? (
-        <p className="portal-feedback portal-feedback--warning">
-          {controller.notice}
-        </p>
+        <PortalNotice tone="warning">
+          <p>{controller.notice}</p>
+        </PortalNotice>
       ) : null}
 
-      <div className="portal-form__actions">
-        <button
-          className="portal-shell__action portal-shell__action--primary"
+      <PortalActionGroup>
+        <PortalButton
           disabled={isSaveDisabled}
+          loading={controller.isSaving}
           onClick={() => {
             if (!isDirty || validationMessage !== null) {
               return;
@@ -133,12 +127,13 @@ export function OrganizationProfileSettingsPanel({
               slug: trimmedSlug,
             });
           }}
+          tone="primary"
           type="button"
         >
           {controller.isSaving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
-    </div>
+        </PortalButton>
+      </PortalActionGroup>
+    </Stack>
   );
 }
 

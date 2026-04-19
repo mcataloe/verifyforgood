@@ -9,12 +9,14 @@ import {
   type DataTableColumn,
   type DataTableFilterDefinition,
 } from "@charity-status/shared-ui";
-import { Button, Group, Text } from "@mantine/core";
+import { Button, Group, Stack, Text, TextInput } from "@mantine/core";
 import {
   DetailPageLayout,
   SectionBlock,
   SectionDivider,
 } from "../components/shell";
+import { PortalNotice } from "../components/feedback";
+import { PortalActionGroup, PortalHint } from "../components/PortalPrimitives";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
   PortalNonprofitDetailView,
@@ -158,52 +160,47 @@ export function NonprofitSearchPanel({
           title="Nonprofit verification search"
           subtitle="Search by EIN for an exact lookup or by organization name to review matching nonprofits."
         >
-          <p>
-            Search and review nonprofit records for{" "}
-            <strong>{organization.activeOrganization.organization_name}</strong>.
-          </p>
+          <Stack gap="md">
+            <PortalHint>
+              Search and review nonprofit records for{" "}
+              <strong>{organization.activeOrganization.organization_name}</strong>.
+            </PortalHint>
 
-          <form
-            className="portal-form portal-form--detail"
-            onSubmit={(event) => {
-              event.preventDefault();
-              runSearchForQuery(query);
-            }}
-          >
-            <label className="portal-form__field">
-              <span>Search query</span>
-              <input
-                aria-label="Search query"
-                className="portal-form__input"
-                name="query"
-                onChange={(event) => {
-                  if (validationMessage) {
-                    setValidationMessage(null);
-                  }
-                  setQuery(event.target.value);
-                }}
-                placeholder="12-3456789 or Helping Hands Foundation"
-                type="text"
-                value={query}
-              />
-            </label>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                runSearchForQuery(query);
+              }}
+            >
+              <Stack maw={540}>
+                <TextInput
+                  aria-label="Search query"
+                  label="Search query"
+                  name="query"
+                  onChange={(event) => {
+                    if (validationMessage) {
+                      setValidationMessage(null);
+                    }
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="12-3456789 or Helping Hands Foundation"
+                  value={query}
+                />
 
-            {validationMessage ? (
-              <p className="portal-feedback portal-feedback--error">
-                {validationMessage}
-              </p>
-            ) : null}
+                {validationMessage ? (
+                  <PortalNotice tone="error">
+                    <p>{validationMessage}</p>
+                  </PortalNotice>
+                ) : null}
 
-            <div className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                disabled={search.isLoading}
-                type="submit"
-              >
-                {search.isLoading ? "Searching..." : "Search nonprofit"}
-              </button>
-            </div>
-          </form>
+                <PortalActionGroup>
+                  <Button disabled={search.isLoading} loading={search.isLoading} type="submit">
+                    {search.isLoading ? "Searching..." : "Search nonprofit"}
+                  </Button>
+                </PortalActionGroup>
+              </Stack>
+            </form>
+          </Stack>
         </Panel>
       </SectionBlock>
 
@@ -279,15 +276,16 @@ export function NonprofitSearchPanel({
                     key: "actions",
                     header: "Actions",
                     render: (row) => (
-                      <button
-                        className="portal-shell__action"
+                      <Button
                         onClick={() => {
                           void search.viewResultDetail(row.ein);
                         }}
+                        size="xs"
                         type="button"
+                        variant="light"
                       >
                         View details
-                      </button>
+                      </Button>
                     ),
                   },
                 ]}
@@ -344,16 +342,17 @@ export function NonprofitSearchPanel({
                     key: "actions",
                     header: "Action",
                     render: (row) => (
-                      <button
-                        className="portal-shell__action"
+                      <Button
                         disabled={search.isLoading}
                         onClick={() => {
                           runSearchForQuery(row.query);
                         }}
+                        size="xs"
                         type="button"
+                        variant="light"
                       >
                         Run again
-                      </button>
+                      </Button>
                     ),
                   },
                 ]}

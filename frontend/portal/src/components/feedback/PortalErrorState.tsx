@@ -1,5 +1,6 @@
-import { Inline, Panel } from "@charity-status/shared-ui";
+import { Panel } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
+import { PortalActionGroup, PortalButton } from "../PortalPrimitives";
 import { PortalNotice } from "./PortalNotice";
 
 interface PortalErrorStateProps {
@@ -19,15 +20,11 @@ export function PortalErrorState({
 }: PortalErrorStateProps) {
   const action: ReactNode =
     actionLabel && onAction ? (
-      <Inline className="portal-form__actions">
-        <button
-          className="portal-shell__action"
-          onClick={onAction}
-          type="button"
-        >
+      <PortalActionGroup>
+        <PortalButton onClick={onAction} type="button">
           {actionLabel}
-        </button>
-      </Inline>
+        </PortalButton>
+      </PortalActionGroup>
     ) : null;
 
   return (

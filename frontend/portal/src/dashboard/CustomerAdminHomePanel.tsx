@@ -1,5 +1,5 @@
 import { DataTable, SectionContainer, type DataTableColumn } from "@charity-status/shared-ui";
-import { Button } from "@mantine/core";
+import { Button, Stack } from "@mantine/core";
 import {
   PortalEmptyState,
   PortalErrorState,
@@ -85,64 +85,62 @@ export function CustomerAdminHomePanel() {
   }
 
   return (
-    <div className="portal-dashboard__activity-grid">
-      <SectionContainer
-        title="Organization Activity"
-        description={`Recent activity, access changes, and important updates for ${organization.activeOrganization.organization_name}.`}
-      >
-        {activity.error ? (
-          <PortalNotice tone="warning">
-            <p>{activity.error}</p>
-          </PortalNotice>
-        ) : null}
+    <SectionContainer
+      title="Organization Activity"
+      description={`Recent activity, access changes, and important updates for ${organization.activeOrganization.organization_name}.`}
+    >
+      {activity.error ? (
+        <PortalNotice tone="warning">
+          <p>{activity.error}</p>
+        </PortalNotice>
+      ) : null}
 
-        {activity.items.length === 0 ? (
-          <PortalEmptyState
-            subtitle="Activity appears here once the organization starts inviting teammates, managing keys, updating settings, or accessing nonprofit data."
-            title="No Organization Activity Yet"
-          >
-            <p>The current organization does not have any visible audit activity yet.</p>
-          </PortalEmptyState>
-        ) : (
-          <>
-            <DataTable
-              columns={activityColumns}
-              getSearchText={(row) =>
-                [
-                  row.title,
-                  row.description,
-                  row.actor.display_name,
-                  row.actor.email,
-                  row.target.display_name,
-                  row.target.email,
-                  row.target.user_id,
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              }
-              initialSort={{ columnKey: "occurred_at", direction: "desc" }}
-              pageSize={10}
-              rowKey={(row) => row.activity_id}
-              rows={activity.items}
-              searchPlaceholder="Search activity"
-            />
-            {activity.hasMore ? (
-              <div className="portal-form__actions">
-                <Button
-                  loading={activity.isLoadingMore}
-                  onClick={() => {
-                    void activity.loadMore();
-                  }}
-                  variant="default"
-                >
-                  Load More
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </SectionContainer>
-    </div>
+      {activity.items.length === 0 ? (
+        <PortalEmptyState
+          subtitle="Activity appears here once the organization starts inviting teammates, managing keys, updating settings, or accessing nonprofit data."
+          title="No Organization Activity Yet"
+        >
+          <p>The current organization does not have any visible audit activity yet.</p>
+        </PortalEmptyState>
+      ) : (
+        <Stack gap="md">
+          <DataTable
+            columns={activityColumns}
+            getSearchText={(row) =>
+              [
+                row.title,
+                row.description,
+                row.actor.display_name,
+                row.actor.email,
+                row.target.display_name,
+                row.target.email,
+                row.target.user_id,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            }
+            initialSort={{ columnKey: "occurred_at", direction: "desc" }}
+            pageSize={10}
+            rowKey={(row) => row.activity_id}
+            rows={activity.items}
+            searchPlaceholder="Search activity"
+          />
+          {activity.hasMore ? (
+            <div>
+              <Button
+                loading={activity.isLoadingMore}
+                onClick={() => {
+                  void activity.loadMore();
+                }}
+                variant="default"
+              >
+                Load More
+              </Button>
+            </div>
+          ) : null}
+        </Stack>
+      )}
+    </SectionContainer>
   );
 }
 

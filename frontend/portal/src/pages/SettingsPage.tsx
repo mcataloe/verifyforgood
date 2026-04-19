@@ -12,6 +12,7 @@ import {
   SectionBlock,
   SectionDivider,
 } from "../components/shell";
+import { PortalDetailList } from "../components/PortalPrimitives";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { OrganizationProfileSettingsPanel } from "../settings/OrganizationProfileSettingsPanel";
@@ -80,24 +81,27 @@ export function SettingsPage({
             title="Plan & Access"
             subtitle="A quick summary of your current plan and access level."
           >
-            <dl className="portal-shell__details">
-              <div>
-                <dt>Your role</dt>
-                <dd>{formatLabelValue(organization.currentMembership?.role)}</dd>
-              </div>
-              <div>
-                <dt>Plan</dt>
-                <dd>{formatLabelValue(session.plan)}</dd>
-              </div>
-              <div>
-                <dt>Last updated</dt>
-                <dd>
-                  {formatFriendlyDateTime(
+            <PortalDetailList
+              items={[
+                {
+                  key: "role",
+                  label: "Your role",
+                  value: formatLabelValue(organization.currentMembership?.role),
+                },
+                {
+                  key: "plan",
+                  label: "Plan",
+                  value: formatLabelValue(session.plan),
+                },
+                {
+                  key: "updated-at",
+                  label: "Last updated",
+                  value: formatFriendlyDateTime(
                     organization.activeOrganization.updated_at,
-                  )}
-                </dd>
-              </div>
-            </dl>
+                  ),
+                },
+              ]}
+            />
           </Panel>
         </SectionBlock>
         <SectionDivider />

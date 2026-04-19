@@ -1,3 +1,4 @@
+import { SectionContainer } from "@charity-status/shared-ui";
 import type { PropsWithChildren, ReactNode } from "react";
 
 interface SectionBlockProps extends PropsWithChildren {
@@ -18,15 +19,9 @@ export function SectionBlock({
 
   return (
     <section className={resolvedClassName}>
-      {title || intro ? (
-        <div className="portal-detail-layout__section-header">
-          {title ? <h2>{title}</h2> : null}
-          {intro ? (
-            <p className="portal-detail-layout__section-intro">{intro}</p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="portal-detail-layout__section-body">{children}</div>
+      <SectionContainer description={intro} gap="md" title={title}>
+        <div className="portal-detail-layout__section-body">{children}</div>
+      </SectionContainer>
     </section>
   );
 }

@@ -726,6 +726,16 @@ dropdown regressions, and uneven interaction patterns across the product.
 Preserve current route behavior and payload contracts while moving presentation
 surfaces onto Mantine components incrementally.
 
+### Status
+
+The main portal UI migration is now largely complete:
+
+- introduced shared portal Mantine wrappers for buttons, detail lists, and metric cards
+- converted portal notices, error/loading states, and toast surfaces onto Mantine-backed primitives
+- migrated sign-in, registration, onboarding, support, settings, API key, usage/billing, nonprofit search, and customer-user pages away from bespoke form/input/button styling
+- removed the remaining custom form/detail/action treatments from team management, dashboard activity, profile context, nonprofit embedded detail, and customer-user automation credential cards
+- kept a small set of portal-local classes only for shell/layout structure, stacked section dividers, and toast positioning
+
 ## TODO-ARCH-025
 
 ### Title

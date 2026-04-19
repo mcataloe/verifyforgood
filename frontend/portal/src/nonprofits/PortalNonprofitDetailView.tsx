@@ -2,11 +2,13 @@ import {
   DetailFieldList,
   StatusBadge,
 } from "@charity-status/shared-ui";
+import { Group, List, Stack, Table, Text, Title } from "@mantine/core";
 import {
   DetailPageLayout,
   SectionBlock,
   SectionDivider,
 } from "../components/shell";
+import { PortalButton } from "../components/PortalPrimitives";
 import type {
   PortalNonprofitDetail,
   PortalNonprofitSourceAvailability,
@@ -24,21 +26,23 @@ export function PortalNonprofitDetailView({
   return (
     <DetailPageLayout
       header={
-        <header className="portal-detail-layout__header">
-          <div className="portal-nonprofit-embedded-detail__title-row">
-            <h1>{detail.name}</h1>
-            <StatusBadge status={detailStatus(detail)} />
-            <button className="portal-shell__action" onClick={() => undefined} type="button">
+        <Stack gap="sm">
+          <Group align="center" gap="sm" justify="space-between" wrap="wrap">
+            <Group align="center" gap="sm" wrap="wrap">
+              <Title order={1}>{detail.name}</Title>
+              <StatusBadge status={detailStatus(detail)} />
+            </Group>
+            <PortalButton onClick={() => undefined} tone="secondary" type="button">
               Queue review
-            </button>
-          </div>
-          <p className="portal-detail-layout__intro">
+            </PortalButton>
+          </Group>
+          <Text c="dimmed">
             Review the latest organization details, filings, and source checks.
-          </p>
-          <p className="portal-nonprofit-embedded-detail__identifier">
+          </Text>
+          <Text c="dimmed" fw={600}>
             EIN {detail.ein}
-          </p>
-        </header>
+          </Text>
+        </Stack>
       }
     >
       <SectionBlock title="Summary">
@@ -72,19 +76,19 @@ export function PortalNonprofitEmbeddedDetail({
   detail,
 }: PortalNonprofitDetailViewProps) {
   return (
-    <article className="portal-nonprofit-embedded-detail">
-      <header className="portal-nonprofit-embedded-detail__header">
-        <div className="portal-nonprofit-embedded-detail__title-row">
-          <h3>{detail.name}</h3>
+    <Stack component="article" gap="md">
+      <Stack gap="md">
+        <Group align="center" gap="sm" wrap="wrap">
+          <Title order={3}>{detail.name}</Title>
           <StatusBadge status={detailStatus(detail)} />
-        </div>
-        <p className="portal-nonprofit-embedded-detail__identifier">
+        </Group>
+        <Text c="dimmed" fw={600}>
           EIN {detail.ein}
-        </p>
+        </Text>
         <DetailFieldList items={buildSummaryItems(detail)} />
-      </header>
+      </Stack>
 
-      <div className="portal-nonprofit-embedded-detail__sections">
+      <Stack gap="md">
         <SectionBlock title="Overview">
           <DetailFieldList items={buildOverviewItems(detail)} />
         </SectionBlock>
@@ -104,18 +108,20 @@ export function PortalNonprofitEmbeddedDetail({
         <SectionBlock title="Activity">
           <ActivityList />
         </SectionBlock>
-      </div>
-    </article>
+      </Stack>
+    </Stack>
   );
 }
 
 function ActivityList() {
   return (
-    <ul className="portal-list">
-      <li>Initial review completed for this organization.</li>
-      <li>Recent filing information is available in this record.</li>
-      <li>Additional activity will appear here as more updates are recorded.</li>
-    </ul>
+    <List spacing="xs">
+      <List.Item>Initial review completed for this organization.</List.Item>
+      <List.Item>Recent filing information is available in this record.</List.Item>
+      <List.Item>
+        Additional activity will appear here as more updates are recorded.
+      </List.Item>
+    </List>
   );
 }
 
@@ -241,28 +247,28 @@ function PortalNonprofitSourceSection({
     <>
       <DetailFieldList items={buildSourceItems(detail)} />
       {detail.sourceAvailability.length > 0 ? (
-        <table className="portal-embedded-detail__table">
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Status</th>
-              <th>Attempted</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table highlightOnHover withColumnBorders withTableBorder>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Source</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Attempted</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {detail.sourceAvailability.map((source) => (
-              <tr key={source.integrationId}>
-                <td>{source.label}</td>
-                <td>{formatSourceStatus(source)}</td>
-                <td>{source.attempted ? "Yes" : "No"}</td>
-              </tr>
+              <Table.Tr key={source.integrationId}>
+                <Table.Td>{source.label}</Table.Td>
+                <Table.Td>{formatSourceStatus(source)}</Table.Td>
+                <Table.Td>{source.attempted ? "Yes" : "No"}</Table.Td>
+              </Table.Tr>
             ))}
-          </tbody>
-        </table>
+          </Table.Tbody>
+        </Table>
       ) : (
-        <p className="portal-detail-view__section-intro">
+        <Text c="dimmed">
           No source checks are available for this organization yet.
-        </p>
+        </Text>
       )}
     </>
   );

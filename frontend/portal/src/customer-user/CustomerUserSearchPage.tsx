@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Button, Stack, TextInput } from "@mantine/core";
 import {
   DataTable,
   EmptyState,
@@ -16,6 +17,7 @@ import {
   PortalDetailSection,
   PortalDetailView,
 } from "../components/PortalDetailView";
+import { PortalActionGroup } from "../components/PortalPrimitives";
 
 interface CustomerUserSearchPageProps {
   pane: "search-address" | "search-ein";
@@ -113,7 +115,6 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
       >
         {pane === "search-ein" ? (
           <form
-            className="portal-form"
             onSubmit={(event) => {
               event.preventDefault();
               const nextRows = searchCustomerOrganizationsByEin(einQuery);
@@ -122,33 +123,26 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
               setHasSearched(true);
             }}
           >
-            <label className="portal-form__field">
-              <span>EIN</span>
-              <input
+            <Stack maw={540}>
+              <TextInput
                 aria-label="EIN"
-                className="portal-form__input"
+                label="EIN"
                 onChange={(event) => {
                   setEinQuery(event.target.value);
                 }}
                 placeholder="12-3456789"
-                type="text"
                 value={einQuery}
               />
-            </label>
 
-            <div className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                disabled={!einQuery.trim()}
-                type="submit"
-              >
-                By EIN
-              </button>
-            </div>
+              <PortalActionGroup>
+                <Button disabled={!einQuery.trim()} type="submit">
+                  By EIN
+                </Button>
+              </PortalActionGroup>
+            </Stack>
           </form>
         ) : (
           <form
-            className="portal-form portal-form--detail"
             onSubmit={(event) => {
               event.preventDefault();
               const nextRows =
@@ -158,11 +152,10 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
               setHasSearched(true);
             }}
           >
-            <label className="portal-form__field">
-              <span>Address</span>
-              <input
+            <Stack maw={540}>
+              <TextInput
                 aria-label="Address"
-                className="portal-form__input"
+                label="Address"
                 onChange={(event) => {
                   setAddressQuery((current) => ({
                     ...current,
@@ -170,16 +163,12 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
                   }));
                 }}
                 placeholder="431 Mission Street"
-                type="text"
                 value={addressQuery.address}
               />
-            </label>
 
-            <label className="portal-form__field">
-              <span>City</span>
-              <input
+              <TextInput
                 aria-label="City"
-                className="portal-form__input"
+                label="City"
                 onChange={(event) => {
                   setAddressQuery((current) => ({
                     ...current,
@@ -187,16 +176,12 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
                   }));
                 }}
                 placeholder="San Francisco"
-                type="text"
                 value={addressQuery.city}
               />
-            </label>
 
-            <label className="portal-form__field">
-              <span>State</span>
-              <input
+              <TextInput
                 aria-label="State"
-                className="portal-form__input"
+                label="State"
                 maxLength={2}
                 onChange={(event) => {
                   setAddressQuery((current) => ({
@@ -205,16 +190,12 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
                   }));
                 }}
                 placeholder="CA"
-                type="text"
                 value={addressQuery.state}
               />
-            </label>
 
-            <label className="portal-form__field">
-              <span>Zip</span>
-              <input
+              <TextInput
                 aria-label="Zip"
-                className="portal-form__input"
+                label="Zip"
                 onChange={(event) => {
                   setAddressQuery((current) => ({
                     ...current,
@@ -222,20 +203,15 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
                   }));
                 }}
                 placeholder="94105"
-                type="text"
                 value={addressQuery.zip}
               />
-            </label>
 
-            <div className="portal-form__actions portal-form__actions--full">
-              <button
-                className="portal-shell__action portal-shell__action--primary"
-                disabled={!hasAddressSearchInput(addressQuery)}
-                type="submit"
-              >
-                By Address
-              </button>
-            </div>
+              <PortalActionGroup>
+                <Button disabled={!hasAddressSearchInput(addressQuery)} type="submit">
+                  By Address
+                </Button>
+              </PortalActionGroup>
+            </Stack>
           </form>
         )}
       </PortalDetailSection>
@@ -258,15 +234,16 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
                   key: "actions",
                   header: "Actions",
                   render: (row) => (
-                    <button
-                      className="portal-shell__action"
+                    <Button
                       onClick={() => {
                         setSelectedEin(row.ein);
                       }}
+                      size="xs"
                       type="button"
+                      variant="light"
                     >
                       View details
-                    </button>
+                    </Button>
                   ),
                 },
               ]}
@@ -296,8 +273,8 @@ export function CustomerUserSearchPage({ pane }: CustomerUserSearchPageProps) {
 function hasAddressSearchInput(input: CustomerUserAddressSearchInput) {
   return Boolean(
     input.address?.trim() ||
-    input.city?.trim() ||
-    input.state?.trim() ||
-    input.zip?.trim(),
+      input.city?.trim() ||
+      input.state?.trim() ||
+      input.zip?.trim(),
   );
 }

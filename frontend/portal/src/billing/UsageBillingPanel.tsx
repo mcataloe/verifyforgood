@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel, PricingPlanGrid } from "@charity-status/shared-ui";
-import { Button, Group, Text } from "@mantine/core";
+import { Button, Group, Paper, Progress, Stack, Text, Title } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -10,6 +10,11 @@ import {
   PortalNoticeList,
   type PortalNoticeListItem,
 } from "../components/feedback";
+import {
+  PortalDetailList,
+  PortalMetricCard,
+  PortalMetricGrid,
+} from "../components/PortalPrimitives";
 import { StackedDetailSections } from "../components/shell";
 import {
   usePortalUsageBilling,
@@ -72,6 +77,16 @@ export function UsageBillingPanel({
   useEffect(() => {
     setLiveSnapshot(billing.snapshot);
   }, [billing.snapshot]);
+
+  useEffect(() => {
+    setDismissedUsageNoticeIds([]);
+  }, [
+    billing.snapshot,
+    focus,
+    managementMode,
+    organization.currentMembership?.role,
+    statusMessage,
+  ]);
 
   if (billing.isLoading || pricingPlans.isLoading) {
     return (
@@ -161,29 +176,26 @@ export function UsageBillingPanel({
   );
   const usageSummary = (
     <>
-      <div className="portal-usage-meter" aria-label="Request usage meter">
-        <div className="portal-usage-meter__header">
-          <div>
-            <h3>
-              {snapshot.usage.used.toLocaleString()} /{" "}
-              {snapshot.usage.limit.toLocaleString()}
-            </h3>
-            <p>
-              {snapshot.usage.remaining.toLocaleString()} requests remaining
-              in {snapshot.usage.periodLabel.toLowerCase()}.
-            </p>
-          </div>
-          <p className="portal-usage-meter__percent">
-            {snapshot.usage.usagePercent}% of the current limit
-          </p>
-        </div>
-        <div className="portal-usage-meter__track" aria-hidden="true">
-          <div
-            className="portal-usage-meter__fill"
-            style={{ width: `${snapshot.usage.usagePercent}%` }}
-          />
-        </div>
-      </div>
+      <Paper aria-label="Request usage meter" p="lg" radius="lg" withBorder>
+        <Stack gap="md">
+          <Group align="end" justify="space-between" wrap="wrap">
+            <div>
+              <Title order={3}>
+                {snapshot.usage.used.toLocaleString()} /{" "}
+                {snapshot.usage.limit.toLocaleString()}
+              </Title>
+              <Text c="dimmed" mt={4} size="sm">
+                {snapshot.usage.remaining.toLocaleString()} requests remaining
+                in {snapshot.usage.periodLabel.toLowerCase()}.
+              </Text>
+            </div>
+            <Text fw={700} size="sm">
+              {snapshot.usage.usagePercent}% of the current limit
+            </Text>
+          </Group>
+          <Progress radius="xl" value={snapshot.usage.usagePercent} />
+        </Stack>
+      </Paper>
 
       <UsageContextPanel
         budgetStatus={snapshot.budgetStatus}
@@ -230,16 +242,9 @@ export function UsageBillingPanel({
       tone: "empty",
     });
   }
-  const usageNoticeSignature = usageSectionNotices
-    .map((notice) => notice.id)
-    .join("|");
   const visibleUsageSectionNotices = usageSectionNotices.filter(
     (notice) => !dismissedUsageNoticeIds.includes(notice.id),
   );
-
-  useEffect(() => {
-    setDismissedUsageNoticeIds([]);
-  }, [usageNoticeSignature]);
 
   return (
     <StackedDetailSections
@@ -265,55 +270,69 @@ export function UsageBillingPanel({
         title="Subscription Details"
         subtitle="Review plan details, billing dates, and scheduled changes."
       >
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Current plan</dt>
-            <dd>{snapshot.planDisplayName ?? toTitleCase(snapshot.plan)}</dd>
-          </div>
-          <div>
-            <dt>Effective access plan</dt>
-            <dd>
-              {snapshot.effectiveAccessPlanDisplayName ??
-                toTitleCase(snapshot.effectiveAccessPlan)}
-            </dd>
-          </div>
-          <div>
-            <dt>Subscription status</dt>
-            <dd>{toTitleCase(snapshot.subscriptionStatus ?? snapshot.billingStatus)}</dd>
-          </div>
-          <div>
-            <dt>Billing status</dt>
-            <dd>{toTitleCase(snapshot.billingStatus)}</dd>
-          </div>
-          <div>
-            <dt>Current period start</dt>
-            <dd>{snapshot.billingCycleStart ?? "Not scheduled"}</dd>
-          </div>
-          <div>
-            <dt>Current period end</dt>
-            <dd>{snapshot.billingCycleEnd ?? snapshot.renewalDate ?? "Not scheduled"}</dd>
-          </div>
-          <div>
-            <dt>Pending plan</dt>
-            <dd>{snapshot.pendingDowngradePlan ?? "None"}</dd>
-          </div>
-          <div>
-            <dt>Pending change effective at</dt>
-            <dd>{snapshot.pendingDowngradeEffectiveAt ?? "Not scheduled"}</dd>
-          </div>
-          <div>
-            <dt>Pending change type</dt>
-            <dd>{pendingSummary.typeLabel}</dd>
-          </div>
-          <div>
-            <dt>Trial status</dt>
-            <dd>{snapshot.trialStatus ?? "None"}</dd>
-          </div>
-          <div>
-            <dt>Trial ends at</dt>
-            <dd>{snapshot.trialEndsAt ?? "Not applicable"}</dd>
-          </div>
-        </dl>
+        <PortalDetailList
+          columns={3}
+          items={[
+            {
+              key: "current-plan",
+              label: "Current plan",
+              value: snapshot.planDisplayName ?? toTitleCase(snapshot.plan),
+            },
+            {
+              key: "effective-plan",
+              label: "Effective access plan",
+              value:
+                snapshot.effectiveAccessPlanDisplayName ??
+                toTitleCase(snapshot.effectiveAccessPlan),
+            },
+            {
+              key: "subscription-status",
+              label: "Subscription status",
+              value: toTitleCase(snapshot.subscriptionStatus ?? snapshot.billingStatus),
+            },
+            {
+              key: "billing-status",
+              label: "Billing status",
+              value: toTitleCase(snapshot.billingStatus),
+            },
+            {
+              key: "period-start",
+              label: "Current period start",
+              value: snapshot.billingCycleStart ?? "Not scheduled",
+            },
+            {
+              key: "period-end",
+              label: "Current period end",
+              value:
+                snapshot.billingCycleEnd ?? snapshot.renewalDate ?? "Not scheduled",
+            },
+            {
+              key: "pending-plan",
+              label: "Pending plan",
+              value: snapshot.pendingDowngradePlan ?? "None",
+            },
+            {
+              key: "pending-effective-at",
+              label: "Pending change effective at",
+              value: snapshot.pendingDowngradeEffectiveAt ?? "Not scheduled",
+            },
+            {
+              key: "pending-change-type",
+              label: "Pending change type",
+              value: pendingSummary.typeLabel,
+            },
+            {
+              key: "trial-status",
+              label: "Trial status",
+              value: snapshot.trialStatus ?? "None",
+            },
+            {
+              key: "trial-ends-at",
+              label: "Trial ends at",
+              value: snapshot.trialEndsAt ?? "Not applicable",
+            },
+          ]}
+        />
       </Panel>
 
       {visibilityOnly ? (
@@ -321,7 +340,7 @@ export function UsageBillingPanel({
           title="Included Limits"
           subtitle="These limits apply to your current plan."
         >
-          <div className="portal-usage-summary-grid">
+          <PortalMetricGrid>
             <UsageSummaryCard
               label="Monthly requests"
               value={(
@@ -339,7 +358,7 @@ export function UsageBillingPanel({
               label="Batch items"
               value={(snapshot.includedLimits?.batchItems ?? 0).toLocaleString()}
             />
-          </div>
+          </PortalMetricGrid>
         </Panel>
       ) : (
         <Panel
@@ -368,41 +387,41 @@ export function UsageBillingPanel({
             </PortalNotice>
           ) : null}
 
-          <div className="portal-billing-tools">
-            <div className="portal-billing-tools__copy">
-              <h4 className="portal-billing-tools__title">
-                Open the Billing Portal
-              </h4>
-              <p className="portal-billing-tools__description">
-                Manage invoices and payment methods in the billing portal.
-              </p>
-            </div>
-            <Group gap="sm" wrap="wrap">
-              <Button
-                disabled={!isAdmin}
-                loading={billingActions.isPending}
-                onClick={() => {
-                  setStatusMessage(
-                    "Opening the billing portal for invoices and payment details.",
-                  );
-                  void billingActions
-                    .cancelSubscription({
-                      returnUrl: defaultReturnUrl(),
-                      strategy: "backend_billing_portal",
-                    })
-                    .then((result) => {
-                      if (result.kind === "redirect") {
-                        redirectToDestination(result.destinationUrl);
-                      }
-                    })
-                    .catch(() => {});
-                }}
-                variant="filled"
-              >
-                Open Portal
-              </Button>
-            </Group>
-          </div>
+          <Paper p="lg" radius="lg" withBorder>
+            <Stack gap="md">
+              <div>
+                <Title order={4}>Open the Billing Portal</Title>
+                <Text c="dimmed" mt={4} size="sm">
+                  Manage invoices and payment methods in the billing portal.
+                </Text>
+              </div>
+              <Group gap="sm" wrap="wrap">
+                <Button
+                  disabled={!isAdmin}
+                  loading={billingActions.isPending}
+                  onClick={() => {
+                    setStatusMessage(
+                      "Opening the billing portal for invoices and payment details.",
+                    );
+                    void billingActions
+                      .cancelSubscription({
+                        returnUrl: defaultReturnUrl(),
+                        strategy: "backend_billing_portal",
+                      })
+                      .then((result) => {
+                        if (result.kind === "redirect") {
+                          redirectToDestination(result.destinationUrl);
+                        }
+                      })
+                      .catch(() => {});
+                  }}
+                  variant="filled"
+                >
+                  Open Portal
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
 
           <Text c="dimmed" fz="sm" mt="md">
             Your current plan is <strong>{session.plan}</strong>. Use this page
@@ -436,7 +455,7 @@ function CapabilityVisibilityPanel(input: {
   }
 
   return (
-    <div className="portal-usage-summary-grid">
+    <PortalMetricGrid>
       {visibleCapabilities.map((capability) => (
         <UsageSummaryCard
           key={capability}
@@ -451,7 +470,7 @@ function CapabilityVisibilityPanel(input: {
           value={flag.label}
         />
       ))}
-    </div>
+    </PortalMetricGrid>
   );
 }
 
@@ -478,42 +497,39 @@ function UsageSummaryGrid(input: {
   totals: PortalUsageTotals;
 }) {
   return (
-    <section className="portal-usage-summary-grid" aria-label="Usage totals">
-      <UsageSummaryCard
-        label="API requests"
-        value={input.totals.apiRequests.toLocaleString()}
-      />
-      <UsageSummaryCard
-        label="Nonprofit lookups"
-        value={input.totals.nonprofitLookupRequests.toLocaleString()}
-      />
-      <UsageSummaryCard
-        label="Search requests"
-        value={input.totals.searchRequests.toLocaleString()}
-      />
-      <UsageSummaryCard
-        label="Enrichment requests"
-        value={input.totals.enrichmentRequests.toLocaleString()}
-      />
-      <UsageSummaryCard
-        label="Filing lookups"
-        value={input.totals.filingLookupRequests.toLocaleString()}
-      />
-      <UsageSummaryCard
-        label="Included monthly requests"
-        value={input.limit.toLocaleString()}
-      />
+    <section aria-label="Usage totals">
+      <PortalMetricGrid>
+        <UsageSummaryCard
+          label="API requests"
+          value={input.totals.apiRequests.toLocaleString()}
+        />
+        <UsageSummaryCard
+          label="Nonprofit lookups"
+          value={input.totals.nonprofitLookupRequests.toLocaleString()}
+        />
+        <UsageSummaryCard
+          label="Search requests"
+          value={input.totals.searchRequests.toLocaleString()}
+        />
+        <UsageSummaryCard
+          label="Enrichment requests"
+          value={input.totals.enrichmentRequests.toLocaleString()}
+        />
+        <UsageSummaryCard
+          label="Filing lookups"
+          value={input.totals.filingLookupRequests.toLocaleString()}
+        />
+        <UsageSummaryCard
+          label="Included monthly requests"
+          value={input.limit.toLocaleString()}
+        />
+      </PortalMetricGrid>
     </section>
   );
 }
 
 function UsageSummaryCard(input: { label: string; value: string }) {
-  return (
-    <div className="portal-usage-summary-card">
-      <span>{input.label}</span>
-      <strong>{input.value}</strong>
-    </div>
-  );
+  return <PortalMetricCard label={input.label} value={input.value} />;
 }
 
 function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
@@ -522,36 +538,27 @@ function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
   }
 
   return (
-    <section
-      className="portal-usage-breakdown"
-      aria-label="Usage metric breakdown"
-    >
-      <div className="portal-usage-breakdown__header">
-        <div>
-          <h3>Usage Metrics Recorded This Month</h3>
-        </div>
-      </div>
-      <div className="portal-usage-breakdown__table" role="table">
-        <div
-          className="portal-usage-breakdown__row portal-usage-breakdown__row--header"
-          role="row"
-        >
-          <span role="columnheader">Metric</span>
-          <span role="columnheader">Requests</span>
-          <span role="columnheader">Last updated</span>
-        </div>
-        {input.metrics.map((metric) => (
-          <div
-            className="portal-usage-breakdown__row"
-            key={metric.metricType}
-            role="row"
-          >
-            <span role="cell">{formatUsageMetricLabel(metric.metricType)}</span>
-            <span role="cell">{metric.requestCount.toLocaleString()}</span>
-            <span role="cell">{metric.lastUpdated ?? "Not yet updated"}</span>
-          </div>
-        ))}
-      </div>
+    <section aria-label="Usage metric breakdown">
+      <Stack gap="md">
+        <Title order={3}>Usage Metrics Recorded This Month</Title>
+        <PortalMetricGrid>
+          {input.metrics.map((metric) => (
+            <Paper key={metric.metricType} p="md" radius="md" withBorder>
+              <Stack gap={2}>
+                <Text c="dimmed" fz="sm">
+                  {formatUsageMetricLabel(metric.metricType)}
+                </Text>
+                <Text fw={700} size="lg">
+                  {metric.requestCount.toLocaleString()}
+                </Text>
+                <Text c="dimmed" size="sm">
+                  {metric.lastUpdated ?? "Not yet updated"}
+                </Text>
+              </Stack>
+            </Paper>
+          ))}
+        </PortalMetricGrid>
+      </Stack>
     </section>
   );
 }

@@ -1,3 +1,5 @@
+import { Paper, Progress, Stack, Text, Title } from "@mantine/core";
+import { PortalDetailList } from "../components/PortalPrimitives";
 import type { PortalUsageBillingSnapshot } from "../billing/portalUsageBilling";
 
 interface BudgetLimitVisualizationProps {
@@ -13,9 +15,9 @@ export function BudgetLimitVisualization({
 }: BudgetLimitVisualizationProps) {
   if (!snapshot) {
     return (
-      <p className="portal-budget-visualization__empty">
+      <Text c="dimmed" size="sm">
         Current usage will appear here once the billing summary is available.
-      </p>
+      </Text>
     );
   }
 
@@ -29,51 +31,52 @@ export function BudgetLimitVisualization({
       : 0;
 
   return (
-    <div className="portal-budget-visualization">
-      <div className="portal-budget-visualization__header">
+    <Paper p="lg" radius="lg" withBorder>
+      <Stack gap="md">
         <div>
-          <h3>
+          <Title order={3}>
             {snapshot.usage.used.toLocaleString()} / {limit.toLocaleString()}
-          </h3>
-          <p>
+          </Title>
+          <Text c="dimmed" mt={4} size="sm">
             {describeUsageState({
               allowOverage,
               configuredLimit,
               remaining,
             })}
-          </p>
+          </Text>
         </div>
-        <p className="portal-budget-visualization__percent">
+
+        <Text fw={700} size="sm">
           {usagePercent}% of this limit
-        </p>
-      </div>
+        </Text>
+        <Progress radius="xl" value={usagePercent} />
 
-      <div className="portal-usage-meter__track" aria-hidden="true">
-        <div
-          className="portal-usage-meter__fill"
-          style={{ width: `${usagePercent}%` }}
+        <PortalDetailList
+          items={[
+            {
+              key: "current-usage",
+              label: "Current usage",
+              value: `${snapshot.usage.used.toLocaleString()} requests`,
+            },
+            {
+              key: "remaining",
+              label: "Remaining to this limit",
+              value: `${remaining.toLocaleString()} requests`,
+            },
+            {
+              key: "limit-source",
+              label: "Limit source",
+              value: limitLabel,
+            },
+            {
+              key: "enforcement-mode",
+              label: "Enforcement mode",
+              value: allowOverage ? "Overage allowed" : "Hard stop enabled",
+            },
+          ]}
         />
-      </div>
-
-      <dl className="portal-shell__details">
-        <div>
-          <dt>Current usage</dt>
-          <dd>{snapshot.usage.used.toLocaleString()} requests</dd>
-        </div>
-        <div>
-          <dt>Remaining to this limit</dt>
-          <dd>{remaining.toLocaleString()} requests</dd>
-        </div>
-        <div>
-          <dt>Limit source</dt>
-          <dd>{limitLabel}</dd>
-        </div>
-        <div>
-          <dt>Enforcement mode</dt>
-          <dd>{allowOverage ? "Overage allowed" : "Hard stop enabled"}</dd>
-        </div>
-      </dl>
-    </div>
+      </Stack>
+    </Paper>
   );
 }
 

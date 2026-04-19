@@ -1,6 +1,12 @@
-import { Modal } from "@mantine/core";
+import { Modal, Stack, TextInput } from "@mantine/core";
 import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
+import { PortalNotice } from "../components/feedback";
 import { normalizeSlugCandidate } from "../lib/slug";
 import type { PortalOrganizationCreateRequest } from "../organization/portalOrganization";
 
@@ -62,83 +68,65 @@ export function PortalOrganizationOnboardingPage({
       title="Create Your Organization"
     >
       <div data-testid="organization-onboarding-page">
-        <div className="portal-auth-page__card-copy">
-          <p>
+        <Stack gap="lg">
+          <PortalHint>
             Create your organization to start managing your team, billing, and
             verification work.
-          </p>
-        </div>
+          </PortalHint>
 
-        <form
-          className="portal-form portal-form--detail"
-          noValidate
-          onSubmit={handleSubmit}
-        >
-          <label className="portal-form__field" htmlFor={nameId}>
-            <span>Organization name</span>
-            <input
-              autoFocus
-              className="portal-form__input"
-              id={nameId}
-              name="name"
-              onChange={(event) => {
-                const nextName = event.target.value;
-                const previousAutoSlug = normalizeSlugCandidate(name);
-                const nextAutoSlug = normalizeSlugCandidate(nextName);
+          <form noValidate onSubmit={handleSubmit}>
+            <Stack gap="md">
+              <TextInput
+                autoFocus
+                id={nameId}
+                label="Organization name"
+                name="name"
+                onChange={(event) => {
+                  const nextName = event.target.value;
+                  const previousAutoSlug = normalizeSlugCandidate(name);
+                  const nextAutoSlug = normalizeSlugCandidate(nextName);
 
-                setName(nextName);
-                setSlug((currentSlug) =>
-                  !currentSlug || currentSlug === previousAutoSlug
-                    ? nextAutoSlug
-                    : currentSlug,
-                );
-              }}
-              placeholder="Verify For Good Org"
-              type="text"
-              value={name}
-            />
-          </label>
+                  setName(nextName);
+                  setSlug((currentSlug) =>
+                    !currentSlug || currentSlug === previousAutoSlug
+                      ? nextAutoSlug
+                      : currentSlug,
+                  );
+                }}
+                placeholder="Verify For Good Org"
+                value={name}
+              />
 
-          <label className="portal-form__field" htmlFor={slugId}>
-            <span>Slug</span>
-            <input
-              className="portal-form__input"
-              id={slugId}
-              name="slug"
-              onChange={(event) => {
-                setSlug(normalizeSlugCandidate(event.target.value));
-              }}
-              placeholder="verify-for-good-org"
-              type="text"
-              value={slug}
-            />
-          </label>
+              <TextInput
+                id={slugId}
+                label="Slug"
+                name="slug"
+                onChange={(event) => {
+                  setSlug(normalizeSlugCandidate(event.target.value));
+                }}
+                placeholder="verify-for-good-org"
+                value={slug}
+              />
 
-          <p className="portal-budget-form__hint">
-            The slug is generated from the organization name and can be adjusted
-            before creation.
-          </p>
+              <PortalHint>
+                The slug is generated from the organization name and can be adjusted
+                before creation.
+              </PortalHint>
 
-          {validationMessage ? (
-            <p
-              aria-live="polite"
-              className="portal-auth-page__error"
-              role="alert"
-            >
-              {validationMessage}
-            </p>
-          ) : null}
+              {validationMessage ? (
+                <PortalNotice tone="error">
+                  <p>{validationMessage}</p>
+                </PortalNotice>
+              ) : null}
 
-          <div className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              disabled={isBusy}
-              type="submit"
-            >
-              {isBusy ? "Creating..." : "Create Organization"}
-            </button>
-          </div>
-        </form>
+              <PortalActionGroup>
+                <PortalButton loading={isBusy} tone="primary" type="submit">
+                  {isBusy ? "Creating..." : "Create Organization"}
+                </PortalButton>
+              </PortalActionGroup>
+            </Stack>
+          </form>
+        </Stack>
       </div>
     </Modal>
   );

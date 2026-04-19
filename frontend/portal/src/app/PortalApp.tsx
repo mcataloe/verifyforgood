@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Paper, Stack, Text, Title } from "@mantine/core";
 import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
 import { usePortalAuth } from "../auth/usePortalAuth";
 import { PortalAuthProvider } from "../auth/PortalAuthProvider";
 import { PortalAuthLayout } from "../components/PortalAuthLayout";
+import { PortalButton, PortalHint } from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
 import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomationPage";
@@ -259,9 +261,7 @@ function PortalAppShell({
         subtitle="Taking you back to your account."
         title="Redirecting into the portal"
       >
-        <p className="portal-auth-shell__message">
-          Restoring access to {requestedRoute.label}.
-        </p>
+        <Text c="dimmed">Restoring access to {requestedRoute.label}.</Text>
       </PortalAuthLayout>
     );
   }
@@ -415,25 +415,20 @@ function PortalAuthorizedShell({
     >
       {session.organization_context_status === "pending" &&
       !isOrganizationOnboardingOpen ? (
-        <div className="portal-auth-page" data-testid="pending-organization-callout">
-          <div className="portal-auth-page__card-copy">
-            <h2>Create Your Organization to Continue</h2>
-            <p>
+        <Paper data-testid="pending-organization-callout" p="lg" radius="xl" withBorder>
+          <Stack gap="md">
+            <Title order={2}>Create Your Organization to Continue</Title>
+            <PortalHint>
               Finish creating your organization to unlock billing, team access,
               and verification tools.
-            </p>
-          </div>
-
-          <div className="portal-form__actions">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              onClick={onOpenOrganizationOnboarding}
-              type="button"
-            >
-              Create Organization
-            </button>
-          </div>
-        </div>
+            </PortalHint>
+            <div>
+              <PortalButton onClick={onOpenOrganizationOnboarding} tone="primary" type="button">
+                Create Organization
+              </PortalButton>
+            </div>
+          </Stack>
+        </Paper>
       ) : null}
       {currentRoute.key === "dashboard" ? (
         <DashboardPage

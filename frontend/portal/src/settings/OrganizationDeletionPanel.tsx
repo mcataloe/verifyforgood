@@ -1,6 +1,12 @@
-import { Button, Group, Modal, Stack, Text } from "@mantine/core";
+import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useEffect, useState } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
+import { PortalNotice } from "../components/feedback";
 import type { PortalOrganizationDeletionController } from "./usePortalOrganizationDeletion";
 
 interface OrganizationDeletionPanelProps {
@@ -29,24 +35,24 @@ export function OrganizationDeletionPanel({
 
   return (
     <>
-      <div className="portal-budget-form">
-        <p className="portal-budget-form__hint">
+      <Stack gap="md">
+        <PortalHint>
           Delete this organization if it should no longer appear in the portal.
           Its history remains available for audit purposes.
-        </p>
+        </PortalHint>
 
-        <div className="portal-form__actions">
-          <button
-            className="portal-shell__action portal-shell__action--danger"
+        <PortalActionGroup>
+          <PortalButton
             onClick={() => {
               setOpened(true);
             }}
+            tone="danger"
             type="button"
           >
             Delete Organization
-          </button>
-        </div>
-      </div>
+          </PortalButton>
+        </PortalActionGroup>
+      </Stack>
 
       <Modal
         centered
@@ -68,23 +74,22 @@ export function OrganizationDeletionPanel({
           <Text fw={700} size="sm">
             {expectedSlug || "Slug unavailable"}
           </Text>
-          <label className="portal-form__field" htmlFor="delete-organization-slug">
-            <span>Organization slug</span>
-            <input
-              className="portal-form__input"
+          <Text fw={700} size="sm">
+            {expectedSlug || "Slug unavailable"}
+          </Text>
+          <TextInput
+              label="Organization slug"
               id="delete-organization-slug"
               onChange={(event) => {
                 setConfirmationSlug(event.target.value);
               }}
-              type="text"
               value={confirmationSlug}
             />
-          </label>
 
           {controller.error ? (
-            <p className="portal-feedback portal-feedback--error">
-              {controller.error}
-            </p>
+            <PortalNotice tone="error">
+              <p>{controller.error}</p>
+            </PortalNotice>
           ) : null}
 
           <Group justify="flex-end">
@@ -99,6 +104,7 @@ export function OrganizationDeletionPanel({
             <Button
               color="red"
               disabled={!canDelete}
+              loading={controller.isDeleting}
               onClick={() => {
                 void controller.deleteOrganization({
                   slug: confirmationSlug.trim(),

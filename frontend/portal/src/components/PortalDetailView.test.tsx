@@ -1,15 +1,18 @@
 import { render, screen } from "@testing-library/react";
+import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it } from "vitest";
 import { PortalDetailSection, PortalDetailView } from "./PortalDetailView";
 
 describe("PortalDetailView", () => {
   it("keeps sibling sections in one shared detail layout with inserted dividers", () => {
     render(
-      <PortalDetailView eyebrow="Profile" intro="Shared intro" title="Detail title">
-        <PortalDetailSection title="Overview">Alpha</PortalDetailSection>
-        <PortalDetailSection title="Sources">Beta</PortalDetailSection>
-        <PortalDetailSection title="Activity">Gamma</PortalDetailSection>
-      </PortalDetailView>,
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <PortalDetailView eyebrow="Profile" intro="Shared intro" title="Detail title">
+          <PortalDetailSection title="Overview">Alpha</PortalDetailSection>
+          <PortalDetailSection title="Sources">Beta</PortalDetailSection>
+          <PortalDetailSection title="Activity">Gamma</PortalDetailSection>
+        </PortalDetailView>
+      </VerifyForGoodMantineProvider>,
     );
 
     const layout = screen.getByTestId("detail-page-layout");

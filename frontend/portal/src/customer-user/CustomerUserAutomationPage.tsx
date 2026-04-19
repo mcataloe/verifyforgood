@@ -1,10 +1,29 @@
-import { ActionIcon, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
 import { DetailFieldList, EmptyState } from "@charity-status/shared-ui";
 import { IconCopy, IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
-import { usePortalBudgetSettings } from "../settings/usePortalBudgetSettings";
+import {
+  PortalActionGroup,
+  PortalButton,
+} from "../components/PortalPrimitives";
+import { PortalNotice } from "../components/feedback";
+import {
+  PortalDetailSection,
+  PortalDetailView,
+} from "../components/PortalDetailView";
 import { HardStopEnforcementField } from "../settings/HardStopEnforcementField";
+import { usePortalBudgetSettings } from "../settings/usePortalBudgetSettings";
 import type {
   CustomerUserApiKeyRecord,
   CustomerUserOAuthClientRecord,
@@ -13,10 +32,6 @@ import {
   useCustomerUserApiKeys,
   useCustomerUserOAuthClients,
 } from "./useCustomerUserAutomationCredentials";
-import {
-  PortalDetailSection,
-  PortalDetailView,
-} from "../components/PortalDetailView";
 
 interface CustomerUserAutomationPageProps {
   pane: "automation-api" | "automation-general" | "automation-oauth";
@@ -66,7 +81,7 @@ function AutomationGeneralPanel() {
       intro="Control how automation behaves when usage limits are reached."
       title="General settings"
     >
-      <div className="portal-budget-form">
+      <Stack gap="md">
         <HardStopEnforcementField
           allowOverage={allowOverage}
           monthlyRequestCap={budget.settings.monthlyRequestCap}
@@ -77,38 +92,39 @@ function AutomationGeneralPanel() {
         />
 
         {budget.error ? (
-          <p className="portal-feedback portal-feedback--error">
-            {budget.error}
-          </p>
+          <PortalNotice tone="error">
+            <p>{budget.error}</p>
+          </PortalNotice>
         ) : null}
         {budget.notice ? (
-          <p className="portal-feedback portal-feedback--warning">
-            {budget.notice}
-          </p>
+          <PortalNotice tone="warning">
+            <p>{budget.notice}</p>
+          </PortalNotice>
         ) : null}
 
-        <div className="portal-form__actions">
-          <button
-            className="portal-shell__action portal-shell__action--primary"
+        <PortalActionGroup>
+          <PortalButton
             disabled={
               budget.isLoading ||
               budget.isSaving ||
               allowOverage === budget.settings.allowOverage
             }
+            loading={budget.isSaving}
             onClick={() =>
               void budget.save({
                 allowOverage,
                 monthlyRequestCap: budget.settings.monthlyRequestCap,
               })
             }
+            tone="primary"
             type="button"
           >
             {budget.isSaving
               ? "Saving automation settings..."
               : "Save automation setting"}
-          </button>
-        </div>
-      </div>
+          </PortalButton>
+        </PortalActionGroup>
+      </Stack>
     </PortalDetailSection>
   );
 }
@@ -131,10 +147,16 @@ function AutomationApiKeyPanel({
         intro="Create and manage API keys for your integrations."
         title="API Keys"
       >
-        <form
-          className="portal-form portal-form--detail"
-          onSubmit={(event) => {
-            event.preventDefault();
+        <CredentialCreateForm
+          expirationDate={expirationDate}
+          expirationLabel="Expiration date"
+          expirationName="API key expiration date"
+          name={name}
+          nameLabel="API key name"
+          namePlaceholder="Primary automation key"
+          onExpirationDateChange={setExpirationDate}
+          onNameChange={setName}
+          onSubmit={() => {
             void apiKeys.createItem({
               expiresAt: expirationDate,
               name,
@@ -142,45 +164,8 @@ function AutomationApiKeyPanel({
             setName("");
             setExpirationDate("");
           }}
-        >
-          <label className="portal-form__field">
-            <span>Name</span>
-            <input
-              aria-label="API key name"
-              className="portal-form__input"
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              placeholder="Primary automation key"
-              type="text"
-              value={name}
-            />
-          </label>
-
-          <label className="portal-form__field">
-            <span>Expiration date</span>
-            <input
-              aria-label="API key expiration date"
-              className="portal-form__input"
-              min={todayDateValue()}
-              onChange={(event) => {
-                setExpirationDate(event.target.value);
-              }}
-              type="date"
-              value={expirationDate}
-            />
-          </label>
-
-          <div className="portal-form__actions portal-form__actions--full">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              disabled={!name.trim() || !expirationDate}
-              type="submit"
-            >
-              Add API key
-            </button>
-          </div>
-        </form>
+          submitLabel="Add API key"
+        />
       </PortalDetailSection>
 
       <PortalDetailSection
@@ -198,9 +183,12 @@ function AutomationApiKeyPanel({
           {apiKeys.items.map((item) => (
             <CredentialCard
               key={item.id}
+              copyLabel="Copy API key"
               createdAt={item.createdAt}
               createdBy={item.createdBy}
+              deleteLabel="Delete API key"
               expiresAt={item.expiresAt}
+              isRevealed={revealedId === item.id}
               onCopy={() => void copyToClipboard(item.keyValue)}
               onDelete={() => {
                 setPendingDelete(item);
@@ -224,9 +212,6 @@ function AutomationApiKeyPanel({
                 },
               ]}
               title={item.name}
-              deleteLabel="Delete API key"
-              copyLabel="Copy API key"
-              isRevealed={revealedId === item.id}
             />
           ))}
         </Stack>
@@ -269,10 +254,16 @@ function AutomationOAuthPanel({
         intro="Create OAuth clients for secure server-to-server access."
         title="OAuth clients"
       >
-        <form
-          className="portal-form portal-form--detail"
-          onSubmit={(event) => {
-            event.preventDefault();
+        <CredentialCreateForm
+          expirationDate={expirationDate}
+          expirationLabel="Expiration date"
+          expirationName="OAuth client expiration date"
+          name={name}
+          nameLabel="OAuth client name"
+          namePlaceholder="Background sync client"
+          onExpirationDateChange={setExpirationDate}
+          onNameChange={setName}
+          onSubmit={() => {
             void oauthClients.createItem({
               expiresAt: expirationDate,
               name,
@@ -280,45 +271,8 @@ function AutomationOAuthPanel({
             setName("");
             setExpirationDate("");
           }}
-        >
-          <label className="portal-form__field">
-            <span>Name</span>
-            <input
-              aria-label="OAuth client name"
-              className="portal-form__input"
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              placeholder="Background sync client"
-              type="text"
-              value={name}
-            />
-          </label>
-
-          <label className="portal-form__field">
-            <span>Expiration date</span>
-            <input
-              aria-label="OAuth client expiration date"
-              className="portal-form__input"
-              min={todayDateValue()}
-              onChange={(event) => {
-                setExpirationDate(event.target.value);
-              }}
-              type="date"
-              value={expirationDate}
-            />
-          </label>
-
-          <div className="portal-form__actions portal-form__actions--full">
-            <button
-              className="portal-shell__action portal-shell__action--primary"
-              disabled={!name.trim() || !expirationDate}
-              type="submit"
-            >
-              Add OAuth client
-            </button>
-          </div>
-        </form>
+          submitLabel="Add OAuth client"
+        />
       </PortalDetailSection>
 
       <PortalDetailSection
@@ -336,9 +290,12 @@ function AutomationOAuthPanel({
           {oauthClients.items.map((item) => (
             <CredentialCard
               key={item.id}
+              copyLabel="Copy OAuth credentials"
               createdAt={item.createdAt}
               createdBy={item.createdBy}
+              deleteLabel="Delete OAuth client"
               expiresAt={item.expiresAt}
+              isRevealed={revealedId === item.id}
               onCopy={() =>
                 void copyToClipboard(
                   JSON.stringify(
@@ -383,9 +340,6 @@ function AutomationOAuthPanel({
                 },
               ]}
               title={item.name}
-              deleteLabel="Delete OAuth client"
-              copyLabel="Copy OAuth credentials"
-              isRevealed={revealedId === item.id}
             />
           ))}
         </Stack>
@@ -407,6 +361,60 @@ function AutomationOAuthPanel({
         opened={Boolean(pendingDelete)}
       />
     </>
+  );
+}
+
+function CredentialCreateForm(input: {
+  expirationDate: string;
+  expirationLabel: string;
+  expirationName: string;
+  name: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  onExpirationDateChange: (value: string) => void;
+  onNameChange: (value: string) => void;
+  onSubmit: () => void;
+  submitLabel: string;
+}) {
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        input.onSubmit();
+      }}
+    >
+      <Stack maw={540}>
+        <TextInput
+          aria-label={input.nameLabel}
+          label="Name"
+          onChange={(event) => {
+            input.onNameChange(event.target.value);
+          }}
+          placeholder={input.namePlaceholder}
+          value={input.name}
+        />
+
+        <TextInput
+          aria-label={input.expirationName}
+          label={input.expirationLabel}
+          min={todayDateValue()}
+          onChange={(event) => {
+            input.onExpirationDateChange(event.target.value);
+          }}
+          type="date"
+          value={input.expirationDate}
+        />
+
+        <PortalActionGroup>
+          <Button
+            disabled={!input.name.trim() || !input.expirationDate}
+            type="submit"
+          >
+            {input.submitLabel}
+          </Button>
+        </PortalActionGroup>
+      </Stack>
+    </form>
   );
 }
 
@@ -438,55 +446,55 @@ function CredentialCard({
   title: string;
 }) {
   return (
-    <article className="portal-credential-entry">
-      <Group justify="space-between" wrap="nowrap" align="start">
-        <div>
-          <h3 className="portal-credential-entry__title">{title}</h3>
-          <p className="portal-credential-entry__meta">
-            Expires {formatDate(expiresAt)} | Created by {createdBy}
-          </p>
-        </div>
-        <Group
-          className="portal-credential-entry__actions"
-          gap={6}
-          wrap="nowrap"
-        >
-          <IconActionButton
-            ariaLabel={revealLabel}
-            icon={isRevealed ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-            onClick={onToggleReveal}
-            tooltip={revealLabel}
-          />
-          <IconActionButton
-            ariaLabel={copyLabel}
-            icon={<IconCopy size={16} />}
-            onClick={onCopy}
-            tooltip={copyLabel}
-          />
-          <IconActionButton
-            ariaLabel={deleteLabel}
-            icon={<IconTrash size={16} />}
-            onClick={onDelete}
-            tooltip={deleteLabel}
-          />
+    <Paper className="portal-credential-entry" p="md" radius="md" withBorder>
+      <Stack gap="md">
+        <Group align="start" justify="space-between" wrap="nowrap">
+          <Stack gap={2}>
+            <Text component="h3" fw={700}>
+              {title}
+            </Text>
+            <Text c="dimmed" size="sm">
+              Expires {formatDate(expiresAt)} | Created by {createdBy}
+            </Text>
+          </Stack>
+          <Group align="center" gap={6} wrap="nowrap">
+            <IconActionButton
+              ariaLabel={revealLabel}
+              icon={isRevealed ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+              onClick={onToggleReveal}
+              tooltip={revealLabel}
+            />
+            <IconActionButton
+              ariaLabel={copyLabel}
+              icon={<IconCopy size={16} />}
+              onClick={onCopy}
+              tooltip={copyLabel}
+            />
+            <IconActionButton
+              ariaLabel={deleteLabel}
+              icon={<IconTrash size={16} />}
+              onClick={onDelete}
+              tooltip={deleteLabel}
+            />
+          </Group>
         </Group>
-      </Group>
 
-      <DetailFieldList
-        items={[
-          ...secrets.map((secret) => ({
-            key: secret.key,
-            label: secret.label,
-            value: secret.value,
-          })),
-          {
-            key: "created-at",
-            label: "Created",
-            value: formatDateTime(createdAt),
-          },
-        ]}
-      />
-    </article>
+        <DetailFieldList
+          items={[
+            ...secrets.map((secret) => ({
+              key: secret.key,
+              label: secret.label,
+              value: secret.value,
+            })),
+            {
+              key: "created-at",
+              label: "Created",
+              value: formatDateTime(createdAt),
+            },
+          ]}
+        />
+      </Stack>
+    </Paper>
   );
 }
 
@@ -514,20 +522,12 @@ function DeleteCredentialModal({
           removes it from your saved credentials list.
         </Text>
         <Group justify="flex-end">
-          <button
-            className="portal-shell__action portal-shell__action--secondary"
-            onClick={onClose}
-            type="button"
-          >
+          <PortalButton onClick={onClose} tone="secondary" type="button">
             Cancel
-          </button>
-          <button
-            className="portal-shell__action portal-shell__action--danger"
-            onClick={onConfirm}
-            type="button"
-          >
+          </PortalButton>
+          <PortalButton onClick={onConfirm} tone="danger" type="button">
             Delete
-          </button>
+          </PortalButton>
         </Group>
       </Stack>
     </Modal>
@@ -549,7 +549,6 @@ function IconActionButton({
     <Tooltip label={tooltip} withArrow withinPortal={false}>
       <ActionIcon
         aria-label={ariaLabel}
-        className="portal-credential-entry__action"
         color="gray"
         onClick={onClick}
         radius="xl"

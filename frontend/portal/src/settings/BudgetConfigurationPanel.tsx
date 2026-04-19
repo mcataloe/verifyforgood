@@ -1,3 +1,10 @@
+import { Stack, TextInput } from "@mantine/core";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
+import { PortalNotice } from "../components/feedback";
 import { useEffect, useState } from "react";
 import type { PortalBudgetSettingsController } from "./usePortalBudgetSettings";
 import { HardStopEnforcementField } from "./HardStopEnforcementField";
@@ -32,29 +39,21 @@ export function BudgetConfigurationPanel({
     (parsedMonthlyRequestCap ?? null) !== controller.settings.monthlyRequestCap;
 
   return (
-    <div className="portal-budget-form">
-      <div className="portal-budget-form__section">
-        <label className="portal-form__field" htmlFor="monthly-request-cap">
-          <span>Organization request cap</span>
-          <input
-            className="portal-form__input"
-            id="monthly-request-cap"
-            inputMode="numeric"
-            min="1"
-            onChange={(event) => {
-              controller.clearNotice();
-              setMonthlyRequestCap(event.target.value);
-            }}
-            placeholder="Optional"
-            type="number"
-            value={monthlyRequestCap}
-          />
-        </label>
-        <p className="portal-budget-form__hint">
-          {describeCapGuidance(includedPlanLimit)}
-        </p>
-      </div>
-
+    <Stack gap="md">
+      <TextInput
+        id="monthly-request-cap"
+        inputMode="numeric"
+        label="Organization request cap"
+        min="1"
+        onChange={(event) => {
+          controller.clearNotice();
+          setMonthlyRequestCap(event.target.value);
+        }}
+        placeholder="Optional"
+        type="number"
+        value={monthlyRequestCap}
+      />
+      <PortalHint>{describeCapGuidance(includedPlanLimit)}</PortalHint>
       <HardStopEnforcementField
         allowOverage={allowOverage}
         monthlyRequestCap={parsedMonthlyRequestCap ?? null}
@@ -65,44 +64,45 @@ export function BudgetConfigurationPanel({
       />
 
       {validationMessage ? (
-        <p className="portal-feedback portal-feedback--error">
-          {validationMessage}
-        </p>
+        <PortalNotice tone="error">
+          <p>{validationMessage}</p>
+        </PortalNotice>
       ) : null}
 
       {controller.error ? (
-        <p className="portal-feedback portal-feedback--error">
-          {controller.error}
-        </p>
+        <PortalNotice tone="error">
+          <p>{controller.error}</p>
+        </PortalNotice>
       ) : null}
 
       {controller.notice ? (
-        <p className="portal-feedback portal-feedback--warning">
-          {controller.notice}
-        </p>
+        <PortalNotice tone="warning">
+          <p>{controller.notice}</p>
+        </PortalNotice>
       ) : null}
 
-      <div className="portal-form__actions">
-        <button
-          className="portal-shell__action portal-shell__action--primary"
+      <PortalActionGroup>
+        <PortalButton
           disabled={
             controller.isLoading ||
             controller.isSaving ||
             !isDirty ||
             validationMessage !== null
           }
+          loading={controller.isSaving}
           onClick={() =>
             void controller.save({
               allowOverage,
               monthlyRequestCap: parsedMonthlyRequestCap ?? null,
             })
           }
+          tone="primary"
           type="button"
         >
           {controller.isSaving ? "Saving..." : "Save Budget"}
-        </button>
-      </div>
-    </div>
+        </PortalButton>
+      </PortalActionGroup>
+    </Stack>
   );
 }
 

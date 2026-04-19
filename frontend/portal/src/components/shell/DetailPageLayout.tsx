@@ -1,3 +1,5 @@
+import { PageHeader } from "@charity-status/shared-ui";
+import { Stack } from "@mantine/core";
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 
 interface DetailPageLayoutProps
@@ -15,6 +17,7 @@ interface DetailPageLayoutProps
 export function DetailPageLayout({
   children,
   className,
+  eyebrow,
   contentTestId,
   header,
   intro,
@@ -36,16 +39,16 @@ export function DetailPageLayout({
         header
       ) : title ? (
         <header className="portal-detail-layout__header">
-          <h1>{title}</h1>
-          {intro ? <p className="portal-detail-layout__intro">{intro}</p> : null}
+          <PageHeader eyebrow={eyebrow} description={intro} title={title} />
         </header>
       ) : null}
-      <div
+      <Stack
         className="portal-detail-layout__content"
         data-testid={contentTestId ?? "detail-page-layout-content"}
+        gap="xl"
       >
         {children}
-      </div>
+      </Stack>
     </article>
   );
 }

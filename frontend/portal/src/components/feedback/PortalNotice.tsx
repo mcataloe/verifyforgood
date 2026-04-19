@@ -1,3 +1,4 @@
+import { Alert, Stack } from "@mantine/core";
 import type { PropsWithChildren, ReactNode } from "react";
 
 interface PortalNoticeProps extends PropsWithChildren {
@@ -13,10 +14,24 @@ export function PortalNotice({
   tone,
 }: PortalNoticeProps) {
   return (
-    <div className={`portal-notice portal-notice--${tone}`}>
-      {title ? <p className="portal-notice__title">{title}</p> : null}
-      <div className="portal-notice__body">{children}</div>
-      {action ? <div className="portal-notice__action">{action}</div> : null}
-    </div>
+    <Alert color={resolveNoticeColor(tone)} radius="md" title={title} variant="light">
+      <Stack gap="sm">
+        <div>{children}</div>
+        {action}
+      </Stack>
+    </Alert>
   );
+}
+
+function resolveNoticeColor(tone: PortalNoticeProps["tone"]) {
+  switch (tone) {
+    case "error":
+      return "red";
+    case "loading":
+      return "blue";
+    case "empty":
+    case "warning":
+    default:
+      return "teal";
+  }
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { createSessionPortalOrganization } from "../organization/portalOrganization";
@@ -153,23 +153,28 @@ describe("ApiKeyManager", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Edit key Existing key" }),
     );
-    fireEvent.change(screen.getAllByRole("textbox", { name: "Display name" })[1], {
+    const editDialog = await screen.findByRole("dialog", { name: "Edit API Key" });
+    fireEvent.change(within(editDialog).getByRole("textbox", { name: "Display name" }), {
       target: { value: "Renamed key" },
     });
-    fireEvent.change(screen.getAllByRole("textbox", { name: "Description" })[1], {
+    fireEvent.change(within(editDialog).getByRole("textbox", { name: "Description" }), {
       target: { value: "Updated description" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
     expect(state.updateKey).toHaveBeenCalledWith("key_existing", {
       description: "Updated description",
       display_name: "Renamed key",
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Edit API Key" })).toBeNull();
     });
 
     fireEvent.click(
       screen.getByRole("button", { name: "Revoke key Existing key" }),
     );
     expect(state.revokeKey).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    const revokeDialog = await screen.findByRole("dialog", { name: "Revoke API Key" });
+    fireEvent.click(within(revokeDialog).getByRole("button", { name: "Revoke" }));
     expect(state.revokeKey).toHaveBeenCalledWith("key_existing");
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));

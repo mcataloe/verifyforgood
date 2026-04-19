@@ -1,7 +1,23 @@
 import { useId, useState, type FormEvent } from "react";
+import {
+  Button,
+  Divider,
+  Paper,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalRegisterRequest } from "../auth/portalAuthClient";
+import {
+  PortalActionGroup,
+  PortalAnchorButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import { usePortalToast } from "../components/feedback";
 
 interface PortalRegisterPageProps {
@@ -57,160 +73,131 @@ export function PortalRegisterPage({
   };
 
   return (
-    <div className="portal-auth-page">
-      <div className="portal-auth-page__intro">
-        <div className="portal-auth-page__copy">
-          <h2>Start Your Portal Account</h2>
-          <p>
+    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
+      <Stack gap="lg">
+        <Stack gap="xs">
+          <Title order={2}>Start Your Portal Account</Title>
+          <PortalHint>
             Create an account to continue to {requestedRoute.label}. Once your
             account is ready, you can sign in and finish setting up your
             organization if needed.
-          </p>
-        </div>
+          </PortalHint>
+        </Stack>
 
-        <div className="portal-auth-page__trust-band">
-          <div>
-            <strong>Requested area</strong>
-            <span>{requestedRoute.label}</span>
-          </div>
-          <div>
-            <strong>Account setup</strong>
-            <span>Create your login for the customer portal</span>
-          </div>
-          <div>
-            <strong>Next step</strong>
-            <span>After sign-up, you can create or join an organization.</span>
-          </div>
-        </div>
-
-        <div className="portal-auth-page__onboarding">
-          <h3>Create Your Account First</h3>
-          <ul className="portal-list">
-            <li>Create your account with your work details.</li>
-            <li>
-              After sign-in, we’ll check whether you already belong to an
-              organization.
-            </li>
-            <li>
-              If you do not, you can create one in a dedicated setup step.
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <form
-        className="portal-auth-page__card portal-form"
-        noValidate
-        onSubmit={handleSubmit}
-      >
-        <div className="portal-auth-page__card-copy">
-          <h3>Create Account</h3>
-          <p>Use your work email to create your portal login.</p>
-        </div>
-
-        <label className="portal-form__field" htmlFor={fullNameId}>
-          <span>Full name</span>
-          <input
-            autoComplete="name"
-            className="portal-form__input"
-            id={fullNameId}
-            name="full_name"
-            onChange={(event) => {
-              dismissToast("portal-register");
-              setFullName(event.target.value);
-            }}
-            placeholder="Alex Operator"
-            type="text"
-            value={fullName}
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <AuthInfoCard label="Requested area" value={requestedRoute.label} />
+          <AuthInfoCard
+            label="Account setup"
+            value="Create your login for the customer portal"
           />
-        </label>
-
-        <label className="portal-form__field" htmlFor={emailId}>
-          <span>Email</span>
-          <input
-            autoComplete="email"
-            className="portal-form__input"
-            id={emailId}
-            name="email"
-            onChange={(event) => {
-              dismissToast("portal-register");
-              setEmail(event.target.value);
-            }}
-            placeholder="name@company.com"
-            type="email"
-            value={email}
+          <AuthInfoCard
+            label="Next step"
+            value="After sign-up, you can create or join an organization."
           />
-        </label>
+        </SimpleGrid>
 
-        <label className="portal-form__field" htmlFor={passwordId}>
-          <span>Password</span>
-          <input
-            autoComplete="new-password"
-            className="portal-form__input"
-            id={passwordId}
-            name="password"
-            onChange={(event) => {
-              dismissToast("portal-register");
-              setPassword(event.target.value);
-            }}
-            placeholder="Choose a password"
-            type="password"
-            value={password}
-          />
-        </label>
+        <Paper p="lg" radius="lg" withBorder>
+          <Stack gap="sm">
+            <Title order={3}>Create Your Account First</Title>
+            <Text component="div" size="sm">
+              <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                <li>Create your account with your work details.</li>
+                <li>
+                  After sign-in, we&apos;ll check whether you already belong to an
+                  organization.
+                </li>
+                <li>
+                  If you do not, you can create one in a dedicated setup step.
+                </li>
+              </ul>
+            </Text>
+          </Stack>
+        </Paper>
+      </Stack>
 
-        <div className="portal-form__actions">
-          <button
-            className="portal-shell__action portal-shell__action--primary"
-            disabled={isBusy}
-            type="submit"
-          >
-            {isBusy ? "Creating..." : "Create Account"}
-          </button>
-          <a
-            className="portal-shell__action portal-shell__action--secondary"
-            href="#/sign-in"
-          >
-            Back
-          </a>
-        </div>
+      <Paper p="lg" radius="xl" withBorder>
+        <form noValidate onSubmit={handleSubmit}>
+          <Stack gap="lg">
+            <Stack gap="xs">
+              <Title order={3}>Create Account</Title>
+              <PortalHint>Use your work email to create your portal login.</PortalHint>
+            </Stack>
 
-        <div className="portal-auth-page__divider" role="presentation">
-          <span>Identity providers</span>
-        </div>
+            <TextInput
+              autoComplete="name"
+              id={fullNameId}
+              label="Full name"
+              name="full_name"
+              onChange={(event) => {
+                dismissToast("portal-register");
+                setFullName(event.target.value);
+              }}
+              placeholder="Alex Operator"
+              value={fullName}
+            />
 
-        <div className="portal-auth-page__oauth">
-          <button
-            aria-disabled="true"
-            className="portal-auth-page__oauth-button portal-auth-page__oauth-button--google"
-            disabled
-            type="button"
-          >
-            <span aria-hidden="true" className="portal-auth-page__oauth-mark">
-              G
-            </span>
-            Google available soon
-          </button>
+            <TextInput
+              autoComplete="email"
+              id={emailId}
+              label="Email"
+              name="email"
+              onChange={(event) => {
+                dismissToast("portal-register");
+                setEmail(event.target.value);
+              }}
+              placeholder="name@company.com"
+              type="email"
+              value={email}
+            />
 
-          <button
-            aria-disabled="true"
-            className="portal-auth-page__oauth-button portal-auth-page__oauth-button--microsoft"
-            disabled
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className="portal-auth-page__oauth-mark portal-auth-page__oauth-mark--microsoft"
-            >
-              <span />
-              <span />
-              <span />
-              <span />
-            </span>
-            Microsoft available soon
-          </button>
-        </div>
-      </form>
-    </div>
+            <PasswordInput
+              autoComplete="new-password"
+              id={passwordId}
+              label="Password"
+              name="password"
+              onChange={(event) => {
+                dismissToast("portal-register");
+                setPassword(event.target.value);
+              }}
+              placeholder="Choose a password"
+              value={password}
+            />
+
+            <PortalActionGroup>
+              <Button loading={isBusy} type="submit">
+                {isBusy ? "Creating..." : "Create Account"}
+              </Button>
+              <PortalAnchorButton href="#/sign-in" tone="secondary">
+                Back
+              </PortalAnchorButton>
+            </PortalActionGroup>
+
+            <Divider label="Identity providers" labelPosition="center" />
+
+            <Stack gap="sm">
+              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+                Google available soon
+              </Button>
+              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+                Microsoft available soon
+              </Button>
+            </Stack>
+          </Stack>
+        </form>
+      </Paper>
+    </SimpleGrid>
+  );
+}
+
+function AuthInfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Paper p="md" radius="md" withBorder>
+      <Stack gap={4}>
+        <Text c="dimmed" fw={700} fz="xs" tt="uppercase">
+          {label}
+        </Text>
+        <Text size="sm">{value}</Text>
+      </Stack>
+    </Paper>
   );
 }

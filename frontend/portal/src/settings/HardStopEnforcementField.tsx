@@ -1,3 +1,6 @@
+import { Checkbox, Paper, Stack } from "@mantine/core";
+import { PortalHint } from "../components/PortalPrimitives";
+
 interface HardStopEnforcementFieldProps {
   allowOverage: boolean;
   monthlyRequestCap: number | null;
@@ -12,24 +15,23 @@ export function HardStopEnforcementField({
   const hardStopEnabled = !allowOverage;
 
   return (
-    <div className="portal-budget-form__section">
-      <label className="portal-budget-toggle">
-        <input
+    <Paper p="md" radius="md" withBorder>
+      <Stack gap="sm">
+        <Checkbox
           checked={hardStopEnabled}
+          label="Enable hard-stop enforcement"
           onChange={(event) => {
             onChange(event.target.checked);
           }}
-          type="checkbox"
         />
-        <span>Enable hard-stop enforcement</span>
-      </label>
-      <p className="portal-budget-form__hint">
+        <PortalHint>
         {describeBudgetConsequence({
           allowOverage,
           monthlyRequestCap,
         })}
-      </p>
-    </div>
+        </PortalHint>
+      </Stack>
+    </Paper>
   );
 }
 

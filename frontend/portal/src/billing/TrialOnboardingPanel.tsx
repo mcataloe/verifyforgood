@@ -1,3 +1,8 @@
+import { List, Stack, Text, Title } from "@mantine/core";
+import {
+  PortalMetricCard,
+  PortalMetricGrid,
+} from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
 import type { PortalUsageBillingSnapshot } from "./portalUsageBilling";
 import type { PortalPricingPlanItem } from "./usePortalPricingPlans";
@@ -26,100 +31,90 @@ export function TrialOnboardingPanel({
   if (snapshot.trialStatus === "active" && snapshot.trialEndsAt) {
     return (
       <PortalNotice tone="warning">
-        <div className="portal-onboarding-panel">
+        <Stack gap="md">
           <div>
-            <h3 className="portal-onboarding-panel__title">
-              Trial in Progress
-            </h3>
-            <p className="portal-onboarding-panel__copy">
+            <Title order={3}>Trial in Progress</Title>
+            <Text c="dimmed" mt={4} size="sm">
               You are still on the free tier for billing, with temporary access
               to {trialPlan?.display_name ?? "expanded"} features while you
               evaluate the product.
-            </p>
+            </Text>
           </div>
 
-          <div className="portal-onboarding-metrics">
-            <div className="portal-onboarding-metric">
-              <span>Time remaining</span>
-              <strong>{formatRemainingTrialTime(snapshot.trialEndsAt)}</strong>
-            </div>
-            <div className="portal-onboarding-metric">
-              <span>Trial usage remaining</span>
-              <strong>
-                {snapshot.usage.remaining.toLocaleString()} requests
-              </strong>
-            </div>
-            <div className="portal-onboarding-metric">
-              <span>Expanded access</span>
-              <strong>
-                {trialPlan?.display_name ?? "Configured trial tier"}
-              </strong>
-            </div>
-          </div>
+          <PortalMetricGrid>
+            <PortalMetricCard
+              label="Time remaining"
+              value={formatRemainingTrialTime(snapshot.trialEndsAt)}
+            />
+            <PortalMetricCard
+              label="Trial usage remaining"
+              value={`${snapshot.usage.remaining.toLocaleString()} requests`}
+            />
+            <PortalMetricCard
+              label="Expanded access"
+              value={trialPlan?.display_name ?? "Configured trial tier"}
+            />
+          </PortalMetricGrid>
 
-          <ul className="portal-list">
-            <li>
+          <List spacing="xs">
+            <List.Item>
               The free tier remains available after the trial window ends.
-            </li>
-            <li>There is no automatic paid conversion tied to this trial.</li>
-            <li>
+            </List.Item>
+            <List.Item>There is no automatic paid conversion tied to this trial.</List.Item>
+            <List.Item>
               Move to a paid plan only when the broader limits are useful.
-            </li>
-          </ul>
-        </div>
+            </List.Item>
+          </List>
+        </Stack>
       </PortalNotice>
     );
   }
 
   return (
     <PortalNotice tone="loading">
-      <div className="portal-onboarding-panel">
+      <Stack gap="md">
         <div>
-          <h3 className="portal-onboarding-panel__title">
-            Clear Limits, Optional Upgrade Path
-          </h3>
-          <p className="portal-onboarding-panel__copy">
+          <Title order={3}>Clear Limits, Optional Upgrade Path</Title>
+          <Text c="dimmed" mt={4} size="sm">
             Begin with the free tier, then activate a time-limited trial when it
             helps you evaluate higher-capacity workflows. Paid enrollment stays
             a separate decision.
-          </p>
+          </Text>
         </div>
 
-        <div className="portal-onboarding-metrics">
-          <div className="portal-onboarding-metric">
-            <span>Free tier limit</span>
-            <strong>
-              {freePlan
+        <PortalMetricGrid>
+          <PortalMetricCard
+            label="Free tier limit"
+            value={
+              freePlan
                 ? `${freePlan.included_usage.monthly_requests.toLocaleString()} requests / month`
-                : `${snapshot.usage.limit.toLocaleString()} requests / month`}
-            </strong>
-          </div>
-          <div className="portal-onboarding-metric">
-            <span>Trial access</span>
-            <strong>
-              {trialPlan?.display_name ?? "Configured trial tier"}
-            </strong>
-          </div>
-          <div className="portal-onboarding-metric">
-            <span>Next step</span>
-            <strong>Upgrade only when usage justifies it</strong>
-          </div>
-        </div>
+                : `${snapshot.usage.limit.toLocaleString()} requests / month`
+            }
+          />
+          <PortalMetricCard
+            label="Trial access"
+            value={trialPlan?.display_name ?? "Configured trial tier"}
+          />
+          <PortalMetricCard
+            label="Next step"
+            value="Upgrade only when usage justifies it"
+          />
+        </PortalMetricGrid>
 
-        <ul className="portal-list">
-          <li>
+        <List spacing="xs">
+          <List.Item>
             The free tier is useful on its own and does not require a card.
-          </li>
-          <li>
+          </List.Item>
+          <List.Item>
             Trial timing stays backend-configured, so the UI can adapt if the
             trial window changes later.
-          </li>
-          <li>
+          </List.Item>
+          <List.Item>
             Paid plans are presented clearly without forcing an immediate
             choice.
-          </li>
-        </ul>
-      </div>
+          </List.Item>
+        </List>
+      </Stack>
     </PortalNotice>
   );
 }

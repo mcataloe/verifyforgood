@@ -1,9 +1,18 @@
 import { useMemo, useState } from "react";
+import {
+  Avatar,
+  FileInput,
+  NativeSelect,
+  Paper,
+  Stack,
+  TextInput,
+} from "@mantine/core";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
   PortalDetailSection,
   PortalDetailView,
 } from "../components/PortalDetailView";
+import { PortalHint } from "../components/PortalPrimitives";
 import { AppearancePreferenceSection } from "../settings/AppearancePreferenceSection";
 
 interface CustomerUserProfilePageProps {
@@ -40,92 +49,76 @@ export function CustomerUserProfilePage({
         intro="Update the personal details shown in your profile."
         title="Personal information"
       >
-        <form className="portal-form portal-form--detail">
-          <label className="portal-form__field">
-            <span>First Name</span>
-            <input
-              aria-label="First Name"
-              className="portal-form__input"
-              onChange={(event) => {
-                setFirstName(event.target.value);
-              }}
-              type="text"
-              value={firstName}
-            />
-          </label>
+        <Stack maw={540}>
+          <TextInput
+            aria-label="First Name"
+            label="First Name"
+            onChange={(event) => {
+              setFirstName(event.target.value);
+            }}
+            value={firstName}
+          />
 
-          <label className="portal-form__field">
-            <span>Last Name</span>
-            <input
-              aria-label="Last Name"
-              className="portal-form__input"
-              onChange={(event) => {
-                setLastName(event.target.value);
-              }}
-              type="text"
-              value={lastName}
-            />
-          </label>
+          <TextInput
+            aria-label="Last Name"
+            label="Last Name"
+            onChange={(event) => {
+              setLastName(event.target.value);
+            }}
+            value={lastName}
+          />
 
-          <label className="portal-form__field">
-            <span>Email</span>
-            <input
-              aria-label="Email"
-              className="portal-form__input"
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              type="email"
-              value={email}
-            />
-          </label>
+          <TextInput
+            aria-label="Email"
+            label="Email"
+            onChange={(event) => {
+              setEmail(event.target.value);
+            }}
+            type="email"
+            value={email}
+          />
 
-          <label className="portal-form__field">
-            <span>Pronouns</span>
-            <select
-              aria-label="Pronouns"
-              className="portal-form__input"
-              onChange={(event) => {
-                setPronouns(event.target.value);
-              }}
-              value={pronouns}
-            >
-              <option>Prefer not to say</option>
-              <option>She / her</option>
-              <option>He / him</option>
-              <option>They / them</option>
-              <option>Custom / ask me</option>
-            </select>
-          </label>
-        </form>
+          <NativeSelect
+            aria-label="Pronouns"
+            data={[
+              "Prefer not to say",
+              "She / her",
+              "He / him",
+              "They / them",
+              "Custom / ask me",
+            ]}
+            label="Pronouns"
+            onChange={(event) => {
+              setPronouns(event.currentTarget.value || "Prefer not to say");
+            }}
+            value={pronouns}
+          />
+        </Stack>
       </PortalDetailSection>
 
       <PortalDetailSection
         intro="Choose the image you want to use for your profile."
         title="Avatar"
       >
-        <div className="portal-profile-page__avatar-panel">
-          <div aria-hidden="true" className="portal-profile-page__avatar">
-            {initials}
-          </div>
-          <div className="portal-profile-page__avatar-content">
-            <label className="portal-form__field">
-              <span>Avatar upload</span>
-              <input
-                aria-label="Avatar upload"
-                className="portal-form__input"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  setAvatarName(file?.name ?? null);
-                }}
-                type="file"
-              />
-            </label>
-            <p className="portal-settings-preferences__note">
+        <Paper p="lg" radius="lg" withBorder>
+          <Stack gap="md" maw={540}>
+            <Avatar color="dark" radius="xl" size={72}>
+              {initials}
+            </Avatar>
+            <FileInput
+              aria-label="Avatar upload"
+              clearable
+              label="Avatar upload"
+              onChange={(file) => {
+                setAvatarName(file?.name ?? null);
+              }}
+              placeholder="Choose an image"
+            />
+            <PortalHint>
               {avatarName ? `Selected file: ${avatarName}` : "No file selected"}
-            </p>
-          </div>
-        </div>
+            </PortalHint>
+          </Stack>
+        </Paper>
       </PortalDetailSection>
 
       <PortalDetailSection

@@ -1,7 +1,24 @@
 import { useId, useState, type FormEvent } from "react";
+import {
+  Button,
+  Divider,
+  Group,
+  Paper,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalLoginRequest } from "../auth/portalAuthClient";
+import {
+  PortalActionGroup,
+  PortalAnchorButton,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import { usePortalToast } from "../components/feedback";
 
 interface PortalSignInPageProps {
@@ -54,157 +71,143 @@ export function PortalSignInPage({
   };
 
   return (
-    <div className="portal-auth-page portal-auth-page--sign-in">
-      <div className="portal-auth-page__intro">
-        <div className="portal-auth-page__copy">
-          <h2>Secure Access for Verification Operations</h2>
-          <p>
+    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
+      <Stack gap="lg">
+        <Stack gap="xs">
+          <Title order={2}>Secure Access for Verification Operations</Title>
+          <PortalHint>
             Sign in to continue to {requestedRoute.label}. Use your work email
             and password to access your organization dashboard, billing, team
             access, and verification tools.
-          </p>
-        </div>
+          </PortalHint>
+        </Stack>
 
-        <div className="portal-auth-page__trust-band">
-          <div>
-            <strong>Requested area</strong>
-            <span>{requestedRoute.label}</span>
-          </div>
-          <div>
-            <strong>Account access</strong>
-            <span>Secure sign-in for your organization workspace</span>
-          </div>
-          <div>
-            <strong>Need an organization?</strong>
-            <span>You can create one after signing in if your account is new.</span>
-          </div>
-        </div>
-
-        <div className="portal-auth-page__onboarding">
-          <h3>We&apos;ll Take You There</h3>
-          <ul className="portal-list">
-            <li>
-              If you requested a specific area, we&apos;ll return you there after
-              sign-in.
-            </li>
-            <li>
-              If your account does not belong to an organization yet, you&apos;ll
-              be guided through organization setup next.
-            </li>
-            <li>
-              Help is available if you need support accessing your account.
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <form
-        className="portal-auth-page__card portal-form"
-        noValidate
-        onSubmit={handleSubmit}
-      >
-        <div className="portal-auth-page__card-copy">
-          <h3>Sign In</h3>
-          <p>Use your work email and password to access the portal.</p>
-        </div>
-
-        <label className="portal-form__field" htmlFor={emailId}>
-          <span>Email</span>
-          <input
-            autoComplete="email"
-            className="portal-form__input"
-            id={emailId}
-            name="email"
-            onChange={(event) => {
-              dismissToast("portal-sign-in");
-              setEmail(event.target.value);
-            }}
-            placeholder="name@company.com"
-            type="email"
-            value={email}
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <AuthInfoCard label="Requested area" value={requestedRoute.label} />
+          <AuthInfoCard
+            label="Account access"
+            value="Secure sign-in for your organization workspace"
           />
-        </label>
-
-        <label className="portal-form__field" htmlFor={passwordId}>
-          <span>Password</span>
-          <input
-            autoComplete="current-password"
-            className="portal-form__input"
-            id={passwordId}
-            name="password"
-            onChange={(event) => {
-              dismissToast("portal-sign-in");
-              setPassword(event.target.value);
-            }}
-            placeholder="Enter your password"
-            type="password"
-            value={password}
+          <AuthInfoCard
+            label="Need an organization?"
+            value="You can create one after signing in if your account is new."
           />
-        </label>
+        </SimpleGrid>
 
-        <div className="portal-form__actions">
-          <button
-            className="portal-shell__action portal-shell__action--primary"
-            disabled={isBusy}
-            type="submit"
-          >
-            {isBusy ? "Signing..." : "Sign In"}
-          </button>
-          <a
-            className="portal-shell__action portal-shell__action--secondary"
-            href="#/register"
-          >
-            Create Account
-          </a>
-        </div>
+        <Paper p="lg" radius="lg" withBorder>
+          <Stack gap="sm">
+            <Title order={3}>We&apos;ll Take You There</Title>
+            <Text component="div" size="sm">
+              <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                <li>
+                  If you requested a specific area, we&apos;ll return you there after
+                  sign-in.
+                </li>
+                <li>
+                  If your account does not belong to an organization yet, you&apos;ll
+                  be guided through organization setup next.
+                </li>
+                <li>
+                  Help is available if you need support accessing your account.
+                </li>
+              </ul>
+            </Text>
+          </Stack>
+        </Paper>
+      </Stack>
 
-        <div className="portal-auth-page__divider" role="presentation">
-          <span>Identity providers</span>
-        </div>
+      <Paper p="lg" radius="xl" withBorder>
+        <form noValidate onSubmit={handleSubmit}>
+          <Stack gap="lg">
+            <Stack gap="xs">
+              <Title order={3}>Sign In</Title>
+              <PortalHint>Use your work email and password to access the portal.</PortalHint>
+            </Stack>
 
-        <div className="portal-auth-page__oauth">
-          <button
-            aria-disabled="true"
-            className="portal-auth-page__oauth-button portal-auth-page__oauth-button--google"
-            disabled
-            type="button"
-          >
-            <span aria-hidden="true" className="portal-auth-page__oauth-mark">
-              G
-            </span>
-            Google available soon
-          </button>
+            <TextInput
+              autoComplete="email"
+              id={emailId}
+              label="Email"
+              name="email"
+              onChange={(event) => {
+                dismissToast("portal-sign-in");
+                setEmail(event.target.value);
+              }}
+              placeholder="name@company.com"
+              value={email}
+            />
 
-          <button
-            aria-disabled="true"
-            className="portal-auth-page__oauth-button portal-auth-page__oauth-button--microsoft"
-            disabled
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className="portal-auth-page__oauth-mark portal-auth-page__oauth-mark--microsoft"
-            >
-              <span />
-              <span />
-              <span />
-              <span />
-            </span>
-            Microsoft available soon
-          </button>
-        </div>
+            <PasswordInput
+              autoComplete="current-password"
+              id={passwordId}
+              label="Password"
+              name="password"
+              onChange={(event) => {
+                dismissToast("portal-sign-in");
+                setPassword(event.target.value);
+              }}
+              placeholder="Enter your password"
+              value={password}
+            />
 
-        <div className="portal-auth-page__utility-links">
-          <a href="#/">Portal home</a>
-          <a href="#/register">Need an account?</a>
-          <a href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20password%20help">
-            Forgot password
-          </a>
-          <a href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20help">
-            Help
-          </a>
-        </div>
-      </form>
-    </div>
+            <PortalActionGroup>
+              <Button loading={isBusy} type="submit">
+                {isBusy ? "Signing..." : "Sign In"}
+              </Button>
+              <PortalAnchorButton href="#/register" tone="secondary">
+                Create Account
+              </PortalAnchorButton>
+            </PortalActionGroup>
+
+            <Divider label="Identity providers" labelPosition="center" />
+
+            <Stack gap="sm">
+              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+                Google available soon
+              </Button>
+              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+                Microsoft available soon
+              </Button>
+            </Stack>
+
+            <Group gap="sm" wrap="wrap">
+              <Text component="a" href="#/" size="sm">
+                Portal home
+              </Text>
+              <Text component="a" href="#/register" size="sm">
+                Need an account?
+              </Text>
+              <Text
+                component="a"
+                href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20password%20help"
+                size="sm"
+              >
+                Forgot password
+              </Text>
+              <Text
+                component="a"
+                href="mailto:support@verifyforgood.com?subject=VerifyForGood%20portal%20help"
+                size="sm"
+              >
+                Help
+              </Text>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
+    </SimpleGrid>
+  );
+}
+
+function AuthInfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Paper p="md" radius="md" withBorder>
+      <Stack gap={4}>
+        <Text c="dimmed" fw={700} fz="xs" tt="uppercase">
+          {label}
+        </Text>
+        <Text size="sm">{value}</Text>
+      </Stack>
+    </Paper>
   );
 }

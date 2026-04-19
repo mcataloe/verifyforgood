@@ -4,6 +4,7 @@ import {
   Panel,
   Section,
 } from "@charity-status/shared-ui";
+import { Stack, Text, Title } from "@mantine/core";
 import type {
   FrontendAppInfo,
   FrontendRuntimeConfig,
@@ -27,14 +28,16 @@ export function PortalAuthLayout({
   title,
 }: PortalAuthLayoutProps) {
   return (
-    <Page className="portal-auth-shell">
-      <Section className="portal-auth-shell__section">
+    <Page>
+      <Section>
         <Container size={containerSize}>
-          <div className="portal-auth-shell__stack">
-            <div className="portal-auth-shell__hero">
-              <h1>{title}</h1>
-              <p>{subtitle}</p>
-            </div>
+          <Stack gap="xl" py="xl">
+            <Stack gap="sm">
+              <Title order={1}>{title}</Title>
+              <Text c="dimmed" maw={720}>
+                {subtitle}
+              </Text>
+            </Stack>
 
             <Panel
               title={app.title}
@@ -42,7 +45,7 @@ export function PortalAuthLayout({
             >
               {children}
             </Panel>
-          </div>
+          </Stack>
         </Container>
       </Section>
     </Page>

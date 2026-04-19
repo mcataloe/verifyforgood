@@ -1,4 +1,6 @@
+import { Alert, Stack } from "@mantine/core";
 import type { PricingPlanMetadata } from "@charity-status/shared-types";
+import { PortalDetailList } from "../components/PortalPrimitives";
 import type { PortalUsageBillingSnapshot } from "./portalUsageBilling";
 
 interface SubscriptionSummaryCardProps {
@@ -13,45 +15,45 @@ export function SubscriptionSummaryCard({
   const presentation = getSubscriptionStatusPresentation(snapshot);
 
   return (
-    <section className="portal-subscription-summary">
-      <div className="portal-subscription-summary__header">
-        <div>
-          <h3 className="portal-subscription-summary__title">
-            {presentation.title}
-          </h3>
-          <p className="portal-subscription-summary__copy">
-            {presentation.description}
-          </p>
-        </div>
-      </div>
-
-      <dl className="portal-subscription-summary__grid">
-        <div>
-          <dt>Summary</dt>
-          <dd>{presentation.label}</dd>
-        </div>
-        <div>
-          <dt>Current plan</dt>
-          <dd>
-            {snapshot.planDisplayName ??
-              currentPlan?.display_name ??
-              formatPlanLabel(snapshot.plan)}
-          </dd>
-        </div>
-        <div>
-          <dt>Subscription status</dt>
-          <dd>{formatBillingState(snapshot.subscriptionStatus ?? presentation.label)}</dd>
-        </div>
-        <div>
-          <dt>Current period end</dt>
-          <dd>{formatDateLabel(snapshot.billingCycleEnd ?? snapshot.renewalDate)}</dd>
-        </div>
-        <div>
-          <dt>Billing state</dt>
-          <dd>{formatBillingState(snapshot.billingStatus)}</dd>
-        </div>
-      </dl>
-    </section>
+    <Alert color={resolveToneColor(presentation.tone)} radius="lg" title={presentation.title} variant="light">
+      <Stack gap="md">
+        <p style={{ margin: 0 }}>{presentation.description}</p>
+        <PortalDetailList
+          items={[
+            {
+              key: "summary",
+              label: "Summary",
+              value: presentation.label,
+            },
+            {
+              key: "current-plan",
+              label: "Current plan",
+              value:
+                snapshot.planDisplayName ??
+                currentPlan?.display_name ??
+                formatPlanLabel(snapshot.plan),
+            },
+            {
+              key: "subscription-status",
+              label: "Subscription status",
+              value: formatBillingState(
+                snapshot.subscriptionStatus ?? presentation.label,
+              ),
+            },
+            {
+              key: "current-period-end",
+              label: "Current period end",
+              value: formatDateLabel(snapshot.billingCycleEnd ?? snapshot.renewalDate),
+            },
+            {
+              key: "billing-state",
+              label: "Billing state",
+              value: formatBillingState(snapshot.billingStatus),
+            },
+          ]}
+        />
+      </Stack>
+    </Alert>
   );
 }
 
@@ -118,6 +120,18 @@ function getSubscriptionStatusPresentation(
     title: "Subscription is in good standing",
     tone: "active",
   };
+}
+
+function resolveToneColor(tone: SubscriptionTone) {
+  switch (tone) {
+    case "critical":
+      return "red";
+    case "warning":
+      return "yellow";
+    case "active":
+    default:
+      return "green";
+  }
 }
 
 function normalizeStatusToken(value: string | null): string {

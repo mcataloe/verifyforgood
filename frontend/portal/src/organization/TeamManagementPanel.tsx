@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActionIcon,
-  Button,
   Group,
   Modal,
   NativeSelect,
-  Select,
   Stack,
   Text,
   TextInput,
@@ -14,10 +12,14 @@ import {
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import {
   DataTable,
-  Inline,
   Panel,
   type DataTableColumn,
 } from "@charity-status/shared-ui";
+import {
+  PortalActionGroup,
+  PortalButton,
+  PortalDetailList,
+} from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
 import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "./usePortalOrganization";
@@ -357,20 +359,26 @@ export function TeamManagementPanel() {
         title="Team management"
         subtitle="Invite teammates and manage access for your organization."
       >
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Organization</dt>
-            <dd>{organization.activeOrganization.organization_name}</dd>
-          </div>
-          <div>
-            <dt>Your role</dt>
-            <dd>{organization.currentMembership?.role ?? "unknown"}</dd>
-          </div>
-          <div>
-            <dt>Membership state</dt>
-            <dd>{organization.currentMembership?.status ?? "unknown"}</dd>
-          </div>
-        </dl>
+        <PortalDetailList
+          columns={3}
+          items={[
+            {
+              key: "organization",
+              label: "Organization",
+              value: organization.activeOrganization.organization_name,
+            },
+            {
+              key: "your-role",
+              label: "Your role",
+              value: organization.currentMembership?.role ?? "unknown",
+            },
+            {
+              key: "membership-state",
+              label: "Membership state",
+              value: organization.currentMembership?.status ?? "unknown",
+            },
+          ]}
+        />
 
         {error ? (
           <PortalNotice tone="error">
@@ -400,7 +408,7 @@ export function TeamManagementPanel() {
             </p>
           </PortalNotice>
         ) : (
-          <form className="portal-form" onSubmit={handleInvite}>
+          <form onSubmit={handleInvite}>
             <Stack gap="md">
               <TextInput
                 label="Invite email"
@@ -411,36 +419,34 @@ export function TeamManagementPanel() {
                 value={inviteEmail}
               />
 
-              <Select
-                allowDeselect={false}
-                comboboxProps={{ withinPortal: false }}
+              <NativeSelect
                 data={[
                   { label: "User", value: "user" },
                   { label: "Admin", value: "admin" },
                 ]}
                 label="Role"
                 name="invite-role"
-                onChange={(value) => {
-                  setInviteRole(normalizeMemberRole(value));
+                onChange={(event) => {
+                  setInviteRole(normalizeMemberRole(event.currentTarget.value));
                 }}
                 value={inviteRole}
               />
 
-              <Inline className="portal-form__actions">
-                <Button loading={isInviting} type="submit">
+              <PortalActionGroup>
+                <PortalButton loading={isInviting} tone="primary" type="submit">
                   Invite user
-                </Button>
-                <Button
+                </PortalButton>
+                <PortalButton
                   disabled={isRefreshing}
                   onClick={() => {
                     void handleRefresh();
                   }}
+                  tone="secondary"
                   type="button"
-                  variant="default"
                 >
                   {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-              </Inline>
+                </PortalButton>
+              </PortalActionGroup>
             </Stack>
           </form>
         )}
@@ -540,15 +546,16 @@ export function TeamManagementPanel() {
             value={editingRole}
           />
           <Group justify="flex-end">
-            <Button
+            <PortalButton
               onClick={() => {
                 setEditingMember(null);
               }}
+              tone="secondary"
               type="button"
             >
               Cancel
-            </Button>
-            <Button
+            </PortalButton>
+            <PortalButton
               disabled={!editingMember || updatingMemberId === editingMember.user_id}
               onClick={() => {
                 if (!editingMember) {
@@ -563,12 +570,13 @@ export function TeamManagementPanel() {
                   },
                 );
               }}
+              tone="primary"
               type="button"
             >
               {editingMember && updatingMemberId === editingMember.user_id
                 ? "Saving..."
                 : "Save"}
-            </Button>
+            </PortalButton>
           </Group>
         </Stack>
       </Modal>
@@ -588,16 +596,16 @@ export function TeamManagementPanel() {
               : ""}
           </Text>
           <Group justify="flex-end">
-            <Button
+            <PortalButton
               onClick={() => {
                 setPendingRemovalMember(null);
               }}
+              tone="secondary"
               type="button"
             >
               Cancel
-            </Button>
-            <Button
-              color="red"
+            </PortalButton>
+            <PortalButton
               disabled={
                 !pendingRemovalMember ||
                 removingMemberId === pendingRemovalMember.user_id
@@ -608,13 +616,14 @@ export function TeamManagementPanel() {
                 }
                 void handleRemove(pendingRemovalMember.user_id);
               }}
+              tone="danger"
               type="button"
             >
               {pendingRemovalMember &&
               removingMemberId === pendingRemovalMember.user_id
                 ? "Deleting..."
                 : "Delete"}
-            </Button>
+            </PortalButton>
           </Group>
         </Stack>
       </Modal>
