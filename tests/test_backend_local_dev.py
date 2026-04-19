@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy import create_engine, inspect
 
 
@@ -28,6 +29,7 @@ from charity_status_platform.nonprofits import (
     build_nonprofit_session_factory,
 )
 from charity_status_platform.runtime import cutover_nonprofit_database
+from charity_status_platform.runtime.nonprofit_db_cutover import _sync_identity_sequences
 
 
 def test_backend_local_env_loader_prefers_existing_shell_values(tmp_path, monkeypatch):
@@ -272,3 +274,50 @@ def test_cutover_nonprofit_database_rejects_identical_urls(tmp_path):
             source_sqlalchemy_url=url,
             target_sqlalchemy_url=url,
         )
+
+
+def test_sync_identity_sequences_uses_sequence_start_for_empty_tables():
+    table = sa.Table(
+        "nonprofit_raw_filings",
+        sa.MetaData(),
+        sa.Column("raw_filing_id", sa.BigInteger(), primary_key=True),
+    )
+
+    class _ScalarResult:
+        def __init__(self, value):
+            self._value = value
+
+        def scalar_one_or_none(self):
+            return self._value
+
+        def scalar_one(self):
+            return self._value
+
+    class _RecordingConnection:
+        def __init__(self):
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, clause, params=None):
+            sql = str(clause)
+            self.calls.append((sql, params))
+            if "pg_get_serial_sequence" in sql:
+                return _ScalarResult("public.nonprofit_raw_filings_raw_filing_id_seq")
+            if "COALESCE(MAX(raw_filing_id), 0)" in sql:
+                return _ScalarResult(0)
+            if "setval" in sql:
+                return _ScalarResult(None)
+            raise AssertionError(f"Unexpected SQL executed: {sql}")
+
+    engine = type("Engine", (), {"dialect": type("Dialect", (), {"name": "postgresql"})()})()
+    connection = _RecordingConnection()
+
+    _sync_identity_sequences(connection, engine, [table])
+
+    setval_calls = [params for sql, params in connection.calls if "setval" in sql]
+    assert setval_calls == [
+        {
+            "sequence_name": "public.nonprofit_raw_filings_raw_filing_id_seq",
+            "max_value": 1,
+            "is_called": False,
+        }
+    ]

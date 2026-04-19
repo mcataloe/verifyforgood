@@ -114,12 +114,13 @@ def _sync_identity_sequences(connection, engine: Engine, tables: list[Any]) -> N
         max_value = connection.execute(
             text(f"SELECT COALESCE(MAX({pk_column.name}), 0) FROM {table.name}")
         ).scalar_one()
+        next_value = int(max_value or 0)
         connection.execute(
             text("SELECT setval(:sequence_name, :max_value, :is_called)"),
             {
                 "sequence_name": sequence_name,
-                "max_value": int(max_value or 0),
-                "is_called": bool(max_value),
+                "max_value": next_value if next_value > 0 else 1,
+                "is_called": bool(next_value),
             },
         )
 
