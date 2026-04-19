@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import pathlib
 import sys
 
-from charity_status.api import (
+from verification.api import (
     API_RELEASE,
     API_VERSION,
     API_VERSION_PREFIX,
@@ -27,7 +27,7 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
 
 
 def test_runtime_contract_exports_match_live_backend_contracts():
-    from charity_status_platform.runtime import (
+    from verification_platform.runtime import (
         API_RELEASE as platform_api_release,
         API_VERSION as platform_api_version,
         API_VERSION_PREFIX as platform_api_version_prefix,
@@ -55,7 +55,7 @@ def test_runtime_contract_exports_match_live_backend_contracts():
 
 
 def test_runtime_entrypoint_map_covers_live_backend_handlers():
-    from charity_status_platform.runtime import ENTRYPOINTS, entrypoint_by_surface
+    from verification_platform.runtime import ENTRYPOINTS, entrypoint_by_surface
 
     assert {item.surface for item in ENTRYPOINTS} == {
         "public_api",
@@ -78,11 +78,11 @@ def test_split_plan_tracks_shared_contracts_and_test_layers():
     payload = json.loads((ROOT / "split-plan.json").read_text(encoding="utf-8"))
 
     assert payload["shared_contracts"] == [
-        "infrastructure/charity_status/api/routes.py",
-        "infrastructure/charity_status/api/responses.py",
-        "infrastructure/charity_status/core/interfaces.py",
-        "private-platform/src/charity_status_platform/runtime/backend_contracts.py",
-        "private-platform/src/charity_status_platform/runtime/entrypoints.py",
+        "infrastructure/verification/api/routes.py",
+        "infrastructure/verification/api/responses.py",
+        "infrastructure/verification/core/interfaces.py",
+        "private-platform/src/verification_platform/runtime/backend_contracts.py",
+        "private-platform/src/verification_platform/runtime/entrypoints.py",
     ]
 
     test_layers = payload["test_layers"]
@@ -145,7 +145,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/ingest-task/`" in readiness_text
     assert "`backend/shared/`" in readiness_text
     assert "first-class setuptools workspace" in readiness_text
-    assert "the installed runtime import root is `charity_status_backend`" in readiness_text
+    assert "the installed runtime import root is `verification_backend`" in readiness_text
     assert "`backend/.env.local`" in readiness_text
     assert "`PLATFORM_POSTGRES_URL`" in readiness_text
     assert "`backend/api` -> ALB-backed ECS service" in readiness_text
@@ -166,8 +166,8 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "`backend/ingest-task/`" in backend_text
     assert "`backend/shared/`" in backend_text
     assert "python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend" in backend_text
-    assert "python -m charity_status_backend.ingest_task.cli monthly-worker" in backend_text
-    assert "charity_status_backend.shared.local_dev db-upgrade" in backend_text
+    assert "python -m verification_backend.ingest_task.cli monthly-worker" in backend_text
+    assert "verification_backend.shared.local_dev db-upgrade" in backend_text
     assert "verification_platform" in backend_text
     assert "backend/api/Dockerfile" in backend_text
     assert "provisionable ECS service slot" in backend_text
@@ -176,7 +176,7 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "local-first Form 990 workspace model" in backend_ingest_doc.read_text(encoding="utf-8")
 
     backend_api_text = backend_api_doc.read_text(encoding="utf-8")
-    assert "charity_status_backend.api.runtime" in backend_api_text
+    assert "verification_backend.api.runtime" in backend_api_text
     assert "thin rollback and compatibility import path" in backend_api_text
     assert "backend/.env.local" in backend_api_text
     assert "Container build/run" in backend_api_text
@@ -189,3 +189,4 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "public-core/tests/" in tests_text
     assert "private-platform/tests/" in tests_text
     assert "integration and compatibility" in tests_text.lower()
+

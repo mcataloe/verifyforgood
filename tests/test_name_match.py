@@ -1,4 +1,4 @@
-from infrastructure.charity_status.normalization.name_match import compare_names
+﻿from infrastructure.verification.normalization.name_match import compare_names
 
 
 def test_compare_names_true_with_suffix_normalization():
@@ -13,3 +13,4 @@ def test_compare_names_false():
 
     assert result["name_match"] is False
     assert result["match_confidence"] in {"weak", "none"}
+

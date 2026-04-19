@@ -1,11 +1,11 @@
-import importlib
+﻿import importlib
 
-from charity_status.form990 import Form990IngestService as LegacyForm990IngestService
-from charity_status.normalization import normalize_ein as legacy_normalize_ein
-from charity_status.platform import QueryRuntimeConfig as LegacyQueryRuntimeConfig
-from charity_status.platform import build_resource_name as legacy_build_resource_name
-from charity_status.query import verify_nonprofit as legacy_verify_nonprofit
-from charity_status.state_registry import StateRegistryLookupService as LegacyStateRegistryLookupService
+from verification.form990 import Form990IngestService as LegacyForm990IngestService
+from verification.normalization import normalize_ein as legacy_normalize_ein
+from verification.platform import QueryRuntimeConfig as LegacyQueryRuntimeConfig
+from verification.platform import build_resource_name as legacy_build_resource_name
+from verification.query import verify_nonprofit as legacy_verify_nonprofit
+from verification.state_registry import StateRegistryLookupService as LegacyStateRegistryLookupService
 from verification_platform import capability_module_names, resolve_legacy_module_path
 from verification_platform.entity_resolution import normalize_ein
 from verification_platform.filing_ingestion import Form990IngestService
@@ -22,21 +22,21 @@ def test_verification_platform_capability_modules_import_cleanly():
 
 def test_legacy_module_mapping_is_explicit_and_stable():
     assert resolve_legacy_module_path("verification_platform.organization_verification") == (
-        "charity_status.query",
-        "charity_status.decision",
-        "charity_status.evidence",
-        "charity_status.policy",
-        "charity_status.scoring",
+        "verification.query",
+        "verification.decision",
+        "verification.evidence",
+        "verification.policy",
+        "verification.scoring",
     )
     assert resolve_legacy_module_path("verification_platform.platform_contracts") == (
-        "charity_status.core",
-        "charity_status.platform",
+        "verification.core",
+        "verification.platform",
     )
     assert resolve_legacy_module_path("verification_platform.entity_resolution.ein_validation") == (
-        "charity_status.normalization.ein",
+        "verification.normalization.ein",
     )
     assert resolve_legacy_module_path("verification_platform.organization_verification.organization_lookup") == (
-        "charity_status.query.nonprofit_lookup",
+        "verification.query.nonprofit_lookup",
     )
 
 
@@ -62,3 +62,4 @@ def test_registry_and_source_connector_namespaces_resolve_capability_exports():
 
     assert registry_module.StateRegistryLookupService is LegacyStateRegistryLookupService
     assert connector_module.SourceCatalog is SourceCatalog
+

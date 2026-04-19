@@ -1,4 +1,4 @@
-from charity_status.form990 import (
+﻿from verification.form990 import (
     Form990IngestService,
     Form990MetadataRecord,
     Form990ParseStatus,
@@ -7,7 +7,7 @@ from charity_status.form990 import (
     ingest_form990_records,
     run_form990_monthly_processing_task,
 )
-from charity_status.ingest import (
+from verification.ingest import (
     DEFAULT_MONTHLY_INGEST_WORKFLOW_BASENAME,
     DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION,
     DEFAULT_ECS_TASK_TIMEOUT_SECONDS,
@@ -67,3 +67,4 @@ __all__ = [
     "validate_step_function_input_payload",
     "validate_staging_result_payload",
 ]
+

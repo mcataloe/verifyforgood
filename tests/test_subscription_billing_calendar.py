@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from charity_status_platform.customer_accounts.billing_calendar import (
+from verification_platform.customer_accounts.billing_calendar import (
     billable_days_remaining,
     days_in_month,
     month_cycle_window,
@@ -52,3 +52,4 @@ def test_prorated_delta_amount_uses_remaining_days_only():
 
     assert prorated_delta_amount_cents(4900, 9900, effective_at) == 2581
     assert next_month_boundary(effective_at).isoformat() == "2026-04-01T00:00:00+00:00"
+

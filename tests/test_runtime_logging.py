@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import json
 import logging
 
-from charity_status.billing.runtime import call_with_retries
-from charity_status.runtime_logging import configure_runtime_logging, log_exception, resolve_runtime_logging_config, sanitize_log_fields
+from verification.billing.runtime import call_with_retries
+from verification.runtime_logging import configure_runtime_logging, log_exception, resolve_runtime_logging_config, sanitize_log_fields
 
 
 def test_runtime_logging_defaults_to_info_without_traces_in_prod():
@@ -132,3 +132,4 @@ def test_billing_retry_logging_redacts_idempotency_key():
     assert payload["event"] == "stripe_provider_retry"
     assert payload["account_id"] == "acct_123"
     assert payload["idempotency_key"] == "[REDACTED]"
+

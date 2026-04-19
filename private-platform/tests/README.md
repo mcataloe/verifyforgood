@@ -1,8 +1,8 @@
-# Private-Platform Tests
+﻿# Private-Platform Tests
 
 Purpose:
 
-- future home for unit tests that target `private-platform/src/charity_status_platform/` boundaries directly
+- future home for unit tests that target `private-platform/src/verification_platform/` boundaries directly
 
 What belongs here:
 
@@ -18,3 +18,4 @@ What does not belong here:
 Current note:
 
 - root-level `tests/` remains the live integration and compatibility test surface while handler imports still point at `infrastructure/`
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
@@ -15,16 +15,16 @@ from .normalization import (
 )
 
 if TYPE_CHECKING:
-    from charity_status.ingest import FileIngestResult
+    from verification.ingest import FileIngestResult
 
 
 def __getattr__(name: str) -> Any:
     if name == "FileIngestResult":
-        from charity_status.ingest import FileIngestResult
+        from verification.ingest import FileIngestResult
 
         return FileIngestResult
     if name == "build_ingest_result":
-        from charity_status.ingest import build_ingest_result
+        from verification.ingest import build_ingest_result
 
         return build_ingest_result
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -45,3 +45,4 @@ __all__ = [
     "default_organization_source_catalog",
     "default_us_source_catalog",
 ]
+

@@ -1,4 +1,4 @@
-from infrastructure.charity_status.scoring.calculator import SCORING_MODEL_VERSION, calculate_v1_scores
+﻿from infrastructure.verification.scoring.calculator import SCORING_MODEL_VERSION, calculate_v1_scores
 import pytest
 
 
@@ -185,3 +185,4 @@ def test_weighting_invalid_profile_fallback_and_error():
             weighting_profile_id="unknown_profile",
             fallback_invalid_weighting_profile=False,
         )
+

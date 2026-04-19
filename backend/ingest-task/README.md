@@ -1,4 +1,4 @@
-# Backend Ingest Task Runtime
+﻿# Backend Ingest Task Runtime
 
 Target ownership for `backend/ingest-task/`:
 
@@ -8,17 +8,17 @@ Target ownership for `backend/ingest-task/`:
 
 Python package root:
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/`
-- local entrypoint module: `python -m charity_status_backend.ingest_task.entrypoint`
+- `backend/ingest-task/src/verification_backend/ingest_task/`
+- local entrypoint module: `python -m verification_backend.ingest_task.entrypoint`
 - local CLI:
   - `python -m ingest_task.cli run`
   - `python -m ingest_task.cli run-eo-bmf`
   - `python -m ingest_task.cli run --archive-url <url>`
-  - `python -m charity_status_backend.ingest_task.cli run`
-  - `python -m charity_status_backend.ingest_task.cli run-eo-bmf`
-  - `python -m charity_status_backend.ingest_task.cli ecs-run`
-  - `python -m charity_status_backend.ingest_task.cli ecs-run-eo-bmf`
-  - `python -m charity_status_backend.ingest_task.cli monthly-worker`
+  - `python -m verification_backend.ingest_task.cli run`
+  - `python -m verification_backend.ingest_task.cli run-eo-bmf`
+  - `python -m verification_backend.ingest_task.cli ecs-run`
+  - `python -m verification_backend.ingest_task.cli ecs-run-eo-bmf`
+  - `python -m verification_backend.ingest_task.cli monthly-worker`
 
 Local Form 990 debug runner:
 
@@ -57,7 +57,7 @@ docker run --env-file backend/.env.local <ingest-image> monthly-worker
 Container contract:
 
 - canonical ECS-aligned task image for ingest runtimes
-- image entrypoint: `python -m charity_status_backend.ingest_task.cli`
+- image entrypoint: `python -m verification_backend.ingest_task.cli`
 - default command: `monthly-worker`
 - deployment model: ECS task definition invoked by schedules or one-off runs,
   not a long-lived worker service
@@ -134,7 +134,7 @@ Form 990 local-first module map:
   - archive and payload fingerprint helpers
   - deterministic normalized XML SHA-256 hashing for extracted-file change detection
 - `parse/`
-  - XML parsing seams layered over reusable `charity_status.form990` logic
+  - XML parsing seams layered over reusable `verification.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence entrypoints and adapters
   - archive metadata and extracted-file hash state used to skip unchanged work
@@ -150,7 +150,7 @@ Form 990 local-first module map:
 Current migration boundary:
 
 - `backend/ingest-task` is now the canonical runtime architecture home for the local-first Form 990 workspace model
-- reusable parser and batch-processing logic under `infrastructure/charity_status/form990/` still remains in place while the runtime migrates toward the new module seams
+- reusable parser and batch-processing logic under `infrastructure/verification/form990/` still remains in place while the runtime migrates toward the new module seams
 - PostgreSQL-backed archive/file change tracking now owns the active monthly task path end to end
 - future refactors should keep moving archive download, extraction, parsing, persistence, and cleanup responsibilities through the module map rather than reintroducing Lambda/S3-era runtime hosts
 
@@ -162,8 +162,9 @@ Planned inbound migration:
 
 Temporary compatibility note:
 
-- checked-in runtime assets such as `infrastructure/charity_status/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
+- checked-in runtime assets such as `infrastructure/verification/form990/Form990Links.txt` may remain in their current paths until a later extraction phase moves them safely
 - infrastructure-owned deployment wiring may continue to reference compatibility shims during the transition
 - `infrastructure.monthly_ingest_worker` and `infrastructure.nonprofit_ingest_persistence` remain as thin compatibility adapters
 - the ECS task definition should now align to this backend-owned image contract
   rather than an infrastructure-owned Dockerfile path
+

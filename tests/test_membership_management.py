@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -19,7 +19,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationService,
 )
-from charity_status_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
+from verification_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
 
 
 def _seed_bootstrapped_org(table: FakeIdentityDynamoTable, *, admin_email: str = "admin@example.com"):
@@ -196,7 +196,7 @@ def test_role_update_behavior_and_duplicate_membership_prevention():
 
 
 def test_post_membership_routes_and_accept_endpoint(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -329,3 +329,4 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
         None,
     )
     assert delete_response["statusCode"] == 200
+

@@ -32,34 +32,34 @@
     }
   },
   "public_repo": {
-    "package_root": "public-core/src/charity_status",
+    "package_root": "public-core/src/verification",
     "include": [
       "public-core/"
     ],
     "candidate_modules": [
-      "infrastructure/charity_status/decision/",
-      "infrastructure/charity_status/evidence/",
-      "infrastructure/charity_status/normalization/",
-      "infrastructure/charity_status/policy/",
-      "infrastructure/charity_status/scoring/",
-      "infrastructure/charity_status/sources/",
-      "infrastructure/charity_status/state_registry/",
-      "infrastructure/charity_status/query/verification.py",
-      "infrastructure/charity_status/query/nonprofit_lookup.py",
-      "infrastructure/charity_status/query/source_views.py",
-      "infrastructure/charity_status/enrichments/service.py",
-      "infrastructure/charity_status/serving/materializer.py",
-      "infrastructure/charity_status/serving/refresh.py",
-      "infrastructure/charity_status/serving/change_detection.py",
-      "infrastructure/charity_status/serving/models.py",
-      "infrastructure/charity_status/form990/"
+      "infrastructure/verification/decision/",
+      "infrastructure/verification/evidence/",
+      "infrastructure/verification/normalization/",
+      "infrastructure/verification/policy/",
+      "infrastructure/verification/scoring/",
+      "infrastructure/verification/sources/",
+      "infrastructure/verification/state_registry/",
+      "infrastructure/verification/query/verification.py",
+      "infrastructure/verification/query/nonprofit_lookup.py",
+      "infrastructure/verification/query/source_views.py",
+      "infrastructure/verification/enrichments/service.py",
+      "infrastructure/verification/serving/materializer.py",
+      "infrastructure/verification/serving/refresh.py",
+      "infrastructure/verification/serving/change_detection.py",
+      "infrastructure/verification/serving/models.py",
+      "infrastructure/verification/form990/"
     ],
     "mixed_before_extract": [
-      "infrastructure/charity_status/core/",
-      "infrastructure/charity_status/query/",
-      "infrastructure/charity_status/enrichments/",
-      "infrastructure/charity_status/serving/",
-      "infrastructure/charity_status/form990/"
+      "infrastructure/verification/core/",
+      "infrastructure/verification/query/",
+      "infrastructure/verification/enrichments/",
+      "infrastructure/verification/serving/",
+      "infrastructure/verification/form990/"
     ],
     "notes": [
       "Public-core is deterministic nonprofit/domain logic only.",
@@ -68,30 +68,30 @@
     ]
   },
   "private_repo": {
-    "package_root": "private-platform/src/charity_status_platform",
+    "package_root": "private-platform/src/verification_platform",
     "include": [
       "private-platform/"
     ],
     "service_areas": {
       "identity_access": [
-        "infrastructure/charity_status/auth/",
-        "infrastructure/charity_status/platform/auth.py"
+        "infrastructure/verification/auth/",
+        "infrastructure/verification/platform/auth.py"
       ],
       "customer_accounts": [
-        "infrastructure/charity_status/control_plane/",
-        "infrastructure/charity_status/enrichments/organization_store.py",
-        "infrastructure/charity_status/enrichments/organization_settings_service.py",
-        "infrastructure/charity_status/enrichments/organization_settings_stores.py"
+        "infrastructure/verification/control_plane/",
+        "infrastructure/verification/enrichments/organization_store.py",
+        "infrastructure/verification/enrichments/organization_settings_service.py",
+        "infrastructure/verification/enrichments/organization_settings_stores.py"
       ],
       "billing_usage": [
-        "infrastructure/charity_status/billing/",
-        "infrastructure/charity_status/auth/service.py"
+        "infrastructure/verification/billing/",
+        "infrastructure/verification/auth/service.py"
       ],
       "admin_operations": [
-        "infrastructure/charity_status/ops/"
+        "infrastructure/verification/ops/"
       ],
       "runtime": [
-        "infrastructure/charity_status/platform/",
+        "infrastructure/verification/platform/",
         "infrastructure/lambda_query.py",
         "infrastructure/lambda_refresh.py",
         "infrastructure/eo_bmf_ingest_worker.py",
@@ -101,15 +101,15 @@
       "notifications": []
     },
     "candidate_modules": [
-      "infrastructure/charity_status/auth/",
-      "infrastructure/charity_status/billing/",
-      "infrastructure/charity_status/control_plane/",
-      "infrastructure/charity_status/ingest/",
-      "infrastructure/charity_status/ops/",
-      "infrastructure/charity_status/platform/",
-      "infrastructure/charity_status/query/athena.py",
-      "infrastructure/charity_status/serving/dynamodb_store.py",
-      "infrastructure/charity_status/enrichments/organization_store.py",
+      "infrastructure/verification/auth/",
+      "infrastructure/verification/billing/",
+      "infrastructure/verification/control_plane/",
+      "infrastructure/verification/ingest/",
+      "infrastructure/verification/ops/",
+      "infrastructure/verification/platform/",
+      "infrastructure/verification/query/athena.py",
+      "infrastructure/verification/serving/dynamodb_store.py",
+      "infrastructure/verification/enrichments/organization_store.py",
       "infrastructure/lambda_query.py",
       "infrastructure/lambda_refresh.py",
       "infrastructure/eo_bmf_ingest_worker.py",
@@ -137,8 +137,8 @@
     ]
   },
   "entrypoints": [
-    "infrastructure/charity_status/api/routes.py",
-    "infrastructure/charity_status/api/responses.py",
+    "infrastructure/verification/api/routes.py",
+    "infrastructure/verification/api/responses.py",
     "infrastructure/lambda_query.py",
     "infrastructure/lambda_refresh.py",
     "infrastructure/eo_bmf_ingest_worker.py",
@@ -146,11 +146,11 @@
     "infrastructure/nonprofit_ingest_persistence.py"
   ],
   "shared_contracts": [
-    "infrastructure/charity_status/api/routes.py",
-    "infrastructure/charity_status/api/responses.py",
-    "infrastructure/charity_status/core/interfaces.py",
-    "private-platform/src/charity_status_platform/runtime/backend_contracts.py",
-    "private-platform/src/charity_status_platform/runtime/entrypoints.py"
+    "infrastructure/verification/api/routes.py",
+    "infrastructure/verification/api/responses.py",
+    "infrastructure/verification/core/interfaces.py",
+    "private-platform/src/verification_platform/runtime/backend_contracts.py",
+    "private-platform/src/verification_platform/runtime/entrypoints.py"
   ],
   "backend_runtime_targets": {
     "public_api": {
@@ -185,10 +185,10 @@
     },
     "runtime_shared_contracts": {
       "current_paths": [
-        "infrastructure/charity_status/api/routes.py",
-        "infrastructure/charity_status/api/responses.py",
-        "infrastructure/charity_status/core/interfaces.py",
-        "infrastructure/charity_status/platform/"
+        "infrastructure/verification/api/routes.py",
+        "infrastructure/verification/api/responses.py",
+        "infrastructure/verification/core/interfaces.py",
+        "infrastructure/verification/platform/"
       ],
       "target_directory": "backend/shared/",
       "notes": [
@@ -210,18 +210,18 @@
   },
   "highest_risk_refactors": [
     "infrastructure/lambda_query.py",
-    "infrastructure/charity_status/core/models.py",
-    "infrastructure/charity_status/billing/",
-    "infrastructure/charity_status/query/athena.py",
-    "infrastructure/charity_status/enrichments/organization_store.py",
-    "infrastructure/charity_status/form990/",
-    "infrastructure/charity_status/serving/"
+    "infrastructure/verification/core/models.py",
+    "infrastructure/verification/billing/",
+    "infrastructure/verification/query/athena.py",
+    "infrastructure/verification/enrichments/organization_store.py",
+    "infrastructure/verification/form990/",
+    "infrastructure/verification/serving/"
   ],
   "dependency_rules": [
     "frontend must not import Python runtime code from backend, private-platform, or infrastructure",
     "backend may depend on public-core and private-platform",
-    "charity_status_platform may depend on charity_status",
-    "charity_status must not depend on charity_status_platform",
+    "verification_platform may depend on verification",
+    "verification must not depend on verification_platform",
     "private-platform must not depend on backend or infrastructure",
     "infrastructure may package and deploy entrypoints but must not contain business logic",
     "all billing stays private-platform",
@@ -237,3 +237,4 @@
     "reduce infrastructure to deployment/config/wiring only"
   ]
 }
+

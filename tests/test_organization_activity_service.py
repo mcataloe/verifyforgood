@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 import sys
@@ -11,7 +11,7 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
     sys.path.insert(0, str(PRIVATE_PLATFORM_SRC))
 
 
-from charity_status_platform.customer_accounts import (  # noqa: E402
+from verification_platform.customer_accounts import (  # noqa: E402
     AuditEventType,
     AuditRecord,
     DynamoAuditLogRepository,
@@ -142,3 +142,4 @@ def test_activity_service_returns_sanitized_org_scoped_page_with_cursor():
         "key_id": "key_123",
         "status": "active",
     }
+

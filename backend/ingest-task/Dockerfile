@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+﻿FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -18,5 +18,6 @@ COPY private-platform/src /app/private-platform/src
 COPY backend/ingest-task/src /app/backend/ingest-task/src
 COPY backend/shared/src /app/backend/shared/src
 
-ENTRYPOINT ["python", "-m", "charity_status_backend.ingest_task.cli"]
+ENTRYPOINT ["python", "-m", "verification_backend.ingest_task.cli"]
 CMD ["monthly-worker"]
+

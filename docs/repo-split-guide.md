@@ -1,4 +1,4 @@
-# Repository Split Guide
+﻿# Repository Split Guide
 
 This guide defines the intended operational layering and package/code boundaries.
 
@@ -35,8 +35,8 @@ Important clarification:
 
 - `frontend/` must not import Python runtime code from `backend/`, `private-platform/`, or `infrastructure/`
 - `backend/` may depend on `public-core/` and `private-platform/`
-- `charity_status_platform` may depend on `charity_status`
-- `charity_status` must not depend on `charity_status_platform`
+- `verification_platform` may depend on `verification`
+- `verification` must not depend on `verification_platform`
 - `private-platform/` must not depend on `backend/` or `infrastructure/`
 - `infrastructure/` should package and deploy backend entrypoints, not contain business logic
 
@@ -61,3 +61,4 @@ Billing rule:
 - Keep AWS, Stripe, env parsing, and operator workflows private.
 - Avoid moving runtime entrypoints and refactoring mixed modules in the same change.
 - Treat `backend/` as the executable runtime layer only; do not collapse frontend and backend into a single workspace/toolchain.
+

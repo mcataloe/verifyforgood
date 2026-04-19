@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
-from charity_status.billing import EntitlementService
-from charity_status.billing.trials import TrialConfig, TrialLifecycleService
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.billing import EntitlementService
+from verification.billing.trials import TrialConfig, TrialLifecycleService
+from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 def test_trial_activates_for_eligible_organization_on_first_meaningful_use():
@@ -176,3 +176,4 @@ def test_trial_cannot_be_reused_for_same_ein_on_new_account():
     assert second.trial_status == "ineligible"
     assert second.trial_consumed is True
     assert second.trial_termination_reason == "already_consumed"
+

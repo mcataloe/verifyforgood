@@ -1,5 +1,5 @@
-from charity_status.branding import BrandingConfig, default_runtime_user_agent, load_branding_config
-from charity_status.core import (
+﻿from verification.branding import BrandingConfig, default_runtime_user_agent, load_branding_config
+from verification.core import (
     AuthContext,
     AuthContextProvider,
     EnrichmentProviderGateway,
@@ -7,7 +7,7 @@ from charity_status.core import (
     QueryRepository,
     QuotaMeteringHook,
 )
-from charity_status.platform import (
+from verification.platform import (
     DEFAULT_NAMESPACE,
     DEFAULT_PLATFORM,
     DEFAULT_REGION,
@@ -45,3 +45,4 @@ __all__ = [
     "load_platform_integrations_config",
     "validate_resource_name",
 ]
+

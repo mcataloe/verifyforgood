@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -6,8 +6,8 @@ import re
 import sys
 from types import SimpleNamespace
 
-from charity_status.auth import build_admin_key_record
-from charity_status.control_plane import Account, ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
+from verification.auth import build_admin_key_record
+from verification.control_plane import Account, ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 def _query_stub():
@@ -599,3 +599,4 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     )
     assert patched["statusCode"] == 400
     assert "cannot be updated" in _body(patched)["errors"][0]["message"]
+

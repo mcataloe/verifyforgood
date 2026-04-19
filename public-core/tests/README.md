@@ -1,8 +1,8 @@
-# Public-Core Tests
+﻿# Public-Core Tests
 
 Purpose:
 
-- future home for unit tests that exercise extracted `public-core/src/charity_status/` modules directly
+- future home for unit tests that exercise extracted `public-core/src/verification/` modules directly
 
 What belongs here:
 
@@ -19,3 +19,4 @@ Current note:
 
 - the repository still keeps most tests under the root `tests/` directory while the split remains compatibility-first
 - new tests for already extracted public-core modules should prefer this area when they do not need the legacy monorepo import paths
+

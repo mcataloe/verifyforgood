@@ -1,5 +1,5 @@
-from charity_status.enrichments.external_signals import extract_external_signals
-from charity_status.enrichments.models import (
+﻿from verification.enrichments.external_signals import extract_external_signals
+from verification.enrichments.models import (
     EnrichmentAggregateResult,
     EnrichmentProviderResult,
     EnrichmentStatus,
@@ -17,7 +17,7 @@ from charity_status.enrichments.models import (
     integration_id_label,
     normalize_integration_id,
 )
-from charity_status.enrichments.organization_store import (
+from verification.enrichments.organization_store import (
     AccountBillingSettings,
     DynamoOrganizationIntegrationSettingsStore,
     InMemoryOrganizationIntegrationSettingsStore,
@@ -27,8 +27,8 @@ from charity_status.enrichments.organization_store import (
     SUPPORTED_MANAGED_INTEGRATIONS,
     validate_organization_integration_settings,
 )
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.enrichments.settings import (
+from verification.enrichments.registry import ProviderRegistry
+from verification.enrichments.settings import (
     OrganizationIntegrationSettingsResolver,
     TenantIntegrationSettingsResolver,
     load_organization_integration_settings,
@@ -66,3 +66,4 @@ __all__ = [
     "load_tenant_integration_settings",
     "normalize_integration_id",
 ]
+

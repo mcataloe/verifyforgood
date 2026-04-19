@@ -1,15 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from charity_status.billing import (
+from verification.billing import (
     DEFAULT_ENTITLEMENTS,
     EntitlementService,
     Subscription,
     build_plan_catalog_payload,
 )
-from charity_status.billing.trials import TrialConfig
-from charity_status.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
+from verification.billing.trials import TrialConfig
+from verification.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
 
 
 def test_plan_entitlements():
@@ -189,3 +189,4 @@ def test_plan_catalog_payload_matches_backend_entitlements():
     assert plans["enterprise"]["included_usage"]["monthly_requests"] == 1000000
     assert plans["enterprise"]["per_request_pricing"]["amount_usd_micros"] == 1000
     assert plans["enterprise"]["feature_availability"]["batch_verification"] is True
+

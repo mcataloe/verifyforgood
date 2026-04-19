@@ -1,4 +1,4 @@
-# Backend Stage-1 Readiness
+﻿# Backend Stage-1 Readiness
 
 This document finalizes the first-stage backend split so frontend scaffolding and later vertical-slice backend work can proceed against clearer boundaries without forcing a disruptive handler migration yet.
 
@@ -14,15 +14,15 @@ Entrypoints and workers:
 
 Shared backend contracts and interfaces:
 
-- `infrastructure/charity_status/api/routes.py`
-- `infrastructure/charity_status/api/responses.py`
-- `infrastructure/charity_status/core/interfaces.py`
+- `infrastructure/verification/api/routes.py`
+- `infrastructure/verification/api/responses.py`
+- `infrastructure/verification/core/interfaces.py`
 
 Split-scaffolding and transition roots:
 
 - `backend/`
-- `public-core/src/charity_status/`
-- `private-platform/src/charity_status_platform/`
+- `public-core/src/verification/`
+- `private-platform/src/verification_platform/`
 - `infrastructure/`
 
 ## Entrypoint Ownership Map
@@ -34,7 +34,7 @@ long-term home of backend application logic.
 
 Canonical internal map:
 
-- `charity_status_platform.runtime.entrypoints`
+- `verification_platform.runtime.entrypoints`
 
 Current live entrypoints:
 
@@ -64,9 +64,9 @@ Current misplaced runtime ownership still stranded in `infrastructure/`:
   - compatibility shim over the backend-owned monthly ingest runtime
 - `infrastructure/nonprofit_ingest_persistence.py`
   - compatibility shim over the backend-owned nonprofit persistence service
-- `infrastructure/charity_status/api/routes.py`, `infrastructure/charity_status/api/responses.py`, and `infrastructure/charity_status/core/interfaces.py`
+- `infrastructure/verification/api/routes.py`, `infrastructure/verification/api/responses.py`, and `infrastructure/verification/core/interfaces.py`
   - still hold transport/runtime-facing contracts under the legacy runtime path
-- `infrastructure/charity_status/platform/`
+- `infrastructure/verification/platform/`
   - still owns env-driven runtime assembly and bootstrap concerns
 
 Target backend ownership map:
@@ -92,10 +92,10 @@ Backend Python workspace posture:
   - `backend/worker/src/`
   - `backend/ingest-task/src/`
   - `backend/shared/src/`
-- the installed runtime import root is `charity_status_backend`
+- the installed runtime import root is `verification_backend`
 - local scaffold entrypoints exist for API, worker, and ingest-task runtime homes
 - backend local development now centers on `backend/.env.local` plus the
-  backend-owned `charity_status_backend.shared.local_dev` migration wrapper
+  backend-owned `verification_backend.shared.local_dev` migration wrapper
 - the canonical local database path is a direct PostgreSQL endpoint via
   `PLATFORM_POSTGRES_URL`, not AWS secret-backed wiring
 - backend-owned Dockerfiles now live under `backend/api/`, `backend/worker/`,
@@ -112,9 +112,9 @@ Backend Python workspace posture:
 
 Compatibility posture for the transition:
 
-- `charity_status_platform.runtime.entrypoints` remains the canonical map of current live handler imports until extraction phases move the real entrypoints
-- `charity_status_platform.runtime.backend_contracts` remains the compatibility re-export root while shared transport/runtime contracts still live under legacy paths
-- `charity_status_platform.runtime.api_compat` remains a compatibility import root and no longer owns FastAPI assembly directly
+- `verification_platform.runtime.entrypoints` remains the canonical map of current live handler imports until extraction phases move the real entrypoints
+- `verification_platform.runtime.backend_contracts` remains the compatibility re-export root while shared transport/runtime contracts still live under legacy paths
+- `verification_platform.runtime.api_compat` remains a compatibility import root and no longer owns FastAPI assembly directly
 - `infrastructure.lambda_query` remains a thin rollback/import shim over the backend-owned API runtime
 - `infrastructure.monthly_ingest_worker` remains the thin compatibility/import shim over the backend-owned monthly ingest runtime
 - `infrastructure.nonprofit_ingest_persistence` remains the thin compatibility/import shim over backend-owned nonprofit persistence wiring
@@ -125,14 +125,14 @@ Compatibility posture for the transition:
 The backend now distinguishes three kinds of shared contracts:
 
 1. Transport contracts
-- canonical compatibility root: `charity_status_platform.runtime.backend_contracts`
+- canonical compatibility root: `verification_platform.runtime.backend_contracts`
 - current implementation source:
-  - `infrastructure/charity_status/api/routes.py`
-  - `infrastructure/charity_status/api/responses.py`
+  - `infrastructure/verification/api/routes.py`
+  - `infrastructure/verification/api/responses.py`
 
 2. Application adapter interfaces
 - canonical home today:
-  - `infrastructure/charity_status/core/interfaces.py`
+  - `infrastructure/verification/core/interfaces.py`
 - examples:
   - `QueryRepository`
   - `ProfileStoreAdapter`
@@ -142,7 +142,7 @@ The backend now distinguishes three kinds of shared contracts:
 
 3. Public-core deterministic schemas and models
 - canonical home for extracted open-safe modules:
-  - `public-core/src/charity_status/`
+  - `public-core/src/verification/`
 
 Rules:
 
@@ -190,8 +190,9 @@ The repo is ready for frontend scaffolding at the architecture-boundary level, b
 - `infrastructure/lambda_query.py` is still a large composition root and should keep shrinking over time
 - ECS-hosted HTTP runtime tests and docs still need to replace more of the
   Lambda-first assumptions over time
-- `infrastructure/charity_status/api/` contracts still live under the legacy runtime path and are only mirrored through compatibility exports today
+- `infrastructure/verification/api/` contracts still live under the legacy runtime path and are only mirrored through compatibility exports today
 - root `tests/` still carries most of the live suite, so near-package tests are scaffolded but not yet widely migrated
 - some mixed infrastructure-heavy modules, especially in `form990/`, `serving/`, and `control_plane/`, still need later seam-fix passes
 
 These are not blockers for starting frontend scaffolding, but they are the highest-value backend cleanup items to continue in parallel.
+

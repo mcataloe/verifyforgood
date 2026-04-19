@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -33,7 +33,7 @@ def test_repo_target_architecture_doc_exists():
     assert "Workspace Contract" in workspace_text
     assert "process one archive at a time inside a workspace" in workspace_text
     assert "32 GiB ECS ephemeral storage" in workspace_text
-    assert "charity_status_backend.ingest_task.orchestration.workspace" in workspace_text
+    assert "verification_backend.ingest_task.orchestration.workspace" in workspace_text
 
     readiness = Path("docs/backend-stage1-readiness.md")
     assert readiness.exists()
@@ -52,9 +52,9 @@ def test_package_scaffolding_roots_exist():
     backend_ingest = Path("backend/ingest-task")
     backend_shared = Path("backend/shared")
     backend_tests = backend_root / "tests" / "README.md"
-    backend_api_package = backend_api / "src" / "charity_status_backend" / "api"
-    backend_worker_package = backend_worker / "src" / "charity_status_backend" / "worker"
-    backend_ingest_package = backend_ingest / "src" / "charity_status_backend" / "ingest_task"
+    backend_api_package = backend_api / "src" / "verification_backend" / "api"
+    backend_worker_package = backend_worker / "src" / "verification_backend" / "worker"
+    backend_ingest_package = backend_ingest / "src" / "verification_backend" / "ingest_task"
     backend_ingest_form990 = backend_ingest_package / "form990"
     backend_ingest_monthly = backend_ingest_package / "monthly"
     backend_ingest_discovery = backend_ingest_package / "discovery"
@@ -67,9 +67,9 @@ def test_package_scaffolding_roots_exist():
     backend_ingest_cleanup = backend_ingest_package / "cleanup"
     backend_ingest_orchestration = backend_ingest_package / "orchestration"
     backend_ingest_entrypoints = backend_ingest_package / "entrypoints"
-    backend_shared_package = backend_shared / "src" / "charity_status_backend" / "shared"
-    public_root = Path("public-core/src/charity_status")
-    private_root = Path("private-platform/src/charity_status_platform")
+    backend_shared_package = backend_shared / "src" / "verification_backend" / "shared"
+    public_root = Path("public-core/src/verification")
+    private_root = Path("private-platform/src/verification_platform")
     private_pyproject = Path("private-platform/pyproject.toml")
     infrastructure_doc = Path("infrastructure/README.md")
     public_tests = Path("public-core/tests/README.md")
@@ -156,8 +156,8 @@ def test_package_scaffolding_docs_define_boundaries():
     backend_worker_text = Path("backend/worker/README.md").read_text(encoding="utf-8")
     backend_ingest_text = Path("backend/ingest-task/README.md").read_text(encoding="utf-8")
     backend_shared_text = Path("backend/shared/README.md").read_text(encoding="utf-8")
-    public_text = Path("public-core/src/charity_status/README.md").read_text(encoding="utf-8")
-    private_text = Path("private-platform/src/charity_status_platform/README.md").read_text(encoding="utf-8")
+    public_text = Path("public-core/src/verification/README.md").read_text(encoding="utf-8")
+    private_text = Path("private-platform/src/verification_platform/README.md").read_text(encoding="utf-8")
     infrastructure_text = Path("infrastructure/README.md").read_text(encoding="utf-8")
     tests_text = Path("tests/README.md").read_text(encoding="utf-8")
 
@@ -168,30 +168,30 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "backend/.env.local.example" in backend_text
     assert "PostgreSQL 16" in backend_text
     assert "createdb verification_platform" in backend_text
-    assert "python -m charity_status_backend.shared.local_dev db-upgrade" in backend_text
-    assert "python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit" in backend_text
-    assert "python -m charity_status_backend.shared.local_dev db-reset-nonprofit" in backend_text
-    assert "python -m charity_status_backend.shared.local_dev db-cutover-nonprofit" in backend_text
-    assert "python -m charity_status_backend.shared.local_dev db-current" in backend_text
-    assert "python -m charity_status_backend.api.entrypoint" in backend_text
-    assert "python -m charity_status_backend.worker.entrypoint" in backend_text
-    assert "python -m charity_status_backend.ingest_task.entrypoint" in backend_text
+    assert "python -m verification_backend.shared.local_dev db-upgrade" in backend_text
+    assert "python -m verification_backend.shared.local_dev db-upgrade-nonprofit" in backend_text
+    assert "python -m verification_backend.shared.local_dev db-reset-nonprofit" in backend_text
+    assert "python -m verification_backend.shared.local_dev db-cutover-nonprofit" in backend_text
+    assert "python -m verification_backend.shared.local_dev db-current" in backend_text
+    assert "python -m verification_backend.api.entrypoint" in backend_text
+    assert "python -m verification_backend.worker.entrypoint" in backend_text
+    assert "python -m verification_backend.ingest_task.entrypoint" in backend_text
     assert "docker build -f backend/api/Dockerfile ." in backend_text
     assert "docker build -f backend/worker/Dockerfile ." in backend_text
     assert "docker build -f backend/ingest-task/Dockerfile ." in backend_text
     assert "provisionable ECS service slot" in backend_text
 
-    assert "backend/api/src/charity_status_backend/api/" in backend_api_text
-    assert "charity_status_backend.api.app:app" in backend_api_text
+    assert "backend/api/src/verification_backend/api/" in backend_api_text
+    assert "verification_backend.api.app:app" in backend_api_text
     assert "backend/.env.local" in backend_api_text
     assert "PLATFORM_POSTGRES_URL" in backend_api_text
     assert "PLATFORM_NONPROFIT_POSTGRES_URL" in backend_api_text
     assert "backend/api/Dockerfile" in backend_api_text
-    assert "backend/worker/src/charity_status_backend/worker/" in backend_worker_text
+    assert "backend/worker/src/verification_backend/worker/" in backend_worker_text
     assert "backend/worker/Dockerfile" in backend_worker_text
     assert "private-subnet ECS service" in backend_worker_text
-    assert "backend/ingest-task/src/charity_status_backend/ingest_task/" in backend_ingest_text
-    assert "python -m charity_status_backend.ingest_task.cli monthly-worker" in backend_ingest_text
+    assert "backend/ingest-task/src/verification_backend/ingest_task/" in backend_ingest_text
+    assert "python -m verification_backend.ingest_task.cli monthly-worker" in backend_ingest_text
     assert "monthly/worker.py" in backend_ingest_text
     assert "backend/ingest-task/Dockerfile" in backend_ingest_text
     assert "ECS task definition invoked by schedules or one-off runs" in backend_ingest_text
@@ -199,9 +199,9 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "workspace/" in backend_ingest_text
     assert "orchestration/workspace.py" in backend_ingest_text
     assert "archive download, extraction, parsing, persistence, and cleanup responsibilities" in backend_ingest_text
-    assert "backend/shared/src/charity_status_backend/shared/" in backend_shared_text
+    assert "backend/shared/src/verification_backend/shared/" in backend_shared_text
     assert "backend/.env.local" in backend_shared_text
-    assert "charity_status_backend.shared.local_dev db-upgrade" in backend_shared_text
+    assert "verification_backend.shared.local_dev db-upgrade" in backend_shared_text
 
     assert "Forbidden contents" in public_text
     assert "Dependency direction" in public_text
@@ -209,7 +209,7 @@ def test_package_scaffolding_docs_define_boundaries():
 
     assert "Forbidden contents" in private_text
     assert "Dependency direction" in private_text
-    assert "may depend on `charity_status`" in private_text
+    assert "may depend on `verification`" in private_text
 
     assert "Target role" in infrastructure_text
     assert "deployment/config/wiring only" in infrastructure_text
@@ -228,14 +228,14 @@ def test_backend_workspace_metadata_and_frontend_boundaries_remain_stable():
     frontend_workspace = Path("frontend/pnpm-workspace.yaml").read_text(encoding="utf-8")
 
     assert 'name = "charity-status-backend"' in backend_pyproject
-    assert '"charity_status_backend.api" = "api/src/charity_status_backend/api"' in backend_pyproject
-    assert '"charity_status_backend.worker" = "worker/src/charity_status_backend/worker"' in backend_pyproject
-    assert '"charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"' in backend_pyproject
-    assert '"charity_status_backend.ingest_task.form990"' in backend_pyproject
-    assert '"charity_status_backend.ingest_task.monthly"' in backend_pyproject
-    assert '"charity_status_backend.shared" = "shared/src/charity_status_backend/shared"' in backend_pyproject
+    assert '"verification_backend.api" = "api/src/verification_backend/api"' in backend_pyproject
+    assert '"verification_backend.worker" = "worker/src/verification_backend/worker"' in backend_pyproject
+    assert '"verification_backend.ingest_task" = "ingest-task/src/verification_backend/ingest_task"' in backend_pyproject
+    assert '"verification_backend.ingest_task.form990"' in backend_pyproject
+    assert '"verification_backend.ingest_task.monthly"' in backend_pyproject
+    assert '"verification_backend.shared" = "shared/src/verification_backend/shared"' in backend_pyproject
     assert 'packages = [' in backend_pyproject
-    assert '"charity_status_backend.ingest_task"' in backend_pyproject
+    assert '"verification_backend.ingest_task"' in backend_pyproject
 
     assert 'name = "charity-status-private-platform"' in private_pyproject
     assert 'package-dir = {"" = "src"}' in private_pyproject
@@ -247,10 +247,10 @@ def test_backend_workspace_metadata_and_frontend_boundaries_remain_stable():
 
 def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     backend_env_example = Path("backend/.env.local.example").read_text(encoding="utf-8")
-    api_entrypoint = Path("backend/api/src/charity_status_backend/api/entrypoint.py").read_text(encoding="utf-8")
-    worker_entrypoint = Path("backend/worker/src/charity_status_backend/worker/entrypoint.py").read_text(encoding="utf-8")
-    ingest_entrypoint = Path("backend/ingest-task/src/charity_status_backend/ingest_task/entrypoint.py").read_text(encoding="utf-8")
-    local_dev = Path("backend/shared/src/charity_status_backend/shared/local_dev.py").read_text(encoding="utf-8")
+    api_entrypoint = Path("backend/api/src/verification_backend/api/entrypoint.py").read_text(encoding="utf-8")
+    worker_entrypoint = Path("backend/worker/src/verification_backend/worker/entrypoint.py").read_text(encoding="utf-8")
+    ingest_entrypoint = Path("backend/ingest-task/src/verification_backend/ingest_task/entrypoint.py").read_text(encoding="utf-8")
+    local_dev = Path("backend/shared/src/verification_backend/shared/local_dev.py").read_text(encoding="utf-8")
 
     assert "PLATFORM_POSTGRES_ENABLED=true" in backend_env_example
     assert "PLATFORM_POSTGRES_URL=postgresql+psycopg://" in backend_env_example
@@ -308,7 +308,7 @@ def test_vscode_launch_config_preserves_node_entry_and_adds_form990_python_profi
     assert '"name": "Form990 Local Run"' in launch_text
     assert '"module": "ingest_task.cli"' in launch_text
     assert '"name": "Form990 ECS Parity"' in launch_text
-    assert '"module": "charity_status_backend.ingest_task.cli"' in launch_text
+    assert '"module": "verification_backend.ingest_task.cli"' in launch_text
     assert '"FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990"' in launch_text
     assert '"name": "EO BMF Local Run"' in launch_text
     assert '"name": "EO BMF ECS Parity"' in launch_text
@@ -377,5 +377,6 @@ def test_split_plan_keeps_billing_private():
     payload = json.loads(Path("split-plan.json").read_text(encoding="utf-8"))
     public_candidates = payload["public_repo"].get("candidate_modules", [])
     private_candidates = payload["private_repo"].get("candidate_modules", [])
-    assert "infrastructure/charity_status/billing/" not in public_candidates
-    assert "infrastructure/charity_status/billing/" in private_candidates
+    assert "infrastructure/verification/billing/" not in public_candidates
+    assert "infrastructure/verification/billing/" in private_candidates
+

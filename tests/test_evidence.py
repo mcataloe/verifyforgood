@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
-from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import MockProvider
-from charity_status.query.verification import VerificationInput, verify_nonprofit
+from verification.enrichments import EnrichmentService, ProviderRegistry
+from verification.enrichments.providers import MockProvider
+from verification.query.verification import VerificationInput, verify_nonprofit
 
 
 def _record() -> dict[str, str]:
@@ -212,3 +212,4 @@ def test_evidence_explains_required_integration_unavailable():
     assert payload["integration_evaluation"]["explanations"][0]["code"] == "integration_required_but_unavailable"
     factor = next(item for item in payload["evidence"]["factors"] if item["key"] == "integration_policy:candid")
     assert factor["polarity"] == "warning"
+

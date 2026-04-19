@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 import sys
@@ -11,7 +11,7 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
     sys.path.insert(0, str(PRIVATE_PLATFORM_SRC))
 
 
-from charity_status_platform.customer_accounts import (  # noqa: E402
+from verification_platform.customer_accounts import (  # noqa: E402
     AuditEventType,
     DynamoAuditLogRepository,
     DynamoOrganizationRepository,
@@ -127,3 +127,4 @@ def test_submit_support_request_rejects_invalid_payload():
         assert str(exc) == "subject must be at least 3 characters"
     else:
         assert False, "Expected support validation error"
+

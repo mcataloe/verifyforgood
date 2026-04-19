@@ -1,4 +1,4 @@
-from infrastructure.charity_status.query.nonprofit_lookup import map_nonprofit_record
+﻿from infrastructure.verification.query.nonprofit_lookup import map_nonprofit_record
 
 
 def test_map_nonprofit_record_normalized_shape():
@@ -60,3 +60,4 @@ def test_map_nonprofit_record_accepts_padded_numeric_status_codes():
 
     assert payload["verification"]["irs_status"] == "active"
     assert payload["verification"]["tax_deductible"] is True
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import builtins
 import importlib
@@ -14,14 +14,14 @@ def test_lambda_query_import_does_not_require_ingest_package(monkeypatch):
         if module_name.startswith("verification_platform.source_connectors"):
             sys.modules.pop(module_name, None)
             continue
-        if module_name.startswith("charity_status.sources"):
+        if module_name.startswith("verification.sources"):
             sys.modules.pop(module_name, None)
 
     original_import = builtins.__import__
 
     def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "charity_status.ingest" or str(name).startswith("charity_status.ingest."):
-            raise ModuleNotFoundError("No module named 'charity_status.ingest'")
+        if name == "verification.ingest" or str(name).startswith("verification.ingest."):
+            raise ModuleNotFoundError("No module named 'verification.ingest'")
         return original_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
@@ -37,8 +37,8 @@ def test_query_lambda_packaging_includes_private_platform_sources():
 
     assert 'resource "terraform_data" "query_package_build"' in terraform
     assert 'source_dir  = local.query_package_dir' in terraform
-    assert "private-platform/src/charity_status_platform" in terraform
-    assert "Copy-Item -Path (Join-Path $repoRoot \"private-platform\\\\src\\\\charity_status_platform\")" in script
+    assert "private-platform/src/verification_platform" in terraform
+    assert "Copy-Item -Path (Join-Path $repoRoot \"private-platform\\\\src\\\\verification_platform\")" in script
     assert "Copy-Item -Path (Join-Path $moduleDir \"verification_platform\")" in script
     assert "--platform manylinux2014_x86_64" in script
     assert "--python-version 311" in script
@@ -49,4 +49,5 @@ def test_lambda_query_shim_points_to_backend_runtime_source():
     source = Path("infrastructure/lambda_query.py").read_text(encoding="utf-8")
 
     assert "Compatibility shim for the backend-owned API runtime" in source
-    assert "charity_status_backend.api" in source
+    assert "verification_backend.api" in source
+

@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -489,3 +489,4 @@ def test_organization_context_service_ignores_soft_deleted_organizations():
     ).list_for_user(user_id="user_portal_person")
 
     assert resolved == []
+

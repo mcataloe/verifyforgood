@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import json
@@ -8,10 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from charity_status.form990 import monthly_processing
-from charity_status.form990.monthly_processing import MonthlyIngestSourceObject, process_form990_archive
-from charity_status.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, build_source_artifact
-from charity_status_backend.ingest_task import local_runner
+from verification.form990 import monthly_processing
+from verification.form990.monthly_processing import MonthlyIngestSourceObject, process_form990_archive
+from verification.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, build_source_artifact
+from verification_backend.ingest_task import local_runner
 
 
 class FakeS3:
@@ -383,3 +383,4 @@ def test_process_form990_archive_runs_without_bucket_based_processing(tmp_path):
     )
 
     assert result["status"] == "success"
+

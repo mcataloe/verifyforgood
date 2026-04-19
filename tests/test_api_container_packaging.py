@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -17,7 +17,7 @@ def test_api_dockerfile_uses_asgi_entrypoint():
         in dockerfile
     )
     assert "uvicorn" in dockerfile
-    assert "charity_status_backend.api.app:app" in dockerfile
+    assert "verification_backend.api.app:app" in dockerfile
     assert "EXPOSE 8000" in dockerfile
     assert "private-platform/src" in dockerfile
     assert "backend/api/src" in dockerfile
@@ -28,12 +28,12 @@ def test_worker_and_ingest_dockerfiles_use_backend_runtime_entrypoints():
     worker = Path("backend/worker/Dockerfile").read_text(encoding="utf-8")
     ingest = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
 
-    assert 'CMD ["python", "-m", "charity_status_backend.worker.entrypoint"]' in worker
+    assert 'CMD ["python", "-m", "verification_backend.worker.entrypoint"]' in worker
     assert "backend/worker/src" in worker
     assert "backend/shared/src" in worker
 
     assert (
-        'ENTRYPOINT ["python", "-m", "charity_status_backend.ingest_task.cli"]'
+        'ENTRYPOINT ["python", "-m", "verification_backend.ingest_task.cli"]'
         in ingest
     )
     assert 'CMD ["monthly-worker"]' in ingest
@@ -55,3 +55,4 @@ def test_requirements_and_dockerignore_exist():
     assert ".terraform" in dockerignore
     assert ".env" in dockerignore
     assert "frontend/**/dist" in dockerignore
+

@@ -1,4 +1,4 @@
-"""Compatibility shim for the backend-owned EO/BMF ingest runtime."""
+﻿"""Compatibility shim for the backend-owned EO/BMF ingest runtime."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ for path in (BACKEND_INGEST_SRC, BACKEND_SHARED_SRC, PRIVATE_PLATFORM_SRC):
         sys.path.insert(0, path_str)
 
 
-from charity_status_backend.ingest_task.eo_bmf_ecs_runtime import main as _backend_main  # noqa: E402
+from verification_backend.ingest_task.eo_bmf_ecs_runtime import main as _backend_main  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,3 +30,4 @@ def handler(_event=None, _context=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+

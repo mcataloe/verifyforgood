@@ -1,5 +1,5 @@
-from charity_status.enrichments import load_organization_integration_settings
-from charity_status.platform import load_platform_integrations_config
+﻿from verification.enrichments import load_organization_integration_settings
+from verification.platform import load_platform_integrations_config
 
 
 def test_platform_integrations_default_to_disabled():
@@ -91,3 +91,4 @@ def test_default_required_for_evaluation_applies_without_enabling_integration():
 
     assert setting.enabled is False
     assert setting.required_for_evaluation is True
+

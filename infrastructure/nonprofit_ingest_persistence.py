@@ -1,4 +1,4 @@
-"""Compatibility shim for backend-owned nonprofit ingest persistence."""
+﻿"""Compatibility shim for backend-owned nonprofit ingest persistence."""
 
 from __future__ import annotations
 
@@ -17,7 +17,8 @@ for path in (BACKEND_INGEST_SRC, BACKEND_SHARED_SRC, PRIVATE_PLATFORM_SRC):
         sys.path.insert(0, path_str)
 
 
-from charity_status_backend.ingest_task.persistence import build_form990_nonprofit_persistence_service  # noqa: E402
+from verification_backend.ingest_task.persistence import build_form990_nonprofit_persistence_service  # noqa: E402
 
 
 __all__ = ["build_form990_nonprofit_persistence_service"]
+

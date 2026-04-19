@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from infrastructure.charity_status.form990.policy import IngestPolicyConfig, select_target_years
+from infrastructure.verification.form990.policy import IngestPolicyConfig, select_target_years
 
 
 def test_incremental_target_year_selection_default_window():
@@ -58,3 +58,4 @@ def test_safe_fallback_when_expected_years_missing():
     )
     assert years == ["legacy_a", "legacy_b"]
     assert meta["fallback_used"] is True
+

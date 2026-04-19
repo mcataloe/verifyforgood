@@ -1,4 +1,4 @@
-"""Compatibility shim for the backend-owned monthly ECS worker runtime."""
+﻿"""Compatibility shim for the backend-owned monthly ECS worker runtime."""
 
 from __future__ import annotations
 
@@ -17,8 +17,9 @@ for path in (BACKEND_INGEST_SRC, BACKEND_SHARED_SRC, PRIVATE_PLATFORM_SRC):
         sys.path.insert(0, path_str)
 
 
-from charity_status_backend.ingest_task.monthly.worker import main  # noqa: E402
+from verification_backend.ingest_task.monthly.worker import main  # noqa: E402
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

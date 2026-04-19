@@ -1,8 +1,8 @@
-import pathlib
+﻿import pathlib
 
-from infrastructure.charity_status.form990.extractors.governance import extract_governance_fields
-from infrastructure.charity_status.form990.extractors.narratives import extract_narrative_fields
-from infrastructure.charity_status.form990.parser import parse_xml
+from infrastructure.verification.form990.extractors.governance import extract_governance_fields
+from infrastructure.verification.form990.extractors.narratives import extract_narrative_fields
+from infrastructure.verification.form990.parser import parse_xml
 
 
 def test_extract_governance_fields_from_sample_xml():
@@ -38,3 +38,4 @@ def test_extract_narrative_fields_missing_sections():
     assert values["program_accomplishments_present"] is False
     assert values["leadership_disclosed"] is False
     assert len(values["narrative_sections_missing"]) == 3
+

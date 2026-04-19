@@ -1,15 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from charity_status.decision import build_decision
-from charity_status.enrichments import EvaluationContext, annotate_integration_evaluation_payload, build_integration_policy_summary
-from charity_status.enrichments.external_signals import extract_external_signals
-from charity_status.evidence import build_evidence
-from charity_status.normalization import compare_names
-from charity_status.policy import evaluate_policy
-from charity_status.scoring import assign_peer_group, calculate_v1_scores
+from verification.decision import build_decision
+from verification.enrichments import EvaluationContext, annotate_integration_evaluation_payload, build_integration_policy_summary
+from verification.enrichments.external_signals import extract_external_signals
+from verification.evidence import build_evidence
+from verification.normalization import compare_names
+from verification.policy import evaluate_policy
+from verification.scoring import assign_peer_group, calculate_v1_scores
 from verification_platform.compliance_data.interpretation import interpret_jurisdiction_compliance
 from verification_platform.organization_verification.organization_lookup import map_organization_record
 
@@ -299,3 +299,4 @@ __all__ = [
     "verify_nonprofit",
     "verify_organization",
 ]
+

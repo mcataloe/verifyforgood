@@ -1,11 +1,11 @@
-# Portal Identity, Organization Onboarding, and Membership Plan
+﻿# Portal Identity, Organization Onboarding, and Membership Plan
 
 ## Summary
 
 This plan defines the next implementation slice for portal identity, organization onboarding, and membership management. The work should align to the existing private-platform boundaries:
 
-- `private-platform/src/charity_status_platform/identity_access/` for authentication, authorization, and request identity concerns
-- `private-platform/src/charity_status_platform/customer_accounts/` for organization provisioning, onboarding, and account lifecycle concerns
+- `private-platform/src/verification_platform/identity_access/` for authentication, authorization, and request identity concerns
+- `private-platform/src/verification_platform/customer_accounts/` for organization provisioning, onboarding, and account lifecycle concerns
 
 The initial implementation should preserve compatibility boundaries and keep service logic separate from datastore-specific adapters.
 
@@ -70,3 +70,4 @@ Use a single DynamoDB table for the early identity domain while keeping reposito
 
 - Keep the conceptual model relational even if the initial table design is denormalized.
 - Avoid encoding business rules directly into item-shape assumptions that would complicate a later move to PostgreSQL or Aurora Serverless.
+

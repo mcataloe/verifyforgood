@@ -1,4 +1,4 @@
-# TODO
+﻿# TODO
 
 ## TODO-ARCH-001
 
@@ -879,9 +879,9 @@ workspace rooted at `FORM990_WORKSPACE_DIR`.
 
 The live runtime behavior still primarily flows through:
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/runtime.py`
-- `backend/ingest-task/src/charity_status_backend/ingest_task/form990/worker.py`
-- `infrastructure/charity_status/form990/`
+- `backend/ingest-task/src/verification_backend/ingest_task/form990/runtime.py`
+- `backend/ingest-task/src/verification_backend/ingest_task/form990/worker.py`
+- `infrastructure/verification/form990/`
 
 ### Migration Triggers
 
@@ -894,3 +894,4 @@ The live runtime behavior still primarily flows through:
 Keep current Form 990 payload contracts, S3 manifest behavior, and PostgreSQL
 persistence hooks stable while moving archive lifecycle responsibilities behind
 the new workspace-oriented modules.
+

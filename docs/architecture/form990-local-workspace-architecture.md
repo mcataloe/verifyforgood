@@ -1,4 +1,4 @@
-# Form 990 Local-first Workspace Architecture
+﻿# Form 990 Local-first Workspace Architecture
 
 This document defines the local-first runtime model for Form 990 ingestion in
 `backend/ingest-task`.
@@ -47,7 +47,7 @@ Meaning:
   - archive-scoped processing markers, manifests, and resumable local state
 
 The backend-owned helper for this contract lives in
-`charity_status_backend.ingest_task.orchestration.workspace`.
+`verification_backend.ingest_task.orchestration.workspace`.
 
 ## Runtime Module Map
 
@@ -66,7 +66,7 @@ Canonical backend-owned module seams:
   - archive and artifact fingerprints for idempotency and integrity checks
   - deterministic XML content hashes used to skip unchanged extracted files
 - `parse/`
-  - XML parsing seams layered over reusable `charity_status.form990` logic
+  - XML parsing seams layered over reusable `verification.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence and write-facing adapters
   - PostgreSQL-backed archive metadata and extracted-file hash state
@@ -86,9 +86,9 @@ relocation.
 
 Current live logic now routes through:
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/monthly/worker.py`
-- `backend/ingest-task/src/charity_status_backend/ingest_task/persistence.py`
-- `infrastructure/charity_status/form990/`
+- `backend/ingest-task/src/verification_backend/ingest_task/monthly/worker.py`
+- `backend/ingest-task/src/verification_backend/ingest_task/persistence.py`
+- `infrastructure/verification/form990/`
 
 New runtime work should keep moving responsibilities into the workspace-oriented
 seams instead of reintroducing Lambda/S3-era runtime hosts.
@@ -112,7 +112,7 @@ Local development:
 - local runs use the same `archives/`, `extracted/`, `logs/`, and `state/`
   structure
 - VS Code or direct CLI debugging should target
-  `python -m charity_status_backend.ingest_task.entrypoint`
+  `python -m verification_backend.ingest_task.entrypoint`
 
 Container and ECS mapping:
 
@@ -121,3 +121,4 @@ Container and ECS mapping:
 - that budget matches the intended 32 GiB ECS ephemeral storage envelope
 - ECS-specific task orchestration should inject the workspace root, not change
   the internal archive lifecycle
+

@@ -1,4 +1,4 @@
-# Form 990 Ingest Refactor Plan
+﻿# Form 990 Ingest Refactor Plan
 
 ## 1. Current Flow
 
@@ -6,7 +6,7 @@
   - explicit `records[]` -> direct ingest
   - legacy `index_url` / `index_urls` -> fetch index rows and ingest
   - discovery mode -> discover source artifacts, persist discovery state/diffs, persist raw source artifacts, reconcile CSV filing catalog, and select filing work
-- IRS-page discovery lives in `charity_status.form990.irs_page_discovery` and returns per-artifact ZIP/CSV source entries.
+- IRS-page discovery lives in `verification.form990.irs_page_discovery` and returns per-artifact ZIP/CSV source entries.
 - Discovery state and discovery diff artifacts are already persisted separately from filing manifests.
 - Raw source ZIP/CSV download persistence is implemented and tracked via downloaded-source state.
 - Filing reconciliation from downloaded yearly CSV indexes is implemented and tracked via filing catalog/diff/state manifests.
@@ -176,20 +176,20 @@ Known filename examples the design must support:
 
 ## 9. Files to Change
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/`
+- `backend/ingest-task/src/verification_backend/ingest_task/`
 - `infrastructure/lambda_form990.py`
 - `infrastructure/lambda_form990_worker.py`
-- `infrastructure/charity_status/form990/irs_page_discovery.py`
-- `infrastructure/charity_status/form990/discovery.py`
-- `infrastructure/charity_status/form990/source_catalog.py`
-- `infrastructure/charity_status/form990/source_downloads.py`
-- `infrastructure/charity_status/form990/index.py`
-- `infrastructure/charity_status/form990/filing_reconciliation.py`
-- `infrastructure/charity_status/form990/zip_selected_processing.py`
-- `infrastructure/charity_status/form990/zip_processing.py`
-- `infrastructure/charity_status/form990/ingest.py`
-- `infrastructure/charity_status/form990/storage.py`
-- `infrastructure/charity_status/form990/manifest.py` if source diff helpers belong there
+- `infrastructure/verification/form990/irs_page_discovery.py`
+- `infrastructure/verification/form990/discovery.py`
+- `infrastructure/verification/form990/source_catalog.py`
+- `infrastructure/verification/form990/source_downloads.py`
+- `infrastructure/verification/form990/index.py`
+- `infrastructure/verification/form990/filing_reconciliation.py`
+- `infrastructure/verification/form990/zip_selected_processing.py`
+- `infrastructure/verification/form990/zip_processing.py`
+- `infrastructure/verification/form990/ingest.py`
+- `infrastructure/verification/form990/storage.py`
+- `infrastructure/verification/form990/manifest.py` if source diff helpers belong there
 - Terraform bucket/prefix wiring for raw source artifacts
 - tests covering discovery, Lambda flow, storage, and worker behavior
 - `README.md`
@@ -244,3 +244,4 @@ Known filename examples the design must support:
 - chunk resume/idempotency behavior when result artifact already exists
 - partial worker failure handling and run summary consistency
 - configuration validation guardrails for required env vars and sane numeric defaults
+

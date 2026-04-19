@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore, build_api_key_record
+from verification.auth import InMemoryUsageStore, build_api_key_record
 
 
 def _query_stub():
@@ -153,3 +153,4 @@ def test_feature_unavailable_error_includes_upgrade_plan(monkeypatch):
     assert body["errors"][0]["code"] == "feature_unavailable"
     assert _meta(response)["feature_flag"] == "risk_flags"
     assert _meta(response)["upgrade_plan"] == "growth"
+

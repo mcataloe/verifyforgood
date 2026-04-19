@@ -1,4 +1,4 @@
-locals {
+﻿locals {
   worker_ecs_managed_image_enabled = trim(var.worker_ecs_image_uri, " ") == ""
   worker_ecs_image_uri_resolved = trim(var.worker_ecs_image_uri, " ") != "" ? trim(var.worker_ecs_image_uri, " ") : (
     local.worker_ecs_managed_image_enabled ? "${aws_ecr_repository.worker[0].repository_url}:${var.worker_ecs_image_tag}" : ""
@@ -474,7 +474,7 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
       name      = trim(var.monthly_ingest_container_name, " ")
       image     = local.monthly_ingest_worker_image_uri_resolved
       essential = true
-      entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]
+      entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]
       command    = ["ecs-run"]
       environment = [
         {
@@ -551,3 +551,4 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
 
   tags = local.platform_common_tags
 }
+

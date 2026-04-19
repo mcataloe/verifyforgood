@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -6,20 +6,20 @@ from datetime import datetime
 from typing import Any
 
 import boto3
-from charity_status.core.interfaces import EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository
-from charity_status.ops import S3RunStore
-from charity_status.platform import (
+from verification.core.interfaces import EnrichmentProviderGateway, ProfileStoreAdapter, QueryRepository
+from verification.ops import S3RunStore
+from verification.platform import (
     QueryRuntimeConfig,
     RefreshRuntimeConfig,
     build_athena_client,
     build_enrichment_service,
     load_platform_integrations_config,
 )
-from charity_status.normalization import EINValidationError, normalize_ein
-from charity_status.query import VerificationInput, verify_nonprofit
-from charity_status.query.athena import AthenaQueryError, AthenaQueryTimeout
-from charity_status.serving import PostIngestRefreshConfig, RefreshConfig, refresh_from_ingest_output, refresh_materialized_profiles
-from charity_status.serving.change_detection import normalize_mode, parse_explicit_eins
+from verification.normalization import EINValidationError, normalize_ein
+from verification.query import VerificationInput, verify_nonprofit
+from verification.query.athena import AthenaQueryError, AthenaQueryTimeout
+from verification.serving import PostIngestRefreshConfig, RefreshConfig, refresh_from_ingest_output, refresh_materialized_profiles
+from verification.serving.change_detection import normalize_mode, parse_explicit_eins
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -254,3 +254,4 @@ def _normalize_refresh_result(result: dict[str, Any]) -> dict[str, Any]:
         "change_events": result.get("change_events") or [],
         "errors": result.get("errors") or [],
     }
+

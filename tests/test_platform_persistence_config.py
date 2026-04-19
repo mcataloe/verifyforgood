@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from charity_status.platform import (
+from verification.platform import (
     build_postgres_sqlalchemy_url,
     PostgresRuntimeConfig,
     load_platform_persistence_config,
@@ -159,3 +159,4 @@ def test_resolve_nonprofit_postgres_sqlalchemy_url_prefers_dedicated_nonprofit_c
     )
 
     assert url.endswith("/verification_nonprofit")
+

@@ -1,4 +1,4 @@
-# Infrastructure Naming Normalization
+﻿# Infrastructure Naming Normalization
 
 ## Purpose
 
@@ -92,7 +92,7 @@ Preserved intentionally:
 - keep physical AWS name changes behind explicit migration toggles or override maps
 - if a rename would require Terraform replacement, default to an alias or wrapper local first
 - document any intentionally retained legacy name in the mapping table above
-- avoid introducing new `charitystatusapi`, `charity_status_api`, or `CharityStatusAPI` tokens in infrastructure code unless the value is a pinned compatibility exception
+- avoid introducing new `charitystatusapi`, `verification_api`, or `CharityStatusAPI` tokens in infrastructure code unless the value is a pinned compatibility exception
 
 ## Follow-Up Cleanup
 
@@ -100,3 +100,4 @@ Preserved intentionally:
 - ECS cluster names, task families, Step Functions names, and CloudWatch log groups for the monthly ingest workflow should use the neutral conventions above when those resources are wired in
 - later cleanup can decide whether any environment still needs the external staging-Lambda ARN override once the in-repo Lambda is fully standard
 - once downstream Terraform references stop using the alias locals, the compatibility aliases can be removed in a later cleanup pass
+

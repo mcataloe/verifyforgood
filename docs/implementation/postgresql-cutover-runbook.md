@@ -1,4 +1,4 @@
-# PostgreSQL Cutover Runbook
+﻿# PostgreSQL Cutover Runbook
 
 This runbook captures the current PostgreSQL-only posture and the remaining
 one-time migration helpers that still exist for historical DynamoDB data.
@@ -17,13 +17,13 @@ Use the migration wrapper only if you still need to inspect or copy legacy
 DynamoDB identity data into PostgreSQL:
 
 ```bash
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
+python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
 ```
 
 Apply the migrated identity rows:
 
 ```bash
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity
+python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity
 ```
 
 Expected report behavior:
@@ -57,13 +57,13 @@ profile cache.
 Dry-run example:
 
 ```bash
-python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
+python -m verification_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
 ```
 
 Apply example:
 
 ```bash
-python -m charity_status_platform.runtime.nonprofit_migration --page-size 250 --profile-table-name profiles
+python -m verification_platform.runtime.nonprofit_migration --page-size 250 --profile-table-name profiles
 ```
 
 Useful flags:
@@ -85,7 +85,7 @@ Nonprofit cutover guidance:
 
 1. run `alembic upgrade head`
 2. if using a dedicated nonprofit database, run `alembic -c alembic_nonprofit.ini upgrade head`
-3. for dev/shared-db cutover, run `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+3. for dev/shared-db cutover, run `python -m verification_backend.shared.local_dev db-cutover-nonprofit`
 4. run the nonprofit migration utility in `--dry-run` on a bounded window
 5. run a real bounded window and verify the report
 6. run the full migration
@@ -94,11 +94,11 @@ Nonprofit cutover guidance:
 
 Dedicated nonprofit dev helpers:
 
-- `python -m charity_status_backend.shared.local_dev db-current-nonprofit`
+- `python -m verification_backend.shared.local_dev db-current-nonprofit`
   shows the dedicated nonprofit Alembic revision
-- `python -m charity_status_backend.shared.local_dev db-reset-nonprofit`
+- `python -m verification_backend.shared.local_dev db-reset-nonprofit`
   drops and recreates the dedicated nonprofit schema and version table
-- `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+- `python -m verification_backend.shared.local_dev db-cutover-nonprofit`
   destructively reloads nonprofit/Form 990 tables from the platform database
   into the dedicated nonprofit database
 
@@ -116,3 +116,4 @@ The current utilities do not attempt to migrate:
   feature flags, organization settings, and control-plane billing/OAuth data
 - live source/compliance/federal-awards route assembly beyond what is already
   represented in the materialized nonprofit profile cache
+

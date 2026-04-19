@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -42,9 +42,9 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
-from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
-from charity_status_platform.runtime import (
+from verification.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification_platform.runtime import (
     backfill_customer_accounts_from_dynamodb,
     build_customer_accounts_repositories,
 )
@@ -442,3 +442,4 @@ def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(mo
     assert auth_response["statusCode"] == 400
     assert persisted is not None
     assert persisted.last_used_at is not None
+

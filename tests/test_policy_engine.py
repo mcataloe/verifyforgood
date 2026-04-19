@@ -1,7 +1,7 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from charity_status.policy import evaluate_policy
-from charity_status.policy.engine import _match_condition
+from verification.policy import evaluate_policy
+from verification.policy.engine import _match_condition
 
 
 def _base_payload() -> dict:
@@ -91,3 +91,4 @@ def test_policy_condition_helper_supports_integration_failure_and_required_missi
     payload["integration_evaluation"]["required_unmet_integrations"] = ["candid"]
     payload["integration_evaluation"]["failure_integrations"] = ["ofac"]
     assert _match_condition("integration_failures_in", ["ofac"], payload) is True
+

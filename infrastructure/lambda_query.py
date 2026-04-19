@@ -1,4 +1,4 @@
-"""Compatibility shim for the backend-owned API runtime."""
+﻿"""Compatibility shim for the backend-owned API runtime."""
 
 from __future__ import annotations
 
@@ -17,10 +17,11 @@ for path in (BACKEND_API_SRC, BACKEND_SHARED_SRC, PRIVATE_PLATFORM_SRC):
         sys.path.insert(0, path_str)
 
 
-from charity_status_backend.api import runtime as _runtime  # noqa: E402
+from verification_backend.api import runtime as _runtime  # noqa: E402
 
 
 _runtime.__name__ = __name__
 _runtime.__package__ = __package__
 sys.modules[__name__] = _runtime
+
 

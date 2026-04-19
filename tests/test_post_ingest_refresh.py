@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
-from charity_status.serving.post_ingest_refresh import PostIngestRefreshConfig, refresh_from_ingest_output
-from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
+from verification.serving.post_ingest_refresh import PostIngestRefreshConfig, refresh_from_ingest_output
+from infrastructure.verification.scoring import SCORING_MODEL_VERSION
 
 
 class InMemoryStore:
@@ -162,3 +162,4 @@ def test_idempotent_rerun_behavior():
     assert first["refreshed_count"] == 1
     assert second["refreshed_count"] == 0
     assert second["unchanged_count"] == 1
+

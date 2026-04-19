@@ -1,31 +1,31 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status.state_registry import (
+from verification.state_registry import (
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
     StateRegistryLookupRequest,
     StateRegistryLookupService,
     StateRegistryStanding,
 )
-from charity_status.state_registry.adapters import (
+from verification.state_registry.adapters import (
     NevadaBusinessRegistryAdapter,
     NewYorkBusinessRegistryAdapter,
     OhioBusinessRegistryAdapter,
     SouthDakotaBusinessRegistryAdapter,
     UtahBusinessRegistryAdapter,
 )
-from charity_status.state_registry.adapters.nevada.client import NevadaRegistryClient
-from charity_status.state_registry.adapters.nevada.mapper import map_nevada_record
-from charity_status.state_registry.adapters.new_york.client import NewYorkRegistryClient
-from charity_status.state_registry.adapters.new_york.mapper import map_new_york_record
-from charity_status.state_registry.adapters.ohio.client import OhioRegistryClient
-from charity_status.state_registry.adapters.ohio.mapper import map_ohio_record
-from charity_status.state_registry.adapters.south_dakota.client import SouthDakotaRegistryClient
-from charity_status.state_registry.adapters.south_dakota.mapper import map_south_dakota_record
-from charity_status.state_registry.adapters.utah.client import UtahRegistryClient
-from charity_status.state_registry.adapters.utah.mapper import map_utah_record
+from verification.state_registry.adapters.nevada.client import NevadaRegistryClient
+from verification.state_registry.adapters.nevada.mapper import map_nevada_record
+from verification.state_registry.adapters.new_york.client import NewYorkRegistryClient
+from verification.state_registry.adapters.new_york.mapper import map_new_york_record
+from verification.state_registry.adapters.ohio.client import OhioRegistryClient
+from verification.state_registry.adapters.ohio.mapper import map_ohio_record
+from verification.state_registry.adapters.south_dakota.client import SouthDakotaRegistryClient
+from verification.state_registry.adapters.south_dakota.mapper import map_south_dakota_record
+from verification.state_registry.adapters.utah.client import UtahRegistryClient
+from verification.state_registry.adapters.utah.mapper import map_utah_record
 
 
 FIXTURE_DIR = Path("tests/fixtures/state_registry")
@@ -181,3 +181,4 @@ def test_new_york_malformed_rows_are_ignored():
     rows = NewYorkRegistryClient(response_loader=lambda query: _read_fixture("new_york", "malformed_results.html")).search(normalized_name="BAD")
 
     assert [map_new_york_record(row) for row in rows] == [None]
+

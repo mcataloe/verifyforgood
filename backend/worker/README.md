@@ -1,4 +1,4 @@
-# Backend Worker Runtime
+﻿# Backend Worker Runtime
 
 Target ownership for `backend/worker/`:
 
@@ -9,8 +9,8 @@ Target ownership for `backend/worker/`:
 
 Python package root:
 
-- `backend/worker/src/charity_status_backend/worker/`
-- local scaffold entrypoint: `python -m charity_status_backend.worker.entrypoint`
+- `backend/worker/src/verification_backend/worker/`
+- local scaffold entrypoint: `python -m verification_backend.worker.entrypoint`
 
 Container build/run:
 
@@ -22,7 +22,7 @@ docker run --env-file backend/.env.local <worker-image>
 Container contract:
 
 - long-lived non-HTTP worker/service image shape
-- default command: `python -m charity_status_backend.worker.entrypoint`
+- default command: `python -m verification_backend.worker.entrypoint`
 - intended Terraform/ECS mapping: private-subnet ECS service with no ALB
 - Terraform now exposes a disabled-by-default service slot so the deployment
   boundary exists before runtime ownership fully moves here
@@ -39,3 +39,4 @@ Not owned here:
 - Form 990 and EO ingest task hosts that belong in `backend/ingest-task/`
 - reusable application/domain logic from `public-core/`
 - private service implementations from `private-platform/`
+

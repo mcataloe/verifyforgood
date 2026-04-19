@@ -1,17 +1,17 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import replace
 
-from charity_status.enrichments.base import ProviderError
-from charity_status.enrichments.models import (
+from verification.enrichments.base import ProviderError
+from verification.enrichments.models import (
     EnrichmentAggregateResult,
     EvaluationContext,
     IntegrationBinding,
     IntegrationEvaluation,
     IntegrationState,
 )
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.sources import default_us_source_catalog
+from verification.enrichments.registry import ProviderRegistry
+from verification.sources import default_us_source_catalog
 
 
 class EntityEnrichmentService:
@@ -391,3 +391,4 @@ __all__ = [
     "EnrichmentService",
     "EntityEnrichmentService",
 ]
+

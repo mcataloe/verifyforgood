@@ -1,4 +1,4 @@
-from charity_status.state_registry import (
+﻿from verification.state_registry import (
     MatchConfidence,
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
@@ -12,7 +12,7 @@ from charity_status.state_registry import (
     normalize_entity_status,
     normalize_standing,
 )
-from charity_status.state_registry.adapters import IllinoisBusinessRegistryAdapter
+from verification.state_registry.adapters import IllinoisBusinessRegistryAdapter
 
 
 def test_state_registry_record_to_dict_and_traceability():
@@ -117,3 +117,4 @@ def test_illinois_adapter_parses_raw_record_into_canonical_model():
     assert payload["standing"] == "good_standing"
     assert payload["matched_on"] == "normalized_entity_name"
     assert payload["confidence"] == "high"
+

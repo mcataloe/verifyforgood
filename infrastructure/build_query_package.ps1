@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$PythonExe = "python"
 )
 
@@ -35,11 +35,12 @@ if ($packageRequirements.Count -gt 0) {
 }
 
 Copy-Item -Path (Join-Path $moduleDir "lambda_query.py") -Destination $packageDir -Force
-Copy-Item -Path (Join-Path $moduleDir "charity_status") -Destination $packageDir -Recurse -Force
+Copy-Item -Path (Join-Path $moduleDir "verification") -Destination $packageDir -Recurse -Force
 Copy-Item -Path (Join-Path $moduleDir "verification_platform") -Destination $packageDir -Recurse -Force
-Copy-Item -Path (Join-Path $repoRoot "private-platform\\src\\charity_status_platform") -Destination $packageDir -Recurse -Force
+Copy-Item -Path (Join-Path $repoRoot "private-platform\\src\\verification_platform") -Destination $packageDir -Recurse -Force
 
 Get-ChildItem -Path $packageDir -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Get-ChildItem -Path $packageDir -Recurse -Include *.pyc, *.pyo -File | Remove-Item -Force
 
 Write-Host "Query package prepared at $packageDir"
+

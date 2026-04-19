@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 
-from charity_status_platform.billing_usage import monthly_period_for
-from charity_status_platform.customer_accounts import (
+from verification_platform.billing_usage import monthly_period_for
+from verification_platform.customer_accounts import (
     DynamoApiKeyRepository,
     DynamoUsageRepository,
     FakeIdentityDynamoResource,
@@ -14,7 +14,7 @@ from charity_status_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch, *, api_auth_enabled: bool = False):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -342,3 +342,4 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
 
     assert auth_response["statusCode"] == 401
     assert auth_payload["errors"][0]["message"] == "API key revoked"
+

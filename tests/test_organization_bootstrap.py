@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
     DynamoAuditLogRepository,
     UserRecord,
 )
-from charity_status_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
+from verification_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
 
 
 def _seed_user_and_token(table: FakeIdentityDynamoTable):
@@ -140,7 +140,7 @@ def test_organization_delete_service_requires_matching_slug_confirmation():
 
 
 def test_post_organizations_bootstraps_admin_membership(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -197,7 +197,7 @@ def test_post_organizations_bootstraps_admin_membership(monkeypatch):
 
 
 def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -264,3 +264,4 @@ def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatc
     assert response["statusCode"] == 200
     assert payload["data"]["deleted"] is True
     assert payload["data"]["organization"]["slug"] == "verify-for-good-org"
+

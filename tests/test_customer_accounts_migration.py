@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
     DynamoMembershipRepository,
@@ -29,7 +29,7 @@ from charity_status_platform.customer_accounts import (
     DynamoSubscriptionRepository,
     DynamoUserRepository,
 )
-from charity_status_platform.runtime import run_customer_accounts_migration
+from verification_platform.runtime import run_customer_accounts_migration
 
 
 def _sqlite_url(tmp_path: Path, name: str) -> str:
@@ -170,3 +170,4 @@ def test_customer_accounts_migration_applies_and_validates_identity_rows(tmp_pat
     assert report.source_counts.audit_logs == 1
     assert report.target_counts == report.source_counts
     assert all(entity_validation.missing == 0 for entity_validation in report.validation.values())
+

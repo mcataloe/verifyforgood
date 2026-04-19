@@ -1,16 +1,16 @@
-# Private-Platform Service Areas
+﻿# Private-Platform Service Areas
 
 This document describes the internal service-area boundaries now defined under:
 
-- `private-platform/src/charity_status_platform/`
+- `private-platform/src/verification_platform/`
 
-These are compatibility-first boundaries. The live implementation still runs from the current `infrastructure/charity_status/` modules, but new private logic should land in these areas rather than extending ad hoc private code paths.
+These are compatibility-first boundaries. The live implementation still runs from the current `infrastructure/verification/` modules, but new private logic should land in these areas rather than extending ad hoc private code paths.
 
 ## Identity Access
 
 Package:
 
-- `charity_status_platform.identity_access`
+- `verification_platform.identity_access`
 
 Owns:
 
@@ -24,7 +24,7 @@ Owns:
 
 Package:
 
-- `charity_status_platform.customer_accounts`
+- `verification_platform.customer_accounts`
 
 Owns:
 
@@ -38,7 +38,7 @@ Owns:
 
 Package:
 
-- `charity_status_platform.billing_usage`
+- `verification_platform.billing_usage`
 
 Owns:
 
@@ -52,7 +52,7 @@ Owns:
 
 Package:
 
-- `charity_status_platform.admin_operations`
+- `verification_platform.admin_operations`
 
 Owns:
 
@@ -64,7 +64,7 @@ Owns:
 
 Package:
 
-- `charity_status_platform.runtime`
+- `verification_platform.runtime`
 
 Owns:
 
@@ -77,7 +77,7 @@ Owns:
 
 Package:
 
-- `charity_status_platform.notifications`
+- `verification_platform.notifications`
 
 Reserved for:
 
@@ -87,4 +87,5 @@ Reserved for:
 
 ## Boundary Rule
 
-These service areas may depend on `charity_status` from `public-core`, but `public-core` must not depend on any `charity_status_platform` package.
+These service areas may depend on `verification` from `public-core`, but `public-core` must not depend on any `verification_platform` package.
+

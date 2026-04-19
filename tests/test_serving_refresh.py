@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
-from charity_status.serving.change_events import build_change_event
-from charity_status.serving.compare import compare_materialized_items
-from charity_status.serving.refresh import RefreshConfig, refresh_materialized_profiles
-from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
+from verification.serving.change_events import build_change_event
+from verification.serving.compare import compare_materialized_items
+from verification.serving.refresh import RefreshConfig, refresh_materialized_profiles
+from infrastructure.verification.scoring import SCORING_MODEL_VERSION
 import pytest
 
 
@@ -404,3 +404,4 @@ def test_bootstrap_can_checkpoint_with_max_batches():
     assert result["status"] == "partial"
     assert result["batch_count"] == 1
     assert result["next_cursor"] == "123456789"
+

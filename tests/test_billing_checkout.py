@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from urllib.error import URLError
 
-from charity_status.billing.checkout import (
+from verification.billing.checkout import (
     BillingCheckoutError,
     BillingCheckoutService,
     BillingProviderError,
@@ -11,8 +11,8 @@ from charity_status.billing.checkout import (
     CheckoutSessionResult,
     load_stripe_checkout_config,
 )
-from charity_status.billing.runtime import validate_stripe_billing_environment
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.billing.runtime import validate_stripe_billing_environment
+from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 class _StripeClient:
@@ -347,7 +347,7 @@ def test_http_stripe_checkout_client_retries_transient_url_errors(monkeypatch):
             raise URLError("temporary outage")
         return _Response()
 
-    monkeypatch.setattr("charity_status.billing.checkout.urlopen", _fake_urlopen)
+    monkeypatch.setattr("verification.billing.checkout.urlopen", _fake_urlopen)
     client = HttpStripeCheckoutClient(secret_key="sk_test_123")
 
     session = client.create_checkout_session(
@@ -362,3 +362,4 @@ def test_http_stripe_checkout_client_retries_transient_url_errors(monkeypatch):
 
     assert session.session_id == "cs_test_123"
     assert attempts["count"] == 2
+

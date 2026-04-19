@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
 import pytest
 
-from charity_status.enrichments import EvaluationContext, OrganizationIntegrationSetting
+from verification.enrichments import EvaluationContext, OrganizationIntegrationSetting
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
 from verification_platform.organization_verification.verification_service import OrganizationVerificationInput as VerificationInput
 
@@ -226,3 +226,4 @@ def test_nonprofit_service_falls_back_to_supplied_context_when_flag_resolution_f
     assert status == 200
     states = {item["integration_id"]: item for item in payload["integration_evaluation"]["integrations"]}
     assert states["candid"]["tenant_enabled"] is True
+

@@ -1,4 +1,4 @@
-# Platform PostgreSQL Migration Blueprint
+﻿# Platform PostgreSQL Migration Blueprint
 
 ## Summary
 
@@ -17,8 +17,8 @@ current runtime contract.
 
 Primary code:
 
-- `private-platform/src/charity_status_platform/customer_accounts/dynamodb_identity.py`
-- `private-platform/src/charity_status_platform/customer_accounts/audit_repository.py`
+- `private-platform/src/verification_platform/customer_accounts/dynamodb_identity.py`
+- `private-platform/src/verification_platform/customer_accounts/audit_repository.py`
 
 Current stored entity families:
 
@@ -65,7 +65,7 @@ Primary downstream services:
 
 Primary code:
 
-- `infrastructure/charity_status/enrichments/organization_settings_service.py`
+- `infrastructure/verification/enrichments/organization_settings_service.py`
 
 Current stored concerns:
 
@@ -79,8 +79,8 @@ its own relational slice after the identity core.
 
 Primary code:
 
-- `infrastructure/charity_status/control_plane/dynamodb_store.py`
-- `infrastructure/charity_status/control_plane/service.py`
+- `infrastructure/verification/control_plane/dynamodb_store.py`
+- `infrastructure/verification/control_plane/service.py`
 
 Current stored concerns:
 
@@ -95,7 +95,7 @@ Current stored concerns:
 
 Primary downstream consumers:
 
-- `infrastructure/charity_status/billing/*`
+- `infrastructure/verification/billing/*`
 - `infrastructure/lambda_query.py`
 - control-plane and billing tests
 
@@ -378,3 +378,4 @@ Planned additions:
 - Lambda connectivity guidance for VPC access
 
 Existing DynamoDB env vars stay in place until each domain migrates.
+

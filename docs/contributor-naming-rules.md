@@ -1,4 +1,4 @@
-# Contributor Naming Rules
+﻿# Contributor Naming Rules
 
 ## Purpose
 
@@ -43,7 +43,7 @@ Some historical names remain for compatibility with deployed infrastructure, exi
 Examples:
 
 - repository name `CharityStatusAPI`
-- package root `charity_status`
+- package root `verification`
 - compatibility roots `charitystatusapi.*` and `CharityStatusAPI.*`
 - Terraform backend/bootstrap names like `charitystatusapi-*`
 - physical AWS names when `resource_name_strategy = "legacy"`
@@ -76,7 +76,7 @@ Avoid for new internals:
 
 ## When You Encounter Legacy Names
 
-- `charity_status.*` is still a supported runtime path. Do not break it casually.
+- `verification.*` is still a supported runtime path. Do not break it casually.
 - `verification_platform.*` is the preferred neutral wrapper namespace for new internal capability-oriented seams.
 - `charitystatusapi.*` and `CharityStatusAPI.*` are compatibility shims only.
 - Legacy Terraform physical names remain acceptable when changing them would cause replacement or state churn.
@@ -111,3 +111,4 @@ Prefer capability-oriented labels such as:
 - [Infrastructure Naming Normalization](/c:/Repos/charity-status-api/docs/infrastructure-naming-normalization.md)
 - [Monthly Ingest Workflow Architecture](/c:/Repos/charity-status-api/docs/monthly-ingest-architecture.md)
 - [Monthly Ingest Runbook](/c:/Repos/charity-status-api/docs/monthly-ingest-runbook.md)
+

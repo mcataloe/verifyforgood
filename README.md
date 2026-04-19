@@ -67,7 +67,7 @@ Three naming layers now coexist intentionally:
   - preferred internal naming such as `verification_platform`, `organization_verification`, and `monthly_ingest`
   - use for new modules, workflow labels, service boundaries, and internal docs
 - legacy compatibility naming:
-  - preserved names such as `CharityStatusAPI`, `charity_status`, `charitystatusapi.*`, and `charitystatusapi-*` backend resources
+  - preserved names such as `CharityStatusAPI`, `verification`, `charitystatusapi.*`, and `charitystatusapi-*` backend resources
   - keep only where compatibility or deployed-resource stability still requires them
 
 Contributor shortcut:
@@ -78,7 +78,7 @@ Contributor shortcut:
 
 ## Infrastructure Naming
 
-Infrastructure resource names should be deterministic, composable, and independent from product branding. The shared naming helper lives at `infrastructure/charity_status/platform/naming.py` and builds names in this format:
+Infrastructure resource names should be deterministic, composable, and independent from product branding. The shared naming helper lives at `infrastructure/verification/platform/naming.py` and builds names in this format:
 
 - `<namespace>-<platform>-<purpose>-<environment>-<region>`
 
@@ -119,7 +119,7 @@ Internal runtime naming is capability-based even when customer-facing materials 
 
 Capability-namespace guidance:
 
-- the legacy `charity_status` package remains supported for backward compatibility
+- the legacy `verification` package remains supported for backward compatibility
 - new internal wrappers may be introduced under `verification_platform` when they describe capabilities more clearly than legacy names
 - wrapper namespaces should re-export existing implementations before any deeper code movement or rename
 - new modules should prefer capability-oriented names such as `organization_verification` or `entity_resolution`, not product or repo branding
@@ -136,8 +136,8 @@ Phase 11A introduces explicit separation boundaries so domain logic can remain c
 
 Core/domain modules (intended reusable/public surface):
 
-- `charity_status/query`, `charity_status/scoring`, `charity_status/decision`, `charity_status/evidence`, `charity_status/policy`
-- new core interfaces in `charity_status/core/`:
+- `verification/query`, `verification/scoring`, `verification/decision`, `verification/evidence`, `verification/policy`
+- new core interfaces in `verification/core/`:
   - `QueryRepository`
   - `ProfileStoreAdapter`
   - `EnrichmentProviderGateway`
@@ -146,7 +146,7 @@ Core/domain modules (intended reusable/public surface):
 
 Platform/runtime wiring (environment/deployment concerns):
 
-- `charity_status/platform/runtime.py` builds concrete Athena and enrichment adapters from env/runtime config
+- `verification/platform/runtime.py` builds concrete Athena and enrichment adapters from env/runtime config
 - Lambda entrypoints consume these boundaries while keeping handlers thin
 
 Contributor guidance:
@@ -160,7 +160,7 @@ Adapter boundary guidance now used in mixed infrastructure-facing modules:
 
 - service modules own application rules and orchestration
 - adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
-- runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
+- runtime builders such as `verification.platform.runtime` assemble the concrete adapters used by handlers
 
 ## Repository Topology
 
@@ -207,8 +207,8 @@ For the current live system:
 - those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
 - backend-owned Dockerfiles now define the canonical runtime image contracts for
   API, worker, and ingest-task execution
-- `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
-- `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
+- `verification_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
+- `verification_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
 
 Testing guidance is now explicit:
 
@@ -432,7 +432,7 @@ CSV reconciliation still runs after raw source persistence for catalog visibilit
 Phase 10G ZIP discovery/reconciliation extension:
 
 - source modes:
-  - `static_manifest` (default): parse the checked-in `infrastructure/charity_status/form990/Form990Links.txt` manifest
+  - `static_manifest` (default): parse the checked-in `infrastructure/verification/form990/Form990Links.txt` manifest
   - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
   - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
 - static-manifest validation:
@@ -667,11 +667,11 @@ Current external source framework is explicitly scoped to U.S. nonprofits.
 
 Framework location:
 
-- `infrastructure/charity_status/enrichments/base.py`
-- `infrastructure/charity_status/enrichments/registry.py`
-- `infrastructure/charity_status/enrichments/service.py`
-- `infrastructure/charity_status/enrichments/providers/`
-- `infrastructure/charity_status/sources/`
+- `infrastructure/verification/enrichments/base.py`
+- `infrastructure/verification/enrichments/registry.py`
+- `infrastructure/verification/enrichments/service.py`
+- `infrastructure/verification/enrichments/providers/`
+- `infrastructure/verification/sources/`
 
 Included providers:
 
@@ -831,7 +831,7 @@ Typed source model components:
 
 Provider extension guidance:
 
-- implement provider logic under `charity_status/enrichments/providers/`
+- implement provider logic under `verification/enrichments/providers/`
 - expose provider capabilities via `capabilities()`
 - return normalized `source_records` alongside existing enrichment fields
 - keep provider-specific schemas out of business logic; map into normalized source records
@@ -873,7 +873,7 @@ Failure tolerance:
 
 ## State Registry Framework (Phase 11A)
 
-Phase 11A adds a dedicated state-registry framework under `charity_status/state_registry/` for future U.S. business-registry ingestion and query work.
+Phase 11A adds a dedicated state-registry framework under `verification/state_registry/` for future U.S. business-registry ingestion and query work.
 
 Package layout:
 
@@ -910,7 +910,7 @@ Canonical normalized record fields:
 
 Extension rules for new states:
 
-- add each state under its own module in `charity_status/state_registry/adapters/`
+- add each state under its own module in `verification/state_registry/adapters/`
 - keep source-specific field names and parsing logic inside that state module only
 - map all outputs into the shared `StateRegistryRecord` contract before other application layers see them
 - reuse shared normalization, matching, and traceability helpers instead of copying them into state modules
@@ -924,7 +924,7 @@ Design intent:
 
 ## Colorado State Registry Pilot (Phase 11B)
 
-Phase 11B validates the shared framework with the first real state implementation under `charity_status/state_registry/adapters/colorado/`.
+Phase 11B validates the shared framework with the first real state implementation under `verification/state_registry/adapters/colorado/`.
 
 Colorado module layout:
 
@@ -955,7 +955,7 @@ Shared lookup path:
 
 ## Kentucky State Registry Validation (Phase 11C)
 
-Phase 11C adds a second real adapter under `charity_status/state_registry/adapters/kentucky/` to validate the framework against Kentucky’s tab-delimited bulk company files.
+Phase 11C adds a second real adapter under `verification/state_registry/adapters/kentucky/` to validate the framework against Kentucky’s tab-delimited bulk company files.
 
 Kentucky module layout:
 
@@ -1007,7 +1007,7 @@ Failure-isolation rules:
 
 Persistence seam:
 
-- `charity_status/state_registry/repository.py` defines the shared persistence seam
+- `verification/state_registry/repository.py` defines the shared persistence seam
 - `InMemoryStateRegistryRecordRepository` stores normalized records plus raw payload traceability metadata for tests and local wiring
 - persisted items include:
   - canonical normalized record payload
@@ -1017,7 +1017,7 @@ Persistence seam:
 
 Adding new adapters to the orchestrated path:
 
-- keep the state-specific adapter isolated under `charity_status/state_registry/adapters/<state>/`
+- keep the state-specific adapter isolated under `verification/state_registry/adapters/<state>/`
 - register the adapter in a `StateRegistryAdapterRegistry`
 - wire it into `StateRegistryLookupService`
 - pass that service into `StateRegistryProvider` so the broader verification flow can consume it without taking a direct dependency on state-specific parsing code
@@ -1040,10 +1040,10 @@ Phase 11E expands the shared Tier 1 state-registry pattern to:
 
 Implementation structure:
 
-- each state lives in its own isolated adapter package under `charity_status/state_registry/adapters/<state>/`
+- each state lives in its own isolated adapter package under `verification/state_registry/adapters/<state>/`
 - each package keeps transport/client logic separate from source-specific mapping
 - canonical normalization still happens only through `StateRegistryRecord`
-- shared logic was only extended where duplication had clearly emerged: `charity_status/state_registry/portal_html.py` now handles lightweight HTML-table extraction and hidden-input parsing for portal-style registries
+- shared logic was only extended where duplication had clearly emerged: `verification/state_registry/portal_html.py` now handles lightweight HTML-table extraction and hidden-input parsing for portal-style registries
 
 State-specific caveats:
 
@@ -1203,7 +1203,7 @@ Key model:
 
 - key prefix/id + secret pattern
 - secrets are stored as hashes (`secret_hash`), not plaintext
-- one-time secret display is supported by generation contracts in `charity_status/auth/service.py`
+- one-time secret display is supported by generation contracts in `verification/auth/service.py`
 - key is associated with `account_id` and `workspace_id`
 - key may include scopes/entitlements and plan assignment
 
@@ -1237,9 +1237,9 @@ Terraform/env settings:
 Local dev note:
 
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
-- key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
-- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_oauth_client_record`.
-- OAuth token record generation contract is available via `charity_status.auth.build_oauth_token_record`.
+- key generation contract (one-time secret display + hashed-at-rest record) is available via `verification.auth.build_api_key_record`.
+- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `verification.auth.build_oauth_client_record`.
+- OAuth token record generation contract is available via `verification.auth.build_oauth_token_record`.
 
 Auth coexistence behavior:
 
@@ -1257,7 +1257,7 @@ Admin control-plane authentication:
 
 ## Billing Domain Model (Phase 12B)
 
-Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
+Billing/productization modeling is now available as deterministic domain types in `verification/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
 
 The billing domain now also models a free-trial lifecycle for newly eligible organizations:
 
@@ -1952,7 +1952,7 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 ### Relational foundation and migrations
 
 The platform relational foundation now uses SQLAlchemy models under
-`private-platform/src/charity_status_platform/customer_accounts/` and Alembic
+`private-platform/src/verification_platform/customer_accounts/` and Alembic
 for schema evolution.
 
 Backend-local developer workflow:
@@ -1971,8 +1971,8 @@ python -m pip install -r infrastructure/requirements.txt -r infrastructure/requi
 python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend
 cp backend/.env.local.example backend/.env.local
 createdb verification_platform
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.api.entrypoint
+python -m verification_backend.shared.local_dev db-upgrade
+python -m verification_backend.api.entrypoint
 ```
 
 Set one of the following before running migrations locally:
@@ -1988,14 +1988,14 @@ Set one of the following before running migrations locally:
 Common commands:
 
 ```bash
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.shared.local_dev db-current
+python -m verification_backend.shared.local_dev db-upgrade
+python -m verification_backend.shared.local_dev db-current
 alembic upgrade head
 alembic revision -m "describe change"
-python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity
-python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
+python -m verification_platform.runtime.customer_accounts_backfill --identity-table-name identity
+python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
+python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity
+python -m verification_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
 ```
 
 Phase 24D moves the customer-account identity domain to PostgreSQL when
@@ -2036,8 +2036,8 @@ enrichment-driven in this phase.
 Phase 24H adds migration wrappers with dry-run and validation reporting for
 identity and nonprofit cutover preparation:
 
-- `python -m charity_status_platform.runtime.customer_accounts_migration`
-- `python -m charity_status_platform.runtime.nonprofit_migration`
+- `python -m verification_platform.runtime.customer_accounts_migration`
+- `python -m verification_platform.runtime.nonprofit_migration`
 
 The detailed cutover and rollback sequence now lives in
 `docs/implementation/postgresql-cutover-runbook.md`.
@@ -2284,10 +2284,10 @@ Phase D2 adds a refresh/materialization pipeline that updates DynamoDB only when
 
 Core modules:
 
-- `charity_status/serving/change_detection.py`
-- `charity_status/serving/compare.py`
-- `charity_status/serving/writer.py`
-- `charity_status/serving/refresh.py`
+- `verification/serving/change_detection.py`
+- `verification/serving/compare.py`
+- `verification/serving/writer.py`
+- `verification/serving/refresh.py`
 
 Refresh execution:
 
@@ -2405,3 +2405,4 @@ Non-prod defaults remain low-cost:
 - lazy/on-demand serving stays the default
 - targeted/manual refresh modes still supported (`refresh_changed`, `backfill_missing`, explicit EIN lists)
 - no automatic non-prod eager bootstrap
+

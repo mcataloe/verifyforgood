@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 import sys
@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from charity_status.enrichments import EvaluationContext
+from verification.enrichments import EvaluationContext
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -16,7 +16,7 @@ if str(PRIVATE_PLATFORM_SRC) not in sys.path:
     sys.path.insert(0, str(PRIVATE_PLATFORM_SRC))
 
 
-from charity_status_platform.customer_accounts import (  # noqa: E402
+from verification_platform.customer_accounts import (  # noqa: E402
     API_KEY_LOOKUP_INDEX,
     AUDIT_GLOBAL_PARTITION_KEY,
     ApiKeyCreateRequest,
@@ -64,11 +64,11 @@ from charity_status_platform.customer_accounts import (  # noqa: E402
     UsageTrackingError,
     UserRecord,
 )
-from charity_status_platform.customer_accounts.billing_calendar import prorated_amount_cents  # noqa: E402
+from verification_platform.customer_accounts.billing_calendar import prorated_amount_cents  # noqa: E402
 
 
 def test_customer_accounts_exports_identity_phase_surface():
-    import charity_status_platform.customer_accounts as customer_accounts
+    import verification_platform.customer_accounts as customer_accounts
 
     assert customer_accounts.IDENTITY_TABLE_NAME == "identity"
     assert customer_accounts.API_KEY_LOOKUP_INDEX == API_KEY_LOOKUP_INDEX
@@ -944,3 +944,4 @@ def test_feature_flag_service_applies_integration_overrides_for_premium_sources(
 
     assert context.setting_for("charity_navigator").enabled is True
     assert context.setting_for("candid").enabled is False
+

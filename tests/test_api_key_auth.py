@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -7,17 +7,17 @@ from types import SimpleNamespace
 
 from datetime import datetime, timedelta, timezone
 
-from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
-from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
-from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
-from charity_status.auth.models import ApiPlan, AuthenticatedPrincipal
-from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
-from charity_status.billing.trials import TrialConfig, TrialLifecycleService
-from charity_status.billing.service import monthly_period_for
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from charity_status.platform.auth import ApiKeyAuthContextProvider
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status_platform.customer_accounts import (
+from verification.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
+from verification.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
+from verification.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.auth.models import ApiPlan, AuthenticatedPrincipal
+from verification.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from verification.billing.trials import TrialConfig, TrialLifecycleService
+from verification.billing.service import monthly_period_for
+from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.platform.auth import ApiKeyAuthContextProvider
+from verification.platform.auth import ApiKeyQuotaMeteringHook
+from verification_platform.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoFeatureFlagRepository,
     DynamoPlanRepository,
@@ -745,7 +745,7 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
-    sys.modules.pop("charity_status_backend.api.runtime", None)
+    sys.modules.pop("verification_backend.api.runtime", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = SimpleNamespace(
@@ -776,7 +776,7 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
-    sys.modules.pop("charity_status_backend.api.runtime", None)
+    sys.modules.pop("verification_backend.api.runtime", None)
     module = importlib.import_module("infrastructure.lambda_query")
     event = {
         "httpMethod": "POST",
@@ -808,3 +808,4 @@ def test_batch_metering_counts_items_for_growth_plan(monkeypatch):
     hook.on_response(context, "POST /v1/verify/batch", 200)
 
     assert sum(store._usage.values()) == 2
+

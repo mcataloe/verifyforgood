@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 from pathlib import Path
 
-from infrastructure.charity_status.form990.index import parse_index_records
-from infrastructure.charity_status.form990.ingest import ingest_form990_records
+from infrastructure.verification.form990.index import parse_index_records
+from infrastructure.verification.form990.ingest import ingest_form990_records
 
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from charity_status_platform.nonprofits import Form990NonprofitPersistenceService, SqlAlchemyNonprofitRepository
+from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification_platform.nonprofits import Form990NonprofitPersistenceService, SqlAlchemyNonprofitRepository
 
 
 def _repository(tmp_path: Path) -> SqlAlchemyNonprofitRepository:
@@ -167,3 +167,4 @@ def test_form990_persistence_service_reports_progress_after_service_level_upsert
         {"filings_upserted": 1},
         {"skipped_records": 1},
     ]
+

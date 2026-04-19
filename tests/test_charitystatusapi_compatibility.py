@@ -1,7 +1,7 @@
-import importlib
+﻿import importlib
 import warnings
 
-from charity_status.query.nonprofit_lookup import map_nonprofit_record
+from verification.query.nonprofit_lookup import map_nonprofit_record
 from verification_platform.organization_verification.organization_lookup import map_organization_record
 
 
@@ -49,3 +49,4 @@ def test_legacy_namespace_output_matches_neutral_namespace():
     neutral_payload = map_organization_record("123456789", row).to_dict()
 
     assert legacy_payload == neutral_payload
+

@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from charity_status_backend.ingest_task import ecs_runtime, local_runner
+from verification_backend.ingest_task import ecs_runtime, local_runner
 
 
 def test_runtime_environment_aliases_map_only_when_repo_native_values_are_absent():
@@ -118,3 +118,4 @@ def test_ecs_runtime_rejects_positional_arguments():
         assert "does not accept positional arguments" in str(exc)
     else:
         raise AssertionError("expected ecs runtime to reject positional arguments")
+

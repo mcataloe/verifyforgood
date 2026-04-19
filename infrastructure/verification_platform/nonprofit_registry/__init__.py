@@ -1,4 +1,4 @@
-from charity_status.state_registry import (
+﻿from verification.state_registry import (
     InMemoryStateRegistryRecordRepository,
     MatchConfidence,
     NameMatchResult,
@@ -69,3 +69,4 @@ __all__ = [
     "now_utc_iso",
     "stable_payload_hash",
 ]
+

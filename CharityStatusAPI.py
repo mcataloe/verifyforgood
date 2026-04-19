@@ -1,11 +1,11 @@
-import importlib
+﻿import importlib
 import sys
 import warnings
 
 
 _compat = importlib.import_module("charitystatusapi")
 warnings.warn(
-    "CharityStatusAPI is a compatibility namespace. Prefer verification_platform.* or charity_status.* imports for new code.",
+    "CharityStatusAPI is a compatibility namespace. Prefer verification_platform.* or verification.* imports for new code.",
     DeprecationWarning,
     stacklevel=2,
 )
@@ -17,3 +17,4 @@ for module_name, module in list(sys.modules.items()):
 globals().update(_compat.__dict__)
 __all__ = getattr(_compat, "__all__", ())
 __path__ = getattr(_compat, "__path__", [])
+

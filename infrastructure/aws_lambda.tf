@@ -1,4 +1,4 @@
-#############################################
+﻿#############################################
 # LAMBDA - IRS DATA INGESTION
 #############################################
 
@@ -10,7 +10,7 @@ locals {
 
 locals {
   query_package_dir          = "${path.module}/build/query_package"
-  query_private_platform_dir = "${path.root}/private-platform/src/charity_status_platform"
+  query_private_platform_dir = "${path.root}/private-platform/src/verification_platform"
   query_package_source_files = concat(
     [
       "${path.module}/lambda_query.py",
@@ -18,8 +18,8 @@ locals {
       "${path.module}/build_query_package.ps1",
     ],
     [
-      for file in fileset("${path.module}/charity_status", "**") :
-      "${path.module}/charity_status/${file}"
+      for file in fileset("${path.module}/verification", "**") :
+      "${path.module}/verification/${file}"
       if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
     ],
     [
@@ -50,18 +50,18 @@ locals {
       "${path.module}/build_form990_package.ps1",
     ],
     [
-      for file in fileset("${path.module}/charity_status", "**") :
-      "${path.module}/charity_status/${file}"
+      for file in fileset("${path.module}/verification", "**") :
+      "${path.module}/verification/${file}"
       if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
     ],
     [
-      for file in fileset("${path.root}/private-platform/src/charity_status_platform", "**") :
-      "${path.root}/private-platform/src/charity_status_platform/${file}"
+      for file in fileset("${path.root}/private-platform/src/verification_platform", "**") :
+      "${path.root}/private-platform/src/verification_platform/${file}"
       if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
     ],
     [
-      for file in fileset("${path.root}/backend/ingest-task/src/charity_status_backend", "**") :
-      "${path.root}/backend/ingest-task/src/charity_status_backend/${file}"
+      for file in fileset("${path.root}/backend/ingest-task/src/verification_backend", "**") :
+      "${path.root}/backend/ingest-task/src/verification_backend/${file}"
       if !strcontains(file, "__pycache__/") && !endswith(file, ".pyc")
     ],
   )
@@ -98,12 +98,12 @@ data "archive_file" "ingest_zip_from_file" {
     "terraform.tfstate",
     "terraform.tfstate.*",
     ".terraform.tfstate.lock.info",
-    "charity_status/form990/**",
-    "charity_status/query/**",
-    "charity_status/normalization/**",
-    "charity_status/scoring/**",
-    "charity_status/api/**",
-    "charity_status/future/**",
+    "verification/form990/**",
+    "verification/query/**",
+    "verification/normalization/**",
+    "verification/scoring/**",
+    "verification/api/**",
+    "verification/future/**",
     "lambda_query.py",
     "lambda_form990.py",
     "ingest.zip",
@@ -289,8 +289,8 @@ data "archive_file" "refresh_zip" {
     "terraform.tfstate",
     "terraform.tfstate.*",
     ".terraform.tfstate.lock.info",
-    "charity_status/ingest/**",
-    "charity_status/future/**",
+    "verification/ingest/**",
+    "verification/future/**",
     "eo_bmf_ingest_worker.py",
     "lambda_query.py",
     "lambda_form990.py",
@@ -678,3 +678,4 @@ resource "aws_lambda_permission" "allow_eventbridge_form990_orchestrator" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.form990_schedule[0].arn
 }
+

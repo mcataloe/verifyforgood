@@ -1,17 +1,17 @@
-from types import SimpleNamespace
+﻿from types import SimpleNamespace
 
-from charity_status.enrichments.compliance import extract_state_compliance as legacy_extract_state_compliance
-from charity_status.enrichments.service import EnrichmentService as LegacyEnrichmentService
-from charity_status.enrichments.service import EntityEnrichmentService
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.enrichments.providers.state_registry_mock import StateRegistryMockProvider
-from charity_status.normalization.ein import format_ein as legacy_format_ein
-from charity_status.normalization.ein import normalize_ein as legacy_normalize_ein
-from charity_status.query.nonprofit_lookup import map_nonprofit_record as legacy_map_nonprofit_record
-from charity_status.query.verification import get_nonprofit_filings as legacy_get_nonprofit_filings
-from charity_status.query.verification import verify_nonprofit as legacy_verify_nonprofit
-from charity_status.sources import NormalizedSourceRecord as LegacyNormalizedSourceRecord
-from charity_status.sources import SourceCatalog as LegacySourceCatalog
+from verification.enrichments.compliance import extract_state_compliance as legacy_extract_state_compliance
+from verification.enrichments.service import EnrichmentService as LegacyEnrichmentService
+from verification.enrichments.service import EntityEnrichmentService
+from verification.enrichments.registry import ProviderRegistry
+from verification.enrichments.providers.state_registry_mock import StateRegistryMockProvider
+from verification.normalization.ein import format_ein as legacy_format_ein
+from verification.normalization.ein import normalize_ein as legacy_normalize_ein
+from verification.query.nonprofit_lookup import map_nonprofit_record as legacy_map_nonprofit_record
+from verification.query.verification import get_nonprofit_filings as legacy_get_nonprofit_filings
+from verification.query.verification import verify_nonprofit as legacy_verify_nonprofit
+from verification.sources import NormalizedSourceRecord as LegacyNormalizedSourceRecord
+from verification.sources import SourceCatalog as LegacySourceCatalog
 from verification_platform.compliance_data import EnrichmentService, interpret_jurisdiction_compliance
 from verification_platform.entity_resolution import format_employer_identification_number, normalize_employer_identification_number
 from verification_platform.organization_verification import (
@@ -102,3 +102,4 @@ def test_entity_enrichment_service_neutral_name_is_legacy_service():
 def test_source_normalization_neutral_classes_are_legacy_classes():
     assert NormalizedOrganizationSourceRecord is LegacyNormalizedSourceRecord
     assert SourceConnectorCatalog is LegacySourceCatalog
+

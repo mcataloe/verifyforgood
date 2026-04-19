@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -26,7 +26,7 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.runtime import build_customer_accounts_postgres_repositories
+from verification_platform.runtime import build_customer_accounts_postgres_repositories
 
 
 def _session_factory(tmp_path: Path):
@@ -266,3 +266,4 @@ def test_runtime_builder_returns_postgres_bundle_only_when_selected(tmp_path: Pa
 
     assert bundle is not None
     assert bundle.users.__class__.__name__ == "SqlAlchemyUserRepository"
+

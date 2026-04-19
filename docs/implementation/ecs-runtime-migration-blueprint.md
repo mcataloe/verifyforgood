@@ -1,4 +1,4 @@
-# ECS Runtime Migration Blueprint
+﻿# ECS Runtime Migration Blueprint
 
 ## Summary
 
@@ -165,7 +165,7 @@ Current posture after Phase 26C:
 
 - `backend/api` owns the FastAPI app, route registration, and shared API runtime dispatch
 - `infrastructure.lambda_query` remains as a thin rollback adapter and compatibility import path
-- `charity_status_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
+- `verification_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
 
 ### Phase 25C: Containerize the API
 
@@ -237,3 +237,4 @@ Follow-on implementation should explicitly cover:
 - Terraform validation for ALB/ECS/Route53 changes
 - a smaller retained Lambda adapter suite during the transition
 - longer-term shift toward HTTP/ASGI client tests as the primary runtime tests
+

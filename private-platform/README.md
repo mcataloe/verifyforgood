@@ -1,4 +1,4 @@
-# Private Platform (Scaffold)
+﻿# Private Platform (Scaffold)
 
 This directory marks the future destination for proprietary platform integrations.
 
@@ -8,22 +8,22 @@ Current platform/runtime code still exists in this monorepo:
 - `infrastructure/lambda_refresh.py`
 - `infrastructure/eo_bmf_ingest_worker.py`
 - `infrastructure/lambda_form990.py`
-- `infrastructure/charity_status/platform/`
+- `infrastructure/verification/platform/`
 
 Target package root after extraction:
 
-- `private-platform/src/charity_status_platform/`
+- `private-platform/src/verification_platform/`
 
 Scaffolding added in this repo phase:
 
-- `private-platform/src/charity_status_platform/__init__.py`
-- `private-platform/src/charity_status_platform/README.md`
-- `private-platform/src/charity_status_platform/identity_access/`
-- `private-platform/src/charity_status_platform/customer_accounts/`
-- `private-platform/src/charity_status_platform/billing_usage/`
-- `private-platform/src/charity_status_platform/admin_operations/`
-- `private-platform/src/charity_status_platform/runtime/`
-- `private-platform/src/charity_status_platform/notifications/`
+- `private-platform/src/verification_platform/__init__.py`
+- `private-platform/src/verification_platform/README.md`
+- `private-platform/src/verification_platform/identity_access/`
+- `private-platform/src/verification_platform/customer_accounts/`
+- `private-platform/src/verification_platform/billing_usage/`
+- `private-platform/src/verification_platform/admin_operations/`
+- `private-platform/src/verification_platform/runtime/`
+- `private-platform/src/verification_platform/notifications/`
 
 Future private repo responsibilities:
 
@@ -58,7 +58,8 @@ Boundary rule:
 
 Transition helpers now present:
 
-- `charity_status_platform.runtime.entrypoints`
+- `verification_platform.runtime.entrypoints`
   - canonical internal map of the live `infrastructure/lambda_*.py` handlers
-- `charity_status_platform.runtime.backend_contracts`
-  - compatibility root for API response-envelope and route-version helpers while the live implementation still lives under `charity_status.api`
+- `verification_platform.runtime.backend_contracts`
+  - compatibility root for API response-envelope and route-version helpers while the live implementation still lives under `verification.api`
+

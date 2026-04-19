@@ -1,7 +1,7 @@
-import pathlib
+﻿import pathlib
 
-from infrastructure.charity_status.form990.extractors.financials import extract_financial_fields
-from infrastructure.charity_status.form990.parser import parse_xml
+from infrastructure.verification.form990.extractors.financials import extract_financial_fields
+from infrastructure.verification.form990.parser import parse_xml
 
 
 def test_extract_financial_fields_from_sample_xml():
@@ -26,3 +26,4 @@ def test_extract_financial_fields_handles_partial_document():
     values = extract_financial_fields(parsed)
 
     assert all(value is None for value in values.values())
+

@@ -1,5 +1,5 @@
-from infrastructure.charity_status.decision.engine import build_decision
-from infrastructure.charity_status.scoring import SCORING_MODEL_VERSION
+﻿from infrastructure.verification.decision.engine import build_decision
+from infrastructure.verification.scoring import SCORING_MODEL_VERSION
 
 
 def _base_inputs():
@@ -228,3 +228,4 @@ def test_decision_successful_integration_marks_policy_as_evaluated():
 
     assert decision["status"] == "approve"
     assert extras["audit"]["integration_policy"]["status"] == "evaluated"
+

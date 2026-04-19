@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
-from charity_status.models import NonprofitResponse
-from charity_status.normalization import (
+from verification.models import NonprofitResponse
+from verification.normalization import (
     format_ein,
     map_deductibility,
     map_entity_type,
@@ -80,3 +80,4 @@ __all__ = [
     "map_nonprofit_record",
     "map_organization_record",
 ]
+

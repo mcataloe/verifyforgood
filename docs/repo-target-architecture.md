@@ -1,4 +1,4 @@
-# Repository Target Architecture Assessment
+﻿# Repository Target Architecture Assessment
 
 This document records the current repository assessment and the recommended target-state split between:
 
@@ -11,7 +11,7 @@ while preserving the code/package boundaries:
 1. `public-core/`
 2. `private-platform/`
 
-It is intentionally grounded in the code that exists today under `infrastructure/charity_status/` and the current Lambda/Terraform layout. This phase does not move code; it defines the target map and the migration order.
+It is intentionally grounded in the code that exists today under `infrastructure/verification/` and the current Lambda/Terraform layout. This phase does not move code; it defines the target map and the migration order.
 
 ## What Was Analyzed
 
@@ -26,25 +26,25 @@ Primary runtime and entrypoint files:
 
 Primary package groups:
 
-- `infrastructure/charity_status/api/`
-- `infrastructure/charity_status/auth/`
-- `infrastructure/charity_status/billing/`
-- `infrastructure/charity_status/control_plane/`
-- `infrastructure/charity_status/core/`
-- `infrastructure/charity_status/decision/`
-- `infrastructure/charity_status/enrichments/`
-- `infrastructure/charity_status/evidence/`
-- `infrastructure/charity_status/form990/`
-- `infrastructure/charity_status/ingest/`
-- `infrastructure/charity_status/normalization/`
-- `infrastructure/charity_status/ops/`
-- `infrastructure/charity_status/platform/`
-- `infrastructure/charity_status/policy/`
-- `infrastructure/charity_status/query/`
-- `infrastructure/charity_status/scoring/`
-- `infrastructure/charity_status/serving/`
-- `infrastructure/charity_status/sources/`
-- `infrastructure/charity_status/state_registry/`
+- `infrastructure/verification/api/`
+- `infrastructure/verification/auth/`
+- `infrastructure/verification/billing/`
+- `infrastructure/verification/control_plane/`
+- `infrastructure/verification/core/`
+- `infrastructure/verification/decision/`
+- `infrastructure/verification/enrichments/`
+- `infrastructure/verification/evidence/`
+- `infrastructure/verification/form990/`
+- `infrastructure/verification/ingest/`
+- `infrastructure/verification/normalization/`
+- `infrastructure/verification/ops/`
+- `infrastructure/verification/platform/`
+- `infrastructure/verification/policy/`
+- `infrastructure/verification/query/`
+- `infrastructure/verification/scoring/`
+- `infrastructure/verification/serving/`
+- `infrastructure/verification/sources/`
+- `infrastructure/verification/state_registry/`
 
 Split scaffolding and packaging files:
 
@@ -62,33 +62,33 @@ Split scaffolding and packaging files:
 
 These areas are primarily deterministic, reusable, and open-safe, though some still need adapter extraction around them:
 
-- `infrastructure/charity_status/decision/`
-- `infrastructure/charity_status/evidence/`
-- `infrastructure/charity_status/normalization/`
-- `infrastructure/charity_status/policy/`
-- `infrastructure/charity_status/scoring/`
-- `infrastructure/charity_status/sources/`
-- `infrastructure/charity_status/query/verification.py`
-- `infrastructure/charity_status/query/nonprofit_lookup.py`
-- `infrastructure/charity_status/query/source_views.py`
-- `infrastructure/charity_status/enrichments/service.py`
-- `infrastructure/charity_status/serving/materializer.py`
-- `infrastructure/charity_status/serving/refresh.py`
-- `infrastructure/charity_status/serving/change_detection.py`
-- `infrastructure/charity_status/serving/models.py`
-- `infrastructure/charity_status/state_registry/`
-- parser/metrics/governance/relationships/discovery logic under `infrastructure/charity_status/form990/`
+- `infrastructure/verification/decision/`
+- `infrastructure/verification/evidence/`
+- `infrastructure/verification/normalization/`
+- `infrastructure/verification/policy/`
+- `infrastructure/verification/scoring/`
+- `infrastructure/verification/sources/`
+- `infrastructure/verification/query/verification.py`
+- `infrastructure/verification/query/nonprofit_lookup.py`
+- `infrastructure/verification/query/source_views.py`
+- `infrastructure/verification/enrichments/service.py`
+- `infrastructure/verification/serving/materializer.py`
+- `infrastructure/verification/serving/refresh.py`
+- `infrastructure/verification/serving/change_detection.py`
+- `infrastructure/verification/serving/models.py`
+- `infrastructure/verification/state_registry/`
+- parser/metrics/governance/relationships/discovery logic under `infrastructure/verification/form990/`
 
 ### Private-platform candidates
 
 These areas are platform-specific, account/customer-specific, operator-focused, or runtime/integration specific:
 
-- `infrastructure/charity_status/auth/`
-- `infrastructure/charity_status/billing/`
-- `infrastructure/charity_status/control_plane/`
-- `infrastructure/charity_status/ingest/`
-- `infrastructure/charity_status/ops/`
-- `infrastructure/charity_status/platform/`
+- `infrastructure/verification/auth/`
+- `infrastructure/verification/billing/`
+- `infrastructure/verification/control_plane/`
+- `infrastructure/verification/ingest/`
+- `infrastructure/verification/ops/`
+- `infrastructure/verification/platform/`
 - all `infrastructure/lambda_*.py` entrypoints
 
 ### Infrastructure/deployment
@@ -105,23 +105,23 @@ These assets should converge on deployment-only responsibilities:
 
 These files define transport behavior rather than reusable business logic:
 
-- `infrastructure/charity_status/api/routes.py`
-- `infrastructure/charity_status/api/responses.py`
+- `infrastructure/verification/api/routes.py`
+- `infrastructure/verification/api/responses.py`
 - all `infrastructure/lambda_*.py`
 
 ### Mixed concern / refactor required first
 
 These are the highest-priority seam fixes before extraction:
 
-- `infrastructure/charity_status/core/models.py`
+- `infrastructure/verification/core/models.py`
   - currently imports billing models
-- `infrastructure/charity_status/query/athena.py`
+- `infrastructure/verification/query/athena.py`
   - AWS adapter embedded in query layer
-- `infrastructure/charity_status/serving/dynamodb_store.py`
+- `infrastructure/verification/serving/dynamodb_store.py`
   - storage adapter embedded beside serving logic
-- `infrastructure/charity_status/enrichments/organization_store.py`
+- `infrastructure/verification/enrichments/organization_store.py`
   - domain/service and Dynamo adapter in one module
-- `infrastructure/charity_status/form990/`
+- `infrastructure/verification/form990/`
   - parser/domain logic and S3-backed manifest/raw-sync logic are interleaved
 - `infrastructure/lambda_query.py`
   - routing, env/config, auth, billing, control-plane, response shaping, and runtime wiring all meet here
@@ -144,7 +144,7 @@ backend/
   shared/
 
 public-core/
-  src/charity_status/
+  src/verification/
     core/
     decision/
     evidence/
@@ -160,7 +160,7 @@ public-core/
   tests/
 
 private-platform/
-  src/charity_status_platform/
+  src/verification_platform/
     auth/
     billing/
     control_plane/
@@ -186,8 +186,8 @@ Key design decisions:
 - `public-core` remains the canonical home for reusable deterministic domain logic.
 - `private-platform` owns all platform billing. Nothing billing-related should live in public-core.
 - All billing stays private-platform.
-- `private-platform` uses a distinct package root, `charity_status_platform`, to avoid namespace confusion with `charity_status`.
-- a neutral capability-oriented namespace, `verification_platform`, may be used as a compatibility abstraction layer while legacy `charity_status` imports remain in place
+- `private-platform` uses a distinct package root, `verification_platform`, to avoid namespace confusion with `verification`.
+- a neutral capability-oriented namespace, `verification_platform`, may be used as a compatibility abstraction layer while legacy `verification` imports remain in place
 - `infrastructure/` should end in a deployment-only role. It should package and wire entrypoints, not own business logic.
 - `backend/` is not a replacement for `public-core` or `private-platform`; it is the runtime host layer above them.
 
@@ -207,10 +207,10 @@ Current runtime ownership still stranded in `infrastructure/`:
   - current Form 990 orchestration shim
 - `infrastructure/lambda_form990_worker.py`
   - current Form 990 worker runtime host
-- `infrastructure/charity_status/api/routes.py`
-- `infrastructure/charity_status/api/responses.py`
-- `infrastructure/charity_status/core/interfaces.py`
-- `infrastructure/charity_status/platform/`
+- `infrastructure/verification/api/routes.py`
+- `infrastructure/verification/api/responses.py`
+- `infrastructure/verification/core/interfaces.py`
+- `infrastructure/verification/platform/`
 
 Target runtime placement:
 
@@ -234,7 +234,7 @@ Target runtime placement:
 
 Transition rule:
 
-- `private-platform/src/charity_status_platform/runtime/backend_contracts.py` remains the compatibility re-export root until shared runtime contracts move out of the legacy infrastructure path
+- `private-platform/src/verification_platform/runtime/backend_contracts.py` remains the compatibility re-export root until shared runtime contracts move out of the legacy infrastructure path
 - `infrastructure/` may keep temporary deployment shims while packaging and deploy wiring catch up, but it should stop accumulating runtime ownership
 
 Current workspace posture:
@@ -245,19 +245,19 @@ Current workspace posture:
 
 Private-platform service areas now defined in the repo:
 
-- `charity_status_platform.identity_access`
-- `charity_status_platform.customer_accounts`
-- `charity_status_platform.billing_usage`
-- `charity_status_platform.admin_operations`
-- `charity_status_platform.runtime`
-- `charity_status_platform.notifications`
+- `verification_platform.identity_access`
+- `verification_platform.customer_accounts`
+- `verification_platform.billing_usage`
+- `verification_platform.admin_operations`
+- `verification_platform.runtime`
+- `verification_platform.notifications`
 
 Private runtime transition helpers now defined:
 
-- `charity_status_platform.runtime.entrypoints`
+- `verification_platform.runtime.entrypoints`
   - canonical map of the currently deployed backend entrypoints
-- `charity_status_platform.runtime.backend_contracts`
-  - canonical private-platform compatibility root for API response-envelope and route-version helpers while those contracts still live under `charity_status.api`
+- `verification_platform.runtime.backend_contracts`
+  - canonical private-platform compatibility root for API response-envelope and route-version helpers while those contracts still live under `verification.api`
 
 ## Dependency Rules
 
@@ -265,10 +265,10 @@ Required dependency direction:
 
 - `frontend/` depends on HTTP contracts and frontend shared packages only
 - `frontend/` must not import Python runtime code from `backend/`, `private-platform/`, or `infrastructure/`
-- `backend/` may depend on `charity_status` and `charity_status_platform`
+- `backend/` may depend on `verification` and `verification_platform`
 - `private-platform/` must not depend on `backend/` or `infrastructure/`
-- `charity_status_platform` may depend on `charity_status`
-- `charity_status` must not depend on `charity_status_platform`
+- `verification_platform` may depend on `verification`
+- `verification` must not depend on `verification_platform`
 - `infrastructure/` may depend on packaged entrypoints, but not the reverse
 
 Billing rule:
@@ -324,21 +324,21 @@ Compatibility shim rule:
 
 Concrete infrastructure/platform leakage found during assessment:
 
-- `infrastructure/charity_status/query/athena.py`
+- `infrastructure/verification/query/athena.py`
   - direct Athena client construction and AWS assumptions
-- `infrastructure/charity_status/serving/dynamodb_store.py`
+- `infrastructure/verification/serving/dynamodb_store.py`
   - direct DynamoDB access
-- `infrastructure/charity_status/control_plane/dynamodb_store.py`
+- `infrastructure/verification/control_plane/dynamodb_store.py`
   - direct DynamoDB access
-- `infrastructure/charity_status/enrichments/organization_store.py`
+- `infrastructure/verification/enrichments/organization_store.py`
   - direct DynamoDB access mixed with organization settings domain logic
-- `infrastructure/charity_status/ops/run_store.py`
+- `infrastructure/verification/ops/run_store.py`
   - operational persistence and run-tracking logic
 - multiple `form990` modules
   - S3-backed manifest/raw sync concerns mixed with parser and batch-processing concerns
-- `infrastructure/charity_status/platform/runtime.py`
+- `infrastructure/verification/platform/runtime.py`
   - env/runtime composition of adapters
-- `infrastructure/charity_status/platform/auth.py`
+- `infrastructure/verification/platform/auth.py`
   - auth/quota/runtime composition and static store wiring
 - `infrastructure/lambda_query.py`
   - the highest-density composition root in the repo
@@ -395,12 +395,12 @@ Concrete infrastructure/platform leakage found during assessment:
 These should be treated as separate, explicit implementation phases:
 
 - `infrastructure/lambda_query.py`
-- `infrastructure/charity_status/core/models.py`
-- `infrastructure/charity_status/billing/`
-- `infrastructure/charity_status/query/athena.py`
-- `infrastructure/charity_status/enrichments/organization_store.py`
-- `infrastructure/charity_status/form990/`
-- `infrastructure/charity_status/serving/`
+- `infrastructure/verification/core/models.py`
+- `infrastructure/verification/billing/`
+- `infrastructure/verification/query/athena.py`
+- `infrastructure/verification/enrichments/organization_store.py`
+- `infrastructure/verification/form990/`
+- `infrastructure/verification/serving/`
 
 ## What Should Be Done First
 
@@ -427,3 +427,4 @@ Why these qualify:
 - they do not require auth, billing, tenant/customer, or deployment wiring
 - they do not require AWS/Stripe SDKs
 - they provide reusable validators, schemas, and domain-relevant canonical structures
+

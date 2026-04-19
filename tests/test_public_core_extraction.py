@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from infrastructure.charity_status.normalization import compare_names, format_ein, map_irs_status, normalize_ein
-from infrastructure.charity_status.sources import ProviderCapability, SourceCategory, default_us_source_catalog
+from infrastructure.verification.normalization import compare_names, format_ein, map_irs_status, normalize_ein
+from infrastructure.verification.sources import ProviderCapability, SourceCategory, default_us_source_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +32,7 @@ def test_public_core_normalization_imports_without_infrastructure_setup():
     payload = _run_public_core_snippet(
         """
 import json
-from charity_status.normalization import compare_names, format_ein, map_irs_status, normalize_ein
+from verification.normalization import compare_names, format_ein, map_irs_status, normalize_ein
 
 print(json.dumps({
     "normalized_ein": normalize_ein("12-3456789"),
@@ -55,7 +55,7 @@ def test_public_core_normalization_matches_current_runtime_behavior():
     payload = _run_public_core_snippet(
         """
 import json
-from charity_status.normalization import compare_names, format_ein, map_irs_status, normalize_ein
+from verification.normalization import compare_names, format_ein, map_irs_status, normalize_ein
 
 print(json.dumps({
     "normalized_ein": normalize_ein("12-3456789"),
@@ -76,7 +76,7 @@ def test_public_core_sources_import_without_infrastructure_setup():
     payload = _run_public_core_snippet(
         """
 import json
-from charity_status.sources import ProviderCapability, SourceCategory, default_us_source_catalog
+from verification.sources import ProviderCapability, SourceCategory, default_us_source_catalog
 
 catalog = default_us_source_catalog([
     ProviderCapability(
@@ -100,7 +100,7 @@ def test_public_core_sources_match_current_runtime_behavior():
     payload = _run_public_core_snippet(
         """
 import json
-from charity_status.sources import ProviderCapability, SourceCategory, default_us_source_catalog
+from verification.sources import ProviderCapability, SourceCategory, default_us_source_catalog
 
 catalog = default_us_source_catalog([
     ProviderCapability(
@@ -133,8 +133,8 @@ def test_public_core_schema_modules_import_cleanly():
     payload = _run_public_core_snippet(
         """
 import json
-from charity_status.evidence import EvidenceFactor
-from charity_status.policy import PolicyDefinition, PolicyRule
+from verification.evidence import EvidenceFactor
+from verification.policy import PolicyDefinition, PolicyRule
 
 factor = EvidenceFactor(
     key="eligibility_status",
@@ -170,12 +170,12 @@ print(json.dumps({
 
 
 def test_public_core_extracted_modules_do_not_reference_private_platform_or_sdk_dependencies():
-    extracted_root = PUBLIC_CORE_SRC / "charity_status"
+    extracted_root = PUBLIC_CORE_SRC / "verification"
     forbidden_tokens = (
-        "charity_status_platform",
-        "charity_status.billing",
-        "charity_status.auth",
-        "charity_status.control_plane",
+        "verification_platform",
+        "verification.billing",
+        "verification.auth",
+        "verification.control_plane",
         "boto3",
         "stripe",
     )
@@ -184,3 +184,4 @@ def test_public_core_extracted_modules_do_not_reference_private_platform_or_sdk_
         text = path.read_text(encoding="utf-8")
         for token in forbidden_tokens:
             assert token not in text, f"{path} unexpectedly references forbidden dependency token {token!r}"
+

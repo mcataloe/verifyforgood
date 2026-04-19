@@ -1,5 +1,5 @@
-from charity_status.enrichments import EvaluationContext, TenantIntegrationSetting
-from charity_status.platform.runtime import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
+﻿from verification.enrichments import EvaluationContext, TenantIntegrationSetting
+from verification.platform.runtime import QueryRuntimeConfig, RefreshRuntimeConfig, build_athena_client, build_enrichment_service
 
 
 def test_build_athena_client_from_runtime_config(monkeypatch):
@@ -135,3 +135,4 @@ def test_build_enrichment_service_skips_disabled_premium_integrations_without_pr
     assert payload["failures"] == []
     assert payload["integration_evaluation"]["integrations"][0]["integration_id"] == "candid"
     assert payload["integration_evaluation"]["integrations"][0]["availability_status"] == "tenant_disabled"
+

@@ -1,35 +1,35 @@
-# Charity Status Public Core (Scaffold)
+﻿# Charity Status Public Core (Scaffold)
 
 This directory is split scaffolding for the future public repository.
 
 In this monorepo phase, the canonical source still lives in:
 
-- `infrastructure/charity_status/`
+- `infrastructure/verification/`
 
-The `pyproject.toml` here is intentionally configured to package `charity_status` from that location so contributors can validate packaging boundaries before a physical repo split.
-The package now has an active `src/` root for the first extracted open-safe modules while the live application runtime still imports from `infrastructure/charity_status/`.
+The `pyproject.toml` here is intentionally configured to package `verification` from that location so contributors can validate packaging boundaries before a physical repo split.
+The package now has an active `src/` root for the first extracted open-safe modules while the live application runtime still imports from `infrastructure/verification/`.
 
 Target package root after extraction:
 
-- `public-core/src/charity_status/`
+- `public-core/src/verification/`
 
 Scaffolding added in this repo phase:
 
-- `public-core/src/charity_status/__init__.py`
-- `public-core/src/charity_status/README.md`
+- `public-core/src/verification/__init__.py`
+- `public-core/src/verification/README.md`
 
 Officially extracted modules in this phase:
 
-- `charity_status.normalization`
-- `charity_status.sources`
-- schema-only `charity_status.evidence`
-- schema-only `charity_status.policy`
+- `verification.normalization`
+- `verification.sources`
+- schema-only `verification.evidence`
+- schema-only `verification.policy`
 
 Compatibility note:
 
 - existing server/runtime imports are unchanged
-- `infrastructure/charity_status/` remains the live application path for now
-- extracted modules are copied into `public-core/src/charity_status/` first so future phases can flip imports safely
+- `infrastructure/verification/` remains the live application path for now
+- extracted modules are copied into `public-core/src/verification/` first so future phases can flip imports safely
 
 ## Intended Public-Core Scope
 
@@ -59,3 +59,4 @@ Public-core boundary rule:
 - all platform billing
 
 See `docs/repo-target-architecture.md`, `docs/repo-split-guide.md`, and `split-plan.json` at repository root for migration details.
+

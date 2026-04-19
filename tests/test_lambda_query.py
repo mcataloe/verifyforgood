@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 import hashlib
 import hmac
 import json
@@ -8,19 +8,19 @@ from decimal import Decimal
 from time import time
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
-from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
-from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
-from charity_status.billing.models import Subscription
-from charity_status.billing.plan_changes import BillingPlanChangeService
-from charity_status.billing.portal import BillingPortalService, PortalSessionResult
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from charity_status.control_plane.models import ManagedSubscription
-from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status.scoring import SCORING_MODEL_VERSION
-from charity_status.core.models import AuthContext
-from charity_status_platform.customer_accounts import (
+from verification.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
+from verification.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
+from verification.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from verification.billing.models import Subscription
+from verification.billing.plan_changes import BillingPlanChangeService
+from verification.billing.portal import BillingPortalService, PortalSessionResult
+from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.control_plane.models import ManagedSubscription
+from verification.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.platform.auth import ApiKeyQuotaMeteringHook
+from verification.scoring import SCORING_MODEL_VERSION
+from verification.core.models import AuthContext
+from verification_platform.customer_accounts import (
     AuditEventType,
     AuditLogService,
     AuditRecord,
@@ -46,7 +46,7 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.nonprofits import (
+from verification_platform.nonprofits import (
     NonprofitFilingRecord,
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
@@ -4161,3 +4161,4 @@ def test_ops_routes_reject_customer_api_key(monkeypatch):
     )
 
     assert result["statusCode"] == 401
+

@@ -1,7 +1,7 @@
-import pathlib
+﻿import pathlib
 
-from infrastructure.charity_status.form990.extractors.metadata import extract_metadata_fields
-from infrastructure.charity_status.form990.parser import XmlParseError, parse_xml
+from infrastructure.verification.form990.extractors.metadata import extract_metadata_fields
+from infrastructure.verification.form990.parser import XmlParseError, parse_xml
 
 
 def test_extract_metadata_from_sample_xml():
@@ -36,3 +36,4 @@ def test_missing_fields_resolve_to_none():
     assert metadata["tax_year"] is None
     assert metadata["amended_return"] is None
     assert metadata["return_type"] is None
+

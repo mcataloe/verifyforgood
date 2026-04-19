@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from charity_status.enrichments import EvaluationContext
-from charity_status.query.search import search_nonprofit_summaries
-from charity_status.query.source_views import (
+from verification.enrichments import EvaluationContext
+from verification.query.search import search_nonprofit_summaries
+from verification.query.source_views import (
     get_nonprofit_compliance_view,
     get_nonprofit_federal_awards_view,
     get_nonprofit_single_source_view,
@@ -195,3 +195,4 @@ __all__ = [
     "NonprofitService",
     "TenantNonprofitContext",
 ]
+

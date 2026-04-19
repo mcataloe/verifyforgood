@@ -1,4 +1,4 @@
-# Monthly Ingest Runbook
+﻿# Monthly Ingest Runbook
 
 ## Purpose
 
@@ -48,7 +48,7 @@ The staging Lambda does not:
 
 Ownership note:
 
-- executable staging and task runtime ownership now lives under `backend/ingest-task/src/charity_status_backend/ingest_task/`
+- executable staging and task runtime ownership now lives under `backend/ingest-task/src/verification_backend/ingest_task/`
 - `infrastructure/lambda_monthly_ingest_staging.py` and `infrastructure/monthly_ingest_worker.py` remain temporary compatibility adapters for deployment wiring
 
 ## ECS Worker Runtime Contract
@@ -215,3 +215,4 @@ Troubleshooting sequence:
 - connect expected job artifacts (`manifest.json`, `artifacts.json`, `summary.json`) to downstream dataset-specific processing
 - add image build/push automation for the backend-owned `backend/ingest-task/Dockerfile`
 - decide whether later phases should emit a customer-safe summary record outside Step Functions execution history
+

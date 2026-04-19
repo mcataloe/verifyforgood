@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import pathlib
@@ -16,9 +16,9 @@ for path in (ROOT, INFRA_PATH, PRIVATE_PLATFORM_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from charity_status.platform import resolve_nonprofit_postgres_sqlalchemy_url  # noqa: E402
-from charity_status_platform.customer_accounts import CustomerAccountsBase  # noqa: E402
-from charity_status_platform.nonprofits import NONPROFIT_TABLE_NAMES  # noqa: E402
+from verification.platform import resolve_nonprofit_postgres_sqlalchemy_url  # noqa: E402
+from verification_platform.customer_accounts import CustomerAccountsBase  # noqa: E402
+from verification_platform.nonprofits import NONPROFIT_TABLE_NAMES  # noqa: E402
 
 config = context.config
 
@@ -87,3 +87,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+

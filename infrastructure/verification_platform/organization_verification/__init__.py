@@ -1,15 +1,15 @@
-from charity_status.decision.engine import build_decision
-from charity_status.evidence.builder import build_evidence
-from charity_status.policy.engine import evaluate_policy
-from charity_status.query.athena import AthenaQueryClient
-from charity_status.query.search import search_nonprofit_summaries
-from charity_status.scoring.calculator import (
+﻿from verification.decision.engine import build_decision
+from verification.evidence.builder import build_evidence
+from verification.policy.engine import evaluate_policy
+from verification.query.athena import AthenaQueryClient
+from verification.query.search import search_nonprofit_summaries
+from verification.scoring.calculator import (
     SCORING_MODEL_VERSION,
     ScoreResult,
     calculate_v1_scores,
 )
-from charity_status.scoring.peer_stats import compute_peer_stats
-from charity_status.scoring.peers import (
+from verification.scoring.peer_stats import compute_peer_stats
+from verification.scoring.peers import (
     assign_peer_group,
     revenue_band,
 )
@@ -47,3 +47,4 @@ __all__ = [
     "verify_nonprofit",
     "verify_organization",
 ]
+

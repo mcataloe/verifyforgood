@@ -1,5 +1,5 @@
-from infrastructure.charity_status.scoring.peer_stats import compute_peer_stats
-from infrastructure.charity_status.scoring.peers import assign_peer_group, revenue_band
+﻿from infrastructure.verification.scoring.peer_stats import compute_peer_stats
+from infrastructure.verification.scoring.peers import assign_peer_group, revenue_band
 
 
 def test_revenue_band_assignment():
@@ -37,3 +37,4 @@ def test_compute_peer_stats_distribution():
     assert stats["metrics"]["programExpenseRatio"]["median"] == 0.75
     assert stats["metrics"]["programExpenseRatio"]["p25"] is not None
     assert stats["metrics"]["operatingMargin"]["min"] == 0.01
+

@@ -1,18 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
 
 import pytest
 
-from charity_status_backend.ingest_task.eo_bmf_ingest import EO_BMF_FILING_FORM_TYPE, ingest_eo_bmf_csv
-from charity_status_backend.ingest_task.eo_bmf_runner import run_local_eo_bmf_ingest
-from charity_status_platform.customer_accounts import (
+from verification_backend.ingest_task.eo_bmf_ingest import EO_BMF_FILING_FORM_TYPE, ingest_eo_bmf_csv
+from verification_backend.ingest_task.eo_bmf_runner import run_local_eo_bmf_ingest
+from verification_platform.customer_accounts import (
     CustomerAccountsBase,
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.nonprofits import (
+from verification_platform.nonprofits import (
     EoBmfNonprofitPersistenceService,
     NonprofitFilingRecord,
     NonprofitRecord,
@@ -286,11 +286,11 @@ def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, 
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification_backend.ingest_task.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification_backend.ingest_task.eo_bmf_runner.IRS_FILES",
         ["eo1.csv"],
     )
 
@@ -348,11 +348,11 @@ def test_run_local_eo_bmf_ingest_processes_multiple_files_with_workers(tmp_path:
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification_backend.ingest_task.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification_backend.ingest_task.eo_bmf_runner.IRS_FILES",
         ["eo1.csv", "eo2.csv"],
     )
 
@@ -397,15 +397,15 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification_backend.ingest_task.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification_backend.ingest_task.eo_bmf_runner.IRS_FILES",
         ["eo1.csv", "eo2.csv"],
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.build_progress_reporter",
+        "verification_backend.ingest_task.eo_bmf_runner.build_progress_reporter",
         lambda: reporter,
     )
 
@@ -432,3 +432,4 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
     assert sum(int(call["completed_items"]) for call in reporter.sessions[0].calls) == 4
     assert any(call["increments"] == {"invalid": 1} for call in reporter.sessions[0].calls)
     assert any(call["increments"] == {"processed": 1} for call in reporter.sessions[0].calls)
+

@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status.branding import default_runtime_user_agent, load_branding_config
-from charity_status.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
-from charity_status.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
-from charity_status.state_registry.adapters.colorado.client import ColoradoRegistryClient
+from verification.branding import default_runtime_user_agent, load_branding_config
+from verification.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
+from verification.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
+from verification.state_registry.adapters.colorado.client import ColoradoRegistryClient
 
 
 def test_load_branding_config_defaults_to_capability_based_names():
@@ -83,14 +83,14 @@ def test_state_registry_clients_default_to_neutral_runtime_user_agent():
 
 def test_runtime_source_files_no_longer_embed_legacy_brand_identifier():
     files = [
-        "infrastructure/charity_status/billing/checkout.py",
-        "infrastructure/charity_status/state_registry/adapters/colorado/client.py",
-        "infrastructure/charity_status/state_registry/adapters/kentucky/client.py",
-        "infrastructure/charity_status/state_registry/adapters/nevada/client.py",
-        "infrastructure/charity_status/state_registry/adapters/new_york/client.py",
-        "infrastructure/charity_status/state_registry/adapters/ohio/client.py",
-        "infrastructure/charity_status/state_registry/adapters/south_dakota/client.py",
-        "infrastructure/charity_status/state_registry/adapters/utah/client.py",
+        "infrastructure/verification/billing/checkout.py",
+        "infrastructure/verification/state_registry/adapters/colorado/client.py",
+        "infrastructure/verification/state_registry/adapters/kentucky/client.py",
+        "infrastructure/verification/state_registry/adapters/nevada/client.py",
+        "infrastructure/verification/state_registry/adapters/new_york/client.py",
+        "infrastructure/verification/state_registry/adapters/ohio/client.py",
+        "infrastructure/verification/state_registry/adapters/south_dakota/client.py",
+        "infrastructure/verification/state_registry/adapters/utah/client.py",
     ]
 
     for relative_path in files:
@@ -121,3 +121,4 @@ def test_infrastructure_wires_runtime_branding_configuration():
     assert 'root_domain_name          = "verification.example.com"' in shared_example
     assert 'base_name                 = "verification-platform"' in tfvars_example
     assert 'root_domain_name           = "verification.example.com"' in tfvars_example
+

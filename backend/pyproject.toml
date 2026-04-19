@@ -1,4 +1,4 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
@@ -21,19 +21,20 @@ classifiers = [
 [tool.setuptools]
 packages = [
   "ingest_task",
-  "charity_status_backend.api",
-  "charity_status_backend.worker",
-  "charity_status_backend.ingest_task",
-  "charity_status_backend.ingest_task.form990",
-  "charity_status_backend.ingest_task.monthly",
-  "charity_status_backend.shared",
+  "verification_backend.api",
+  "verification_backend.worker",
+  "verification_backend.ingest_task",
+  "verification_backend.ingest_task.form990",
+  "verification_backend.ingest_task.monthly",
+  "verification_backend.shared",
 ]
 
 [tool.setuptools.package-dir]
 "ingest_task" = "ingest-task/src/ingest_task"
-"charity_status_backend.api" = "api/src/charity_status_backend/api"
-"charity_status_backend.worker" = "worker/src/charity_status_backend/worker"
-"charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"
-"charity_status_backend.ingest_task.form990" = "ingest-task/src/charity_status_backend/ingest_task/form990"
-"charity_status_backend.ingest_task.monthly" = "ingest-task/src/charity_status_backend/ingest_task/monthly"
-"charity_status_backend.shared" = "shared/src/charity_status_backend/shared"
+"verification_backend.api" = "api/src/verification_backend/api"
+"verification_backend.worker" = "worker/src/verification_backend/worker"
+"verification_backend.ingest_task" = "ingest-task/src/verification_backend/ingest_task"
+"verification_backend.ingest_task.form990" = "ingest-task/src/verification_backend/ingest_task/form990"
+"verification_backend.ingest_task.monthly" = "ingest-task/src/verification_backend/ingest_task/monthly"
+"verification_backend.shared" = "shared/src/verification_backend/shared"
+

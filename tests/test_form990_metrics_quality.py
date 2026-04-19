@@ -1,7 +1,7 @@
-from datetime import date
+﻿from datetime import date
 
-from infrastructure.charity_status.form990.metrics import compute_derived_metrics
-from infrastructure.charity_status.form990.quality import compute_filing_quality
+from infrastructure.verification.form990.metrics import compute_derived_metrics
+from infrastructure.verification.form990.quality import compute_filing_quality
 
 
 def test_compute_derived_metrics_nominal_case():
@@ -78,3 +78,4 @@ def test_compute_filing_quality_partial_document():
 
     assert quality["missingRequiredFieldsCount"] >= 1
     assert quality["anomalyFlags"] == []
+

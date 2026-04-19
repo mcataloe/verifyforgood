@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 
 def test_form990_raw_source_prefix_variable_exists():
@@ -34,7 +34,7 @@ def test_form990_next_year_generation_defaults_enabled():
 
 
 def test_form990_static_manifest_is_packaged_with_form990_code():
-    assert Path("infrastructure/charity_status/form990/Form990Links.txt").exists()
+    assert Path("infrastructure/verification/form990/Form990Links.txt").exists()
 
 
 def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
@@ -47,10 +47,10 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
     dockerfile = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
-    assert "charity_status_backend.ingest_task.cli" in dockerfile
+    assert "verification_backend.ingest_task.cli" in dockerfile
     assert 'CMD ["monthly-worker"]' in dockerfile
     assert 'command    = ["ecs-run"]' in ecs_content
-    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in ecs_content
+    assert 'entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]' in ecs_content
     assert 'WORKSPACE_PATH' in ecs_content
     assert 'STRICT_MODE' in ecs_content
     assert 'MAX_ARCHIVES' in ecs_content
@@ -65,9 +65,9 @@ def test_monthly_and_persistence_runtime_entrypoints_are_backend_owned_behind_sh
     persistence = Path("infrastructure/nonprofit_ingest_persistence.py").read_text(encoding="utf-8")
 
     assert "backend-owned monthly ECS worker runtime" in monthly_worker
-    assert "charity_status_backend.ingest_task.monthly.worker" in monthly_worker
+    assert "verification_backend.ingest_task.monthly.worker" in monthly_worker
     assert "backend-owned nonprofit ingest persistence" in persistence
-    assert "charity_status_backend.ingest_task.persistence" in persistence
+    assert "verification_backend.ingest_task.persistence" in persistence
 
 
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():
@@ -76,3 +76,4 @@ def test_dev_form990_defaults_use_orchestrated_current_year_scope():
     assert '"orchestrated"' in content
     assert "form990_incremental_year_window" in content
     assert "= 1" in content
+

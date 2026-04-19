@@ -1,0 +1,100 @@
+﻿from __future__ import annotations
+
+import json
+import urllib.parse
+import urllib.request
+from abc import ABC, abstractmethod
+from typing import Any
+
+from verification.enrichments.base import EnrichmentProvider, ProviderError
+from verification.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
+from verification.sources import ProviderCapability, SourceCategory
+
+
+class USAspendingAdapter(ABC):
+    @abstractmethod
+    def lookup(self, ein: str, organization_name: str | None = None) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+
+class USAspendingApiAdapter(USAspendingAdapter):
+    def __init__(self, endpoint: str, timeout_seconds: int = 5) -> None:
+        self._endpoint = endpoint
+        self._timeout_seconds = timeout_seconds
+
+    def lookup(self, ein: str, organization_name: str | None = None) -> dict[str, Any] | None:
+        query = f"?ein={urllib.parse.quote(ein)}"
+        request = urllib.request.Request(f"{self._endpoint}{query}", headers={"Accept": "application/json"}, method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                if response.status >= 400:
+                    raise ProviderError(f"USAspending lookup failed with status {response.status}")
+                payload = json.loads(response.read().decode("utf-8"))
+                return payload if isinstance(payload, dict) else None
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(f"USAspending lookup failed: {exc}") from exc
+
+
+class USAspendingProvider(EnrichmentProvider):
+    def __init__(self, enabled: bool, adapter: USAspendingAdapter | None = None) -> None:
+        self._enabled = enabled
+        self._adapter = adapter
+
+    @property
+    def name(self) -> str:
+        return "usaspending"
+
+    def is_enabled(self) -> bool:
+        return self._enabled and self._adapter is not None
+
+    def capabilities(self) -> list[ProviderCapability]:
+        return [ProviderCapability(provider_name=self.name, categories=[SourceCategory.FEDERAL_AWARDS], source_ids=["usaspending.federal_awards"], us_only=True)]
+
+    def lookup(self, ein: str, organization_name: str | None = None) -> EnrichmentProviderResult:
+        if not self.is_enabled():
+            return self.disabled_result()
+        fetched_at = now_utc_iso()
+        try:
+            raw = self._adapter.lookup(ein=ein, organization_name=organization_name)
+        except Exception as exc:
+            raise ProviderError(f"USAspending lookup failed: {exc}") from exc
+        fields = self._normalize(raw or {})
+        status = EnrichmentStatus.MATCHED if fields else EnrichmentStatus.NO_MATCH
+        return EnrichmentProviderResult(
+            name=self.name,
+            status=status,
+            provider_record_id=None,
+            fetched_at=fetched_at,
+            fields=fields,
+            source_payload=raw if isinstance(raw, dict) else None,
+            source={"record_id": None, "fetched_at": fetched_at, "licensed": True, "notes": "USAspending federal awards scaffold"},
+            source_records=(
+                [
+                    self.build_normalized_source_record(
+                        ein=ein,
+                        source_id="usaspending.federal_awards",
+                        category=SourceCategory.FEDERAL_AWARDS,
+                        description="USAspending federal awards source",
+                        fetched_at=fetched_at,
+                        fields=fields,
+                    )
+                ]
+                if fields
+                else []
+            ),
+            capabilities=[capability.to_dict() for capability in self.capabilities()],
+        )
+
+    @staticmethod
+    def _normalize(payload: dict[str, Any]) -> dict[str, Any]:
+        if not payload:
+            return {}
+        return {
+            "award_count": payload.get("award_count"),
+            "total_obligations_usd": payload.get("total_obligations_usd"),
+            "latest_award_date": payload.get("latest_award_date"),
+            "top_awarding_agency": payload.get("top_awarding_agency"),
+        }
+

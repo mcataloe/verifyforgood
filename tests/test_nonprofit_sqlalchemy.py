@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
-from charity_status_platform.nonprofits import (
+from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
+from verification_platform.nonprofits import (
     ComplianceCheckRecord,
     Form990ArchiveRecord,
     Form990ExtractedFileRecord,
@@ -23,7 +23,7 @@ from charity_status_platform.nonprofits import (
     build_nonprofit_session_factory,
     create_nonprofit_tables,
 )
-from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
+from verification_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
 
 def _session_factory(tmp_path: Path):
@@ -617,3 +617,4 @@ def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_p
     )
 
     assert client.lookup_nonprofit("123456789")[1]["name"] == "Dedicated Nonprofit DB Org"
+

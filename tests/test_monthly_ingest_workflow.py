@@ -1,6 +1,6 @@
-import json
+﻿import json
 
-from charity_status.ingest import (
+from verification.ingest import (
     EcsTaskRuntimeContract,
     default_interface_endpoint_services,
     load_monthly_ingest_workflow_config,
@@ -124,3 +124,4 @@ def test_interface_endpoint_contract_is_environment_aware():
         "job_id": "job-123",
         "correlation_id": "corr-123",
     }
+

@@ -1,9 +1,9 @@
-# Infrastructure Directory Boundary
+﻿# Infrastructure Directory Boundary
 
 Current role:
 
 - this directory still contains both deployment assets and active Python runtime code
-- Terraform, env files, Lambda entrypoints, and the current `charity_status` implementation all still live here today
+- Terraform, env files, Lambda entrypoints, and the current `verification` implementation all still live here today
 - Terraform resource names are centralized in `main.tf` locals and can opt into the standardized `<namespace>-<platform>-<purpose>-<environment>-<region>` pattern without forcing immediate renames of deployed infrastructure
 
 Target role:
@@ -91,17 +91,17 @@ deployed secret-backed wiring:
 - copy `backend/.env.local.example` to `backend/.env.local`
 - set `PLATFORM_POSTGRES_URL` to a direct local PostgreSQL endpoint
 - set `PLATFORM_NONPROFIT_POSTGRES_URL` only when nonprofit and Form 990 data should live on a separate database
-- run `python -m charity_status_backend.shared.local_dev db-upgrade`
-- run `python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
-- use `python -m charity_status_backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
-- use `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
-- run `python -m charity_status_backend.api.entrypoint`
+- run `python -m verification_backend.shared.local_dev db-upgrade`
+- run `python -m verification_backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
+- use `python -m verification_backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
+- use `python -m verification_backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
+- run `python -m verification_backend.api.entrypoint`
 
 PostgreSQL-only rollout order:
 
 1. run `alembic upgrade head`
-2. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
-3. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
+2. run `python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
+3. run `python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity`
 4. deploy with PostgreSQL runtime env wiring only
 5. recreate or reseed any dev-only data that previously lived in DynamoDB
 
@@ -239,3 +239,4 @@ Container build guidance:
   monthly and Form 990 task execution
 - scheduled and one-off ingest execution should keep using ECS tasks, not the
   general worker service
+

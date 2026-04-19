@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from charity_status.auth import build_admin_key_record, build_api_key_record
-from charity_status.auth.errors import QuotaExceededError
-from charity_status.auth.oauth import authenticate_oauth_client_credentials
-from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
-from charity_status.control_plane import (
+from verification.auth import build_admin_key_record, build_api_key_record
+from verification.auth.errors import QuotaExceededError
+from verification.auth.oauth import authenticate_oauth_client_credentials
+from verification.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.control_plane import (
     Account,
     ControlPlaneService,
     DynamoControlPlaneStore,
@@ -23,10 +23,10 @@ from charity_status.control_plane import (
     ManagedSubscription,
     ManagedTrialHistory,
 )
-from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
-from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
+from verification.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
 
 
 class _BillingSettingsResolver:
@@ -526,3 +526,4 @@ def test_legacy_dynamo_account_without_subscription_returns_null_subscription():
     account = service.get_account("acct_legacy_no_sub")
 
     assert account["subscription"] is None
+

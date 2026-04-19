@@ -1,11 +1,11 @@
-from charity_status.normalization.irs_codes import (
+from verification.normalization.irs_codes import (
     map_deductibility,
     map_entity_type,
     map_irs_status,
     map_ntee_category,
     recent_990_on_file,
 )
-from charity_status.normalization.name_match import compare_names
+from verification.normalization.name_match import compare_names
 from .ein_validation import (
     EINValidationError,
     format_ein,

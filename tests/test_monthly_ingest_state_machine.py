@@ -1,4 +1,4 @@
-import json
+﻿import json
 from pathlib import Path
 
 
@@ -109,7 +109,7 @@ def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
     assert 'ephemeral_storage {' in content
     assert 'monthly_ingest_worker_image_uri_resolved' in content
     assert 'monthly_ingest_task_definition_arn_resolved' in content
-    assert 'entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]' in content
+    assert 'entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]' in content
     assert 'command    = ["ecs-run"]' in content
     assert 'FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES' in content
     assert 'WORKSPACE_PATH' in content
@@ -242,3 +242,4 @@ def test_api_ecs_variables_outputs_and_parallel_ingress_docs_are_present():
     assert "Phase 25C/25D implementation status" in ecs_blueprint
     assert "`backend/worker` -> provisionable ECS Fargate service slot" in ecs_blueprint
     assert "Route53 now points the primary hostname at the ALB" in ecs_blueprint
+

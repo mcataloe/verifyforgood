@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 import subprocess
@@ -16,20 +16,20 @@ if str(BACKEND_SHARED_SRC) not in sys.path:
     sys.path.insert(0, str(BACKEND_SHARED_SRC))
 
 
-from charity_status_backend.shared import local_dev
-from charity_status_backend.shared.local_dev import (
+from verification_backend.shared import local_dev
+from verification_backend.shared.local_dev import (
     backend_env_file,
     load_backend_local_env,
     run_db_current,
     run_db_upgrade,
 )
-from charity_status_platform.nonprofits import (
+from verification_platform.nonprofits import (
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
     build_nonprofit_session_factory,
 )
-from charity_status_platform.runtime import cutover_nonprofit_database
-from charity_status_platform.runtime.nonprofit_db_cutover import _sync_identity_sequences
+from verification_platform.runtime import cutover_nonprofit_database
+from verification_platform.runtime.nonprofit_db_cutover import _sync_identity_sequences
 
 
 def test_backend_local_env_loader_prefers_existing_shell_values(tmp_path, monkeypatch):
@@ -102,7 +102,7 @@ def test_backend_local_dev_can_bootstrap_dedicated_nonprofit_database(tmp_path):
         encoding="utf-8",
     )
 
-    from charity_status_backend.shared.local_dev import run_db_upgrade_nonprofit
+    from verification_backend.shared.local_dev import run_db_upgrade_nonprofit
 
     load_backend_local_env(env_path=env_path, override=True)
     run_db_upgrade_nonprofit()
@@ -121,7 +121,7 @@ def test_backend_local_dev_module_bootstraps_repo_python_paths():
         (
             "import sys; "
             f"sys.path.insert(0, r'{module_path}'); "
-            "import charity_status_backend.shared.local_dev as local_dev; "
+            "import verification_backend.shared.local_dev as local_dev; "
             "print(local_dev.repo_root())"
         ),
     ]
@@ -218,7 +218,7 @@ def test_cutover_nonprofit_database_resets_target_and_copies_rows(tmp_path):
     target_engine = create_engine(target_url)
     source_repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(source_engine))
     target_repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(target_engine))
-    from charity_status_platform.nonprofits import create_nonprofit_tables
+    from verification_platform.nonprofits import create_nonprofit_tables
 
     create_nonprofit_tables(source_engine)
     create_nonprofit_tables(target_engine)
@@ -321,3 +321,4 @@ def test_sync_identity_sequences_uses_sequence_start_for_empty_tables():
             "is_called": False,
         }
     ]
+

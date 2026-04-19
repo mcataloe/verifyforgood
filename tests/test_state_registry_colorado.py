@@ -1,18 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from charity_status.state_registry import (
+from verification.state_registry import (
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
     StateRegistryLookupRequest,
     StateRegistryLookupService,
     StateRegistryStanding,
 )
-from charity_status.state_registry.adapters import ColoradoBusinessRegistryAdapter
-from charity_status.state_registry.adapters.colorado.client import ColoradoRegistryClient
-from charity_status.state_registry.adapters.colorado.mapper import map_colorado_record
+from verification.state_registry.adapters import ColoradoBusinessRegistryAdapter
+from verification.state_registry.adapters.colorado.client import ColoradoRegistryClient
+from verification.state_registry.adapters.colorado.mapper import map_colorado_record
 
 
 FIXTURE_DIR = Path("tests/fixtures/state_registry/colorado")
@@ -121,3 +121,4 @@ def test_colorado_client_rejects_non_list_payload(monkeypatch):
         assert False, "expected error"
     except Exception as exc:
         assert "response must be a list" in str(exc)
+

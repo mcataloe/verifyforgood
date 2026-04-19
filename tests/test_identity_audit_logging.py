@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 
-from charity_status_platform.customer_accounts import (
+from verification_platform.customer_accounts import (
     AuditEventType,
     AuditLogService,
     DynamoAuditLogRepository,
@@ -18,7 +18,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationService,
 )
-from charity_status_platform.identity_access import (
+from verification_platform.identity_access import (
     AuthService,
     BcryptPasswordHasher,
     HmacBearerTokenCodec,
@@ -284,3 +284,4 @@ def test_auth_service_login_uses_local_identity_provider_abstraction():
 
     assert logged_in.user.user_id == registered.user.user_id
     assert logged_in.user.email == "person@example.com"
+

@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 
-from charity_status.auth import InMemoryUsageStore
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status_platform.billing_usage import monthly_period_for
-from charity_status_platform.customer_accounts import (
+from verification.auth import InMemoryUsageStore
+from verification.platform.auth import ApiKeyQuotaMeteringHook
+from verification_platform.billing_usage import monthly_period_for
+from verification_platform.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoInvitationRepository,
     DynamoUsageRepository,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification_platform.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -620,3 +620,4 @@ def test_portal_session_nonprofit_query_rejects_non_member(monkeypatch):
 
     assert response["statusCode"] == 403
     assert payload["errors"][0]["message"] == "Active membership is required for nonprofit queries"
+

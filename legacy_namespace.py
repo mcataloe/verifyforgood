@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import sys
 import warnings
 
 
-TARGET_NAMESPACE_ROOT = "charity_status"
+TARGET_NAMESPACE_ROOT = "verification"
 LEGACY_TOP_LEVEL_MODULES: tuple[str, ...] = (
     "api",
     "auth",
@@ -34,7 +34,7 @@ LEGACY_TOP_LEVEL_MODULES: tuple[str, ...] = (
 
 def bootstrap_legacy_namespace(alias_root: str) -> dict[str, object]:
     warnings.warn(
-        f"{alias_root} is a compatibility namespace. Prefer verification_platform.* or charity_status.* imports for new code.",
+        f"{alias_root} is a compatibility namespace. Prefer verification_platform.* or verification.* imports for new code.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -55,3 +55,4 @@ __all__ = [
     "TARGET_NAMESPACE_ROOT",
     "bootstrap_legacy_namespace",
 ]
+

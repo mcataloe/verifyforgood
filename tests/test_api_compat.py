@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import importlib
@@ -20,7 +20,7 @@ for path in (PRIVATE_PLATFORM_SRC, INFRASTRUCTURE_SRC, BACKEND_API_SRC, BACKEND_
 
 
 def test_health_and_ready_endpoints():
-    from charity_status_backend.api.app import create_app
+    from verification_backend.api.app import create_app
 
     client = TestClient(create_app())
 
@@ -34,8 +34,8 @@ def test_health_and_ready_endpoints():
 
 
 def test_compat_route_preserves_path_headers_and_query(monkeypatch):
-    from charity_status_backend.api.app import create_app
-    from charity_status_backend.api import runtime as api_runtime
+    from verification_backend.api.app import create_app
+    from verification_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -73,8 +73,8 @@ def test_compat_route_preserves_path_headers_and_query(monkeypatch):
 
 
 def test_compat_route_preserves_json_body_for_portal_auth(monkeypatch):
-    from charity_status_backend.api.app import create_app
-    from charity_status_backend.api import runtime as api_runtime
+    from verification_backend.api.app import create_app
+    from verification_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -106,8 +106,8 @@ def test_compat_route_preserves_json_body_for_portal_auth(monkeypatch):
 
 
 def test_webhook_route_preserves_raw_body_and_signature_header(monkeypatch):
-    from charity_status_backend.api.app import create_app
-    from charity_status_backend.api import runtime as api_runtime
+    from verification_backend.api.app import create_app
+    from verification_backend.api import runtime as api_runtime
 
     def fake_handle_api_event(event, context=None):
         return {
@@ -143,14 +143,14 @@ def test_webhook_route_preserves_raw_body_and_signature_header(monkeypatch):
 
 
 def test_private_platform_api_compat_reexports_backend_owned_app():
-    from charity_status_backend.api.app import create_app as backend_create_app
-    from charity_status_platform.runtime.api_compat import create_app as compat_create_app
+    from verification_backend.api.app import create_app as backend_create_app
+    from verification_platform.runtime.api_compat import create_app as compat_create_app
 
     assert compat_create_app is backend_create_app
 
 
 def test_backend_api_app_import_loads_shared_local_env(monkeypatch):
-    from charity_status_backend.shared import local_dev
+    from verification_backend.shared import local_dev
 
     calls: list[tuple[object, object, object]] = []
 
@@ -159,11 +159,12 @@ def test_backend_api_app_import_loads_shared_local_env(monkeypatch):
         return pathlib.Path("backend/.env.local")
 
     monkeypatch.setattr(local_dev, "load_backend_local_env", fake_loader)
-    sys.modules.pop("charity_status_backend.api.app", None)
+    sys.modules.pop("verification_backend.api.app", None)
 
     try:
-        importlib.import_module("charity_status_backend.api.app")
+        importlib.import_module("verification_backend.api.app")
     finally:
-        sys.modules.pop("charity_status_backend.api.app", None)
+        sys.modules.pop("verification_backend.api.app", None)
 
     assert calls == [(None, None, False)]
+

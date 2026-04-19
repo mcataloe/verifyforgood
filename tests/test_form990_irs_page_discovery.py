@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from infrastructure.charity_status.form990.irs_page_discovery import (
+from infrastructure.verification.form990.irs_page_discovery import (
     IrsYearSource,
     diff_source_catalog,
     discover_irs_form990_sources,
@@ -149,3 +149,4 @@ def test_discover_irs_page_sources_extracts_multiple_archives_same_year(monkeypa
     assert "2024_teos_xml_11b" in names
     assert "2024_teos_xml_11c" in names
     assert "2024_teos_xml_11d" in names
+

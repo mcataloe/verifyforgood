@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
-from charity_status.enrichments.compliance import extract_state_compliance
-from charity_status.enrichments.providers.state_registry_mock import StateRegistryMockProvider
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.enrichments.service import EnrichmentService
-from charity_status.policy import evaluate_policy
-from charity_status.query.verification import VerificationInput, verify_nonprofit
+from verification.enrichments.compliance import extract_state_compliance
+from verification.enrichments.providers.state_registry_mock import StateRegistryMockProvider
+from verification.enrichments.registry import ProviderRegistry
+from verification.enrichments.service import EnrichmentService
+from verification.policy import evaluate_policy
+from verification.query.verification import VerificationInput, verify_nonprofit
 
 
 def _client(name: str = "Evidence Org"):
@@ -67,3 +67,4 @@ def test_adverse_compliance_flag_affects_evidence_and_policy():
 
     policy_eval = evaluate_policy(payload, "strict_manual")
     assert policy_eval["final_recommendation"] == "manual_review"
+

@@ -1,4 +1,4 @@
-# Platform Persistence Relational Pivot
+﻿# Platform Persistence Relational Pivot
 
 ## Status
 
@@ -42,9 +42,9 @@ The portal identity and control-plane domains are strongly relational:
 The repo already has useful abstraction seams:
 
 - repository protocols in
-  `private-platform/src/charity_status_platform/customer_accounts/identity_repositories.py`
+  `private-platform/src/verification_platform/customer_accounts/identity_repositories.py`
 - `ControlPlaneStore` protocol in
-  `infrastructure/charity_status/control_plane/service.py`
+  `infrastructure/verification/control_plane/service.py`
 - service layers that are mostly storage-agnostic above those protocols
 
 ## Decision Details
@@ -104,3 +104,4 @@ Use additive migration rather than replacement:
 - Infrastructure must add PostgreSQL networking, secrets, and runtime
   configuration while keeping existing DynamoDB resources available during the
   migration.
+

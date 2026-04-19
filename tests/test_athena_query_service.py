@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from charity_status.query.athena_service import AthenaQueryClient
+from verification.query.athena_service import AthenaQueryClient
 
 
 class _FakeAthenaClient:
@@ -49,3 +49,4 @@ def test_athena_query_client_supports_injected_client_without_boto3_setup():
         "status": "1",
     }
     assert "SELECT * FROM eo_table WHERE ein = '123456789' LIMIT 1" in fake.queries[0]
+

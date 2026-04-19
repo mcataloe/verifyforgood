@@ -1,14 +1,14 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore, build_api_key_record, build_oauth_client_record, build_oauth_token_record
-from charity_status.auth.errors import AuthenticationError
-from charity_status.auth.oauth import StaticOAuthClientStore, StaticOAuthTokenStore, authenticate_bearer_token, authenticate_oauth_client_credentials
-from charity_status.platform.auth import OAuthClientCredentialsService
+from verification.auth import InMemoryUsageStore, build_api_key_record, build_oauth_client_record, build_oauth_token_record
+from verification.auth.errors import AuthenticationError
+from verification.auth.oauth import StaticOAuthClientStore, StaticOAuthTokenStore, authenticate_bearer_token, authenticate_oauth_client_credentials
+from verification.platform.auth import OAuthClientCredentialsService
 
 
 def _query_stub():
@@ -231,3 +231,4 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
     )
     assert api_key_response["statusCode"] == 403
     assert oauth_response["statusCode"] == 403
+
