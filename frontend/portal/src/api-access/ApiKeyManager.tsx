@@ -1,5 +1,21 @@
-import { IconCopy, IconEye, IconEyeOff } from "@tabler/icons-react";
-import { useState } from "react";
+import {
+  IconCopy,
+  IconEdit,
+  IconEye,
+  IconEyeOff,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  ActionIcon,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  TextInput,
+  Textarea,
+  Tooltip,
+} from "@mantine/core";
 import {
   DataTable,
   Inline,
@@ -7,6 +23,7 @@ import {
   type DataTableColumn,
 } from "@charity-status/shared-ui";
 import { PortalNotice } from "../components/feedback";
+import { InfoTooltip } from "../components/InfoTooltip";
 import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
@@ -25,9 +42,13 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   });
   const apiKeys = controller ?? defaultController;
   const [displayName, setDisplayName] = useState("");
-  const [pendingRevokeKeyId, setPendingRevokeKeyId] = useState<string | null>(
-    null,
-  );
+  const [description, setDescription] = useState("");
+  const [pendingRevokeKey, setPendingRevokeKey] = useState<
+    (typeof apiKeys.items)[number] | null
+  >(null);
+  const [editingKey, setEditingKey] = useState<
+    (typeof apiKeys.items)[number] | null
+  >(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSecretVisible, setIsSecretVisible] = useState(false);
 
@@ -39,7 +60,14 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
       key: "display_name",
       header: "Display Name",
       sortable: true,
-      render: (row) => row.display_name,
+      render: (row) => (
+        <div className="portal-key-row">
+          <div className="portal-key-row__name">{row.display_name}</div>
+          {row.description ? (
+            <div className="portal-key-row__description">{row.description}</div>
+          ) : null}
+        </div>
+      ),
       sortValue: (row) => row.display_name,
     },
     {
@@ -66,7 +94,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
     },
     {
       key: "actions",
-      header: "Action",
+      header: "Actions",
       render: (row) => {
         if (row.status === "revoked" || !canManageKeys) {
           return (
@@ -76,47 +104,32 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           );
         }
 
-        if (pendingRevokeKeyId === row.key_id) {
-          return (
-            <Inline className="portal-form__actions">
-              <button
-                className="portal-shell__action portal-shell__action--danger"
-                disabled={apiKeys.isRevokingKeyId === row.key_id}
-                onClick={() => {
-                  void apiKeys.revokeKey(row.key_id);
-                  setPendingRevokeKeyId(null);
-                }}
-                type="button"
-              >
-                {apiKeys.isRevokingKeyId === row.key_id
-                  ? "Revoking..."
-                  : "Confirm Revoke"}
-              </button>
-              <button
-                className="portal-shell__action"
-                disabled={apiKeys.isRevokingKeyId === row.key_id}
-                onClick={() => {
-                  setPendingRevokeKeyId(null);
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-            </Inline>
-          );
-        }
+        const isBusy =
+          apiKeys.isRevokingKeyId === row.key_id ||
+          apiKeys.isUpdatingKeyId === row.key_id;
 
         return (
-          <button
-            className="portal-shell__action portal-shell__action--danger"
-            disabled={apiKeys.isRevokingKeyId === row.key_id}
-            onClick={() => {
-              setPendingRevokeKeyId(row.key_id);
-            }}
-            type="button"
-          >
-            Revoke Key
-          </button>
+          <Group gap="xs" wrap="nowrap">
+            <IconActionButton
+              ariaLabel={`Edit key ${row.display_name}`}
+              icon={<IconEdit aria-hidden="true" size={16} />}
+              onClick={() => {
+                setEditingKey(row);
+              }}
+              tooltip="Edit key"
+              disabled={isBusy}
+            />
+            <IconActionButton
+              ariaLabel={`Revoke key ${row.display_name}`}
+              icon={<IconTrash aria-hidden="true" size={16} />}
+              onClick={() => {
+                setPendingRevokeKey(row);
+              }}
+              tooltip="Revoke key"
+              disabled={isBusy}
+              tone="danger"
+            />
+          </Group>
         );
       },
     },
@@ -126,54 +139,48 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
     <StackedDetailSections>
       <Panel
         title="API Key Management"
-        subtitle="Create, review, and revoke API keys for your organization."
+        subtitle="Create, review, and update API keys for your organization."
       >
-        <p>
-          API keys created here belong to{" "}
-          <strong>{organization.activeOrganization.organization_name}</strong>
-          {" "}and can only be shown in plaintext once at creation time.
-        </p>
-
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Your role</dt>
-            <dd>{formatLabelValue(organization.currentMembership?.role)}</dd>
-          </div>
-        </dl>
-
         {!canManageKeys ? (
           <PortalNotice title="Admin Access Required" tone="warning">
             <p>
-              Only organization admins may create or revoke API keys for this
-              organization.
+              Only organization admins may create, edit, or revoke API keys for
+              this organization.
             </p>
           </PortalNotice>
         ) : (
           <form
-            className="portal-form"
+            className="portal-form portal-form--detail"
             onSubmit={(event) => {
               event.preventDefault();
               setCopyFeedback(null);
               setIsSecretVisible(false);
               void apiKeys.createKey({
+                description,
                 display_name: displayName,
               });
               setDisplayName("");
+              setDescription("");
             }}
           >
-            <label className="portal-form__field">
-              <span>Display name</span>
-              <input
-                className="portal-form__input"
-                name="display-name"
-                onChange={(event) => {
-                  setDisplayName(event.target.value);
-                }}
-                placeholder="Server integration"
-                type="text"
-                value={displayName}
-              />
-            </label>
+            <TextInput
+              label="Display name"
+              onChange={(event) => {
+                setDisplayName(event.currentTarget.value);
+              }}
+              placeholder="Server Integration"
+              value={displayName}
+            />
+            <Textarea
+              autosize
+              label="Description"
+              minRows={3}
+              onChange={(event) => {
+                setDescription(event.currentTarget.value);
+              }}
+              placeholder="What this key is used for."
+              value={description}
+            />
 
             <Inline className="portal-form__actions">
               <button
@@ -192,7 +199,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 }}
                 type="button"
               >
-                Refresh Keys
+                Refresh
               </button>
             </Inline>
           </form>
@@ -210,18 +217,16 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           title="Copy Secret"
           subtitle="The plaintext API key is shown once and cannot be recovered later."
         >
-          <PortalNotice tone="warning">
-            <p>
-              Store this key in your secrets manager before leaving the page.
-            </p>
-          </PortalNotice>
           {copyFeedback ? (
             <PortalNotice tone="warning">
               <p>{copyFeedback}</p>
             </PortalNotice>
           ) : null}
           <label className="portal-form__field" htmlFor="plaintext-api-key">
-            <span>Plaintext API key</span>
+            <span className="portal-form__label-with-tooltip">
+              <span>Plaintext API Key</span>
+              <InfoTooltip label="Store this key in your secrets manager before leaving the page. It will not be shown again." />
+            </span>
             <div className="portal-secret-field">
               <input
                 aria-label="Plaintext API key"
@@ -232,35 +237,41 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 value={apiKeys.visibleSecret.secret}
               />
               <Inline className="portal-secret-field__actions">
-                <button
-                  aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
-                  className="portal-secret-field__action"
-                  onClick={() => {
-                    setIsSecretVisible((current) => !current);
-                  }}
-                  title={isSecretVisible ? "Hide API key" : "Reveal API key"}
-                  type="button"
+                <Tooltip
+                  label={isSecretVisible ? "Hide key" : "Show key"}
+                  withArrow
+                  withinPortal
                 >
-                  {isSecretVisible ? (
-                    <IconEyeOff aria-hidden="true" size={16} />
-                  ) : (
-                    <IconEye aria-hidden="true" size={16} />
-                  )}
-                </button>
-                <button
-                  aria-label="Copy key"
-                  className="portal-secret-field__action"
-                  onClick={() => {
-                    void copySecretToClipboard({
-                      onResult: setCopyFeedback,
-                      secret: apiKeys.visibleSecret?.secret ?? "",
-                    });
-                  }}
-                  title="Copy key"
-                  type="button"
-                >
-                  <IconCopy aria-hidden="true" size={16} />
-                </button>
+                  <button
+                    aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
+                    className="portal-secret-field__action"
+                    onClick={() => {
+                      setIsSecretVisible((current) => !current);
+                    }}
+                    type="button"
+                  >
+                    {isSecretVisible ? (
+                      <IconEyeOff aria-hidden="true" size={16} />
+                    ) : (
+                      <IconEye aria-hidden="true" size={16} />
+                    )}
+                  </button>
+                </Tooltip>
+                <Tooltip label="Copy key" withArrow withinPortal>
+                  <button
+                    aria-label="Copy key"
+                    className="portal-secret-field__action"
+                    onClick={() => {
+                      void copySecretToClipboard({
+                        onResult: setCopyFeedback,
+                        secret: apiKeys.visibleSecret?.secret ?? "",
+                      });
+                    }}
+                    type="button"
+                  >
+                    <IconCopy aria-hidden="true" size={16} />
+                  </button>
+                </Tooltip>
               </Inline>
             </div>
           </label>
@@ -277,16 +288,13 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
               }}
               type="button"
             >
-              Dismiss Secret
+              Dismiss
             </button>
           </Inline>
         </Panel>
       ) : null}
 
-      <Panel
-        title="Organization API Keys"
-        subtitle="Secrets are never shown again after creation."
-      >
+      <Panel title="Organization API Keys" subtitle="Manage active and revoked keys.">
         {apiKeys.isLoading ? (
           <PortalNotice title="Loading" tone="loading">
             <p>Loading API keys for the current organization.</p>
@@ -303,7 +311,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
             ariaLabel="Organization API keys"
             columns={keyColumns}
             getSearchText={(row) =>
-              `${row.display_name} ${row.status} ${row.created_at} ${row.last_used_at ?? ""}`
+              `${row.display_name} ${row.description} ${row.status} ${row.created_at} ${row.last_used_at ?? ""}`
             }
             initialSort={{ columnKey: "created_at", direction: "desc" }}
             pageSize={8}
@@ -313,7 +321,188 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           />
         ) : null}
       </Panel>
+
+      <ApiKeyEditModal
+        keyRecord={editingKey}
+        onClose={() => {
+          setEditingKey(null);
+        }}
+        onSubmit={(keyId, input) => apiKeys.updateKey(keyId, input)}
+        submittingKeyId={apiKeys.isUpdatingKeyId}
+      />
+      <ApiKeyRevokeModal
+        keyRecord={pendingRevokeKey}
+        onClose={() => {
+          setPendingRevokeKey(null);
+        }}
+        onConfirm={(keyId) => {
+          void apiKeys.revokeKey(keyId);
+          setPendingRevokeKey(null);
+        }}
+        revokingKeyId={apiKeys.isRevokingKeyId}
+      />
     </StackedDetailSections>
+  );
+}
+
+function ApiKeyEditModal({
+  keyRecord,
+  onClose,
+  onSubmit,
+  submittingKeyId,
+}: {
+  keyRecord: PortalApiKeysState["items"][number] | null;
+  onClose: () => void;
+  onSubmit: (
+    keyId: string,
+    input: { display_name: string; description?: string },
+  ) => Promise<void>;
+  submittingKeyId: string | null;
+}) {
+  const [displayName, setDisplayName] = useState("");
+  const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    setDisplayName(keyRecord?.display_name ?? "");
+    setDescription(keyRecord?.description ?? "");
+  }, [keyRecord]);
+
+  const isSubmitting = Boolean(
+    keyRecord && submittingKeyId === keyRecord.key_id,
+  );
+
+  return (
+    <Modal
+      centered
+      onClose={onClose}
+      opened={Boolean(keyRecord)}
+      title="Edit API Key"
+    >
+      <Stack>
+        <TextInput
+          label="Display name"
+          onChange={(event) => {
+            setDisplayName(event.currentTarget.value);
+          }}
+          value={displayName}
+        />
+        <Textarea
+          autosize
+          label="Description"
+          minRows={3}
+          onChange={(event) => {
+            setDescription(event.currentTarget.value);
+          }}
+          value={description}
+        />
+        <Group justify="flex-end">
+          <button className="portal-shell__action" onClick={onClose} type="button">
+            Cancel
+          </button>
+          <button
+            className="portal-shell__action portal-shell__action--primary"
+            disabled={isSubmitting || !keyRecord}
+            onClick={() => {
+              if (!keyRecord) {
+                return;
+              }
+              void onSubmit(keyRecord.key_id, {
+                description,
+                display_name: displayName,
+              })
+                .then(() => {
+                  onClose();
+                })
+                .catch(() => {});
+            }}
+            type="button"
+          >
+            {isSubmitting ? "Saving..." : "Save"}
+          </button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+function ApiKeyRevokeModal({
+  keyRecord,
+  onClose,
+  onConfirm,
+  revokingKeyId,
+}: {
+  keyRecord: PortalApiKeysState["items"][number] | null;
+  onClose: () => void;
+  onConfirm: (keyId: string) => void;
+  revokingKeyId: string | null;
+}) {
+  const isRevoking = Boolean(keyRecord && revokingKeyId === keyRecord.key_id);
+
+  return (
+    <Modal
+      centered
+      onClose={onClose}
+      opened={Boolean(keyRecord)}
+      title="Revoke API Key"
+    >
+      <Stack>
+        <Text>
+          {keyRecord
+            ? `This will revoke ${keyRecord.display_name}. Existing integrations using it will stop working.`
+            : ""}
+        </Text>
+        <Group justify="flex-end">
+          <button className="portal-shell__action" onClick={onClose} type="button">
+            Cancel
+          </button>
+          <button
+            className="portal-shell__action portal-shell__action--danger"
+            disabled={!keyRecord || isRevoking}
+            onClick={() => {
+              if (keyRecord) {
+                onConfirm(keyRecord.key_id);
+              }
+            }}
+            type="button"
+          >
+            {isRevoking ? "Revoking..." : "Revoke"}
+          </button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+function IconActionButton({
+  ariaLabel,
+  disabled = false,
+  icon,
+  onClick,
+  tone = "neutral",
+  tooltip,
+}: {
+  ariaLabel: string;
+  disabled?: boolean;
+  icon: ReactNode;
+  onClick: () => void;
+  tone?: "danger" | "neutral";
+  tooltip: string;
+}) {
+  return (
+    <Tooltip label={tooltip} withArrow withinPortal>
+      <ActionIcon
+        aria-label={ariaLabel}
+        color={tone === "danger" ? "red" : "gray"}
+        disabled={disabled}
+        onClick={onClick}
+        radius="xl"
+        size="lg"
+        type="button"
+        variant="subtle"
+      >
+        {icon}
+      </ActionIcon>
+    </Tooltip>
   );
 }
 

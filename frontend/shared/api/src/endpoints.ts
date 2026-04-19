@@ -61,6 +61,13 @@ export const organizationEndpoints = {
       name: "deleteCurrentOrganizationApiKey",
     },
   ),
+  updateCurrentApiKey: defineEndpoint(
+    "PATCH",
+    "/organizations/current/api-keys/{keyId}",
+    {
+      name: "updateCurrentOrganizationApiKey",
+    },
+  ),
   settings: defineEndpoint("GET", "/organization/settings", {
     name: "organizationSettings",
   }),

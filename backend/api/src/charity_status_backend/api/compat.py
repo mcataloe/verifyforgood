@@ -42,7 +42,7 @@ API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/organizations/current/invitations", "/v1/organizations/current/invitations", ("GET", "POST")),
     ApiRouteSpec("/v1/organizations/current/members/{memberId}", "/v1/organizations/current/members/{memberId}", ("PATCH", "DELETE")),
     ApiRouteSpec("/v1/organizations/current/api-keys", "/v1/organizations/current/api-keys", ("GET", "POST")),
-    ApiRouteSpec("/v1/organizations/current/api-keys/{keyId}", "/v1/organizations/current/api-keys/{keyId}", ("DELETE",)),
+    ApiRouteSpec("/v1/organizations/current/api-keys/{keyId}", "/v1/organizations/current/api-keys/{keyId}", ("PATCH", "DELETE")),
     ApiRouteSpec("/v1/organization/settings", "/v1/organization/settings", ("GET", "PUT")),
     ApiRouteSpec("/v1/organization/usage", "/v1/organization/usage", ("GET",)),
     ApiRouteSpec("/v1/organization/activity", "/v1/organization/activity", ("GET",)),

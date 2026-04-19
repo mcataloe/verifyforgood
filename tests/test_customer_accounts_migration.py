@@ -139,6 +139,7 @@ def test_customer_accounts_migration_applies_and_validates_identity_rows(tmp_pat
             organization_id="org_1",
             hashed_key_value="hashed",
             display_name="Primary key",
+            description="Primary integration key",
             created_at="2026-03-31T00:00:00+00:00",
             created_by_user_id="user_1",
             status=ApiKeyStatus.ACTIVE,

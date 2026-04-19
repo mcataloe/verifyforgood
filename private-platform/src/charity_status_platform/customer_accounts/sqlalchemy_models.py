@@ -115,6 +115,7 @@ class OrganizationApiKeyModel(CustomerAccountsBase):
     organization_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=False)
     hashed_key_value: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_user_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)

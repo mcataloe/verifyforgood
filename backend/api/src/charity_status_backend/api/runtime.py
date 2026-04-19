@@ -108,6 +108,7 @@ from charity_status_platform.customer_accounts import (
     ApiKeyCreateRequest,
     ApiKeyManagementError,
     ApiKeyService,
+    ApiKeyUpdateRequest,
     AuditEventType,
     AuditLogService,
     FeatureFlagService,
@@ -1425,9 +1426,27 @@ def _handle_portal_api_key_request(
         created = service.create_key(
             organization_id=account_id,
             actor_user_id=tenant_context.user_id,
-            request=ApiKeyCreateRequest(display_name=str(payload.get("display_name") or "")),
+            request=ApiKeyCreateRequest(
+                display_name=str(payload.get("display_name") or ""),
+                description=str(payload.get("description") or ""),
+            ),
         )
         return json_response(201, created.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/api-keys/{keyId}" and method == "PATCH":
+        path_params = event.get("pathParameters") or {}
+        key_id = str(path_params.get("keyId") or "")
+        payload = _parse_json_body(event)
+        updated = service.update_key(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            key_id=key_id,
+            request=ApiKeyUpdateRequest(
+                display_name=str(payload.get("display_name") or ""),
+                description=str(payload.get("description") or ""),
+            ),
+        )
+        return json_response(200, updated.to_dict(), response_context=response_context)
 
     if resource == "/organizations/current/api-keys/{keyId}" and method == "DELETE":
         path_params = event.get("pathParameters") or {}

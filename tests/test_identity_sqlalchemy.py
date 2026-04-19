@@ -188,6 +188,7 @@ def test_sqlalchemy_plan_subscription_and_api_key_repositories(tmp_path: Path):
         organization_id=1,
         hashed_key_value="hashed",
         display_name="Primary key",
+        description="Primary integration key",
         created_at="2026-03-31T00:00:00+00:00",
         created_by_user_id=1,
         status=ApiKeyStatus.ACTIVE,

@@ -479,11 +479,7 @@ function PortalAuthorizedShell({
             session={session}
           />
         ) : (
-          <ApiAccessPage
-            endpoints={endpoints}
-            pane={customerAdminPane}
-            session={session}
-          />
+          <ApiAccessPage pane={customerAdminPane} />
         )
       ) : null}
       {currentRoute.key === "usage-billing" ? (

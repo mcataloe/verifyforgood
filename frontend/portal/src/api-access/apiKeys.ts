@@ -10,6 +10,7 @@ export interface PortalApiKeySummary {
   created_at: string;
   created_by_user_id: string;
   display_name: string;
+  description: string;
   key_id: string;
   last_used_at: string | null;
   organization_id: string;
@@ -17,6 +18,12 @@ export interface PortalApiKeySummary {
 }
 
 export interface CreatePortalApiKeyInput {
+  display_name: string;
+  description?: string;
+}
+
+export interface UpdatePortalApiKeyInput {
+  description?: string;
   display_name: string;
 }
 
@@ -38,6 +45,10 @@ export interface PortalApiKeyService {
   implementation: PortalApiKeyServiceImplementation;
   listKeys(): Promise<ListPortalApiKeysResult>;
   revokeKey(keyId: string): Promise<PortalApiKeySummary>;
+  updateKey(
+    keyId: string,
+    input: UpdatePortalApiKeyInput,
+  ): Promise<PortalApiKeySummary>;
 }
 
 interface CreatePortalApiKeyServiceOptions {
@@ -58,6 +69,7 @@ export function createPortalApiKeyService({
       >(apiEndpoints.organization.createCurrentApiKey, {
         body: {
           display_name: normalizeDisplayName(input.display_name),
+          description: normalizeDescription(input.description),
         },
       });
 
@@ -83,9 +95,26 @@ export function createPortalApiKeyService({
         }),
       );
     },
+    updateKey(keyId, input) {
+      return apiClient.patch<PortalApiKeySummary, UpdatePortalApiKeyInput>(
+        resolvePathTemplate(apiEndpoints.organization.updateCurrentApiKey.path, {
+          keyId,
+        }),
+        {
+          body: {
+            display_name: normalizeDisplayName(input.display_name),
+            description: normalizeDescription(input.description),
+          },
+        },
+      );
+    },
   };
 }
 
 function normalizeDisplayName(value: string): string {
+  return String(value || "").trim();
+}
+
+function normalizeDescription(value: string | undefined): string {
   return String(value || "").trim();
 }

@@ -125,6 +125,16 @@ class ApiKeyRepository(Protocol):
     def get_by_key_id(self, key_id: int | str) -> ApiKeyRecord | None:
         ...
 
+    def update_metadata(
+        self,
+        organization_id: int | str,
+        key_id: int | str,
+        *,
+        display_name: str,
+        description: str,
+    ) -> ApiKeyRecord | None:
+        ...
+
     def revoke(self, organization_id: int | str, key_id: int | str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
         ...
 

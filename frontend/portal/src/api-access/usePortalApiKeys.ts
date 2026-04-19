@@ -5,6 +5,7 @@ import {
   type CreatePortalApiKeyInput,
   type PortalApiKeyService,
   type PortalApiKeySummary,
+  type UpdatePortalApiKeyInput,
 } from "./apiKeys";
 import { normalizePortalError } from "../lib/portalError";
 
@@ -16,9 +17,11 @@ export interface PortalApiKeysState {
   isCreating: boolean;
   isLoading: boolean;
   isRevokingKeyId: string | null;
+  isUpdatingKeyId: string | null;
   items: PortalApiKeySummary[];
   refresh: () => Promise<void>;
   revokeKey: (keyId: string) => Promise<void>;
+  updateKey: (keyId: string, input: UpdatePortalApiKeyInput) => Promise<void>;
   visibleSecret: {
     key: PortalApiKeySummary;
     secret: string;
@@ -41,6 +44,7 @@ export function usePortalApiKeys(
   const [isLoading, setIsLoading] = useState(enabled);
   const [isCreating, setIsCreating] = useState(false);
   const [isRevokingKeyId, setIsRevokingKeyId] = useState<string | null>(null);
+  const [isUpdatingKeyId, setIsUpdatingKeyId] = useState<string | null>(null);
   const [visibleSecret, setVisibleSecret] =
     useState<PortalApiKeysState["visibleSecret"]>(null);
 
@@ -114,6 +118,31 @@ export function usePortalApiKeys(
     }
   };
 
+  const updateKey = async (keyId: string, input: UpdatePortalApiKeyInput) => {
+    setIsUpdatingKeyId(keyId);
+    setError(null);
+
+    try {
+      const updatedKey = await apiKeyService.updateKey(keyId, input);
+      setItems((currentItems) =>
+        currentItems.map((item) => (item.key_id === keyId ? updatedKey : item)),
+      );
+      setVisibleSecret((currentVisibleSecret) =>
+        currentVisibleSecret?.key.key_id === keyId
+          ? {
+              ...currentVisibleSecret,
+              key: updatedKey,
+            }
+          : currentVisibleSecret,
+      );
+    } catch (caughtError) {
+      setError(normalizeErrorMessage(caughtError));
+      throw caughtError;
+    } finally {
+      setIsUpdatingKeyId(null);
+    }
+  };
+
   return {
     createKey,
     dismissSecret: () => {
@@ -124,9 +153,11 @@ export function usePortalApiKeys(
     isCreating,
     isLoading,
     isRevokingKeyId,
+    isUpdatingKeyId,
     items,
     refresh,
     revokeKey,
+    updateKey,
     visibleSecret,
   };
 }

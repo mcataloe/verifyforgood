@@ -550,6 +550,27 @@ class SqlAlchemyApiKeyRepository(ApiKeyRepository):
             model = session.get(OrganizationApiKeyModel, normalized)
             return None if model is None else _api_key_record(model)
 
+    def update_metadata(
+        self,
+        organization_id: int | str,
+        key_id: int | str,
+        *,
+        display_name: str,
+        description: str,
+    ) -> ApiKeyRecord | None:
+        normalized_key_id = _normalize_int_id(key_id)
+        normalized_org_id = _normalize_int_id(organization_id)
+        if normalized_key_id is None or normalized_org_id is None:
+            return None
+        with customer_accounts_session_scope(self._session_factory) as session:
+            model = session.get(OrganizationApiKeyModel, normalized_key_id)
+            if model is None or model.organization_id != normalized_org_id:
+                return None
+            model.display_name = display_name
+            model.description = description
+            session.flush()
+            return _api_key_record(model)
+
     def revoke(self, organization_id: int | str, key_id: int | str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
         normalized_key_id = _normalize_int_id(key_id)
         normalized_org_id = _normalize_int_id(organization_id)
@@ -899,6 +920,7 @@ def _api_key_model(record: ApiKeyRecord) -> OrganizationApiKeyModel:
         "organization_id": _require_int_id(record.organization_id, field_name="organization_id"),
         "hashed_key_value": record.hashed_key_value,
         "display_name": record.display_name,
+        "description": record.description,
         "created_at": _parse_timestamp(record.created_at),
         "created_by_user_id": _require_int_id(record.created_by_user_id, field_name="created_by_user_id"),
         "status": record.status.value,
@@ -916,6 +938,7 @@ def _api_key_record(model: OrganizationApiKeyModel) -> ApiKeyRecord:
         organization_id=model.organization_id,
         hashed_key_value=model.hashed_key_value,
         display_name=model.display_name,
+        description=model.description,
         created_at=_format_timestamp(model.created_at) or "",
         created_by_user_id=model.created_by_user_id,
         status=ApiKeyStatus(model.status),

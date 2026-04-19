@@ -27,6 +27,13 @@ class ApiKeyManagementError(ValueError):
 @dataclass(frozen=True)
 class ApiKeyCreateRequest:
     display_name: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ApiKeyUpdateRequest:
+    display_name: str
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -34,6 +41,7 @@ class ApiKeyResponse:
     key_id: int | str
     organization_id: int | str
     display_name: str
+    description: str
     created_at: str
     created_by_user_id: int | str
     status: str
@@ -44,6 +52,7 @@ class ApiKeyResponse:
             "key_id": self.key_id,
             "organization_id": self.organization_id,
             "display_name": self.display_name,
+            "description": self.description,
             "created_at": self.created_at,
             "created_by_user_id": self.created_by_user_id,
             "status": self.status,
@@ -87,6 +96,7 @@ class ApiKeyService:
     ) -> ApiKeyCreateResponse:
         self._require_admin(organization_id=organization_id, user_id=actor_user_id)
         display_name = _validate_display_name(request.display_name)
+        description = _validate_description(request.description)
         created_at = _utc_now()
 
         plaintext, stored = build_api_key_record(
@@ -104,6 +114,7 @@ class ApiKeyService:
                 organization_id=organization_id,
                 hashed_key_value=stored.secret_hash,
                 display_name=display_name,
+                description=description,
                 created_at=created_at,
                 created_by_user_id=actor_user_id,
                 status=ApiKeyStatus.ACTIVE,
@@ -121,11 +132,47 @@ class ApiKeyService:
                 metadata={
                     "key_id": persisted.key_id,
                     "display_name": persisted.display_name,
+                    "description": persisted.description,
                     "status": persisted.status.value,
                 },
             )
 
         return ApiKeyCreateResponse(api_key=_to_response(persisted), secret=plaintext)
+
+    def update_key(
+        self,
+        *,
+        organization_id: int | str,
+        actor_user_id: int | str,
+        key_id: int | str,
+        request: ApiKeyUpdateRequest,
+    ) -> ApiKeyResponse:
+        self._require_admin(organization_id=organization_id, user_id=actor_user_id)
+        updated = self._api_keys.update_metadata(
+            organization_id,
+            key_id,
+            display_name=_validate_display_name(request.display_name),
+            description=_validate_description(request.description),
+        )
+        if updated is None:
+            raise ApiKeyManagementError("API key was not found in the current organization")
+
+        if self._audit_log_service is not None:
+            self._audit_log_service.record_event(
+                event_type=AuditEventType.ORGANIZATION_SETTINGS_UPDATE,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=None,
+                metadata={
+                    "changed_fields": ["api_key_display_name", "api_key_description"],
+                    "changed_sections": ["api_keys"],
+                    "display_name": updated.display_name,
+                    "description": updated.description,
+                    "key_id": updated.key_id,
+                },
+            )
+
+        return _to_response(updated)
 
     def revoke_key(self, *, organization_id: int | str, actor_user_id: int | str, key_id: int | str) -> ApiKeyResponse:
         self._require_admin(organization_id=organization_id, user_id=actor_user_id)
@@ -163,6 +210,7 @@ def _to_response(record: ApiKeyRecord) -> ApiKeyResponse:
         key_id=record.key_id,
         organization_id=record.organization_id,
         display_name=record.display_name,
+        description=record.description,
         created_at=record.created_at,
         created_by_user_id=record.created_by_user_id,
         status=record.status.value,
@@ -174,6 +222,13 @@ def _validate_display_name(value: str) -> str:
     candidate = str(value or "").strip()
     if len(candidate) < 2:
         raise ApiKeyManagementError("display_name must be at least 2 characters")
+    return candidate
+
+
+def _validate_description(value: str) -> str:
+    candidate = str(value or "").strip()
+    if len(candidate) > 500:
+        raise ApiKeyManagementError("description must be 500 characters or fewer")
     return candidate
 
 

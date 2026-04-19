@@ -91,7 +91,12 @@ def test_admin_can_create_list_and_revoke_org_api_keys(monkeypatch):
             "resource": "/v1/organizations/current/api-keys",
             "path": "/v1/organizations/current/api-keys",
             "headers": _current_org_headers(creator_token, organization["organization_id"]),
-            "body": json.dumps({"display_name": "Portal Automation"}),
+            "body": json.dumps(
+                {
+                    "display_name": "Portal Automation",
+                    "description": "Used by the production worker.",
+                }
+            ),
         },
         None,
     )
@@ -126,12 +131,53 @@ def test_admin_can_create_list_and_revoke_org_api_keys(monkeypatch):
     assert create_response["statusCode"] == 201
     assert create_payload["data"]["secret"].startswith(f"csk_{key_id}.")
     assert listed_payload["data"]["items"][0]["display_name"] == "Portal Automation"
+    assert listed_payload["data"]["items"][0]["description"] == "Used by the production worker."
     assert "secret" not in listed_payload["data"]["items"][0]
     assert revoked_response["statusCode"] == 200
     assert revoked_payload["data"]["status"] == "revoked"
     assert persisted is not None
     assert persisted.hashed_key_value != create_payload["data"]["secret"]
     assert persisted.status.value == "revoked"
+
+
+def test_admin_can_update_org_api_key_metadata(monkeypatch):
+    module, _resource = _load_module_with_identity_store(monkeypatch)
+    _, creator_token, _creator = _register_user(module, email="creator@example.com")
+    _, organization = _create_organization(module, access_token=creator_token)
+
+    create_response = module.handler(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/organizations/current/api-keys",
+            "path": "/v1/organizations/current/api-keys",
+            "headers": _current_org_headers(creator_token, organization["organization_id"]),
+            "body": json.dumps({"display_name": "Portal Automation", "description": "Old description"}),
+        },
+        None,
+    )
+    key_id = _response_body(create_response)["data"]["api_key"]["key_id"]
+
+    update_response = module.handler(
+        {
+            "httpMethod": "PATCH",
+            "resource": "/v1/organizations/current/api-keys/{keyId}",
+            "path": f"/v1/organizations/current/api-keys/{key_id}",
+            "pathParameters": {"keyId": key_id},
+            "headers": _current_org_headers(creator_token, organization["organization_id"]),
+            "body": json.dumps(
+                {
+                    "display_name": "Renamed Automation",
+                    "description": "Updated description",
+                }
+            ),
+        },
+        None,
+    )
+    update_payload = _response_body(update_response)
+
+    assert update_response["statusCode"] == 200
+    assert update_payload["data"]["display_name"] == "Renamed Automation"
+    assert update_payload["data"]["description"] == "Updated description"
 
 
 def test_non_admin_cannot_manage_org_api_keys(monkeypatch):
@@ -169,7 +215,7 @@ def test_non_admin_cannot_manage_org_api_keys(monkeypatch):
             "resource": "/v1/organizations/current/api-keys",
             "path": "/v1/organizations/current/api-keys",
             "headers": _current_org_headers(member_token, organization["organization_id"]),
-            "body": json.dumps({"display_name": "No Access"}),
+            "body": json.dumps({"display_name": "No Access", "description": ""}),
         },
         None,
     )
@@ -190,7 +236,7 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
             "resource": "/v1/organizations/current/api-keys",
             "path": "/v1/organizations/current/api-keys",
             "headers": _current_org_headers(creator_token, organization["organization_id"]),
-            "body": json.dumps({"display_name": "CLI Key"}),
+            "body": json.dumps({"display_name": "CLI Key", "description": ""}),
         },
         None,
     )
@@ -230,7 +276,7 @@ def test_org_api_key_cannot_access_org_api_key_management_routes(monkeypatch):
             "resource": "/v1/organizations/current/api-keys",
             "path": "/v1/organizations/current/api-keys",
             "headers": _current_org_headers(creator_token, organization["organization_id"]),
-            "body": json.dumps({"display_name": "CLI Key"}),
+            "body": json.dumps({"display_name": "CLI Key", "description": ""}),
         },
         None,
     )
@@ -262,7 +308,7 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
             "resource": "/v1/organizations/current/api-keys",
             "path": "/v1/organizations/current/api-keys",
             "headers": _current_org_headers(creator_token, organization["organization_id"]),
-            "body": json.dumps({"display_name": "Revoked Key"}),
+            "body": json.dumps({"display_name": "Revoked Key", "description": ""}),
         },
         None,
     )

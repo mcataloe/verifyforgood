@@ -174,6 +174,7 @@ def test_backfill_customer_accounts_from_dynamodb_copies_migrated_identity_recor
         organization_id="org_1",
         hashed_key_value="hashed",
         display_name="Primary key",
+        description="Primary integration key",
         created_at="2026-03-31T00:00:00+00:00",
         created_by_user_id="user_1",
         status=ApiKeyStatus.ACTIVE,

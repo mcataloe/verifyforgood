@@ -600,6 +600,12 @@ code {
   font-weight: 700;
 }
 
+.portal-form__label-with-tooltip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .portal-form__input {
   min-height: 2.9rem;
   padding: 0.75rem 0.9rem;
@@ -667,6 +673,8 @@ code {
 
 .portal-secret-field__actions {
   gap: 0;
+  display: flex;
+  align-items: stretch;
 }
 
 .portal-secret-field__action {
@@ -674,6 +682,7 @@ code {
   align-items: center;
   justify-content: center;
   min-width: 2.9rem;
+  min-height: calc(2.9rem + 2px);
   padding: 0 0.8rem;
   border: 1px solid var(--vf-theme-panel-border);
   border-left: 0;
@@ -689,6 +698,21 @@ code {
 
 .portal-secret-field__action:hover {
   background: color-mix(in srgb, var(--vf-theme-surface-subtle) 72%, transparent);
+}
+
+.portal-key-row {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.portal-key-row__name {
+  font-weight: 600;
+}
+
+.portal-key-row__description {
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+  line-height: 1.5;
 }
 
 .portal-form--two-column {

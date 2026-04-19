@@ -5,6 +5,7 @@ import {
   PortalLoadingState,
   PortalNotice,
 } from "../components/feedback";
+import { InfoTooltip } from "../components/InfoTooltip";
 import type { PortalSupportController } from "./usePortalSupport";
 
 interface SupportHelpPanelProps {
@@ -156,7 +157,10 @@ export function SupportHelpPanel({
         <section className="portal-budget-form__section">
           <form className="portal-form portal-form--detail">
             <label className="portal-form__field" htmlFor="support-category">
-              <span>Category</span>
+              <span className="portal-form__label-with-tooltip">
+                <span>Category</span>
+                <InfoTooltip label="Use Recommendation for constructive feedback or feature suggestions." />
+              </span>
               <select
                 className="portal-form__input"
                 id="support-category"
@@ -178,7 +182,15 @@ export function SupportHelpPanel({
             </label>
 
             <div className="portal-form__field">
-              <span id="support-watchers-label">Watchers</span>
+              <span
+                className="portal-form__label-with-tooltip"
+                id="support-watchers-label"
+              >
+                <span>Watchers</span>
+                <InfoTooltip
+                  label={`Replies go to ${submitterEmail ?? "the signed-in account"} by default. Add other email addresses here to keep them copied on follow-up.`}
+                />
+              </span>
               <PillsInput>
                 <Pill.Group>
                   {watchers.map((watcher) => (
@@ -196,7 +208,6 @@ export function SupportHelpPanel({
                     </Pill>
                   ))}
                   <PillsInput.Field
-                    aria-describedby="support-watchers-hint"
                     aria-labelledby="support-watchers-label"
                     onBlur={() => {
                       if (watcherInput.trim()) {
@@ -225,11 +236,6 @@ export function SupportHelpPanel({
                   />
                 </Pill.Group>
               </PillsInput>
-              <p className="portal-budget-form__hint" id="support-watchers-hint">
-                Replies go to{" "}
-                <strong>{submitterEmail ?? "the signed-in account"}</strong>.
-                Add other email addresses here to keep them copied on follow-up.
-              </p>
             </div>
 
             <label className="portal-form__field" htmlFor="support-subject">
@@ -262,11 +268,6 @@ export function SupportHelpPanel({
               />
             </label>
           </form>
-
-          <p className="portal-budget-form__hint">
-            Requests are recorded for follow-up. Use the Recommendation category
-            for constructive feedback about future capabilities.
-          </p>
 
           {validationMessage ? (
             <p className="portal-feedback portal-feedback--error">

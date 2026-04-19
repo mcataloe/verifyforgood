@@ -111,7 +111,14 @@ from .identity_repositories import (
     UsageRepository,
     UserRepository,
 )
-from .api_key_service import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyManagementError, ApiKeyResponse, ApiKeyService
+from .api_key_service import (
+    ApiKeyCreateRequest,
+    ApiKeyCreateResponse,
+    ApiKeyManagementError,
+    ApiKeyResponse,
+    ApiKeyService,
+    ApiKeyUpdateRequest,
+)
 from .feature_flag_service import (
     FeatureFlagError,
     FeatureFlagService,
@@ -292,6 +299,7 @@ __all__ = [
     "ApiKeyResponse",
     "ApiKeyCreateResponse",
     "ApiKeyService",
+    "ApiKeyUpdateRequest",
     "FeatureFlagError",
     "ResolvedFeatureFlag",
     "PLAN_DEFAULT_FEATURE_FLAGS",

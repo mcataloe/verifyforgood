@@ -66,10 +66,12 @@ describe("ApiKeyManager", () => {
       isCreating: false,
       isLoading: false,
       isRevokingKeyId: null,
+      isUpdatingKeyId: null,
       items: [
         {
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
+          description: "Primary production integration",
           display_name: "Existing key",
           key_id: "key_existing",
           last_used_at: null,
@@ -79,10 +81,12 @@ describe("ApiKeyManager", () => {
       ],
       refresh: vi.fn(async () => {}),
       revokeKey: vi.fn(async () => {}),
+      updateKey: vi.fn(async () => {}),
       visibleSecret: {
         key: {
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
+          description: "New production key",
           display_name: "New key",
           key_id: "key_new",
           last_used_at: null,
@@ -104,6 +108,7 @@ describe("ApiKeyManager", () => {
     expect(secretInput.value).not.toBe("");
     expect(secretInput.type).toBe("password");
     expect(screen.getByText("Existing key")).toBeTruthy();
+    expect(screen.getByText("Primary production integration")).toBeTruthy();
     expect(screen.getByText("Never Used")).toBeTruthy();
     expect(screen.queryByText("ws_portal_test")).toBeNull();
     expect(screen.queryByText("acct_portal_test")).toBeNull();
@@ -124,8 +129,12 @@ describe("ApiKeyManager", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
       target: { value: "New production key" },
     });
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "For the production worker." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Key" }));
     expect(state.createKey).toHaveBeenCalledWith({
+      description: "For the production worker.",
       display_name: "New production key",
     });
 
@@ -141,12 +150,29 @@ describe("ApiKeyManager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide API key" }));
     expect(secretInput.type).toBe("password");
 
-    fireEvent.click(screen.getByRole("button", { name: "Revoke Key" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit key Existing key" }),
+    );
+    fireEvent.change(screen.getAllByRole("textbox", { name: "Display name" })[1], {
+      target: { value: "Renamed key" },
+    });
+    fireEvent.change(screen.getAllByRole("textbox", { name: "Description" })[1], {
+      target: { value: "Updated description" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.updateKey).toHaveBeenCalledWith("key_existing", {
+      description: "Updated description",
+      display_name: "Renamed key",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Revoke key Existing key" }),
+    );
     expect(state.revokeKey).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Revoke" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
     expect(state.revokeKey).toHaveBeenCalledWith("key_existing");
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss Secret" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(state.dismissSecret).toHaveBeenCalled();
   });
 
@@ -159,9 +185,11 @@ describe("ApiKeyManager", () => {
       isCreating: false,
       isLoading: false,
       isRevokingKeyId: null,
+      isUpdatingKeyId: null,
       items: [],
       refresh: vi.fn(async () => {}),
       revokeKey: vi.fn(async () => {}),
+      updateKey: vi.fn(async () => {}),
       visibleSecret: null,
     };
 
@@ -199,13 +227,16 @@ describe("ApiKeyManager", () => {
       isCreating: false,
       isLoading: false,
       isRevokingKeyId: null,
+      isUpdatingKeyId: null,
       items: [],
       refresh: vi.fn(async () => {}),
       revokeKey: vi.fn(async () => {}),
+      updateKey: vi.fn(async () => {}),
       visibleSecret: {
         key: {
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
+          description: "New production key",
           display_name: "New key",
           key_id: "key_new",
           last_used_at: null,

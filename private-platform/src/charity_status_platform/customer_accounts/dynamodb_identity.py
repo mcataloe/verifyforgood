@@ -332,6 +332,7 @@ class DynamoApiKeyRepository:
             organization_id=api_key.organization_id,
             hashed_key_value=api_key.hashed_key_value,
             display_name=api_key.display_name,
+            description=api_key.description,
             created_at=api_key.created_at,
             created_by_user_id=api_key.created_by_user_id,
             status=api_key.status,
@@ -368,6 +369,31 @@ class DynamoApiKeyRepository:
             return None
         return _api_key_from_item(items[0])
 
+    def update_metadata(
+        self,
+        organization_id: str,
+        key_id: str,
+        *,
+        display_name: str,
+        description: str,
+    ) -> ApiKeyRecord | None:
+        existing = self.get_by_key_id(key_id)
+        if existing is None or existing.organization_id != organization_id:
+            return None
+        updated = ApiKeyRecord(
+            key_id=existing.key_id,
+            organization_id=existing.organization_id,
+            hashed_key_value=existing.hashed_key_value,
+            display_name=display_name,
+            description=description,
+            created_at=existing.created_at,
+            created_by_user_id=existing.created_by_user_id,
+            status=existing.status,
+            last_used_at=existing.last_used_at,
+        )
+        self._table.put_item(Item=_api_key_item(updated))
+        return updated
+
     def revoke(self, organization_id: str, key_id: str, *, revoked_at: str | None = None) -> ApiKeyRecord | None:
         existing = self.get_by_key_id(key_id)
         if existing is None or existing.organization_id != organization_id:
@@ -377,6 +403,7 @@ class DynamoApiKeyRepository:
             organization_id=existing.organization_id,
             hashed_key_value=existing.hashed_key_value,
             display_name=existing.display_name,
+            description=existing.description,
             created_at=existing.created_at,
             created_by_user_id=existing.created_by_user_id,
             status=ApiKeyStatus.REVOKED,
@@ -394,6 +421,7 @@ class DynamoApiKeyRepository:
             organization_id=existing.organization_id,
             hashed_key_value=existing.hashed_key_value,
             display_name=existing.display_name,
+            description=existing.description,
             created_at=existing.created_at,
             created_by_user_id=existing.created_by_user_id,
             status=existing.status,
@@ -675,6 +703,7 @@ def _api_key_item(api_key: ApiKeyRecord) -> dict[str, Any]:
         "key_id": api_key.key_id,
         "hashed_key_value": api_key.hashed_key_value,
         "display_name": api_key.display_name,
+        "description": api_key.description,
         "created_at": api_key.created_at,
         "created_by_user_id": api_key.created_by_user_id,
         "status": api_key.status.value,
@@ -811,6 +840,7 @@ def _api_key_from_item(item: dict[str, Any]) -> ApiKeyRecord:
         organization_id=str(item.get("organization_id") or ""),
         hashed_key_value=str(item.get("hashed_key_value") or ""),
         display_name=str(item.get("display_name") or ""),
+        description=str(item.get("description") or ""),
         created_at=str(item.get("created_at") or ""),
         created_by_user_id=str(item.get("created_by_user_id") or ""),
         status=ApiKeyStatus(str(item.get("status") or ApiKeyStatus.ACTIVE.value)),

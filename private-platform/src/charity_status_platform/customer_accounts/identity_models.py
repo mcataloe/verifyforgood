@@ -111,6 +111,7 @@ class ApiKeyRecord:
     organization_id: int | str
     hashed_key_value: str
     display_name: str
+    description: str
     created_at: str
     created_by_user_id: int | str
     status: ApiKeyStatus
