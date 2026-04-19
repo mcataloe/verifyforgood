@@ -86,7 +86,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Organization", "Account", "Support & Help"],
+        items: ["Organization", "Account", "Support"],
         label: "",
       },
     ]);
@@ -191,7 +191,7 @@ describe("portal navigation config", () => {
     expect(section?.items.map((item) => item.label)).toEqual([
       "Organization",
       "Account",
-      "Support & Help",
+      "Support",
     ]);
     expect(accountBranch?.children?.map((item) => [item.label, item.visibilityState])).toEqual([
       ["Billing", "locked"],

@@ -734,6 +734,9 @@ The main portal UI migration is now largely complete:
 - converted portal notices, error/loading states, and toast surfaces onto Mantine-backed primitives
 - migrated sign-in, registration, onboarding, support, settings, API key, usage/billing, nonprofit search, and customer-user pages away from bespoke form/input/button styling
 - removed the remaining custom form/detail/action treatments from team management, dashboard activity, profile context, nonprofit embedded detail, and customer-user automation credential cards
+- flattened authenticated portal sections onto a borderless header-and-divider layout so section shells no longer read as nested cards
+- simplified detail lists and subscription metadata into lighter multi-column text layouts instead of boxed pill grids
+- added explicit browser-local save actions for editable customer profile sections that previously had mutable controls without a commit point
 - kept a small set of portal-local classes only for shell/layout structure, stacked section dividers, and toast positioning
 
 ## TODO-ARCH-025

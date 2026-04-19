@@ -22,7 +22,7 @@ describe("SupportPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Support & Help" }),
+      screen.getByRole("heading", { name: "Support" }),
     ).toBeTruthy();
     expect(screen.getAllByRole("heading", { name: "Contact Support" })).toHaveLength(1);
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();

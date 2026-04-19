@@ -37,6 +37,7 @@ describe("CustomerUserProfilePage", () => {
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Pronouns")).toBeTruthy();
     expect(screen.getByLabelText("Avatar upload")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Save" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Auto" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();

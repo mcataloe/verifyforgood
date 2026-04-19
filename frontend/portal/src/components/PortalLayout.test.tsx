@@ -40,13 +40,13 @@ describe("PortalLayout", () => {
 
     expect(getSidebarBranchButton("Organization")).toBeTruthy();
     expect(getSidebarBranchButton("Account")).toBeTruthy();
-    expect(getSidebarBranchButton("Support & Help")).toBeTruthy();
+    expect(getSidebarBranchButton("Support")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^API Keys\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
 
-    fireEvent.click(getSidebarBranchButton("Support & Help") as HTMLElement);
+    fireEvent.click(getSidebarBranchButton("Support") as HTMLElement);
     expect(screen.getByRole("link", { name: /^Contact Support\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Report An Issue\b/i })).toBeTruthy();
 
@@ -221,7 +221,7 @@ describe("PortalLayout", () => {
 
     const organizationBranch = getSidebarBranchButton("Organization");
     const accountBranch = getSidebarBranchButton("Account");
-    const supportBranch = getSidebarBranchButton("Support & Help");
+    const supportBranch = getSidebarBranchButton("Support");
     expect(organizationBranch).toBeTruthy();
     expect(accountBranch).toBeTruthy();
     expect(supportBranch).toBeTruthy();

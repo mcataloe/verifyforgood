@@ -2,7 +2,7 @@ import {
   ColorSchemeToggle,
   useVerifyForGoodColorScheme,
 } from "@charity-status/shared-ui";
-import { Paper, Stack, Text, Title } from "@mantine/core";
+import { Stack, Text, Title } from "@mantine/core";
 
 /**
  * User-owned appearance preferences for the authenticated portal experience.
@@ -16,35 +16,31 @@ export function AppearancePreferenceSection({
   const { colorScheme, resolvedColorScheme } = useVerifyForGoodColorScheme();
 
   return (
-    <Paper
+    <Stack
       aria-labelledby={showTitle ? "appearance-preferences-title" : undefined}
-      p="lg"
-      radius="lg"
-      withBorder
+      gap="md"
     >
-      <Stack gap="md">
-        {showTitle ? (
-          <Title id="appearance-preferences-title" order={3}>
-            Appearance
-          </Title>
-        ) : null}
-        <Text c="dimmed" size="sm">
-          Choose how VerifyForGood should look for this browser. Auto follows
-          the system preference, while Light and Dark stay fixed until changed.
-        </Text>
+      {showTitle ? (
+        <Title id="appearance-preferences-title" order={3}>
+          Appearance
+        </Title>
+      ) : null}
+      <Text c="dimmed" size="sm">
+        Choose how VerifyForGood should look for this browser. Auto follows
+        the system preference, while Light and Dark stay fixed until changed.
+      </Text>
 
-        <ColorSchemeToggle label="Appearance mode" />
+      <ColorSchemeToggle label="Appearance mode" />
 
-        <Text c="dimmed" size="sm">
+      <Text c="dimmed" size="sm">
         Current selection:{" "}
         <strong>
           {colorScheme === "auto"
             ? `Auto (${resolvedColorScheme})`
             : capitalize(colorScheme)}
         </strong>
-        </Text>
-      </Stack>
-    </Paper>
+      </Text>
+    </Stack>
   );
 }
 

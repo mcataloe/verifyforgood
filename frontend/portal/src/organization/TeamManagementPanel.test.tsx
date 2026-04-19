@@ -38,9 +38,9 @@ describe("TeamManagementPanel", () => {
           items: [
             {
               accepted_at: "2026-03-28T00:00:00Z",
-              created_at: "2026-03-27T00:00:00Z",
+              created_at: "2026-03-27T15:39:54Z",
               email: "accepted@example.org",
-              expires_at: "2026-04-03T00:00:00Z",
+              expires_at: "2026-04-03T15:39:54Z",
               invitation_id: "invite_accepted",
               invited_by_user_id: "user_admin",
               role: "user",
@@ -48,9 +48,9 @@ describe("TeamManagementPanel", () => {
             },
             {
               accepted_at: null,
-              created_at: "2026-03-29T00:00:00Z",
+              created_at: "2026-03-29T15:39:54Z",
               email: "pending@example.org",
-              expires_at: "2026-04-05T00:00:00Z",
+              expires_at: "2026-04-05T15:39:54Z",
               invitation_id: "invite_pending",
               invited_by_user_id: "user_admin",
               role: "admin",
@@ -110,6 +110,8 @@ describe("TeamManagementPanel", () => {
     });
     expect(screen.getByText("accepted")).toBeTruthy();
     expect(screen.getByText("pending")).toBeTruthy();
+    expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/10:39:54/i)).toBeNull();
 
     fireEvent.click(
       screen.getByRole("button", {

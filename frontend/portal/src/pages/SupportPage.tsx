@@ -26,7 +26,7 @@ export function SupportPage({
   return (
     <PortalPageShell
       description="Contact support or report an issue for your organization."
-      title="Support & Help"
+      title="Support"
     >
       <Panel
         subtitle={

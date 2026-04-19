@@ -18,7 +18,6 @@ import {
 import {
   PortalActionGroup,
   PortalButton,
-  PortalDetailList,
 } from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
 import { StackedDetailSections } from "../components/shell";
@@ -35,6 +34,16 @@ export function TeamManagementPanel() {
     () => createPortalMembershipClient(organization.apiClient),
     [organization.apiClient],
   );
+  const inviterNameByUserId = useMemo(() => {
+    return new Map(
+      organization.members
+        .filter((member) => member.user_id)
+        .map((member) => [
+          member.user_id,
+          member.full_name ?? member.email ?? member.user_id,
+        ]),
+    );
+  }, [organization.members]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "user">("user");
   const [isInviting, setIsInviting] = useState(false);
@@ -174,14 +183,14 @@ export function TeamManagementPanel() {
       key: "created_at",
       header: "Sent",
       sortable: true,
-      render: (invitation) => formatDateTime(invitation.created_at),
+      render: (invitation) => formatDate(invitation.created_at),
       sortValue: (invitation) => invitation.created_at,
     },
     {
       key: "expires_at",
       header: "Expires",
       sortable: true,
-      render: (invitation) => formatDateTime(invitation.expires_at),
+      render: (invitation) => formatDate(invitation.expires_at),
       sortValue: (invitation) => invitation.expires_at,
     },
     {
@@ -198,8 +207,10 @@ export function TeamManagementPanel() {
       key: "invited_by",
       header: "Invited By",
       sortable: true,
-      render: (invitation) => invitation.invited_by_user_id ?? "Unknown",
-      sortValue: (invitation) => invitation.invited_by_user_id ?? "",
+      render: (invitation) =>
+        formatInviterName(invitation.invited_by_user_id, inviterNameByUserId),
+      sortValue: (invitation) =>
+        formatInviterName(invitation.invited_by_user_id, inviterNameByUserId),
     },
   ];
 
@@ -359,27 +370,6 @@ export function TeamManagementPanel() {
         title="Team management"
         subtitle="Invite teammates and manage access for your organization."
       >
-        <PortalDetailList
-          columns={3}
-          items={[
-            {
-              key: "organization",
-              label: "Organization",
-              value: organization.activeOrganization.organization_name,
-            },
-            {
-              key: "your-role",
-              label: "Your role",
-              value: organization.currentMembership?.role ?? "unknown",
-            },
-            {
-              key: "membership-state",
-              label: "Membership state",
-              value: organization.currentMembership?.status ?? "unknown",
-            },
-          ]}
-        />
-
         {error ? (
           <PortalNotice tone="error">
             <p>{error}</p>
@@ -640,6 +630,17 @@ function formatDateTime(value: string) {
   return new Date(parsed).toLocaleString();
 }
 
+function formatDate(value: string) {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(new Date(parsed));
+}
+
 function formatLabelValue(value: string | null | undefined) {
   const candidate = String(value ?? "").trim();
   if (!candidate) {
@@ -655,4 +656,15 @@ function formatLabelValue(value: string | null | undefined) {
 
 function normalizeMemberRole(value: string | null | undefined): "admin" | "user" {
   return value === "admin" ? "admin" : "user";
+}
+
+function formatInviterName(
+  invitedByUserId: string | null,
+  inviterNameByUserId: ReadonlyMap<string, string>,
+) {
+  if (!invitedByUserId) {
+    return "Unknown";
+  }
+
+  return inviterNameByUserId.get(invitedByUserId) ?? invitedByUserId;
 }

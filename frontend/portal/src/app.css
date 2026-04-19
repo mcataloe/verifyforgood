@@ -194,6 +194,24 @@ code {
   gap: var(--vf-space-5);
 }
 
+.portal-authenticated-container .shared-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.portal-authenticated-container .shared-panel__header h3 {
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+  line-height: 1.2;
+}
+
+.portal-authenticated-container .shared-panel__header p {
+  max-width: 60rem;
+  line-height: 1.7;
+}
+
 .portal-stacked-sections {
   display: grid;
   gap: var(--vf-space-5);

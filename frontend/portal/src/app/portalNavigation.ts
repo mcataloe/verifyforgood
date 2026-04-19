@@ -603,7 +603,7 @@ function buildAudienceNavigationSections(
             },
             {
               key: "customer-admin-support",
-              label: "Support & Help",
+              label: "Support",
               helpText:
                 "Contact support and report issues without mixing support into organization settings.",
               children: [

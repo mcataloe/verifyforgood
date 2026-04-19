@@ -91,7 +91,7 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
   {
     access: "protected",
     key: "support",
-    label: "Support & Help",
+    label: "Support",
     hash: "#/support",
     description:
       "Contact support and report issues for your organization.",

@@ -142,7 +142,7 @@ describe("SettingsPage", () => {
       screen.queryByRole("heading", { name: "Organization details" }),
     ).toBeNull();
     expect(
-      screen.queryByRole("heading", { name: "Support & Help" }),
+      screen.queryByRole("heading", { name: "Support" }),
     ).toBeNull();
     expect(
       screen.queryByRole("heading", { name: "Limit visualization" }),

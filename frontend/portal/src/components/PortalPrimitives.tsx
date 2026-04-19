@@ -108,16 +108,14 @@ export function PortalDetailList({
   items: PortalDetailListItem[];
 }) {
   return (
-    <SimpleGrid cols={{ base: 1, md: columns }} spacing="sm">
+    <SimpleGrid cols={{ base: 1, md: columns }} spacing="lg">
       {items.map((item) => (
-        <Paper key={item.key} p="md" radius="md" withBorder>
-          <Stack gap={2}>
-            <Text c="dimmed" fw={700} fz="xs" tt="uppercase">
-              {item.label}
-            </Text>
-            <Text fw={500}>{item.value}</Text>
-          </Stack>
-        </Paper>
+        <Stack key={item.key} className="vf-detail-field-list__item" gap={2}>
+          <Text className="vf-detail-field-list__label" component="div">
+            {item.label}
+          </Text>
+          <div className="vf-detail-field-list__value">{item.value}</div>
+        </Stack>
       ))}
     </SimpleGrid>
   );

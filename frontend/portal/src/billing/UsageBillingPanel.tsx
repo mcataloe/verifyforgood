@@ -271,7 +271,7 @@ export function UsageBillingPanel({
         subtitle="Review plan details, billing dates, and scheduled changes."
       >
         <PortalDetailList
-          columns={3}
+          columns={2}
           items={[
             {
               key: "current-plan",
@@ -298,23 +298,26 @@ export function UsageBillingPanel({
             {
               key: "period-start",
               label: "Current period start",
-              value: snapshot.billingCycleStart ?? "Not scheduled",
+              value: formatBillingDate(snapshot.billingCycleStart),
             },
             {
               key: "period-end",
               label: "Current period end",
-              value:
-                snapshot.billingCycleEnd ?? snapshot.renewalDate ?? "Not scheduled",
+              value: formatBillingDate(
+                snapshot.billingCycleEnd ?? snapshot.renewalDate,
+              ),
             },
             {
               key: "pending-plan",
               label: "Pending plan",
-              value: snapshot.pendingDowngradePlan ?? "None",
+              value: snapshot.pendingDowngradePlan
+                ? toTitleCase(snapshot.pendingDowngradePlan)
+                : "None",
             },
             {
               key: "pending-effective-at",
               label: "Pending change effective at",
-              value: snapshot.pendingDowngradeEffectiveAt ?? "Not scheduled",
+              value: formatBillingDate(snapshot.pendingDowngradeEffectiveAt),
             },
             {
               key: "pending-change-type",
@@ -324,12 +327,15 @@ export function UsageBillingPanel({
             {
               key: "trial-status",
               label: "Trial status",
-              value: snapshot.trialStatus ?? "None",
+              value: snapshot.trialStatus ? toTitleCase(snapshot.trialStatus) : "None",
             },
             {
               key: "trial-ends-at",
               label: "Trial ends at",
-              value: snapshot.trialEndsAt ?? "Not applicable",
+              value:
+                snapshot.trialEndsAt === null
+                  ? "Not applicable"
+                  : formatBillingDate(snapshot.trialEndsAt),
             },
           ]}
         />
@@ -837,4 +843,19 @@ function toTitleCase(value: string): string {
     .filter(Boolean)
     .map((segment) => segment[0].toUpperCase() + segment.slice(1).toLowerCase())
     .join(" ");
+}
+
+function formatBillingDate(value: string | null | undefined) {
+  if (!value) {
+    return "Not scheduled";
+  }
+
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(new Date(parsed));
 }
