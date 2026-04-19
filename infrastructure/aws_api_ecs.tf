@@ -88,7 +88,14 @@ locals {
     PLATFORM_POSTGRES_PORT                           = tostring(var.platform_postgres_port)
     PLATFORM_POSTGRES_DATABASE                       = var.platform_postgres_database_name
     PLATFORM_POSTGRES_SSLMODE                        = var.platform_postgres_sslmode
+    PLATFORM_NONPROFIT_STORE_BACKEND                 = var.platform_nonprofit_store_backend
     PLATFORM_NONPROFIT_QUERY_BACKEND                 = var.platform_nonprofit_query_backend
+    PLATFORM_NONPROFIT_POSTGRES_ENABLED              = tostring(var.platform_nonprofit_postgres_enabled)
+    PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN           = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_HOST                 = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_PORT                 = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+    PLATFORM_NONPROFIT_POSTGRES_DATABASE             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
     OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
     OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
@@ -396,6 +403,19 @@ resource "aws_iam_role_policy" "api_task" {
           ]
         }
       ] : [],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "ApiTaskNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
       var.platform_postgres_enabled && trim(var.platform_postgres_secret_kms_key_arn, " ") != "" ? [
         {
           Sid    = "ApiTaskPostgresSecretDecrypt"
@@ -405,6 +425,18 @@ resource "aws_iam_role_policy" "api_task" {
           ]
           Resource = [
             trim(var.platform_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "ApiTaskNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
           ]
         }
       ] : [],

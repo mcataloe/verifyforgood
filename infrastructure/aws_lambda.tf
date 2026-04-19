@@ -258,7 +258,14 @@ resource "aws_lambda_function" "query" {
       PLATFORM_POSTGRES_PORT                       = tostring(var.platform_postgres_port)
       PLATFORM_POSTGRES_DATABASE                   = var.platform_postgres_database_name
       PLATFORM_POSTGRES_SSLMODE                    = var.platform_postgres_sslmode
+      PLATFORM_NONPROFIT_STORE_BACKEND             = var.platform_nonprofit_store_backend
       PLATFORM_NONPROFIT_QUERY_BACKEND             = var.platform_nonprofit_query_backend
+      PLATFORM_NONPROFIT_POSTGRES_ENABLED          = tostring(var.platform_nonprofit_postgres_enabled)
+      PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN       = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_HOST             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_PORT             = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+      PLATFORM_NONPROFIT_POSTGRES_DATABASE         = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_SSLMODE          = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
       OPS_METADATA_BUCKET                          = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                          = var.ops_metadata_prefix
       FORM990_ORCHESTRATOR_FUNCTION_NAME           = aws_lambda_function.form990_orchestrator.function_name
@@ -428,6 +435,14 @@ resource "aws_lambda_function" "form990_ingest" {
       FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES     = tostring(var.form990_zip_max_xml_file_size_bytes)
       FORM990_EXECUTION_MODE                  = "inline"
       FORM990_CHUNK_SIZE                      = tostring(var.form990_chunk_size)
+      PLATFORM_NONPROFIT_STORE_BACKEND        = var.platform_nonprofit_store_backend
+      PLATFORM_NONPROFIT_QUERY_BACKEND        = var.platform_nonprofit_query_backend
+      PLATFORM_NONPROFIT_POSTGRES_ENABLED     = tostring(var.platform_nonprofit_postgres_enabled)
+      PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN  = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_HOST        = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_PORT        = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+      PLATFORM_NONPROFIT_POSTGRES_DATABASE    = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_SSLMODE     = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
       OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }
@@ -493,6 +508,14 @@ resource "aws_lambda_function" "form990_orchestrator" {
       FORM990_EXECUTION_MODE                  = var.form990_execution_mode
       FORM990_CHUNK_SIZE                      = tostring(var.form990_chunk_size)
       FORM990_WORK_QUEUE_URL                  = aws_sqs_queue.form990_work_queue.url
+      PLATFORM_NONPROFIT_STORE_BACKEND        = var.platform_nonprofit_store_backend
+      PLATFORM_NONPROFIT_QUERY_BACKEND        = var.platform_nonprofit_query_backend
+      PLATFORM_NONPROFIT_POSTGRES_ENABLED     = tostring(var.platform_nonprofit_postgres_enabled)
+      PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN  = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_HOST        = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_PORT        = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+      PLATFORM_NONPROFIT_POSTGRES_DATABASE    = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_SSLMODE     = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
       OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }
@@ -523,6 +546,14 @@ resource "aws_lambda_function" "form990_worker" {
       FORM990_QUALITY_PREFIX                  = local.form990_quality_prefix_normalized
       FORM990_RELATIONSHIPS_PREFIX            = local.form990_relationships_prefix_normalized
       FORM990_SOURCE_DOWNLOAD_TIMEOUT_SECONDS = tostring(var.form990_zip_fetch_timeout_seconds)
+      PLATFORM_NONPROFIT_STORE_BACKEND        = var.platform_nonprofit_store_backend
+      PLATFORM_NONPROFIT_QUERY_BACKEND        = var.platform_nonprofit_query_backend
+      PLATFORM_NONPROFIT_POSTGRES_ENABLED     = tostring(var.platform_nonprofit_postgres_enabled)
+      PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN  = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_HOST        = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_PORT        = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+      PLATFORM_NONPROFIT_POSTGRES_DATABASE    = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+      PLATFORM_NONPROFIT_POSTGRES_SSLMODE     = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
       OPS_METADATA_BUCKET                     = aws_s3_bucket.irs_data.bucket
       OPS_METADATA_PREFIX                     = var.ops_metadata_prefix
     }

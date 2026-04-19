@@ -75,6 +75,7 @@ Runtime env wiring added for the query Lambda:
 - `PLATFORM_POSTGRES_PORT`
 - `PLATFORM_POSTGRES_DATABASE`
 - `PLATFORM_POSTGRES_SSLMODE`
+- `PLATFORM_NONPROFIT_STORE_BACKEND` for nonprofit ingest and Form 990 writes
 - optional dedicated nonprofit data-plane overrides:
   - `PLATFORM_NONPROFIT_POSTGRES_ENABLED`
   - `PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN`
@@ -92,6 +93,8 @@ deployed secret-backed wiring:
 - set `PLATFORM_NONPROFIT_POSTGRES_URL` only when nonprofit and Form 990 data should live on a separate database
 - run `python -m charity_status_backend.shared.local_dev db-upgrade`
 - run `python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
+- use `python -m charity_status_backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
+- use `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
 - run `python -m charity_status_backend.api.entrypoint`
 
 PostgreSQL-only rollout order:

@@ -170,6 +170,8 @@ def test_package_scaffolding_docs_define_boundaries():
     assert "createdb verification_platform" in backend_text
     assert "python -m charity_status_backend.shared.local_dev db-upgrade" in backend_text
     assert "python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit" in backend_text
+    assert "python -m charity_status_backend.shared.local_dev db-reset-nonprofit" in backend_text
+    assert "python -m charity_status_backend.shared.local_dev db-cutover-nonprofit" in backend_text
     assert "python -m charity_status_backend.shared.local_dev db-current" in backend_text
     assert "python -m charity_status_backend.api.entrypoint" in backend_text
     assert "python -m charity_status_backend.worker.entrypoint" in backend_text
@@ -211,6 +213,8 @@ def test_package_scaffolding_docs_define_boundaries():
 
     assert "Target role" in infrastructure_text
     assert "deployment/config/wiring only" in infrastructure_text
+    assert "PLATFORM_NONPROFIT_STORE_BACKEND" in infrastructure_text
+    assert "db-cutover-nonprofit" in infrastructure_text
 
     assert "public-core/tests/" in tests_text
     assert "private-platform/tests/" in tests_text
@@ -260,8 +264,40 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     assert "load_backend_local_env" in api_entrypoint
     assert "load_backend_local_env" in worker_entrypoint
     assert "load_backend_local_env" in ingest_entrypoint
-    assert 'choices=("db-upgrade", "db-upgrade-nonprofit", "db-upgrade-all", "db-current")' in local_dev
+    assert '"db-current-nonprofit"' in local_dev
+    assert '"db-reset-nonprofit"' in local_dev
+    assert '"db-cutover-nonprofit"' in local_dev
     assert "from .cli import main as cli_main" in ingest_entrypoint
+
+
+def test_infrastructure_nonprofit_database_wiring_is_explicit():
+    variables_text = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
+    lambda_text = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+    api_ecs_text = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+    worker_ecs_text = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
+    iam_text = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
+    tfvars_text = Path("infrastructure/terraform.tfvars.example").read_text(encoding="utf-8")
+    shared_tfvars_text = Path("infrastructure/terraform.shared.tfvars.example").read_text(encoding="utf-8")
+
+    assert 'variable "platform_nonprofit_store_backend"' in variables_text
+    assert 'variable "platform_nonprofit_postgres_enabled"' in variables_text
+    assert 'variable "platform_nonprofit_postgres_secret_arn"' in variables_text
+    assert 'variable "platform_nonprofit_postgres_database_name"' in variables_text
+
+    assert "PLATFORM_NONPROFIT_STORE_BACKEND" in lambda_text
+    assert "PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN" in lambda_text
+    assert "PLATFORM_NONPROFIT_POSTGRES_DATABASE" in lambda_text
+    assert "PLATFORM_NONPROFIT_STORE_BACKEND" in api_ecs_text
+    assert "ApiTaskNonprofitPostgresSecretRead" in api_ecs_text
+    assert "PLATFORM_NONPROFIT_STORE_BACKEND" in worker_ecs_text
+    assert "MonthlyIngestNonprofitPostgresSecretRead" in worker_ecs_text
+    assert "WorkerTaskNonprofitPostgresSecretRead" in worker_ecs_text
+    assert "platform_nonprofit_postgres_secret_arn" in iam_text
+
+    assert 'platform_nonprofit_store_backend = "postgres"' in tfvars_text
+    assert "platform_nonprofit_postgres_enabled = false" in tfvars_text
+    assert 'platform_nonprofit_store_backend         = "postgres"' in shared_tfvars_text
+    assert "platform_nonprofit_postgres_enabled      = false" in shared_tfvars_text
 
 
 def test_vscode_launch_config_preserves_node_entry_and_adds_form990_python_profiles():

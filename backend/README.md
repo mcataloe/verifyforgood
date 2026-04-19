@@ -66,6 +66,7 @@ createdb verification_platform
 createdb verification_nonprofit
 python -m charity_status_backend.shared.local_dev db-upgrade
 python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit
+python -m charity_status_backend.shared.local_dev db-current-nonprofit
 python -m charity_status_backend.shared.local_dev db-current
 ```
 
@@ -75,10 +76,15 @@ then rerun `python -m charity_status_backend.shared.local_dev db-upgrade`.
 
 If you enable a dedicated nonprofit database, provision that database
 separately and run `python -m charity_status_backend.shared.local_dev
-db-upgrade-nonprofit` after the platform migration step. The current nonprofit
-bootstrap creates only the nonprofit/Form 990 tables on the nonprofit database;
-customer-account, billing, and organization-setting migrations remain on the
-platform database.
+db-upgrade-nonprofit` after the platform migration step. The dedicated
+nonprofit flow now has its own Alembic history plus destructive dev helpers:
+
+- `python -m charity_status_backend.shared.local_dev db-reset-nonprofit`
+- `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+
+Those commands intentionally refuse to run unless
+`PLATFORM_NONPROFIT_POSTGRES_*` is configured, so destructive nonprofit resets
+or cutovers cannot accidentally target the shared platform database.
 
 Scaffold runtime commands:
 
@@ -149,9 +155,16 @@ Migration/source-of-truth note:
 - `python -m charity_status_backend.shared.local_dev db-upgrade` is the
   backend-owned wrapper for local development
 - `python -m charity_status_backend.shared.local_dev db-upgrade-nonprofit`
-  bootstraps the dedicated nonprofit database when `PLATFORM_NONPROFIT_POSTGRES_*`
-  settings are used
+  applies the dedicated nonprofit Alembic history when
+  `PLATFORM_NONPROFIT_POSTGRES_*` settings are used
+- `python -m charity_status_backend.shared.local_dev db-reset-nonprofit`
+  destructively recreates the dedicated nonprofit schema in dev
+- `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+  destructively reloads nonprofit/Form 990 rows from the platform database into
+  the dedicated nonprofit database in dev
 - `alembic upgrade head` remains the underlying schema source-of-truth command
+- `alembic -c alembic_nonprofit.ini upgrade head` is the underlying dedicated
+  nonprofit schema source-of-truth command
 - local backfill/cutover utilities still run from `private-platform`:
   - `python -m charity_status_platform.runtime.customer_accounts_migration`
   - `python -m charity_status_platform.runtime.nonprofit_migration`

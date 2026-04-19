@@ -70,6 +70,18 @@ resource "aws_iam_role_policy" "lambda_data_access" {
           ]
         }
       ] : [],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Effect = "Allow"
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
       var.platform_postgres_enabled && trim(var.platform_postgres_secret_kms_key_arn, " ") != "" ? [
         {
           Action = [
@@ -78,6 +90,17 @@ resource "aws_iam_role_policy" "lambda_data_access" {
           Effect = "Allow"
           Resource = [
             trim(var.platform_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Action = [
+            "kms:Decrypt"
+          ]
+          Effect = "Allow"
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
           ]
         }
       ] : [],

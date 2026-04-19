@@ -525,7 +525,12 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         }
     )
-    disabled = build_nonprofit_postgres_repository({})
+    disabled = build_nonprofit_postgres_repository(
+        {
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "disabled",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "athena",
+        }
+    )
 
     assert repository is not None
     assert disabled is None
@@ -563,7 +568,13 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
             "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
         },
     )
-    disabled = build_nonprofit_query_client(athena_client=athena_delegate, env={})
+    disabled = build_nonprofit_query_client(
+        athena_client=athena_delegate,
+        env={
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "disabled",
+            "PLATFORM_NONPROFIT_QUERY_BACKEND": "athena",
+        },
+    )
 
     assert isinstance(client, PostgresNonprofitQueryClient)
     assert disabled is athena_delegate

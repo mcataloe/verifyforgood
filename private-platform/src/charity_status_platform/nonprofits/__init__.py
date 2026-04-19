@@ -22,7 +22,7 @@ from .ingest_persistence import Form990NonprofitPersistenceService, Form990Persi
 from .eo_bmf_persistence import DEFAULT_EO_BMF_BATCH_SIZE, EoBmfNonprofitPersistenceService, EoBmfPersistenceStats
 from .sqlalchemy_repository import NonprofitBatchUpsertStats
 from .sqlalchemy_db import build_nonprofit_engine, build_nonprofit_session_factory, nonprofit_session_scope
-from .schema import NONPROFIT_TABLES, create_nonprofit_tables
+from .schema import NONPROFIT_TABLES, NONPROFIT_TABLE_NAMES, create_nonprofit_tables, drop_nonprofit_tables
 
 __all__ = [
     "NonprofitModel",
@@ -48,8 +48,10 @@ __all__ = [
     "EoBmfPersistenceStats",
     "NonprofitBatchUpsertStats",
     "NONPROFIT_TABLES",
+    "NONPROFIT_TABLE_NAMES",
     "build_nonprofit_engine",
     "build_nonprofit_session_factory",
     "create_nonprofit_tables",
+    "drop_nonprofit_tables",
     "nonprofit_session_scope",
 ]

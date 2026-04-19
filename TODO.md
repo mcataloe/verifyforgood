@@ -776,6 +776,20 @@ Keep the existing customer-account, billing, nonprofit query, and ingest
 service contracts stable while the schema-management path for the dedicated
 nonprofit database is hardened.
 
+### Status
+
+Dev-focused completion is now in place:
+
+- dedicated nonprofit Alembic history exists under `alembic_nonprofit/`
+- backend local-dev commands now support nonprofit revision inspection,
+  destructive reset, and destructive cutover into a dedicated nonprofit
+  database
+- Terraform/runtime env wiring now carries dedicated nonprofit host, secret,
+  and backend-selector settings for Lambda/ECS runtimes
+
+The remaining work, if any, is production rollout policy rather than code-path
+completion.
+
 ## TODO-ARCH-025
 
 ### Title

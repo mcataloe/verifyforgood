@@ -84,11 +84,29 @@ Expected report behavior:
 Nonprofit cutover guidance:
 
 1. run `alembic upgrade head`
-2. run the nonprofit migration utility in `--dry-run` on a bounded window
-3. run a real bounded window and verify the report
-4. run the full migration
-5. deploy `PLATFORM_NONPROFIT_QUERY_BACKEND=postgres` only after lookup,
+2. if using a dedicated nonprofit database, run `alembic -c alembic_nonprofit.ini upgrade head`
+3. for dev/shared-db cutover, run `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+4. run the nonprofit migration utility in `--dry-run` on a bounded window
+5. run a real bounded window and verify the report
+6. run the full migration
+7. deploy `PLATFORM_NONPROFIT_QUERY_BACKEND=postgres` only after lookup,
    search, and filings validation is clean
+
+Dedicated nonprofit dev helpers:
+
+- `python -m charity_status_backend.shared.local_dev db-current-nonprofit`
+  shows the dedicated nonprofit Alembic revision
+- `python -m charity_status_backend.shared.local_dev db-reset-nonprofit`
+  drops and recreates the dedicated nonprofit schema and version table
+- `python -m charity_status_backend.shared.local_dev db-cutover-nonprofit`
+  destructively reloads nonprofit/Form 990 tables from the platform database
+  into the dedicated nonprofit database
+
+Safety rule:
+
+- the destructive nonprofit helpers intentionally require explicit
+  `PLATFORM_NONPROFIT_POSTGRES_*` settings and refuse to run against the shared
+  platform database URL
 
 ## Current Exclusions
 

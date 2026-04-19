@@ -39,6 +39,7 @@ from .persistence import (
 from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
 from .customer_accounts_migration import CustomerAccountsMigrationReport, run_customer_accounts_migration
 from .nonprofit_migration import NonprofitMigrationCounts, NonprofitMigrationReport, run_nonprofit_migration
+from .nonprofit_db_cutover import NonprofitDatabaseCutoverReport, cutover_nonprofit_database
 from .migration_validation import MigrationEntityValidation
 
 __all__ = [
@@ -83,5 +84,7 @@ __all__ = [
     "NonprofitMigrationCounts",
     "NonprofitMigrationReport",
     "run_nonprofit_migration",
+    "NonprofitDatabaseCutoverReport",
+    "cutover_nonprofit_database",
     "MigrationEntityValidation",
 ]

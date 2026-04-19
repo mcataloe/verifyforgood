@@ -64,6 +64,14 @@ locals {
     BOOTSTRAP_NONPROD_OVERRIDE                       = tostring(var.bootstrap_nonprod_override)
     BOOTSTRAP_START_AFTER_EIN                        = var.bootstrap_start_after_ein
     BOOTSTRAP_MAX_BATCHES_PER_RUN                    = tostring(var.bootstrap_max_batches_per_run)
+    PLATFORM_NONPROFIT_STORE_BACKEND                 = var.platform_nonprofit_store_backend
+    PLATFORM_NONPROFIT_QUERY_BACKEND                 = var.platform_nonprofit_query_backend
+    PLATFORM_NONPROFIT_POSTGRES_ENABLED              = tostring(var.platform_nonprofit_postgres_enabled)
+    PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN           = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_HOST                 = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_PORT                 = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+    PLATFORM_NONPROFIT_POSTGRES_DATABASE             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
     OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
     OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
   }
@@ -212,18 +220,45 @@ resource "aws_iam_role_policy" "worker_task" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "WorkerTaskDataPlane"
-        Effect = "Allow"
-        Action = [
-          "s3:*",
-          "athena:*",
-          "glue:*"
-        ]
-        Resource = "*"
-      },
-    ]
+    Statement = concat(
+      [
+        {
+          Sid    = "WorkerTaskDataPlane"
+          Effect = "Allow"
+          Action = [
+            "s3:*",
+            "athena:*",
+            "glue:*"
+          ]
+          Resource = "*"
+        },
+      ],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "WorkerTaskNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "WorkerTaskNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+    )
   })
 }
 
@@ -366,24 +401,51 @@ resource "aws_iam_role_policy" "monthly_ingest_task" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "MonthlyIngestBucketList"
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
-        Resource = local.monthly_ingest_task_allowed_bucket_arns
-      },
-      {
-        Sid    = "MonthlyIngestObjectReadWrite"
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = local.monthly_ingest_task_allowed_object_arns
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Sid      = "MonthlyIngestBucketList"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket"]
+          Resource = local.monthly_ingest_task_allowed_bucket_arns
+        },
+        {
+          Sid    = "MonthlyIngestObjectReadWrite"
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject"
+          ]
+          Resource = local.monthly_ingest_task_allowed_object_arns
+        }
+      ],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "MonthlyIngestNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "MonthlyIngestNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+    )
   })
 }
 
@@ -422,6 +484,38 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
         {
           name  = "APP_ENV"
           value = var.environment
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_STORE_BACKEND"
+          value = var.platform_nonprofit_store_backend
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_QUERY_BACKEND"
+          value = var.platform_nonprofit_query_backend
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_ENABLED"
+          value = tostring(var.platform_nonprofit_postgres_enabled)
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_HOST"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_PORT"
+          value = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_DATABASE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SSLMODE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
         },
         {
           name  = "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES"

@@ -651,6 +651,17 @@ variable "platform_postgres_sslmode" {
   default     = "require"
 }
 
+variable "platform_nonprofit_store_backend" {
+  description = "Write backend for nonprofit ingest, Form 990 persistence, and archive metadata state."
+  type        = string
+  default     = "disabled"
+
+  validation {
+    condition     = contains(["disabled", "postgres"], var.platform_nonprofit_store_backend)
+    error_message = "platform_nonprofit_store_backend must be either disabled or postgres."
+  }
+}
+
 variable "platform_nonprofit_query_backend" {
   description = "Read backend for nonprofit lookup, search, and filings query paths."
   type        = string
@@ -660,6 +671,63 @@ variable "platform_nonprofit_query_backend" {
     condition     = contains(["athena", "postgres"], var.platform_nonprofit_query_backend)
     error_message = "platform_nonprofit_query_backend must be either athena or postgres."
   }
+}
+
+variable "platform_nonprofit_postgres_enabled" {
+  description = "Wire an external dedicated nonprofit PostgreSQL endpoint for nonprofit and Form 990 runtime data."
+  type        = bool
+  default     = false
+}
+
+variable "platform_nonprofit_postgres_host" {
+  description = "Hostname for the dedicated nonprofit PostgreSQL endpoint when platform_nonprofit_postgres_enabled=true."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_host, " ") != ""
+    error_message = "platform_nonprofit_postgres_host must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_port" {
+  description = "TCP port for the dedicated nonprofit PostgreSQL endpoint."
+  type        = number
+  default     = 5432
+}
+
+variable "platform_nonprofit_postgres_database_name" {
+  description = "Database name for the dedicated nonprofit PostgreSQL endpoint."
+  type        = string
+  default     = "verification_nonprofit"
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_database_name, " ") != ""
+    error_message = "platform_nonprofit_postgres_database_name must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_secret_arn" {
+  description = "Secrets Manager secret ARN containing dedicated nonprofit PostgreSQL username/password JSON."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_secret_arn, " ") != ""
+    error_message = "platform_nonprofit_postgres_secret_arn must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_secret_kms_key_arn" {
+  description = "Optional KMS key ARN used to decrypt the dedicated nonprofit PostgreSQL secret."
+  type        = string
+  default     = ""
+}
+
+variable "platform_nonprofit_postgres_sslmode" {
+  description = "SSL mode advertised to runtime consumers of the dedicated nonprofit PostgreSQL configuration."
+  type        = string
+  default     = "require"
 }
 
 variable "monthly_ingest_private_subnet_ids" {

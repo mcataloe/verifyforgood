@@ -141,6 +141,13 @@ def resolve_nonprofit_postgres_sqlalchemy_url(
     return build_postgres_sqlalchemy_url(runtime_config, credentials=credentials)
 
 
+def has_dedicated_nonprofit_postgres_config(
+    env: Mapping[str, str] | None = None,
+) -> bool:
+    config = load_platform_persistence_config(env)
+    return _postgres_runtime_config_is_configured(config.nonprofit_postgres)
+
+
 def build_control_plane_store(
     env: Mapping[str, str] | None = None,
     *,
