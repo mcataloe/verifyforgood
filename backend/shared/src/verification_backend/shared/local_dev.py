@@ -86,6 +86,8 @@ def _parse_env_line(raw_line: str) -> tuple[str, str] | None:
         return None
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
         value = value[1:-1]
+    elif " #" in value:
+        value = value.split(" #", 1)[0].rstrip()
     return key, value
 
 

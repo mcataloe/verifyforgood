@@ -49,6 +49,31 @@ def test_backend_local_env_loader_prefers_existing_shell_values(tmp_path, monkey
     assert __import__("os").environ["API_AUTH_ENABLED"] == "false"
 
 
+def test_backend_local_env_loader_ignores_inline_recommended_markers(tmp_path, monkeypatch):
+    env_path = tmp_path / ".env.local"
+    env_path.write_text(
+        "\n".join(
+            [
+                "BACKEND_API_HOST=0.0.0.0 ##RECOMMENDED##",
+                "BACKEND_API_PORT=8001 ##RECOMMENDED##",
+                "PORTAL_AUTH_TOKEN_SECRET='dev-portal-auth-secret # literal'",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("BACKEND_API_HOST", raising=False)
+    monkeypatch.delenv("BACKEND_API_PORT", raising=False)
+    monkeypatch.delenv("PORTAL_AUTH_TOKEN_SECRET", raising=False)
+
+    load_backend_local_env(env_path=env_path, override=True)
+
+    assert __import__("os").environ["BACKEND_API_HOST"] == "0.0.0.0"
+    assert __import__("os").environ["BACKEND_API_PORT"] == "8001"
+    assert __import__("os").environ["PORTAL_AUTH_TOKEN_SECRET"] == "dev-portal-auth-secret # literal"
+
+
 def test_backend_local_dev_commands_use_env_file_for_migrations(tmp_path, monkeypatch, capsys):
     env_path = tmp_path / ".env.local"
     env_path.write_text(
