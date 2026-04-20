@@ -1,5 +1,9 @@
 ﻿# Backend Stage-1 Readiness
 
+Historical note: this document describes the pre-cutover staging phase. The
+active runtime is now ECS-only for HTTP and ingest execution, and references to
+legacy Lambda entrypoints below are archival context.
+
 This document finalizes the first-stage backend split so frontend scaffolding and later vertical-slice backend work can proceed against clearer boundaries without forcing a disruptive handler migration yet.
 
 ## Primary Modules Assessed

@@ -1,4 +1,4 @@
-"""HTTP transport compatibility helpers for the backend API runtime."""
+"""Backend HTTP transport helpers for the API runtime."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
 )
 
 
-def build_api_gateway_event(
+def build_backend_request(
     request: Request,
     *,
     resource: str,
@@ -101,7 +101,7 @@ def build_api_gateway_event(
     }
 
 
-def lambda_response_to_http(response: dict[str, Any]) -> Response:
+def runtime_response_to_http(response: dict[str, Any]) -> Response:
     body = response.get("body")
     if body is None:
         body = ""
@@ -122,7 +122,6 @@ def lambda_response_to_http(response: dict[str, Any]) -> Response:
 __all__ = [
     "ApiRouteSpec",
     "API_ROUTE_SPECS",
-    "build_api_gateway_event",
-    "lambda_response_to_http",
+    "build_backend_request",
+    "runtime_response_to_http",
 ]
-

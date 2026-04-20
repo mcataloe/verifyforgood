@@ -23,8 +23,8 @@ def _load_module_with_identity_store(monkeypatch, *, api_auth_enabled: bool = Fa
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_membership_service = None
@@ -39,7 +39,7 @@ def _response_body(response):
 
 
 def _register_user(module, *, email: str, password: str = "top-secret-password", full_name: str | None = None):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -54,7 +54,7 @@ def _register_user(module, *, email: str, password: str = "top-secret-password",
 
 
 def _create_organization(module, *, access_token: str, name: str = "Verify For Good Org", slug: str | None = None):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -85,7 +85,7 @@ def test_admin_can_create_list_and_revoke_org_api_keys(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    create_response = module.handler(
+    create_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -103,7 +103,7 @@ def test_admin_can_create_list_and_revoke_org_api_keys(monkeypatch):
     create_payload = _response_body(create_response)
     key_id = create_payload["data"]["api_key"]["key_id"]
 
-    listed_response = module.handler(
+    listed_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/api-keys",
@@ -114,7 +114,7 @@ def test_admin_can_create_list_and_revoke_org_api_keys(monkeypatch):
     )
     listed_payload = _response_body(listed_response)
 
-    revoked_response = module.handler(
+    revoked_response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current/api-keys/{keyId}",
@@ -145,7 +145,7 @@ def test_admin_can_update_org_api_key_metadata(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    create_response = module.handler(
+    create_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -157,7 +157,7 @@ def test_admin_can_update_org_api_key_metadata(monkeypatch):
     )
     key_id = _response_body(create_response)["data"]["api_key"]["key_id"]
 
-    update_response = module.handler(
+    update_response = module.handle_api_event(
         {
             "httpMethod": "PATCH",
             "resource": "/v1/organizations/current/api-keys/{keyId}",
@@ -185,7 +185,7 @@ def test_non_admin_cannot_manage_org_api_keys(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    invite_response = module.handler(
+    invite_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/invitations",
@@ -197,7 +197,7 @@ def test_non_admin_cannot_manage_org_api_keys(monkeypatch):
     )
     invite_payload = _response_body(invite_response)
     _, member_token, _member_user = _register_user(module, email="member@example.com")
-    accept_response = module.handler(
+    accept_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/invitations/accept",
@@ -209,7 +209,7 @@ def test_non_admin_cannot_manage_org_api_keys(monkeypatch):
     )
     assert accept_response["statusCode"] == 200
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -230,7 +230,7 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    create_response = module.handler(
+    create_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -244,7 +244,7 @@ def test_org_api_key_authenticates_product_route_and_updates_last_used(monkeypat
     api_key = create_payload["data"]["secret"]
     key_id = create_payload["data"]["api_key"]["key_id"]
 
-    auth_response = module.handler(
+    auth_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -270,7 +270,7 @@ def test_org_api_key_cannot_access_org_api_key_management_routes(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    create_response = module.handler(
+    create_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -282,7 +282,7 @@ def test_org_api_key_cannot_access_org_api_key_management_routes(monkeypatch):
     )
     api_key = _response_body(create_response)["data"]["secret"]
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/api-keys",
@@ -302,7 +302,7 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    create_response = module.handler(
+    create_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -316,7 +316,7 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
     api_key = create_payload["data"]["secret"]
     key_id = create_payload["data"]["api_key"]["key_id"]
 
-    revoke_response = module.handler(
+    revoke_response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current/api-keys/{keyId}",
@@ -328,7 +328,7 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
     )
     assert revoke_response["statusCode"] == 200
 
-    auth_response = module.handler(
+    auth_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -342,4 +342,5 @@ def test_revoked_org_api_key_is_rejected_for_product_auth(monkeypatch):
 
     assert auth_response["statusCode"] == 401
     assert auth_payload["errors"][0]["message"] == "API key revoked"
+
 

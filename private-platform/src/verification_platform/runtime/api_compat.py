@@ -17,11 +17,11 @@ for path in (BACKEND_API_SRC, BACKEND_SHARED_SRC):
 
 
 from verification_backend.api.app import app, create_app  # noqa: E402
-from verification_backend.api.compat import (  # noqa: E402
+from verification_backend.api.transport import (  # noqa: E402
     API_ROUTE_SPECS,
     ApiRouteSpec,
-    build_api_gateway_event,
-    lambda_response_to_http,
+    build_backend_request,
+    runtime_response_to_http,
 )
 
 
@@ -30,7 +30,7 @@ __all__ = [
     "create_app",
     "API_ROUTE_SPECS",
     "ApiRouteSpec",
-    "build_api_gateway_event",
-    "lambda_response_to_http",
+    "build_backend_request",
+    "runtime_response_to_http",
 ]
 

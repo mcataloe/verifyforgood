@@ -100,7 +100,8 @@ def test_runtime_source_files_no_longer_embed_legacy_brand_identifier():
 
 def test_infrastructure_wires_runtime_branding_configuration():
     variables_tf = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
-    lambda_tf = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+    api_ecs_tf = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+    worker_ecs_tf = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
     shared_example = Path("infrastructure/terraform.shared.tfvars.example").read_text(encoding="utf-8")
     tfvars_example = Path("infrastructure/terraform.tfvars.example").read_text(encoding="utf-8")
@@ -109,10 +110,10 @@ def test_infrastructure_wires_runtime_branding_configuration():
     assert 'variable "public_brand_name"' in variables_tf
     assert 'variable "support_email"' in variables_tf
     assert 'variable "domain"' in variables_tf
-    assert "APP_NAME" in lambda_tf
-    assert "PUBLIC_BRAND_NAME" in lambda_tf
-    assert "SUPPORT_EMAIL" in lambda_tf
-    assert "DOMAIN" in lambda_tf
+    assert "APP_NAME" in api_ecs_tf or "APP_NAME" in worker_ecs_tf
+    assert "PUBLIC_BRAND_NAME" in api_ecs_tf
+    assert "SUPPORT_EMAIL" in api_ecs_tf or "SUPPORT_EMAIL" in worker_ecs_tf
+    assert "DOMAIN" in api_ecs_tf or "DOMAIN" in worker_ecs_tf
     assert "APP_NAME=verification-platform" in readme
     assert "PUBLIC_BRAND_NAME=VerifyForGood" in readme
     assert "SUPPORT_EMAIL=support@verifyforgood.com" in readme

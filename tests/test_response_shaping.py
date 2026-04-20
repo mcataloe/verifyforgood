@@ -6,6 +6,7 @@ import sys
 from types import SimpleNamespace
 
 from verification.auth import InMemoryUsageStore, build_api_key_record
+from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 def _query_stub():
@@ -70,9 +71,31 @@ def _load_module(monkeypatch, *, plan_code: str):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "false")
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.SERVING_DDB_ENABLED = False
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
+    module.auth_context_provider = SimpleNamespace(
+        extract_context=lambda event: module.AuthContext(
+            account_id=f"org_{plan_code}",
+            credential_id="user_1",
+            auth_method="portal_session",
+            plan=plan_code,
+            scopes=("verify:read", "verify:write", "nonprofits:read", "sources:read", "compliance:read"),
+            rate_limit_profile=plan_code,
+            workspace_id=f"org_{plan_code}",
+            subject="portal_session:user_1",
+            entitlements=module.DEFAULT_PLANS[plan_code].entitlements,
+            metadata={
+                "organization_id": f"org_{plan_code}",
+                "portal_session": "true",
+                "tenant_scoped_request": "true",
+                "tenant_user_id": "user_1",
+                "membership_role": "admin",
+                "subscription_plan": plan_code,
+            },
+        )
+    )
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda **kwargs: _enrichment_stub())
     module.usage_store = InMemoryUsageStore()
@@ -90,7 +113,7 @@ def _meta(response):
 def test_free_plan_shapes_nonprofit_lookup_with_upgrade_hints(monkeypatch):
     module, api_key = _load_module(monkeypatch, plan_code="free")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}",
@@ -113,11 +136,11 @@ def test_free_plan_shapes_nonprofit_lookup_with_upgrade_hints(monkeypatch):
 def test_growth_plan_includes_risk_and_financial_fields_but_redacts_monitoring(monkeypatch):
     module, api_key = _load_module(monkeypatch, plan_code="growth")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
-            "resource": "/v1/nonprofits/verify",
-            "path": "/v1/nonprofits/verify",
+            "resource": "/v1/verify",
+            "path": "/v1/verify",
             "headers": {"x-api-key": api_key, "Content-Type": "application/json"},
             "body": json.dumps({"ein": "123456789", "name": "Shaped Org"}),
         },
@@ -137,7 +160,7 @@ def test_growth_plan_includes_risk_and_financial_fields_but_redacts_monitoring(m
 def test_feature_unavailable_error_includes_upgrade_plan(monkeypatch):
     module, api_key = _load_module(monkeypatch, plan_code="free")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}/compliance",
@@ -153,4 +176,5 @@ def test_feature_unavailable_error_includes_upgrade_plan(monkeypatch):
     assert body["errors"][0]["code"] == "feature_unavailable"
     assert _meta(response)["feature_flag"] == "risk_flags"
     assert _meta(response)["upgrade_plan"] == "growth"
+
 

@@ -25,13 +25,12 @@ Container contract:
 - default command: `python -m verification_backend.worker.entrypoint`
 - intended Terraform/ECS mapping: private-subnet ECS service with no ALB
 - Terraform now exposes a disabled-by-default service slot so the deployment
-  boundary exists before runtime ownership fully moves here
-- intentionally scaffold-only until `infrastructure.lambda_refresh` runtime
-  ownership moves into `backend/worker`
+  boundary exists without implying an active refresh migration
+- intentionally scaffold-only future worker host; the retired refresh Lambda is
+  not a migration target
 
 Planned inbound migration:
 
-- `infrastructure.lambda_refresh`
 - future worker-oriented runtime wrappers that should not stay in deployment-only paths
 
 Not owned here:

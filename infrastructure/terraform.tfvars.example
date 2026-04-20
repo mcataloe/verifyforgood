@@ -1,4 +1,4 @@
-# Copy this file to terraform.tfvars (or environment-specific tfvars) and update values.
+﻿# Copy this file to terraform.tfvars (or environment-specific tfvars) and update values.
 
 aws_region                 = "us-east-1"
 environment                = "dev"
@@ -49,13 +49,6 @@ form990_lambda_timeout_seconds = 900
 form990_lambda_memory_size_mb = 3072
 form990_execution_mode = "inline"
 form990_chunk_size = 250
-form990_worker_timeout_seconds = 300
-form990_worker_memory_size_mb = 1024
-form990_worker_reserved_concurrency = 5
-form990_queue_visibility_timeout_seconds = 600
-form990_queue_max_receive_count = 3
-form990_queue_batch_size = 1
-monthly_ingest_state_machine_enabled = false
 monthly_ingest_worker_image_tag = "set-by-ci-commit-sha"
 monthly_ingest_task_cpu = 2048
 monthly_ingest_task_memory = 8192
@@ -161,7 +154,6 @@ oauth_token_records_json  = "[]"
 organization_integration_settings_json = "[]"
 tenant_integration_settings_json = "[]"
 ops_metadata_prefix       = "ops/"
-refresh_lambda_enabled     = true
 refresh_mode               = "refresh_changed"
 refresh_batch_size         = 100
 refresh_force              = false
@@ -181,3 +173,4 @@ root_domain_name           = "verification.example.com"
 base_name                 = "verification-platform"
 form990_schedule_expression = "cron(30 4 * * ? *)"
 route53_zone_name         = "verification.example.com."
+

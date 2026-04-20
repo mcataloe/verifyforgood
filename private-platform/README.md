@@ -4,10 +4,9 @@ This directory marks the future destination for proprietary platform integration
 
 Current platform/runtime code still exists in this monorepo:
 
-- `infrastructure/lambda_query.py`
-- `infrastructure/lambda_refresh.py`
-- `infrastructure/eo_bmf_ingest_worker.py`
-- `infrastructure/lambda_form990.py`
+- `backend/api/`
+- `backend/ingest-task/`
+- `backend/worker/`
 - `infrastructure/verification/platform/`
 
 Target package root after extraction:
@@ -33,7 +32,7 @@ Future private repo responsibilities:
 - customer/account-specific deployment logic
 - all billing and subscription workflow logic
 - control-plane and operator workflow orchestration
-- Lambda entrypoints and transport response shaping
+- backend-owned runtime adapters and transport response shaping
 - canonical private backend entrypoint mapping and shared runtime contract exports
 
 Internal service areas now defined:

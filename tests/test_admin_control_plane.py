@@ -52,9 +52,10 @@ def _load_module(monkeypatch):
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.SERVING_DDB_ENABLED = False
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     return module, admin_key
@@ -63,7 +64,7 @@ def _load_module(monkeypatch):
 def test_admin_routes_require_separate_admin_key(monkeypatch):
     module, _admin_key = _load_module(monkeypatch)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts",
@@ -81,7 +82,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -100,7 +101,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert account["ein"] == "123456789"
     assert re.fullmatch(r"acct_[0-9a-f]{32}", account_id)
 
-    listed = module.handler(
+    listed = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts",
@@ -114,7 +115,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert len(_data(listed)["items"]) == 1
     assert _data(listed)["items"][0]["subscription"] == "free"
 
-    fetched = module.handler(
+    fetched = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts/{accountId}",
@@ -127,7 +128,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert _data(fetched)["id"] == account_id
     assert _data(fetched)["subscription"] == "free"
 
-    updated = module.handler(
+    updated = module.handle_api_event(
         {
             "httpMethod": "PATCH",
             "resource": "/v1/admin/accounts/{accountId}",
@@ -141,7 +142,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert _data(updated)["name"] == "Acme Foundation"
     assert _data(updated)["subscription"] == "free"
 
-    suspended = module.handler(
+    suspended = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/suspend",
@@ -154,7 +155,7 @@ def test_admin_account_crud_and_status_transitions(monkeypatch):
     assert _data(suspended)["status"] == "suspended"
     assert _data(suspended)["subscription"] == "free"
 
-    activated = module.handler(
+    activated = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/activate",
@@ -172,7 +173,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
     account = _data(
-        module.handler(
+        module.handle_api_event(
             {
                 "httpMethod": "POST",
                 "resource": "/v1/admin/accounts",
@@ -184,7 +185,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
         )
     )
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/api-keys",
@@ -202,7 +203,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     assert secret.startswith("csk_")
     assert re.fullmatch(r"key_[0-9a-f]{32}", key_id)
 
-    listed = module.handler(
+    listed = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts/{accountId}/api-keys",
@@ -216,7 +217,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     assert "secret" not in listed_item
     assert listed_item["key_id"] == key_id
 
-    customer_response = module.handler(
+    customer_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -228,7 +229,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     )
     assert customer_response["statusCode"] == 403
 
-    rotated = module.handler(
+    rotated = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/api-keys/{keyId}/rotate",
@@ -241,7 +242,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     rotated_secret = _data(rotated)["secret"]
     assert rotated_secret != secret
 
-    old_key_response = module.handler(
+    old_key_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -253,7 +254,7 @@ def test_admin_api_key_lifecycle_and_customer_auth(monkeypatch):
     )
     assert old_key_response["statusCode"] == 401
 
-    deleted = module.handler(
+    deleted = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/admin/accounts/{accountId}/api-keys/{keyId}",
@@ -270,7 +271,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
     account = _data(
-        module.handler(
+        module.handle_api_event(
             {
                 "httpMethod": "POST",
                 "resource": "/v1/admin/accounts",
@@ -282,7 +283,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
         )
     )
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/oauth-clients",
@@ -299,7 +300,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
     assert created["statusCode"] == 201
     assert re.fullmatch(r"client_[0-9a-f]{32}", client_id)
 
-    listed = module.handler(
+    listed = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts/{accountId}/oauth-clients",
@@ -313,7 +314,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
     assert "client_secret" not in listed_item
     assert listed_item["client_id"] == client_id
 
-    token_response = module.handler(
+    token_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/oauth/token",
@@ -326,7 +327,7 @@ def test_admin_oauth_client_lifecycle_and_token_issue(monkeypatch):
     assert token_response["statusCode"] == 200
     assert _data(token_response)["access_token"].startswith("oct_")
 
-    deleted = module.handler(
+    deleted = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/admin/accounts/{accountId}/oauth-clients/{clientId}",
@@ -437,7 +438,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
 
-    account_response = module.handler(
+    account_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -451,7 +452,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
     assert "system-generated" in _body(account_response)["errors"][0]["message"]
 
     account = _data(
-        module.handler(
+        module.handle_api_event(
             {
                 "httpMethod": "POST",
                 "resource": "/v1/admin/accounts",
@@ -463,7 +464,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
         )
     )
 
-    api_key_response = module.handler(
+    api_key_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/api-keys",
@@ -477,7 +478,7 @@ def test_create_routes_reject_caller_supplied_identifiers(monkeypatch):
     assert api_key_response["statusCode"] == 400
     assert "system-generated" in _body(api_key_response)["errors"][0]["message"]
 
-    oauth_response = module.handler(
+    oauth_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/oauth-clients",
@@ -496,7 +497,7 @@ def test_admin_subscription_routes(monkeypatch):
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
     account = _data(
-        module.handler(
+        module.handle_api_event(
             {
                 "httpMethod": "POST",
                 "resource": "/v1/admin/accounts",
@@ -508,7 +509,7 @@ def test_admin_subscription_routes(monkeypatch):
         )
     )
 
-    fetched = module.handler(
+    fetched = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts/{accountId}/subscription",
@@ -521,7 +522,7 @@ def test_admin_subscription_routes(monkeypatch):
     assert fetched["statusCode"] == 200
     assert _data(fetched)["plan_code"] == "free"
 
-    updated = module.handler(
+    updated = module.handle_api_event(
         {
             "httpMethod": "PUT",
             "resource": "/v1/admin/accounts/{accountId}/subscription",
@@ -548,7 +549,7 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     module, admin_key = _load_module(monkeypatch)
     headers = {"x-admin-key": admin_key, "Content-Type": "application/json"}
 
-    missing_ein = module.handler(
+    missing_ein = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -561,7 +562,7 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     assert missing_ein["statusCode"] == 400
     assert "ein is required" in _body(missing_ein)["errors"][0]["message"]
 
-    invalid_ein = module.handler(
+    invalid_ein = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -574,7 +575,7 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     assert invalid_ein["statusCode"] == 400
     assert "valid EIN" in _body(invalid_ein)["errors"][0]["message"]
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -586,7 +587,7 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     )
     account_id = _data(created)["id"]
 
-    patched = module.handler(
+    patched = module.handle_api_event(
         {
             "httpMethod": "PATCH",
             "resource": "/v1/admin/accounts/{accountId}",
@@ -599,4 +600,5 @@ def test_admin_account_create_requires_valid_ein_and_patch_rejects_it(monkeypatc
     )
     assert patched["statusCode"] == 400
     assert "cannot be updated" in _body(patched)["errors"][0]["message"]
+
 

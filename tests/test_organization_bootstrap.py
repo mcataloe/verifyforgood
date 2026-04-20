@@ -149,12 +149,12 @@ def test_post_organizations_bootstraps_admin_membership(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
 
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -173,7 +173,7 @@ def test_post_organizations_bootstraps_admin_membership(monkeypatch):
     register_payload = json.loads(register_response["body"])
     access_token = register_payload["data"]["access_token"]
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -206,12 +206,12 @@ def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatc
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
 
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -229,7 +229,7 @@ def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatc
     )
     register_payload = json.loads(register_response["body"])
     access_token = register_payload["data"]["access_token"]
-    organization_response = module.handler(
+    organization_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -244,7 +244,7 @@ def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatc
     )
     organization_payload = json.loads(organization_response["body"])
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current",
@@ -264,4 +264,5 @@ def test_delete_current_organization_soft_deletes_and_returns_success(monkeypatc
     assert response["statusCode"] == 200
     assert payload["data"]["deleted"] is True
     assert payload["data"]["organization"]["slug"] == "verify-for-good-org"
+
 

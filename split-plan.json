@@ -92,9 +92,7 @@
       ],
       "runtime": [
         "infrastructure/verification/platform/",
-        "infrastructure/lambda_query.py",
-        "infrastructure/lambda_refresh.py",
-        "infrastructure/eo_bmf_ingest_worker.py",
+                        "infrastructure/eo_bmf_ingest_worker.py",
         "infrastructure/monthly_ingest_worker.py",
         "infrastructure/nonprofit_ingest_persistence.py"
       ],
@@ -110,9 +108,7 @@
       "infrastructure/verification/query/athena.py",
       "infrastructure/verification/serving/dynamodb_store.py",
       "infrastructure/verification/enrichments/organization_store.py",
-      "infrastructure/lambda_query.py",
-      "infrastructure/lambda_refresh.py",
-      "infrastructure/eo_bmf_ingest_worker.py",
+                  "infrastructure/eo_bmf_ingest_worker.py",
       "infrastructure/monthly_ingest_worker.py",
       "infrastructure/nonprofit_ingest_persistence.py"
     ],
@@ -139,9 +135,7 @@
   "entrypoints": [
     "infrastructure/verification/api/routes.py",
     "infrastructure/verification/api/responses.py",
-    "infrastructure/lambda_query.py",
-    "infrastructure/lambda_refresh.py",
-    "infrastructure/eo_bmf_ingest_worker.py",
+            "infrastructure/eo_bmf_ingest_worker.py",
     "infrastructure/monthly_ingest_worker.py",
     "infrastructure/nonprofit_ingest_persistence.py"
   ],
@@ -154,7 +148,7 @@
   ],
   "backend_runtime_targets": {
     "public_api": {
-      "current_handler": "infrastructure.lambda_query.handler",
+      "current_handler": "verification_backend.api.runtime.handle_api_event",
       "target_directory": "backend/api/",
       "notes": [
         "Primary API server runtime host.",
@@ -162,7 +156,7 @@
       ]
     },
     "profile_refresh_job": {
-      "current_handler": "infrastructure.lambda_refresh.handler",
+      "current_handler": "verification_backend.worker.entrypoint.main",
       "target_directory": "backend/worker/",
       "notes": [
         "Non-HTTP refresh runtime host."
@@ -209,8 +203,7 @@
     ]
   },
   "highest_risk_refactors": [
-    "infrastructure/lambda_query.py",
-    "infrastructure/verification/core/models.py",
+        "infrastructure/verification/core/models.py",
     "infrastructure/verification/billing/",
     "infrastructure/verification/query/athena.py",
     "infrastructure/verification/enrichments/organization_store.py",
@@ -237,4 +230,5 @@
     "reduce infrastructure to deployment/config/wiring only"
   ]
 }
+
 

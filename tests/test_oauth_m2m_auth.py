@@ -126,13 +126,13 @@ def test_scope_enforcement_for_oauth(monkeypatch):
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", json.dumps([record.__dict__]))
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     module.usage_store = InMemoryUsageStore()
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/verify",
@@ -159,10 +159,10 @@ def test_oauth_token_endpoint_returns_access_token(monkeypatch):
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([client_record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/oauth/token",
@@ -202,14 +202,14 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([key_record.__dict__]))
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([oauth_client_record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     module.usage_store = InMemoryUsageStore()
 
-    token_response = module.handler(
+    token_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/oauth/token",
@@ -221,14 +221,15 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
     )
     token = _response_data(token_response)["access_token"]
 
-    api_key_response = module.handler(
+    api_key_response = module.handle_api_event(
         {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": api_key}},
         None,
     )
-    oauth_response = module.handler(
+    oauth_response = module.handle_api_event(
         {"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"Authorization": f"Bearer {token}"}},
         None,
     )
     assert api_key_response["statusCode"] == 403
     assert oauth_response["statusCode"] == 403
+
 

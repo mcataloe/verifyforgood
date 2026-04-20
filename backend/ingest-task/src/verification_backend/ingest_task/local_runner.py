@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 import logging
 import os
 import traceback
@@ -27,7 +28,8 @@ from verification.form990.source_catalog import (
     normalize_configured_sources,
 )
 from verification.form990.static_source_discovery import discover_static_form990_sources
-from verification.ops import build_progress_reporter, prepare_stream_for_external_write
+from verification.ops import S3RunStore, build_progress_reporter, prepare_stream_for_external_write
+from verification.ops.run_store import safe_error_summary
 from verification.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
 from .orchestration import build_workspace_layout
@@ -51,6 +53,15 @@ class LocalIngestRunConfig:
     xml_parser_workers: int = 1
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
+
+
+@dataclass(frozen=True)
+class Form990RunContext:
+    run_id: str | None = None
+    mode: str = "incremental"
+    execution_mode: str = "inline"
+    target_years: tuple[str, ...] = ()
+    triggered_at: str | None = None
 
 
 class _ConsoleStructuredLogger:
@@ -208,8 +219,11 @@ def run_local_form990_ingest_config(
         file_name="",
     )
 
+    run_context = _resolve_form990_run_context(source_env)
+    started_at = datetime.now(timezone.utc)
     archive_metadata_service = _build_archive_metadata_service(env=source_env, logger=logger)
     nonprofit_persistence_service = build_form990_nonprofit_persistence_service(env=source_env)
+    ops_run_store = _build_ops_run_store(source_env)
     artifacts = _resolve_archive_sources(source_env, archive_url=config.archive_url)
     zip_artifacts = [artifact for artifact in artifacts if artifact.source_kind == SOURCE_KIND_ZIP_ARCHIVE]
     if config.single_archive:
@@ -225,6 +239,10 @@ def run_local_form990_ingest_config(
         return 0
 
     failure_count = 0
+    records_processed = 0
+    parsed_count = 0
+    failed_record_count = 0
+    filing_summaries: list[dict[str, Any]] = []
     for artifact in zip_artifacts:
         archive_name = artifact.source_archive_key
         archive_workspace = layout.for_archive(archive_name).ensure()
@@ -261,12 +279,12 @@ def run_local_form990_ingest_config(
                 ),
                 archive=archive_name,
             )
-            run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            archive_run_id = run_context.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             processing_context = {
                 "source_key": _local_source_key(artifact),
-                "job_id": f"local-cli-{run_id}-{archive_name}",
-                "correlation_id": f"local-cli-{run_id}",
-                "workflow_version": "local-cli",
+                "job_id": archive_run_id,
+                "correlation_id": archive_run_id,
+                "workflow_version": run_context.execution_mode,
                 "source_url": artifact.source_url,
                 "workspace_root": str(layout.root),
             }
@@ -307,6 +325,10 @@ def run_local_form990_ingest_config(
                 ),
                 archive=archive_name,
             )
+            records_processed += int(result.get("records_processed") or 0)
+            parsed_count += int(result.get("parsed_count") or 0)
+            failed_record_count += int(result.get("failed_count") or 0)
+            filing_summaries.extend(_build_filing_summaries(result))
             if str(result.get("status") or "").strip().lower() == "failed":
                 failure_count += 1
                 if config.strict:
@@ -358,6 +380,19 @@ def run_local_form990_ingest_config(
                     archive=archive_name,
                 )
 
+    _write_ops_ingest_run(
+        env=source_env,
+        store=ops_run_store,
+        run_context=run_context,
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        archive_count=len(zip_artifacts),
+        failure_count=failure_count,
+        records_processed=records_processed,
+        parsed_count=parsed_count,
+        failed_record_count=failed_record_count,
+        filings=filing_summaries,
+    )
     logger.log(
         component="form990.cli",
         level="INFO",
@@ -470,6 +505,115 @@ def _env_optional_bool(source_env: Mapping[str, str], key: str) -> bool | None:
     if raw is None or str(raw).strip() == "":
         return None
     return str(raw).strip().lower() == "true"
+
+
+def _load_boto3():
+    return importlib.import_module("boto3")
+
+
+def _parse_json_string_list(source_env: Mapping[str, str], key: str) -> tuple[str, ...]:
+    raw = _env_text(source_env, key)
+    if not raw:
+        return ()
+    payload = json.loads(raw)
+    if not isinstance(payload, list):
+        raise ValueError(f"{key} must decode to a JSON array")
+    values: list[str] = []
+    for item in payload:
+        if not isinstance(item, str):
+            raise ValueError(f"{key} entries must be strings")
+        value = item.strip()
+        if value:
+            values.append(value)
+    return tuple(values)
+
+
+def _resolve_form990_run_context(source_env: Mapping[str, str]) -> Form990RunContext:
+    return Form990RunContext(
+        run_id=_env_text(source_env, "FORM990_RUN_ID")
+        or _env_text(source_env, "FORM990_MANUAL_RUN_ID")
+        or _env_text(source_env, "MONTHLY_INGEST_JOB_ID")
+        or None,
+        mode=_env_text(source_env, "FORM990_RUN_MODE", _env_text(source_env, "FORM990_MANUAL_MODE", "incremental")) or "incremental",
+        execution_mode=_env_text(source_env, "FORM990_EXECUTION_MODE", "inline") or "inline",
+        target_years=_parse_json_string_list(source_env, "FORM990_MANUAL_TARGET_YEARS"),
+        triggered_at=_env_text(source_env, "FORM990_TRIGGERED_AT") or None,
+    )
+
+
+def _build_ops_run_store(source_env: Mapping[str, str]) -> S3RunStore | None:
+    bucket = _env_text(source_env, "OPS_METADATA_BUCKET")
+    if not bucket:
+        return None
+    return S3RunStore(
+        bucket=bucket,
+        prefix=_env_text(source_env, "OPS_METADATA_PREFIX", "ops"),
+        s3_client=_load_boto3().client("s3"),
+    )
+
+
+def _build_filing_summaries(result: Mapping[str, Any]) -> list[dict[str, Any]]:
+    records = result.get("records")
+    if not isinstance(records, list):
+        return []
+    summaries: list[dict[str, Any]] = []
+    for item in records:
+        if not isinstance(item, dict):
+            continue
+        summaries.append(
+            {
+                "ein": item.get("ein"),
+                "tax_year": item.get("tax_year"),
+                "return_type": item.get("return_type"),
+                "filing_date": item.get("filing_date"),
+                "parse_status": item.get("parse_status"),
+            }
+        )
+    return summaries
+
+
+def _write_ops_ingest_run(
+    *,
+    env: Mapping[str, str],
+    store: S3RunStore | None,
+    run_context: Form990RunContext,
+    started_at: datetime,
+    completed_at: datetime,
+    archive_count: int,
+    failure_count: int,
+    records_processed: int,
+    parsed_count: int,
+    failed_record_count: int,
+    filings: list[dict[str, Any]],
+) -> None:
+    if store is None or not run_context.run_id:
+        return
+    status = "success" if failure_count == 0 and failed_record_count == 0 else ("partial_success" if parsed_count > 0 else "failed")
+    payload = {
+        "ingest_run_id": run_context.run_id,
+        "status": status,
+        "execution_mode": run_context.execution_mode,
+        "mode": run_context.mode,
+        "target_years": list(run_context.target_years),
+        "triggered_at": run_context.triggered_at or started_at.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "started_at": started_at.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "completed_at": completed_at.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "archive_count": archive_count,
+        "records_processed": records_processed,
+        "parsed_count": parsed_count,
+        "failed_count": failed_record_count,
+        "archive_failure_count": failure_count,
+    }
+    try:
+        store.write_ingest_run(run_context.run_id, payload)
+        store.write_ingest_filings(run_context.run_id, filings)
+    except Exception as exc:
+        _ConsoleStructuredLogger(strict=False, level=_env_text(env, "LOG_LEVEL", DEFAULT_LOG_LEVEL)).log(
+            component="form990.ops",
+            level="WARNING",
+            message=f"failed to publish ingest run metadata summary={safe_error_summary([{'code': 'ops_run_store_write_failed', 'error': str(exc)}])}",
+            error=exc,
+        )
 
 
 def _resolve_xml_parser_workers(source_env: Mapping[str, str], *, override: int | None = None) -> int:

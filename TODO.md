@@ -23,6 +23,10 @@ The runtime cutover is now on PostgreSQL for the platform's relational domains,
 but the repo still contains historical migration helpers, Dynamo-specific test
 coverage, and documentation that assume the older mixed-mode posture.
 
+The ECS-only runtime cutover is complete for the HTTP API, scheduled ingest,
+and manual Form 990 task launches. Remaining follow-up here is cleanup of
+historical compatibility language and obsolete mixed-mode tooling.
+
 ### Migration Triggers
 
 - remove historical DynamoDB-only tests and compatibility docs that no longer

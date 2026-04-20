@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -79,7 +80,7 @@ class AuditLogService:
         timestamp: str | None = None,
     ) -> AuditRecord | None:
         record = AuditRecord(
-            audit_id=None,
+            audit_id=secrets.token_hex(8),
             event_type=event_type,
             actor_user_id=_optional_string(actor_user_id),
             organization_id=_optional_string(organization_id),

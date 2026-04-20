@@ -180,7 +180,7 @@ Worker service inputs when `worker_ecs_enabled=true`:
 Worker placeholder note:
 
 - the worker ECS service is intentionally provisionable before the runtime is
-  fully migrated out of `infrastructure.lambda_refresh`
+  assigned to a future non-refresh background workload
 - defaulting `worker_ecs_desired_count` to `0` keeps the deployment slot
   explicit without pretending the service is production-ready
 

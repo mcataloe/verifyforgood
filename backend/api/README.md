@@ -6,7 +6,7 @@ Target ownership for `backend/api/`:
 - ASGI app/bootstrap and startup wiring
 - request composition and HTTP transport integration
 - health and readiness endpoint ownership
-- the eventual source of truth for the public API runtime once legacy Lambda rollback shims are retired
+- the source of truth for the public API runtime
 
 Python package root:
 
@@ -14,18 +14,18 @@ Python package root:
 - canonical ASGI app import: `verification_backend.api.app:app`
 - local runtime entrypoint: `python -m verification_backend.api.entrypoint`
 
-Planned inbound migration:
+Runtime ownership:
 
-- `infrastructure.lambda_query`
-- HTTP runtime-specific bootstrap currently assembled under `infrastructure/verification/platform/`
-- shared transport helpers that should move into `backend/shared/`
+- public HTTP entrypoint: `verification_backend.api.app:app`
+- backend-local dispatch/runtime: `verification_backend.api.runtime.handle_api_event`
+- shared compatibility transport seam: `verification_backend.api.transport`
 
 Current phase posture:
 
 - `verification_backend.api.runtime` now owns the primary API runtime implementation
 - `verification_backend.api.app` now owns FastAPI app assembly, route registration, and health/readiness endpoints
-- `infrastructure.lambda_query` remains only as a thin rollback and compatibility import path
 - `verification_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
+- `infrastructure/` is now deployment-only for API runtime concerns
 
 Local run:
 

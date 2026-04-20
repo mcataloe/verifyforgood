@@ -153,16 +153,17 @@ This repository now defines the workflow, but the following deployment-specific 
 - task security group ids
 - ECS cluster ARN
 
-Terraform can now manage the task definition, task roles, staging Lambda, and worker log group automatically when the external ARN overrides are left empty.
-
-The staging Lambda no longer has to be supplied externally. Terraform creates it automatically when `monthly_ingest_state_machine_enabled=true` and `monthly_ingest_staging_lambda_arn` is empty. Set `monthly_ingest_staging_lambda_arn` only when you want to point the workflow at a separately managed Lambda.
+Terraform now manages the ECS task definition, task roles, EventBridge target,
+and worker log group directly when the external ARN overrides are left empty.
+The ingest task downloads and stages source artifacts itself; there is no
+separate staging Lambda.
 
 ## Schedule Notes
 
 - The EventBridge schedule is optional and disabled unless `monthly_ingest_schedule_expression`, `monthly_ingest_schedule_source_bucket`, `monthly_ingest_schedule_destination_bucket`, and `monthly_ingest_schedule_destination_prefix` are set.
 - Scheduled executions pass a static workflow input payload with an added `schedule_context.trigger = "eventbridge"` marker.
-- When `monthly_ingest_schedule_skip_staging=false`, Terraform automatically provides a placeholder `source_key` and the staging Lambda replaces it with the real staged object location.
 - `monthly_ingest_schedule_context_json` is the preferred place to supply upstream ZIP metadata such as `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`.
+- Scheduled runs target ECS directly; there is no Step Functions or Lambda staging hop.
 - The schedule does not create persistent interface endpoints; those remain per-execution only.
 
 ## Operator Guidance

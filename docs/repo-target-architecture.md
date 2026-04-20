@@ -1,5 +1,10 @@
 ﻿# Repository Target Architecture Assessment
 
+Historical note: this assessment predates the completed ECS-only runtime
+cutover. References to `lambda_query`, `lambda_refresh`, API Gateway, or Lambda
+packaging below are archival migration context rather than the current
+deployment model.
+
 This document records the current repository assessment and the recommended target-state split between:
 
 1. `frontend/`

@@ -11,7 +11,7 @@ def main() -> None:
     raise SystemExit(
         scaffold_only_message(
             runtime_name="worker",
-            current_source="infrastructure.lambda_refresh.handler",
+            current_source="retired refresh lambda runtime",
             target_directory="backend/worker/",
         )
     )

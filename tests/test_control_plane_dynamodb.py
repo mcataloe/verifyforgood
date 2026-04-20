@@ -277,8 +277,8 @@ def _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path: Path):
 
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification_backend.api.runtime", None)
+    module = importlib.import_module("verification_backend.api.runtime")
     module.API_AUTH_ENABLED = True
     module.OAUTH_M2M_ENABLED = str(os.environ.get("OAUTH_M2M_ENABLED", "false")).lower() == "true"
     module.API_KEY_RECORDS_JSON = str(os.environ.get("API_KEY_RECORDS_JSON", "[]"))
@@ -381,7 +381,7 @@ def test_lambda_query_uses_postgres_control_plane_runtime(monkeypatch, tmp_path:
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
     module = _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path)
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -397,7 +397,7 @@ def test_lambda_query_uses_postgres_control_plane_runtime(monkeypatch, tmp_path:
 
     module.control_plane_service = None
 
-    listed = module.handler(
+    listed = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts",
@@ -454,7 +454,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch,
         managed_record,
     )
 
-    managed_response = module.handler(
+    managed_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -464,7 +464,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch,
         },
         None,
     )
-    bootstrap_response = module.handler(
+    bootstrap_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -526,4 +526,5 @@ def test_legacy_dynamo_account_without_subscription_returns_null_subscription():
     account = service.get_account("acct_legacy_no_sub")
 
     assert account["subscription"] is None
+
 

@@ -274,10 +274,8 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
 
 def test_infrastructure_nonprofit_database_wiring_is_explicit():
     variables_text = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
-    lambda_text = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
     api_ecs_text = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
     worker_ecs_text = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
-    iam_text = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
     tfvars_text = Path("infrastructure/terraform.tfvars.example").read_text(encoding="utf-8")
     shared_tfvars_text = Path("infrastructure/terraform.shared.tfvars.example").read_text(encoding="utf-8")
 
@@ -286,15 +284,11 @@ def test_infrastructure_nonprofit_database_wiring_is_explicit():
     assert 'variable "platform_nonprofit_postgres_secret_arn"' in variables_text
     assert 'variable "platform_nonprofit_postgres_database_name"' in variables_text
 
-    assert "PLATFORM_NONPROFIT_STORE_BACKEND" in lambda_text
-    assert "PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN" in lambda_text
-    assert "PLATFORM_NONPROFIT_POSTGRES_DATABASE" in lambda_text
     assert "PLATFORM_NONPROFIT_STORE_BACKEND" in api_ecs_text
     assert "ApiTaskNonprofitPostgresSecretRead" in api_ecs_text
     assert "PLATFORM_NONPROFIT_STORE_BACKEND" in worker_ecs_text
     assert "MonthlyIngestNonprofitPostgresSecretRead" in worker_ecs_text
     assert "WorkerTaskNonprofitPostgresSecretRead" in worker_ecs_text
-    assert "platform_nonprofit_postgres_secret_arn" in iam_text
 
     assert 'platform_nonprofit_store_backend = "postgres"' in tfvars_text
     assert "platform_nonprofit_postgres_enabled = false" in tfvars_text

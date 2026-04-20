@@ -307,12 +307,6 @@ variable "form990_chunk_size" {
   default     = 250
 }
 
-variable "monthly_ingest_state_machine_enabled" {
-  description = "Enable the Step Functions monthly private-ingest orchestration workflow."
-  type        = bool
-  default     = false
-}
-
 variable "monthly_ingest_schedule_expression" {
   description = "Optional EventBridge schedule expression for the monthly private-ingest state machine. Empty disables the schedule."
   type        = string
@@ -892,12 +886,6 @@ variable "monthly_ingest_task_allowed_bucket_arns" {
   default     = []
 }
 
-variable "monthly_ingest_staging_lambda_arn" {
-  description = "Optional external staging Lambda ARN invoked before ECS processing when skip_staging=false. Empty lets Terraform create and wire the in-repo staging Lambda."
-  type        = string
-  default     = ""
-}
-
 variable "monthly_ingest_schedule_source_bucket" {
   description = "Optional source bucket passed by the monthly private-ingest EventBridge schedule."
   type        = string
@@ -976,58 +964,10 @@ variable "monthly_ingest_retry_backoff_rate" {
   default     = 2
 }
 
-variable "monthly_ingest_staging_lambda_timeout_seconds" {
-  description = "Timeout in seconds for the staging Lambda Step Functions task."
-  type        = number
-  default     = 900
-}
-
 variable "monthly_ingest_ecs_task_timeout_seconds" {
   description = "Timeout in seconds for the ECS RunTask.sync step."
   type        = number
   default     = 14400
-}
-
-variable "monthly_ingest_state_machine_timeout_seconds" {
-  description = "Overall timeout in seconds for the monthly private-ingest Step Functions state machine."
-  type        = number
-  default     = 21600
-}
-
-variable "form990_worker_timeout_seconds" {
-  description = "Timeout for Form 990 worker Lambda."
-  type        = number
-  default     = 300
-}
-
-variable "form990_worker_memory_size_mb" {
-  description = "Memory size in MB for Form 990 worker Lambda."
-  type        = number
-  default     = 1024
-}
-
-variable "form990_worker_reserved_concurrency" {
-  description = "Reserved concurrency for Form 990 worker Lambda. Set 0 for unreserved."
-  type        = number
-  default     = 5
-}
-
-variable "form990_queue_visibility_timeout_seconds" {
-  description = "Visibility timeout for Form 990 SQS work queue."
-  type        = number
-  default     = 600
-}
-
-variable "form990_queue_max_receive_count" {
-  description = "Maximum receives before Form 990 work items move to DLQ."
-  type        = number
-  default     = 3
-}
-
-variable "form990_queue_batch_size" {
-  description = "SQS event source batch size for Form 990 worker."
-  type        = number
-  default     = 1
 }
 
 variable "athena_workgroup_name" {
@@ -1152,12 +1092,6 @@ variable "enrichment_timeout_seconds" {
   description = "Timeout in seconds for enrichment provider calls."
   type        = number
   default     = 5
-}
-
-variable "refresh_lambda_enabled" {
-  description = "Enable the materialization refresh Lambda."
-  type        = bool
-  default     = true
 }
 
 variable "refresh_mode" {

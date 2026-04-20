@@ -51,56 +51,33 @@ def test_main_tf_routes_named_resources_through_centralized_locals():
     assert "worker_task_security_group_name" in content and "local.resource_names.worker_task_security_group" in content
     assert "worker_log_group_name" in content and "local.resource_names.worker_log_group" in content
     assert "athena_workgroup_resource_name" in content and "local.resource_names.athena_workgroup" in content
-    assert "api_gateway_name" in content and "local.resource_names.api_gateway" in content
-    assert "lambda_role_name" in content and "local.resource_names.lambda_role" in content
     assert "monthly_ingest_state_machine_name" in content and "local.resource_names.monthly_ingest_state_machine" in content
     assert "monthly_ingest_state_machine_role_name" in content and "local.resource_names.monthly_ingest_state_machine_role" in content
     assert "monthly_ingest_schedule_rule_name" in content and "local.resource_names.monthly_ingest_schedule_rule" in content
-    assert "monthly_ingest_staging_lambda_name" in content and "local.lambda_function_names.monthly_private_ingest_staging" in content
     assert "monthly_ingest_worker_repository_name" in content and "local.resource_names.monthly_ingest_worker_repository" in content
     assert "glue_database_name" in content and "local.data_catalog_prefix" in content
-    assert "ingest_lambda_name" in content and "local.lambda_function_names.regulatory_data_ingestion" in content
-    assert "query_lambda_name" in content and "local.lambda_function_names.organization_verification_api" in content
-    assert "form990_work_queue_name" in content and "local.queue_names.regulatory_filing_work" in content
     assert "form990_schedule_rule_name" in content and "local.scheduled_workflow_names.monthly_filing_ingestion" in content
 
 
-def test_lambda_and_schedule_resources_use_neutral_capability_maps():
-    content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
-
-    assert "local.lambda_function_names.regulatory_data_ingestion" in content
-    assert "local.lambda_function_names.organization_verification_api" in content
-    assert "local.lambda_function_names.platform_refresh" in content
-    assert "local.lambda_function_names.monthly_private_ingest_staging" in content
-    assert "local.lambda_function_names.regulatory_filing_ingestion" in content
-    assert "local.lambda_function_names.regulatory_filing_orchestrator" in content
-    assert "local.lambda_function_names.regulatory_filing_worker" in content
+def test_ecs_and_schedule_resources_use_neutral_capability_maps():
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
     assert "local.monthly_ingest_worker_repository_name" in ecs_content
     assert "local.worker_ecr_repository_name" in ecs_content
     assert "local.worker_ecs_service_name" in ecs_content
-    assert "local.queue_names.regulatory_filing_work_dead_letter" in content
-    assert "local.queue_names.regulatory_filing_work" in content
-    assert "local.scheduled_workflow_names.regulatory_data_ingestion" in content
-    assert "local.scheduled_workflow_names.platform_refresh" in content
-    assert "local.scheduled_workflow_names.monthly_filing_ingestion" in content
-    assert "PLATFORM_POSTGRES_ENABLED" in content
-    assert "PLATFORM_POSTGRES_HOST" in content
-    assert "PLATFORM_POSTGRES_DATABASE" in content
-    assert "PLATFORM_NONPROFIT_QUERY_BACKEND" in content
-    assert "IDENTITY_TABLE_NAME" not in content
-    assert "PROFILE_TABLE_NAME" not in content
-    assert "CONTROL_PLANE_TABLE_NAME" not in content
-    assert "ORGANIZATION_SETTINGS_TABLE_NAME" not in content
+    assert "local.scheduled_workflow_names.regulatory_data_ingestion" in ecs_content
+    assert "local.scheduled_workflow_names.monthly_filing_ingestion" in ecs_content
+    assert "PLATFORM_NONPROFIT_QUERY_BACKEND" in ecs_content
+    assert '"ecs:RunTask"' in ecs_content
+    assert '"iam:PassRole"' in ecs_content
 
 
 def test_infrastructure_removes_runtime_dynamodb_tables_and_permissions():
     main_content = Path("infrastructure/main.tf").read_text(encoding="utf-8")
-    iam_content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
+    api_ecs_content = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
     outputs_content = Path("infrastructure/outputs.tf").read_text(encoding="utf-8")
 
     assert 'resource "aws_dynamodb_table"' not in main_content
-    assert "dynamodb:" not in iam_content
+    assert "dynamodb:" not in api_ecs_content
     assert "dynamodb_table_name" not in outputs_content
 
 

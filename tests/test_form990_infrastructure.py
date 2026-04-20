@@ -12,13 +12,18 @@ def test_irs_data_bucket_versioning_is_not_enabled():
     assert 'status = "Suspended"' in content
 
 
-def test_form990_lambda_envs_include_required_paths_and_queue():
-    content = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
-    assert "FORM990_RAW_SOURCE_PREFIX" in content
-    assert "FORM990_MANIFEST_PREFIX" in content
-    assert "FORM990_ENABLE_NEXT_YEAR_GENERATION" in content
-    assert "OPS_METADATA_BUCKET" in content
-    assert "FORM990_WORK_QUEUE_URL" in content
+def test_form990_ecs_envs_include_required_paths_and_run_task_wiring():
+    api_content = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+    ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
+
+    assert "FORM990_RUN_TASK_CLUSTER_ARN" in api_content
+    assert "FORM990_RUN_TASK_DEFINITION_ARN" in api_content
+    assert "FORM990_RUN_TASK_CONTAINER_NAME" in api_content
+    assert "FORM990_RUN_TASK_SUBNET_IDS" in api_content
+    assert "FORM990_RUN_TASK_SECURITY_GROUP_IDS" in api_content
+    assert "OPS_METADATA_BUCKET" in api_content
+    assert '"ecs:RunTask"' in api_content
+    assert '"iam:PassRole"' in api_content
 
 
 def test_form990_source_mode_defaults_to_static_manifest():
@@ -37,10 +42,11 @@ def test_form990_static_manifest_is_packaged_with_form990_code():
     assert Path("infrastructure/verification/form990/Form990Links.txt").exists()
 
 
-def test_iam_policy_includes_s3_and_sqs_access_for_worker_flow():
-    content = Path("infrastructure/aws_iam.tf").read_text(encoding="utf-8")
-    assert '"s3:*"' in content
-    assert '"sqs:*"' in content
+def test_ingest_task_policies_include_storage_access_without_lambda_iam():
+    content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
+    assert '"s3:GetObject"' in content
+    assert '"s3:PutObject"' in content
+    assert '"s3:ListBucket"' in content
 
 
 def test_monthly_ingest_worker_packaging_and_task_access_exist():

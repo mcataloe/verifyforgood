@@ -1,7 +1,7 @@
 ﻿"""Backend-owned API runtime implementation.
 
-This module is now the source of truth for shared API request handling.
-`infrastructure.lambda_query` remains only as a thin compatibility adapter.
+This module is the source of truth for shared API request handling.
+Backend HTTP transport adapters dispatch into this runtime directly.
 """
 
 from __future__ import annotations
@@ -50,7 +50,13 @@ from verification.billing.portal import BillingPortalError, BillingPortalService
 from verification.billing.reconciliation import BillingReconciliationError, BillingReconciliationService
 from verification.billing.runtime import validate_stripe_billing_environment
 from verification.billing.visibility import BillingVisibilityService
-from verification.billing.webhooks import BillingWebhookError, StripeWebhookService, load_stripe_webhook_config
+from verification.billing.webhooks import (
+    BillingWebhookError,
+    BillingWebhookProcessingError,
+    StripeWebhookService,
+    load_stripe_webhook_config,
+    verify_and_parse_stripe_event,
+)
 from verification.billing.service import DEFAULT_PLANS
 from verification.control_plane import ControlPlaneError, ControlPlaneService
 from verification.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
@@ -83,6 +89,9 @@ from verification.platform import (
     load_oauth_token_store,
 )
 from verification.runtime_logging import configure_runtime_logging, log_exception
+from verification.form990.irs_page_discovery import discover_irs_form990_sources
+from verification.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, normalize_configured_sources, select_sources_by_years, source_years
+from verification.form990.static_source_discovery import discover_static_form990_sources
 from verification.normalization import EINValidationError, normalize_ein
 from verification.policy import evaluate_policy
 from verification.query import VerificationInput, apply_evaluation_overlay, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
@@ -112,6 +121,7 @@ from verification_platform.customer_accounts import (
     ApiKeyUpdateRequest,
     AuditEventType,
     AuditLogService,
+    DynamoUsageRepository,
     FeatureFlagService,
     InvitationAcceptRequest,
     InvitationCreateRequest,
@@ -166,6 +176,13 @@ def _env_optional_bool(name: str) -> bool | None:
     return raw.lower() == "true"
 
 
+def _env_csv(name: str) -> list[str]:
+    raw = str(os.environ.get(name) or "").strip()
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
 TABLE = os.environ.get("TABLE", "eo_bmf")
 WORKGROUP = os.environ.get("WORKGROUP")
@@ -190,7 +207,12 @@ OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
 ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
 OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
 OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
-FORM990_ORCHESTRATOR_FUNCTION_NAME = os.environ.get("FORM990_ORCHESTRATOR_FUNCTION_NAME", "").strip()
+FORM990_RUN_TASK_CLUSTER_ARN = os.environ.get("FORM990_RUN_TASK_CLUSTER_ARN", "").strip()
+FORM990_RUN_TASK_DEFINITION_ARN = os.environ.get("FORM990_RUN_TASK_DEFINITION_ARN", "").strip()
+FORM990_RUN_TASK_CONTAINER_NAME = os.environ.get("FORM990_RUN_TASK_CONTAINER_NAME", "").strip() or "monthly-ingest"
+FORM990_RUN_TASK_SUBNET_IDS = _env_csv("FORM990_RUN_TASK_SUBNET_IDS")
+FORM990_RUN_TASK_SECURITY_GROUP_IDS = _env_csv("FORM990_RUN_TASK_SECURITY_GROUP_IDS")
+FORM990_RUN_TASK_ASSIGN_PUBLIC_IP = _env_bool("FORM990_RUN_TASK_ASSIGN_PUBLIC_IP")
 PORTAL_AUTH_TOKEN_SECRET = os.environ.get("PORTAL_AUTH_TOKEN_SECRET", "dev-portal-auth-secret")
 PORTAL_AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("PORTAL_AUTH_TOKEN_TTL_SECONDS", "86400"))
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
@@ -210,7 +232,7 @@ auth_context_provider: AuthContextProvider | None = None
 quota_metering_hook: QuotaMeteringHook | None = None
 usage_store: Any | None = None
 ops_run_store: Any | None = None
-lambda_invoke_client: Any | None = None
+ecs_run_task_client: Any | None = None
 tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
 organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
 organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
@@ -245,6 +267,20 @@ nonprofit_service: NonprofitService | None = None
 nonprofit_query_client: QueryRepository | Any | None = None
 logger = logging.getLogger(__name__)
 LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=logger)
+
+
+class _RuntimeBillingSettingsResolver:
+    def allow_overage(self, account_id: str | None) -> bool:
+        return _resolve_effective_allow_overage(
+            account_id=account_id,
+            fallback_plan_code=_resolve_account_subscription_plan(account_id, fallback_plan="free"),
+        )
+
+    def monthly_request_limit(self, account_id: str | None, default_limit: int) -> int:
+        settings, _updated_at = _load_billing_settings_override(account_id)
+        if settings is None or settings.monthly_request_cap is None:
+            return max(1, int(default_limit))
+        return max(1, int(settings.monthly_request_cap))
 
 
 @dataclass(frozen=True)
@@ -347,11 +383,12 @@ def _get_profile_store() -> ProfileStoreAdapter | None:
 
 def _get_auth_context_provider() -> AuthContextProvider:
     global auth_context_provider
+    if auth_context_provider is not None:
+        return auth_context_provider
     api_auth_enabled = _env_bool("API_AUTH_ENABLED")
     oauth_m2m_enabled = _env_bool("OAUTH_M2M_ENABLED")
     if not api_auth_enabled:
-        if auth_context_provider is None:
-            auth_context_provider = NoopAuthContextProvider()
+        auth_context_provider = NoopAuthContextProvider()
         return auth_context_provider
 
     api_key_store = _load_runtime_api_key_store()
@@ -374,7 +411,7 @@ def _get_quota_metering_hook() -> QuotaMeteringHook:
             quota_metering_hook = ApiKeyQuotaMeteringHook(
                 usage_store=usage_store,
                 entitlement_service=_get_entitlement_service(),
-                billing_settings_resolver=_get_organization_integration_settings_service(),
+                billing_settings_resolver=_RuntimeBillingSettingsResolver(),
                 trial_lifecycle_service=_get_trial_lifecycle_service(),
                 organization_usage_tracker=_PortalOrganizationUsageTracker(usage_service) if usage_service is not None else None,
                 organization_feature_service=_get_portal_feature_flag_service(),
@@ -478,7 +515,6 @@ def _get_billing_visibility_service() -> BillingVisibilityService:
         billing_visibility_service = BillingVisibilityService(
             store=_get_control_plane_service().store,
             entitlement_service=_get_entitlement_service(),
-            trial_lifecycle_service=_get_trial_lifecycle_service(),
         )
     return billing_visibility_service
 
@@ -879,11 +915,11 @@ def _get_ops_run_store() -> Any | None:
     return ops_run_store
 
 
-def _get_lambda_invoke_client() -> Any:
-    global lambda_invoke_client
-    if lambda_invoke_client is None:
-        lambda_invoke_client = _load_boto3().client("lambda")
-    return lambda_invoke_client
+def _get_ecs_run_task_client() -> Any:
+    global ecs_run_task_client
+    if ecs_run_task_client is None:
+        ecs_run_task_client = _load_boto3().client("ecs")
+    return ecs_run_task_client
 
 
 def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
@@ -891,7 +927,7 @@ def _get_organization_integration_settings_store() -> OrganizationIntegrationSet
     if organization_integration_settings_store is None:
         try:
             organization_integration_settings_store = build_organization_settings_store(os.environ)
-        except ValueError:
+        except Exception:
             organization_integration_settings_store = None
     return organization_integration_settings_store
 
@@ -1494,25 +1530,31 @@ def _handle_admin_request(event: dict[str, Any], response_context: ResponseConte
     account_id = str(path_params.get("accountId") or "")
     key_id = str(path_params.get("keyId") or "")
     client_id = str(path_params.get("clientId") or "")
-    service = _get_control_plane_service()
+    service: ControlPlaneService | None = None
+
+    def control_plane() -> ControlPlaneService:
+        nonlocal service
+        if service is None:
+            service = _get_control_plane_service()
+        return service
 
     if resource == "/admin/accounts":
         if method == "POST":
-            return json_response(201, service.create_account(_parse_json_body(event)), response_context=response_context)
+            return json_response(201, control_plane().create_account(_parse_json_body(event)), response_context=response_context)
         if method == "GET":
-            return json_response(200, {"items": service.list_accounts()}, response_context=response_context)
+            return json_response(200, {"items": control_plane().list_accounts()}, response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}":
         if method == "GET":
-            return json_response(200, service.get_account(account_id), response_context=response_context)
+            return json_response(200, control_plane().get_account(account_id), response_context=response_context)
         if method == "PATCH":
-            return json_response(200, service.update_account(account_id, _parse_json_body(event)), response_context=response_context)
+            return json_response(200, control_plane().update_account(account_id, _parse_json_body(event)), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/subscription":
         if method == "GET":
-            return json_response(200, service.get_subscription(account_id), response_context=response_context)
+            return json_response(200, control_plane().get_subscription(account_id), response_context=response_context)
         if method == "PUT":
-            return json_response(200, service.update_subscription(account_id, _parse_json_body(event)), response_context=response_context)
+            return json_response(200, control_plane().update_subscription(account_id, _parse_json_body(event)), response_context=response_context)
     if resource == "/admin/accounts/{accountId}/billing/reconcile" and method == "POST":
         return json_response(
             200,
@@ -1521,32 +1563,32 @@ def _handle_admin_request(event: dict[str, Any], response_context: ResponseConte
         )
 
     if resource == "/admin/accounts/{accountId}/suspend" and method == "POST":
-        return json_response(200, service.suspend_account(account_id), response_context=response_context)
+        return json_response(200, control_plane().suspend_account(account_id), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/activate" and method == "POST":
-        return json_response(200, service.activate_account(account_id), response_context=response_context)
+        return json_response(200, control_plane().activate_account(account_id), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/api-keys":
         if method == "POST":
-            return json_response(201, service.create_api_key(account_id, _parse_json_body(event)), response_context=response_context)
+            return json_response(201, control_plane().create_api_key(account_id, _parse_json_body(event)), response_context=response_context)
         if method == "GET":
-            return json_response(200, {"items": service.list_api_keys(account_id)}, response_context=response_context)
+            return json_response(200, {"items": control_plane().list_api_keys(account_id)}, response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/api-keys/{keyId}":
         if method == "DELETE":
-            return json_response(200, service.delete_api_key(account_id, key_id), response_context=response_context)
+            return json_response(200, control_plane().delete_api_key(account_id, key_id), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/api-keys/{keyId}/rotate" and method == "POST":
-        return json_response(200, service.rotate_api_key(account_id, key_id), response_context=response_context)
+        return json_response(200, control_plane().rotate_api_key(account_id, key_id), response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/oauth-clients":
         if method == "POST":
-            return json_response(201, service.create_oauth_client(account_id, _parse_json_body(event)), response_context=response_context)
+            return json_response(201, control_plane().create_oauth_client(account_id, _parse_json_body(event)), response_context=response_context)
         if method == "GET":
-            return json_response(200, {"items": service.list_oauth_clients(account_id)}, response_context=response_context)
+            return json_response(200, {"items": control_plane().list_oauth_clients(account_id)}, response_context=response_context)
 
     if resource == "/admin/accounts/{accountId}/oauth-clients/{clientId}" and method == "DELETE":
-        return json_response(200, service.delete_oauth_client(account_id, client_id), response_context=response_context)
+        return json_response(200, control_plane().delete_oauth_client(account_id, client_id), response_context=response_context)
 
     return error_response(404, "Admin route not found", response_context=response_context, code="not_found")
 
@@ -2168,14 +2210,10 @@ def handle_api_event(event, context=None):
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
     except Exception as exc:
-        log_exception(logger, "lambda_query_unhandled_exception", exc, env=os.environ)
+        log_exception(logger, "api_runtime_unhandled_exception", exc, env=os.environ)
         response = fail(500, "Internal server error")
         _get_quota_metering_hook().on_response(auth_context, route_key, 500)
         return response
-
-
-def handler(event, context):
-    return handle_api_event(event, context)
 
 
 def _parse_get_request(event: dict) -> VerificationInput:
@@ -2393,7 +2431,15 @@ def _handle_organization_settings_request(
             workspace_id=workspace_id,
             account_id=account_id,
         )
-        return json_response(200, document.to_dict(), response_context=response_context)
+        return json_response(
+            200,
+            _shape_organization_settings_payload(
+                document.to_dict(),
+                account_id=account_id,
+                fallback_plan_code=tenant_context.subscription_plan,
+            ),
+            response_context=response_context,
+        )
 
     body = event.get("body")
     if not body:
@@ -2418,7 +2464,15 @@ def _handle_organization_settings_request(
         payload=payload,
         actor_user_id=tenant_context.user_id,
     )
-    return json_response(200, document.to_dict(), response_context=response_context)
+    return json_response(
+        200,
+        _shape_organization_settings_payload(
+            document.to_dict(),
+            account_id=account_id,
+            fallback_plan_code=tenant_context.subscription_plan,
+        ),
+        response_context=response_context,
+    )
 
 
 def _handle_organization_activity_request(
@@ -2524,8 +2578,19 @@ def _handle_organization_usage_request(
 def _handle_stripe_webhook_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
     headers = event.get("headers") or {}
     signature = _get_header(headers, "Stripe-Signature")
-    result = _get_stripe_webhook_service().handle(
-        raw_body=_raw_request_body(event),
+    raw_body = _raw_request_body(event)
+    try:
+        service = _get_stripe_webhook_service()
+    except Exception as exc:
+        verify_and_parse_stripe_event(
+            raw_body=raw_body,
+            signature_header=signature,
+            webhook_secret=STRIPE_WEBHOOK_CONFIG.webhook_secret or "",
+            tolerance_seconds=STRIPE_WEBHOOK_CONFIG.signature_tolerance_seconds,
+        )
+        raise BillingWebhookProcessingError("Stripe webhook control plane store is not configured") from exc
+    result = service.handle(
+        raw_body=raw_body,
         signature_header=signature,
     )
     logger.info(
@@ -2638,6 +2703,10 @@ def _handle_organization_subscription_visibility_request(
     summary = _get_billing_visibility_service().get_subscription_summary(
         account_id=tenant_context.organization_id,
     )
+    summary = _shape_billing_subscription_summary(
+        summary,
+        account_id=tenant_context.organization_id,
+    )
     summary["feature_flags"] = _build_billing_feature_flag_summaries(
         organization_id=tenant_context.organization_id,
     )
@@ -2701,16 +2770,19 @@ def _build_usage_plan_limit_context(*, tenant_context: TenantContext) -> dict[st
 
     plan = DEFAULT_PLANS.get(str(tenant_context.subscription_plan or "free").strip().lower())
     monthly_requests_limit: int | None = None
-    allow_overage = True
+    allow_overage = _resolve_effective_allow_overage(
+        account_id=tenant_context.organization_id,
+        fallback_plan_code=tenant_context.subscription_plan,
+    )
     policy_source = "backend_default"
     if settings is not None:
-        allow_overage = bool(settings.billing_settings.allow_overage)
-        if settings.source == "stored":
-            policy_source = "organization_settings"
         monthly_request_cap = settings.billing_settings.monthly_request_cap
         if isinstance(monthly_request_cap, int) and monthly_request_cap > 0:
             monthly_requests_limit = monthly_request_cap
             policy_source = "organization_settings"
+    _billing_settings, billing_updated_at = _load_billing_settings_override(tenant_context.organization_id)
+    if billing_updated_at is not None:
+        policy_source = "organization_settings"
     if monthly_requests_limit is None and plan is not None:
         monthly_requests_limit = int(plan.monthly_request_limit)
     if monthly_requests_limit is None:
@@ -2757,6 +2829,109 @@ def _generate_manual_form990_run_id() -> str:
     return f"{timestamp}-manual-{secrets.token_hex(4)}"
 
 
+def _manual_form990_task_is_configured() -> bool:
+    return bool(
+        FORM990_RUN_TASK_CLUSTER_ARN
+        and FORM990_RUN_TASK_DEFINITION_ARN
+        and FORM990_RUN_TASK_SUBNET_IDS
+        and FORM990_RUN_TASK_SECURITY_GROUP_IDS
+    )
+
+
+def _resolve_form990_sources(*, now: datetime | None = None) -> list[Any]:
+    source_mode = str(os.environ.get("FORM990_SOURCE_MODE") or "static_manifest").strip().lower()
+    current_time = now or datetime.now(timezone.utc)
+    if source_mode == "configured":
+        payload = json.loads(str(os.environ.get("FORM990_SOURCE_CATALOG_JSON") or "[]"))
+        if not isinstance(payload, list):
+            raise ValueError("FORM990_SOURCE_CATALOG_JSON must decode to a JSON array")
+        return normalize_configured_sources(payload, now=current_time)
+    if source_mode == "irs_page":
+        return discover_irs_form990_sources(
+            str(os.environ.get("FORM990_IRS_DOWNLOADS_PAGE_URL") or "https://www.irs.gov/charities-non-profits/form-990-series-downloads").strip(),
+            timeout_seconds=int(os.environ.get("FORM990_INDEX_FETCH_TIMEOUT_SECONDS") or "60"),
+            now=current_time,
+        )
+    return discover_static_form990_sources(
+        now=current_time,
+        enable_next_year_generation=_env_bool("FORM990_ENABLE_NEXT_YEAR_GENERATION", default=True),
+    )
+
+
+def _build_manual_form990_source_catalog(*, mode: str, target_years: list[str]) -> list[dict[str, Any]]:
+    sources = [
+        item
+        for item in _resolve_form990_sources()
+        if getattr(item, "source_kind", None) == SOURCE_KIND_ZIP_ARCHIVE
+    ]
+    if not sources:
+        raise ValueError("No Form 990 ZIP archive sources are configured")
+
+    if target_years:
+        selected = select_sources_by_years(sources, set(target_years))
+    elif mode == "bootstrap":
+        selected = sources
+    else:
+        available_years = source_years(sources)
+        incremental_window = max(1, int(os.environ.get("FORM990_INCREMENTAL_YEAR_WINDOW") or "2"))
+        selected = select_sources_by_years(sources, set(available_years[-incremental_window:]))
+
+    if not selected:
+        raise ValueError("No Form 990 sources matched the requested year selection")
+    return [item.to_dict() for item in selected]
+
+
+def _build_form990_task_overrides(
+    *,
+    run_id: str,
+    mode: str,
+    target_years: list[str],
+    target_years_present: bool,
+    triggered_at: str,
+) -> dict[str, Any]:
+    env = [
+        {"name": "FORM990_SOURCE_MODE", "value": "configured"},
+        {"name": "FORM990_SOURCE_CATALOG_JSON", "value": json.dumps(_build_manual_form990_source_catalog(mode=mode, target_years=target_years))},
+        {"name": "FORM990_EXECUTION_MODE", "value": "orchestrated"},
+        {"name": "FORM990_RUN_ID", "value": run_id},
+        {"name": "FORM990_RUN_MODE", "value": mode},
+        {"name": "FORM990_TRIGGERED_AT", "value": triggered_at},
+        {"name": "FORM990_MANUAL_RUN_ID", "value": run_id},
+        {"name": "FORM990_MANUAL_MODE", "value": mode},
+        {"name": "FORM990_MANUAL_TARGET_YEARS", "value": json.dumps(target_years)},
+        {"name": "OPS_METADATA_BUCKET", "value": OPS_METADATA_BUCKET},
+        {"name": "OPS_METADATA_PREFIX", "value": OPS_METADATA_PREFIX},
+    ]
+    if target_years_present:
+        env.append({"name": "FORM990_TARGET_YEARS", "value": ",".join(target_years)})
+    return {
+        "containerOverrides": [
+            {
+                "name": FORM990_RUN_TASK_CONTAINER_NAME,
+                "command": ["run"],
+                "environment": env,
+            }
+        ]
+    }
+
+
+def _write_queued_form990_run(*, run_id: str, mode: str, target_years: list[str], triggered_at: str) -> None:
+    store = _get_ops_run_store()
+    if store is None:
+        return
+    store.write_ingest_run(
+        run_id,
+        {
+            "ingest_run_id": run_id,
+            "status": "queued",
+            "execution_mode": "orchestrated",
+            "mode": mode,
+            "target_years": target_years,
+            "triggered_at": triggered_at,
+        },
+    )
+
+
 def _parse_manual_form990_request(event: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
     payload = _parse_optional_json_body(event)
     allowed_fields = {"mode", "target_years"}
@@ -2787,8 +2962,8 @@ def _parse_manual_form990_request(event: dict[str, Any]) -> tuple[dict[str, Any]
 
 
 def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    if not FORM990_ORCHESTRATOR_FUNCTION_NAME:
-        return 503, {"message": "Form 990 orchestrator is not configured"}
+    if not _manual_form990_task_is_configured():
+        return 503, {"message": "Form 990 ECS task runtime is not configured"}
 
     request_payload, target_years, target_years_present = _parse_manual_form990_request(event)
     run_id = _generate_manual_form990_run_id()
@@ -2802,21 +2977,40 @@ def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[s
         invoke_payload["target_years"] = target_years
 
     try:
-        invoke_result = _get_lambda_invoke_client().invoke(
-            FunctionName=FORM990_ORCHESTRATOR_FUNCTION_NAME,
-            InvocationType="Event",
-            Payload=json.dumps(invoke_payload).encode("utf-8"),
+        _write_queued_form990_run(
+            run_id=run_id,
+            mode=request_payload["mode"],
+            target_years=target_years,
+            triggered_at=triggered_at,
         )
+        run_task_result = _get_ecs_run_task_client().run_task(
+            cluster=FORM990_RUN_TASK_CLUSTER_ARN,
+            taskDefinition=FORM990_RUN_TASK_DEFINITION_ARN,
+            launchType="FARGATE",
+            networkConfiguration={
+                "awsvpcConfiguration": {
+                    "subnets": FORM990_RUN_TASK_SUBNET_IDS,
+                    "securityGroups": FORM990_RUN_TASK_SECURITY_GROUP_IDS,
+                    "assignPublicIp": "ENABLED" if FORM990_RUN_TASK_ASSIGN_PUBLIC_IP else "DISABLED",
+                }
+            },
+            overrides=_build_form990_task_overrides(
+                run_id=run_id,
+                mode=request_payload["mode"],
+                target_years=target_years,
+                target_years_present=target_years_present,
+                triggered_at=triggered_at,
+            ),
+        )
+    except ValueError as exc:
+        return 400, {"message": str(exc)}
     except Exception as exc:
-        log_exception(logger, "form990.manual_trigger_invoke_failed", exc, env=os.environ, run_id=run_id)
+        log_exception(logger, "form990.manual_trigger_run_task_failed", exc, env=os.environ, run_id=run_id)
         return 500, {"message": "Failed to queue Form 990 run"}
 
-    status_code = int(invoke_result.get("StatusCode") or 0)
-    if status_code != 202:
-        logger.error(
-            "form990.manual_trigger_unexpected_status",
-            extra={"run_id": run_id, "status_code": status_code},
-        )
+    failures = run_task_result.get("failures") or []
+    if failures:
+        logger.error("form990.manual_trigger_task_failures run_id=%s failures=%s", run_id, json.dumps(failures, default=str))
         return 500, {"message": "Failed to queue Form 990 run"}
 
     logger.info(
@@ -2993,6 +3187,7 @@ def _record_nonprofit_access_audit_event(
             organization_id=tenant_context.organization_id,
             target_user_id=None,
             metadata=metadata,
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
     except Exception as exc:  # noqa: BLE001
         log_exception(
@@ -3182,6 +3377,102 @@ def _route_template(event: dict[str, Any]) -> str:
     if resource.strip():
         return strip_version_prefix(resource)
     return strip_version_prefix(str(event.get("path") or ""))
+
+
+def _load_billing_settings_override(account_id: str | None) -> tuple[Any | None, str | None]:
+    candidate = str(account_id or "").strip()
+    if not candidate:
+        return None, None
+    store = _get_organization_integration_settings_store()
+    if store is None:
+        return None, None
+    try:
+        return store.load_billing_settings(account_id=candidate)
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+def _plan_default_allows_overage(plan_code: str | None) -> bool:
+    normalized_plan = str(plan_code or "free").strip().lower()
+    return normalized_plan not in {"", "free"}
+
+
+def _resolve_account_subscription_plan(account_id: str | None, *, fallback_plan: str) -> str:
+    candidate = str(account_id or "").strip()
+    if not candidate:
+        return str(fallback_plan or "free")
+    subscription_service = _get_portal_subscription_service()
+    if subscription_service is None:
+        return str(fallback_plan or "free")
+    try:
+        resolved = subscription_service.get_subscription_for_organization(candidate)
+        return str(resolved.subscription.plan.plan_id or fallback_plan or "free")
+    except Exception:  # noqa: BLE001
+        return str(fallback_plan or "free")
+
+
+def _resolve_effective_allow_overage(*, account_id: str | None, fallback_plan_code: str | None) -> bool:
+    settings, updated_at = _load_billing_settings_override(account_id)
+    if updated_at is not None and settings is not None:
+        return bool(settings.allow_overage)
+    return _plan_default_allows_overage(fallback_plan_code)
+
+
+def _shape_organization_settings_payload(
+    payload: dict[str, Any],
+    *,
+    account_id: str | None,
+    fallback_plan_code: str | None,
+) -> dict[str, Any]:
+    shaped = dict(payload or {})
+    billing_payload = dict(shaped.get("billing") or {})
+    billing_payload["allowOverage"] = _resolve_effective_allow_overage(
+        account_id=account_id,
+        fallback_plan_code=fallback_plan_code,
+    )
+    shaped["billing"] = billing_payload
+    return shaped
+
+
+def _shape_billing_subscription_summary(summary: dict[str, Any], *, account_id: str) -> dict[str, Any]:
+    shaped = dict(summary or {})
+    if shaped.get("grace_period_ends_at") is None:
+        shaped.pop("grace_period_ends_at", None)
+
+    try:
+        subscription = _get_control_plane_service().store.get_subscription(account_id)
+    except Exception:  # noqa: BLE001
+        subscription = None
+    if subscription is None:
+        return shaped
+    if str(getattr(subscription, "trial_status", "") or "").strip().lower() != "active":
+        return shaped
+    if str(getattr(subscription, "plan_code", "") or "").strip().lower() != "free":
+        return shaped
+
+    effective_access_plan = str(TRIAL_CONFIG.plan_code or "growth").strip().lower() or "growth"
+    plan = DEFAULT_PLANS.get(effective_access_plan, DEFAULT_PLANS["growth"])
+    entitlements = plan.entitlements
+    effective_display_name = " ".join(part.capitalize() for part in effective_access_plan.split("_") if part) or "Growth"
+    shaped["plan_display"] = {
+        "display_name": "Free",
+        "effective_access_display_name": effective_display_name,
+        "effective_access_plan_code": effective_access_plan,
+        "plan_code": "free",
+    }
+    shaped["effective_access_plan"] = effective_access_plan
+    shaped["included_limits"] = {
+        "monthly_requests": entitlements.monthly_request_limit,
+        "requests_per_minute": entitlements.requests_per_minute,
+        "batch_items": entitlements.batch_request_limit,
+    }
+    shaped["enabled_capabilities"] = list(entitlements.allowed_capabilities)
+    shaped["trial"] = {
+        "active": True,
+        "status": "active",
+        "ends_at": getattr(subscription, "trial_ends_at", None),
+    }
+    return shaped
 
 
 def _get_header(headers: dict[str, Any], name: str) -> str | None:

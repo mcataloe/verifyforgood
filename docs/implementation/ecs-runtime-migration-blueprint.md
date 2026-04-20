@@ -1,5 +1,9 @@
 ﻿# ECS Runtime Migration Blueprint
 
+Historical note: this blueprint is retained for migration history. The active
+runtime cutover is complete, so Lambda/API Gateway references below are
+archival and no longer describe the deployed stack.
+
 ## Summary
 
 This blueprint defines the staged migration from the current API Gateway +

@@ -610,6 +610,7 @@ def process_form990_archive(
         "records_processed": int(ingest_result.get("records_processed") or 0),
         "parsed_count": int(ingest_result.get("parsed_count") or 0),
         "failed_count": int(ingest_result.get("failed_count") or 0),
+        "records": ingest_result.get("records") or [],
         "skipped_unchanged_member_count": skipped_unchanged_members,
         "archive_size_bytes": size,
         "archive_checksum_sha256": checksum,

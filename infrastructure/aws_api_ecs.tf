@@ -109,7 +109,12 @@ locals {
     PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
     OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
     OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
-    FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
+    FORM990_RUN_TASK_CLUSTER_ARN                     = trim(var.monthly_ingest_ecs_cluster_arn, " ") != "" ? trim(var.monthly_ingest_ecs_cluster_arn, " ") : ((var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].arn : "")
+    FORM990_RUN_TASK_DEFINITION_ARN                  = local.monthly_ingest_task_definition_arn_resolved
+    FORM990_RUN_TASK_CONTAINER_NAME                  = trim(var.monthly_ingest_container_name, " ")
+    FORM990_RUN_TASK_SUBNET_IDS                      = join(",", var.monthly_ingest_private_subnet_ids)
+    FORM990_RUN_TASK_SECURITY_GROUP_IDS              = join(",", var.monthly_ingest_task_security_group_ids)
+    FORM990_RUN_TASK_ASSIGN_PUBLIC_IP                = "false"
   }
   api_ecs_container_environment = {
     for name, value in local.api_ecs_container_plaintext_environment :
@@ -391,14 +396,25 @@ resource "aws_iam_role_policy" "api_task" {
           Resource = "*"
         },
         {
-          Sid    = "ApiTaskInvokeForm990Orchestrator"
+          Sid    = "ApiTaskRunForm990IngestTask"
           Effect = "Allow"
           Action = [
-            "lambda:InvokeFunction"
+            "ecs:RunTask"
           ]
           Resource = [
-            aws_lambda_function.form990_orchestrator.arn
+            local.monthly_ingest_task_definition_arn_resolved
           ]
+        },
+        {
+          Sid    = "ApiTaskPassForm990TaskRoles"
+          Effect = "Allow"
+          Action = [
+            "iam:PassRole"
+          ]
+          Resource = compact([
+            trim(local.monthly_ingest_task_execution_role_arn_resolved, " "),
+            trim(local.monthly_ingest_task_role_arn_resolved, " "),
+          ])
         },
       ],
       var.platform_postgres_enabled ? [

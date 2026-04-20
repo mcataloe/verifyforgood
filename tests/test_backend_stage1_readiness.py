@@ -65,7 +65,7 @@ def test_runtime_entrypoint_map_covers_live_backend_handlers():
     }
 
     public_api = entrypoint_by_surface("public_api")
-    assert public_api.import_path == "infrastructure.lambda_query.handler"
+    assert public_api.import_path == "verification_backend.api.runtime.handle_api_event"
     assert public_api.runtime_kind == "api_handler"
 
     for entrypoint in ENTRYPOINTS:
@@ -96,7 +96,7 @@ def test_split_plan_tracks_shared_contracts_and_test_layers():
     assert operational_layers["infrastructure"]["root"] == "infrastructure/"
 
     backend_targets = payload["backend_runtime_targets"]
-    assert backend_targets["public_api"]["current_handler"] == "infrastructure.lambda_query.handler"
+    assert backend_targets["public_api"]["current_handler"] == "verification_backend.api.runtime.handle_api_event"
     assert backend_targets["public_api"]["target_directory"] == "backend/api/"
     assert backend_targets["profile_refresh_job"]["target_directory"] == "backend/worker/"
     assert backend_targets["monthly_ingest_job"]["target_directory"] == "backend/ingest-task/"
@@ -189,4 +189,5 @@ def test_backend_stage1_docs_and_test_readmes_exist():
     assert "public-core/tests/" in tests_text
     assert "private-platform/tests/" in tests_text
     assert "integration and compatibility" in tests_text.lower()
+
 

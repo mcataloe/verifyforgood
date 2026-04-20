@@ -9,7 +9,7 @@ relational storage.
 The runtime cutover described here has now been completed for the active
 customer-account, organization-settings, and control-plane domains. Treat the
 older mixed-mode sections below as historical migration context rather than the
-current runtime contract.
+current runtime contract. References to `lambda_query.py` below are archival.
 
 ## Current DynamoDB Coupling Inventory
 

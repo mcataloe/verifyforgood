@@ -1,5 +1,9 @@
 # ECS Runtime Pivot
 
+Historical note: this ADR captures the migration rationale from the former
+Lambda/API Gateway posture. References to `lambda_query.py` and related deploy
+artifacts below describe the pre-cutover state.
+
 ## Status
 
 accepted

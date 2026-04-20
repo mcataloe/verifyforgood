@@ -20,24 +20,24 @@ class BackendEntrypoint:
 ENTRYPOINTS = (
     BackendEntrypoint(
         surface="public_api",
-        current_module="infrastructure.lambda_query",
-        current_handler="handler",
+        current_module="verification_backend.api.runtime",
+        current_handler="handle_api_event",
         target_service_area="runtime",
         runtime_kind="api_handler",
         notes=(
-            "Retained as the rollback Lambda handler import path for the public, customer, admin, and webhook HTTP API surface.",
-            "Canonical API runtime ownership now lives under backend/api while this path remains a thin compatibility adapter.",
+            "Canonical API runtime ownership lives under backend/api.",
+            "The ECS/ALB HTTP transport dispatches directly into the backend runtime request seam.",
         ),
     ),
     BackendEntrypoint(
         surface="profile_refresh_job",
-        current_module="infrastructure.lambda_refresh",
-        current_handler="handler",
+        current_module="verification_backend.worker.entrypoint",
+        current_handler="main",
         target_service_area="runtime",
         runtime_kind="job_handler",
         notes=(
-            "Coordinates materialized-profile refresh behavior.",
-            "Depends on runtime adapter assembly rather than customer-facing transport contracts.",
+            "Refresh is retired and backend/worker remains a neutral scaffold.",
+            "This surface is retained only as an ownership map entry for future worker responsibilities.",
         ),
     ),
     BackendEntrypoint(

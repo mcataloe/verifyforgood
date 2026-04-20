@@ -242,9 +242,9 @@ Important:
 1. The backend-owned EO/BMF ingest runtime downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into a local/ECS workspace and upserts canonical nonprofit rows into PostgreSQL.
 2. The monthly Form 990 ingest worker downloads IRS ZIP archives into the workspace, parses XML members, and persists normalized filing/source metadata to PostgreSQL.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
-4. The ECS-hosted API handles verification/scoring endpoints, while
-   `lambda_query.py` remains the deprecated rollback implementation.
-5. For `GET /v1/nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
+4. The ECS-hosted API is the only public HTTP runtime and handles all
+   verification/scoring endpoints directly through FastAPI.
+5. For `GET /v1/nonprofit/{ein}`, the ECS API uses DynamoDB read-through serving:
    - check materialized profile in DynamoDB
    - return cached profile on hit
    - on miss, run Athena/source assembly path, materialize to DynamoDB, return response
@@ -2076,18 +2076,9 @@ Form 990 mode configuration additions:
 - `form990_irs_downloads_page_url`: IRS discovery page URL used only for legacy `irs_page` mode
 - `form990_zip_fetch_timeout_seconds`: ZIP download timeout
 - `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit
-- `form990_execution_mode`: `inline` or `orchestrated`
-- `form990_chunk_size`: records per SQS chunk item
-- `form990_worker_timeout_seconds`: worker Lambda timeout
-- `form990_worker_memory_size_mb`: worker Lambda memory
-- `form990_worker_reserved_concurrency`: worker concurrency limit
-- `form990_queue_visibility_timeout_seconds`: SQS visibility timeout
-- `form990_queue_max_receive_count`: SQS retry attempts before DLQ
-- `form990_queue_batch_size`: SQS event source batch size for worker
-- `monthly_ingest_state_machine_enabled`: enable the monthly private-ingest Step Functions workflow
-- `monthly_ingest_schedule_expression`: optional EventBridge schedule for the monthly private-ingest workflow
-- `monthly_ingest_schedule_context_json`: upstream ZIP metadata for the staging Lambda, typically including `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`
-- `monthly_ingest_staging_lambda_arn`: optional external override; leave empty to use the in-repo staging Lambda resource
+- `form990_execution_mode`: execution metadata embedded into the ECS task environment
+- `monthly_ingest_schedule_expression`: optional EventBridge schedule for the monthly private-ingest ECS task
+- `monthly_ingest_schedule_context_json`: upstream ZIP metadata passed directly to the scheduled ECS task, typically including `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`
 - `monthly_ingest_worker_image_uri`: optional external worker image URI; leave empty to use the managed ECR repository plus `monthly_ingest_worker_image_tag`
 - `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
 - `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
@@ -2153,14 +2144,11 @@ Current Phase 25D ingress posture:
 
 - Route53 custom-domain alias points to the API ALB
 - ECS/ALB is the primary runtime for the public API hostname
-- Lambda query packaging and API Gateway resources remain deployable only as a deprecated rollback path
-- PostgreSQL ingress allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+- API Gateway and Lambda rollback infrastructure has been removed
+- PostgreSQL ingress allows the ECS API task security group when PostgreSQL is enabled
 
-Rollback guidance for the API cutover:
-
-- restore the Route53 alias to `aws_api_gateway_domain_name.api_domain`
-- redeploy the query Lambda and API Gateway stack if the ECS runtime must be backed out
-- keep the legacy stack only until ECS stability is proven; later cleanup should remove it deliberately rather than let it drift indefinitely
+The HTTP cutover is complete. ECS/ALB is now authoritative for the public API,
+and Terraform no longer models a Lambda/API Gateway fallback stack.
 
 Current CI/CD posture:
 
@@ -2291,13 +2279,9 @@ Core modules:
 
 Refresh execution:
 
-- `lambda_refresh.py` is a thin orchestrator Lambda.
-- It rebuilds the canonical nonprofit profile for each target EIN using the same verification/scoring pipeline.
-- It materializes a new candidate item with deterministic `source_hash`.
-- It reads the current DynamoDB profile and writes only when:
-  - item is missing
-  - `source_hash` changed
-  - `model_version` changed
+- the refresh runtime is retired
+- the public refresh routes return `410`
+- no Lambda or scheduled refresh path remains in active infrastructure
   - force refresh is enabled
 - If hash and version match, the write is skipped.
 
