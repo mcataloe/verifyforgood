@@ -241,6 +241,17 @@ resource "aws_lambda_function" "query" {
       APP_NAME                                     = var.app_name
       PUBLIC_BRAND_NAME                            = var.public_brand_name
       SUPPORT_EMAIL                                = var.support_email
+      SUPPORT_TICKET_EMAIL_ENABLED                 = tostring(var.support_ticket_email_enabled)
+      SUPPORT_TICKET_EMAIL_PROVIDER                = var.support_ticket_email_provider
+      SUPPORT_TICKET_EMAIL_TO                      = var.support_ticket_email_to
+      SUPPORT_TICKET_EMAIL_FROM                    = var.support_ticket_email_from
+      SUPPORT_TICKET_EMAIL_SUBJECT_PREFIX          = var.support_ticket_email_subject_prefix
+      SUPPORT_TICKET_SMTP_HOST                     = var.support_ticket_smtp_host
+      SUPPORT_TICKET_SMTP_PORT                     = tostring(var.support_ticket_smtp_port)
+      SUPPORT_TICKET_SMTP_USERNAME                 = var.support_ticket_smtp_username
+      SUPPORT_TICKET_SMTP_APP_PASSWORD             = var.support_ticket_smtp_app_password
+      SUPPORT_TICKET_SMTP_STARTTLS                 = tostring(var.support_ticket_smtp_starttls)
+      SUPPORT_TICKET_SMTP_TIMEOUT_SECONDS          = tostring(var.support_ticket_smtp_timeout_seconds)
       DOMAIN                                       = var.domain
       ORGANIZATION_INTEGRATION_SETTINGS_JSON       = var.organization_integration_settings_json
       TENANT_INTEGRATION_SETTINGS_JSON             = var.tenant_integration_settings_json

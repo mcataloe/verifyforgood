@@ -1,5 +1,10 @@
 import { apiEndpoints, type ApiClient } from "@charity-status/shared-api";
 
+export enum PortalSupportDeliveryMode {
+  RecordedOnly = "recorded_only",
+  RecordedAndEmailed = "recorded_and_emailed",
+}
+
 export interface PortalOrganizationSupportContext {
   support_contact: {
     brand_name: string;
@@ -17,7 +22,7 @@ export interface PortalOrganizationSupportContext {
     workspace_id: string | null;
   };
   issue_reporting: {
-    delivery_mode: "recorded_only";
+    delivery_mode: PortalSupportDeliveryMode;
     honesty_notice: string;
     urgent_contact_notice: string;
   };
@@ -50,7 +55,7 @@ export interface PortalSupportRequestInput {
 }
 
 export interface PortalSupportRequestReceipt {
-  delivery_mode: "recorded_only";
+  delivery_mode: PortalSupportDeliveryMode;
   status: "received";
   submitted_at: string;
   support_email: string;

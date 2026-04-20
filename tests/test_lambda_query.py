@@ -40,6 +40,10 @@ from verification_platform.customer_accounts import (
     OrganizationRecord,
     OrganizationSettingsService,
     OrganizationSupportService,
+    SupportDeliveryMode,
+    SupportTicketDeliveryStatus,
+    SupportTicketEmailResult,
+    SupportTicketRecord,
     SubscriptionService,
     UsageService,
     UserRecord,
@@ -65,6 +69,70 @@ def _response_error_message(response):
     return _response_envelope(response)["errors"][0]["message"]
 
 
+class _InMemorySupportTicketRepository:
+    def __init__(self) -> None:
+        self.records: dict[str, SupportTicketRecord] = {}
+        self._next_id = 1
+
+    def create(self, record: SupportTicketRecord) -> SupportTicketRecord:
+        created = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "ticket_id": self._next_id,
+            }
+        )
+        self.records[created.support_request_id] = created
+        self._next_id += 1
+        return created
+
+    def mark_sent(self, support_request_id: str, *, provider_message_id: str | None, delivery_recipient: str, emailed_at: str):
+        record = self.records.get(support_request_id)
+        if record is None:
+            return None
+        updated = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "delivery_status": SupportTicketDeliveryStatus.SENT,
+                "delivery_recipient": delivery_recipient,
+                "provider_message_id": provider_message_id,
+                "emailed_at": emailed_at,
+                "delivery_error": None,
+            }
+        )
+        self.records[support_request_id] = updated
+        return updated
+
+    def mark_failed(self, support_request_id: str, *, delivery_error: str):
+        record = self.records.get(support_request_id)
+        if record is None:
+            return None
+        updated = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "delivery_status": SupportTicketDeliveryStatus.FAILED,
+                "delivery_error": delivery_error,
+            }
+        )
+        self.records[support_request_id] = updated
+        return updated
+
+    def get_by_support_request_id(self, support_request_id: str):
+        return self.records.get(support_request_id)
+
+
+class _RecordingSupportEmailDelivery:
+    provider_name = "gmail_smtp"
+    delivery_mode = SupportDeliveryMode.RECORDED_AND_EMAILED
+    delivery_recipient = "support@example.com"
+
+    def send(self, request):
+        return SupportTicketEmailResult(
+            provider_name=self.provider_name,
+            provider_message_id="message-123",
+            delivery_recipient=self.delivery_recipient,
+        )
+
+
 def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None) -> str:
     timestamp = int(time()) if timestamp is None else timestamp
     signed_payload = f"{timestamp}.{payload}".encode("utf-8")
@@ -74,6 +142,8 @@ def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None
 
 def _load_module():
     sys.modules.pop("infrastructure.lambda_query", None)
+    sys.modules.pop("verification_backend.api.runtime", None)
+    sys.modules.pop("verification_backend.api", None)
     return importlib.import_module("infrastructure.lambda_query")
 
 
@@ -102,6 +172,8 @@ def _load_admin_module(monkeypatch):
     admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
     sys.modules.pop("infrastructure.lambda_query", None)
+    sys.modules.pop("verification_backend.api.runtime", None)
+    sys.modules.pop("verification_backend.api", None)
     return importlib.import_module("infrastructure.lambda_query"), admin_key
 
 
@@ -1379,6 +1451,7 @@ def test_get_organization_support_returns_org_scoped_context():
     identity_table = FakeIdentityDynamoTable()
     identity_resource = FakeIdentityDynamoResource(identity_table)
     organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    support_tickets = _InMemorySupportTicketRepository()
     organizations.create(
         OrganizationRecord(
             organization_id="org_1",
@@ -1401,6 +1474,8 @@ def test_get_organization_support_returns_org_scoped_context():
     module.portal_support_service = OrganizationSupportService(
         organizations=organizations,
         audits=DynamoAuditLogRepository(dynamodb_resource=identity_resource),
+        support_tickets=support_tickets,
+        email_delivery=_RecordingSupportEmailDelivery(),
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
@@ -1421,6 +1496,7 @@ def test_get_organization_support_returns_org_scoped_context():
     assert body["account_context"]["current_plan"] == "growth"
     assert body["support_contact"]["support_email"] == "support@verifyforgood.com"
     assert body["product_links"]["api_access_hash"] == "#/api-access?nav=customer-admin-api"
+    assert body["issue_reporting"]["delivery_mode"] == "recorded_and_emailed"
 
 
 def test_post_organization_support_request_records_sanitized_receipt():
@@ -1429,6 +1505,7 @@ def test_post_organization_support_request_records_sanitized_receipt():
     identity_resource = FakeIdentityDynamoResource(identity_table)
     organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
     audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource)
+    support_tickets = _InMemorySupportTicketRepository()
     organizations.create(
         OrganizationRecord(
             organization_id="org_1",
@@ -1442,6 +1519,8 @@ def test_post_organization_support_request_records_sanitized_receipt():
     module.portal_support_service = OrganizationSupportService(
         organizations=organizations,
         audits=audits,
+        support_tickets=support_tickets,
+        email_delivery=_RecordingSupportEmailDelivery(),
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
@@ -1470,7 +1549,7 @@ def test_post_organization_support_request_records_sanitized_receipt():
     assert result["statusCode"] == 201
     body = _response_data(result)
     assert body["status"] == "received"
-    assert body["delivery_mode"] == "recorded_only"
+    assert body["delivery_mode"] == "recorded_and_emailed"
     assert body["support_email"] == "support@verifyforgood.com"
 
     audit_items = audits.list_for_organization("org_1")
@@ -1484,6 +1563,9 @@ def test_post_organization_support_request_records_sanitized_receipt():
         "reviewer@example.org",
     ]
     assert "description" not in audit_items[0].metadata
+    stored = next(iter(support_tickets.records.values()))
+    assert stored.description == "The API token request is failing with a 401 response."
+    assert stored.delivery_status is SupportTicketDeliveryStatus.SENT
 
 
 def test_post_organization_support_request_rejects_invalid_payload():

@@ -7,6 +7,7 @@ import {
   PortalOrganizationContext,
   type PortalOrganizationContextValue,
 } from "../organization/usePortalOrganization";
+import { PortalSupportDeliveryMode } from "../settings/portalSupport";
 import type { PortalSupportController } from "../settings/usePortalSupport";
 import { SupportPage } from "./SupportPage";
 
@@ -93,7 +94,7 @@ describe("SupportPage", () => {
     const supportController = createSupportController({
       clearReceipt: vi.fn(),
       receipt: {
-        delivery_mode: "recorded_only",
+        delivery_mode: PortalSupportDeliveryMode.RecordedAndEmailed,
         status: "received",
         submitted_at: "2026-03-29T14:15:00Z",
         support_email: "support@verifyforgood.com",
@@ -232,9 +233,9 @@ function createSupportController(
         workspace_id: "ws_portal_test",
       },
       issue_reporting: {
-        delivery_mode: "recorded_only",
+        delivery_mode: PortalSupportDeliveryMode.RecordedAndEmailed,
         honesty_notice:
-          "Support requests are recorded for follow-up. There is not yet a customer-visible ticket thread.",
+          "Support requests are recorded and emailed for follow-up. There is not yet a customer-visible ticket thread.",
         urgent_contact_notice:
           "Urgent issues should still go through the listed support email.",
       },

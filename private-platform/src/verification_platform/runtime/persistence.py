@@ -24,9 +24,11 @@ from verification_platform.customer_accounts import (
     SqlAlchemyMembershipRepository,
     SqlAlchemyOrganizationRepository,
     SqlAlchemyPlanRepository,
+    SqlAlchemySupportTicketRepository,
     SqlAlchemySubscriptionRepository,
     SqlAlchemyUsageRepository,
     SqlAlchemyUserRepository,
+    SupportTicketRepository,
     SubscriptionRepository,
     UsageRepository,
     UserRepository,
@@ -51,6 +53,7 @@ class CustomerAccountsPostgresRepositories:
     usage: SqlAlchemyUsageRepository
     flags: SqlAlchemyFeatureFlagRepository
     audits: SqlAlchemyAuditLogRepository
+    support_tickets: SqlAlchemySupportTicketRepository
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,7 @@ class CustomerAccountsRepositories:
     usage: UsageRepository
     flags: FeatureFlagRepository
     audits: AuditLogRepository
+    support_tickets: SupportTicketRepository
     identity_backend: str
 
 
@@ -127,6 +131,7 @@ def build_customer_accounts_postgres_repositories(
         usage=SqlAlchemyUsageRepository(session_factory),
         flags=SqlAlchemyFeatureFlagRepository(session_factory),
         audits=SqlAlchemyAuditLogRepository(session_factory),
+        support_tickets=SqlAlchemySupportTicketRepository(session_factory),
     )
 
 
@@ -153,6 +158,7 @@ def build_customer_accounts_repositories(
         usage=postgres_bundle.usage,
         flags=postgres_bundle.flags,
         audits=postgres_bundle.audits,
+        support_tickets=postgres_bundle.support_tickets,
         identity_backend="postgres",
     )
 

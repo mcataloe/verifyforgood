@@ -77,6 +77,8 @@ def _load_module_with_postgres_identity_store(monkeypatch, tmp_path: Path, *, ap
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
     sys.modules.pop("infrastructure.lambda_query", None)
+    sys.modules.pop("verification_backend.api.runtime", None)
+    sys.modules.pop("verification_backend.api", None)
     module = importlib.import_module("infrastructure.lambda_query")
     module.portal_auth_service = None
     module.portal_organization_service = None
@@ -109,6 +111,7 @@ def test_repository_builder_selects_postgres_with_narrow_dynamo_compatibility(tm
     assert bundle.subscriptions.__class__.__name__ == "SqlAlchemySubscriptionRepository"
     assert bundle.api_keys.__class__.__name__ == "SqlAlchemyApiKeyRepository"
     assert bundle.audits.__class__.__name__ == "SqlAlchemyAuditLogRepository"
+    assert bundle.support_tickets.__class__.__name__ == "SqlAlchemySupportTicketRepository"
     assert bundle.invitations.__class__.__name__ == "SqlAlchemyInvitationRepository"
     assert bundle.usage.__class__.__name__ == "SqlAlchemyUsageRepository"
     assert bundle.flags.__class__.__name__ == "SqlAlchemyFeatureFlagRepository"

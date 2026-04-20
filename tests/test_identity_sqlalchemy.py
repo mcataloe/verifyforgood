@@ -18,10 +18,14 @@ from verification_platform.customer_accounts import (
     SqlAlchemyMembershipRepository,
     SqlAlchemyOrganizationRepository,
     SqlAlchemyPlanRepository,
+    SqlAlchemySupportTicketRepository,
     SqlAlchemySubscriptionRepository,
     SqlAlchemyUserRepository,
     SubscriptionRecord,
     SubscriptionStatus,
+    SupportDeliveryMode,
+    SupportTicketDeliveryStatus,
+    SupportTicketRecord,
     UserRecord,
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
@@ -69,6 +73,7 @@ def test_customer_accounts_metadata_contains_foundational_tables():
     assert "organization_subscriptions" in table_names
     assert "organization_api_keys" in table_names
     assert "organization_audit_logs" in table_names
+    assert "organization_support_tickets" in table_names
 
 
 def test_sqlalchemy_user_repository_create_and_get(tmp_path: Path):
@@ -252,6 +257,52 @@ def test_sqlalchemy_audit_repository_lists_and_pages(tmp_path: Path):
     assert len(repository.list_identity_events()) == 1
 
 
+def test_sqlalchemy_support_ticket_repository_round_trips_ticket_state(tmp_path: Path):
+    session_factory = _session_factory(tmp_path)
+    created_org = SqlAlchemyOrganizationRepository(session_factory).create(_organization())
+    repository = SqlAlchemySupportTicketRepository(session_factory)
+
+    created = repository.create(
+        SupportTicketRecord(
+            ticket_id=None,
+            support_request_id="support_req_123",
+            organization_id=created_org.organization_id,
+            actor_user_id=1,
+            account_id="acct_1",
+            workspace_id="ws_1",
+            category="recommendation",
+            subject="Token issue",
+            description="The API token request is failing with a 401 response.",
+            reply_email="submitter@example.org",
+            watchers=("ops@example.org", "reviewer@example.org"),
+            route_hash="#/settings?nav=customer-admin-settings",
+            user_agent="Portal Browser",
+            current_plan="growth",
+            membership_role="admin",
+            delivery_mode=SupportDeliveryMode.RECORDED_AND_EMAILED,
+            delivery_provider="gmail_smtp",
+            delivery_status=SupportTicketDeliveryStatus.PENDING,
+            delivery_recipient="support@example.com",
+            provider_message_id=None,
+            delivery_error=None,
+            created_at="2026-04-20T00:00:00+00:00",
+        )
+    )
+
+    sent = repository.mark_sent(
+        "support_req_123",
+        provider_message_id="message-123",
+        delivery_recipient="support@example.com",
+        emailed_at="2026-04-20T00:01:00+00:00",
+    )
+
+    assert created.ticket_id is not None
+    assert sent is not None
+    assert sent.delivery_status is SupportTicketDeliveryStatus.SENT
+    assert sent.provider_message_id == "message-123"
+    assert repository.get_by_support_request_id("support_req_123") == sent
+
+
 def test_runtime_builder_returns_postgres_bundle_only_when_selected(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'runtime.sqlite3'}"
     engine = build_customer_accounts_engine(sqlite_url)
@@ -266,4 +317,5 @@ def test_runtime_builder_returns_postgres_bundle_only_when_selected(tmp_path: Pa
 
     assert bundle is not None
     assert bundle.users.__class__.__name__ == "SqlAlchemyUserRepository"
+    assert bundle.support_tickets.__class__.__name__ == "SqlAlchemySupportTicketRepository"
 

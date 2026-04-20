@@ -258,6 +258,8 @@ def test_backend_local_env_template_and_entrypoints_reference_shared_loader():
     assert "PLATFORM_NONPROFIT_STORE_BACKEND=postgres" in backend_env_example
     assert "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres" in backend_env_example
     assert "PORTAL_AUTH_TOKEN_SECRET=dev-portal-auth-secret" in backend_env_example
+    assert "SUPPORT_TICKET_EMAIL_ENABLED=false ##PLACEHOLDER##" in backend_env_example
+    assert "SUPPORT_TICKET_SMTP_APP_PASSWORD=google-app-password ##PLACEHOLDER##" in backend_env_example
     assert "FORM990_WORKSPACE_DIR=./.workspace/form990" in backend_env_example
     assert "FORM990_WORKSPACE_MAX_BYTES=34359738368" in backend_env_example
 

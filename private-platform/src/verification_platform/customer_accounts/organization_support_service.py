@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
@@ -9,6 +9,15 @@ from verification.branding import BrandingConfig, load_branding_config
 
 from .audit_logging import AuditEventType, AuditLogRepository, AuditRecord
 from .identity_repositories import OrganizationRepository
+from .support_tickets import (
+    SupportDeliveryMode,
+    SupportIssueReporting,
+    SupportTicketDeliveryStatus,
+    SupportTicketEmailDelivery,
+    SupportTicketEmailRequest,
+    SupportTicketRecord,
+    SupportTicketRepository,
+)
 
 SUPPORT_REQUEST_CATEGORIES = {
     "account_access",
@@ -33,14 +42,14 @@ class OrganizationSupportContext:
     support_contact: dict[str, str]
     account_context: dict[str, str | None]
     product_links: dict[str, str]
-    issue_reporting: dict[str, str]
+    issue_reporting: SupportIssueReporting
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "support_contact": dict(self.support_contact),
             "account_context": dict(self.account_context),
             "product_links": dict(self.product_links),
-            "issue_reporting": dict(self.issue_reporting),
+            "issue_reporting": self.issue_reporting.to_dict(),
         }
 
 
@@ -49,7 +58,7 @@ class OrganizationSupportReceipt:
     support_request_id: str
     submitted_at: str
     status: str
-    delivery_mode: str
+    delivery_mode: SupportDeliveryMode
     support_email: str
 
     def to_dict(self) -> dict[str, str]:
@@ -57,7 +66,7 @@ class OrganizationSupportReceipt:
             "support_request_id": self.support_request_id,
             "submitted_at": self.submitted_at,
             "status": self.status,
-            "delivery_mode": self.delivery_mode,
+            "delivery_mode": self.delivery_mode.value,
             "support_email": self.support_email,
         }
 
@@ -68,10 +77,14 @@ class OrganizationSupportService:
         *,
         organizations: OrganizationRepository,
         audits: AuditLogRepository,
+        support_tickets: SupportTicketRepository | None = None,
+        email_delivery: SupportTicketEmailDelivery | None = None,
         branding: BrandingConfig | None = None,
     ) -> None:
         self._organizations = organizations
         self._audits = audits
+        self._support_tickets = support_tickets
+        self._email_delivery = email_delivery
         self._branding = branding or load_branding_config()
 
     def get_support_context(
@@ -85,6 +98,7 @@ class OrganizationSupportService:
     ) -> OrganizationSupportContext:
         organization = self._require_organization(organization_id)
         support_email = self._branding.support_email
+        delivery_mode = self._delivery_mode()
         return OrganizationSupportContext(
             support_contact={
                 "brand_name": self._branding.public_brand_name,
@@ -107,16 +121,21 @@ class OrganizationSupportService:
                 "billing_hash": "#/usage-billing?nav=customer-admin-billing",
                 "homepage_url": self._branding.homepage_url(),
             },
-            issue_reporting={
-                "delivery_mode": "recorded_only",
-                "honesty_notice": (
+            issue_reporting=SupportIssueReporting(
+                delivery_mode=delivery_mode,
+                honesty_notice=(
+                    "Support requests are recorded and emailed for follow-up. "
+                    "There is no customer-visible ticket tracking yet."
+                )
+                if delivery_mode is SupportDeliveryMode.RECORDED_AND_EMAILED
+                else (
                     "Support requests are recorded for follow-up. "
                     "There is no customer-visible ticket tracking yet."
                 ),
-                "urgent_contact_notice": (
+                urgent_contact_notice=(
                     f"For urgent issues, contact {support_email} directly."
                 ),
-            },
+            ),
         )
 
     def submit_support_request(
@@ -134,45 +153,104 @@ class OrganizationSupportService:
         parsed = _parse_support_request_payload(payload)
         submitted_at = _utc_now()
         support_request_id = f"support_{secrets.token_hex(12)}"
+        delivery_mode = self._delivery_mode()
 
-        try:
-            self._audits.create(
-                AuditRecord(
-                    audit_id=support_request_id,
-                    event_type=AuditEventType.SUPPORT_REQUEST_SUBMITTED,
-                    actor_user_id=actor_user_id,
+        if self._support_tickets is not None and self._email_delivery is not None:
+            self._support_tickets.create(
+                SupportTicketRecord(
+                    ticket_id=None,
+                    support_request_id=support_request_id,
                     organization_id=organization_id,
-                    target_user_id=None,
-                    timestamp=submitted_at,
-                    metadata={
-                        "account_id": account_id,
-                        "category": parsed["category"],
-                        "current_plan": current_plan,
-                        "membership_role": membership_role,
-                        "organization_name": organization.name,
-                        "reply_email": parsed["reply_email"],
-                        "watchers": parsed["watchers"],
-                        "route_hash": parsed["route_hash"],
-                        "subject": parsed["subject"],
-                        "submitted_at": submitted_at,
-                        "support_request_id": support_request_id,
-                        "user_agent": parsed["user_agent"],
-                        "workspace_id": workspace_id,
-                        "description_length": parsed["description_length"],
-                    },
+                    actor_user_id=actor_user_id,
+                    account_id=account_id,
+                    workspace_id=workspace_id,
+                    category=parsed["category"],
+                    subject=parsed["subject"],
+                    description=parsed["description"],
+                    reply_email=parsed["reply_email"],
+                    watchers=tuple(parsed["watchers"]),
+                    route_hash=parsed["route_hash"],
+                    user_agent=parsed["user_agent"],
+                    current_plan=current_plan,
+                    membership_role=membership_role,
+                    delivery_mode=delivery_mode,
+                    delivery_provider=self._email_delivery.provider_name,
+                    delivery_status=SupportTicketDeliveryStatus.PENDING,
+                    delivery_recipient=self._email_delivery.delivery_recipient,
+                    provider_message_id=None,
+                    delivery_error=None,
+                    created_at=submitted_at,
                 )
             )
+
+        try:
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                account_id=account_id,
+                workspace_id=workspace_id,
+                current_plan=current_plan,
+                membership_role=membership_role,
+                organization_name=organization.name,
+                support_request_id=support_request_id,
+                submitted_at=submitted_at,
+                parsed=parsed,
+            )
         except Exception as exc:  # noqa: BLE001
+            if self._support_tickets is not None and self._email_delivery is not None:
+                self._support_tickets.mark_failed(
+                    support_request_id,
+                    delivery_error="Support request audit record could not be created",
+                )
             raise OrganizationSupportError(
                 "Support request could not be recorded",
                 status_code=502,
             ) from exc
 
+        if self._support_tickets is not None and self._email_delivery is not None:
+            try:
+                email_result = self._email_delivery.send(
+                    SupportTicketEmailRequest(
+                        support_request_id=support_request_id,
+                        organization_id=str(organization_id),
+                        organization_name=organization.name,
+                        actor_user_id=str(actor_user_id) if actor_user_id is not None else None,
+                        account_id=account_id,
+                        workspace_id=workspace_id,
+                        current_plan=current_plan,
+                        membership_role=membership_role,
+                        category=parsed["category"],
+                        subject=parsed["subject"],
+                        description=parsed["description"],
+                        reply_email=parsed["reply_email"],
+                        watchers=tuple(parsed["watchers"]),
+                        route_hash=parsed["route_hash"],
+                        user_agent=parsed["user_agent"],
+                        support_email=self._branding.support_email,
+                        submitted_at=submitted_at,
+                    )
+                )
+                self._support_tickets.mark_sent(
+                    support_request_id,
+                    provider_message_id=email_result.provider_message_id,
+                    delivery_recipient=email_result.delivery_recipient,
+                    emailed_at=_utc_now(),
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._support_tickets.mark_failed(
+                    support_request_id,
+                    delivery_error=str(exc),
+                )
+                raise OrganizationSupportError(
+                    "Support request was recorded but email delivery failed",
+                    status_code=502,
+                ) from exc
+
         return OrganizationSupportReceipt(
             support_request_id=support_request_id,
             submitted_at=submitted_at,
             status="received",
-            delivery_mode="recorded_only",
+            delivery_mode=delivery_mode,
             support_email=self._branding.support_email,
         )
 
@@ -184,6 +262,52 @@ class OrganizationSupportService:
                 status_code=404,
             )
         return organization
+
+    def _delivery_mode(self) -> SupportDeliveryMode:
+        if self._support_tickets is not None and self._email_delivery is not None:
+            return self._email_delivery.delivery_mode
+        return SupportDeliveryMode.RECORDED_ONLY
+
+    def _record_audit_event(
+        self,
+        *,
+        organization_id: str,
+        actor_user_id: str,
+        account_id: str,
+        workspace_id: str,
+        current_plan: str,
+        membership_role: str | None,
+        organization_name: str,
+        support_request_id: str,
+        submitted_at: str,
+        parsed: dict[str, Any],
+    ) -> None:
+        self._audits.create(
+            AuditRecord(
+                audit_id=support_request_id,
+                event_type=AuditEventType.SUPPORT_REQUEST_SUBMITTED,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                target_user_id=None,
+                timestamp=submitted_at,
+                metadata={
+                    "account_id": account_id,
+                    "category": parsed["category"],
+                    "current_plan": current_plan,
+                    "membership_role": membership_role,
+                    "organization_name": organization_name,
+                    "reply_email": parsed["reply_email"],
+                    "watchers": parsed["watchers"],
+                    "route_hash": parsed["route_hash"],
+                    "subject": parsed["subject"],
+                    "submitted_at": submitted_at,
+                    "support_request_id": support_request_id,
+                    "user_agent": parsed["user_agent"],
+                    "workspace_id": workspace_id,
+                    "description_length": parsed["description_length"],
+                },
+            )
+        )
 
 
 def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -234,6 +358,7 @@ def _parse_support_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "category": category,
         "subject": subject,
+        "description": description,
         "reply_email": reply_email,
         "watchers": watchers,
         "route_hash": route_hash,
@@ -286,4 +411,3 @@ def _looks_like_email(value: str) -> bool:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-

@@ -10,7 +10,7 @@ BACKEND_INGEST_SRC = ROOT / "backend" / "ingest-task" / "src"
 BACKEND_SHARED_SRC = ROOT / "backend" / "shared" / "src"
 
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    sys.path.append(str(ROOT))
 
 if str(INFRA_PATH) not in sys.path:
     sys.path.insert(0, str(INFRA_PATH))

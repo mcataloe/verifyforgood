@@ -103,6 +103,7 @@ from verification.query.source_views import (
 )
 from verification.query.athena import AthenaQueryError, AthenaQueryTimeout
 from verification.scoring import SCORING_MODEL_VERSION
+from verification.serving.materializer import materialize_profile_item
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
 from verification_platform.customer_accounts import (
     ApiKeyCreateRequest,
@@ -129,8 +130,11 @@ from verification_platform.customer_accounts import (
     OrganizationSupportError,
     OrganizationSupportService,
     OrganizationService,
+    SupportTicketEmailDelivery,
     SubscriptionService,
     UsageService,
+    build_support_ticket_email_delivery,
+    load_support_ticket_email_config,
     usage_metrics_for_route,
 )
 from verification_platform.runtime import (
@@ -197,6 +201,7 @@ validate_stripe_billing_environment(os.environ)
 STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
 STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 TRIAL_CONFIG = load_trial_config(os.environ)
+SUPPORT_TICKET_EMAIL_CONFIG = load_support_ticket_email_config(os.environ)
 
 athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
@@ -234,6 +239,7 @@ portal_feature_flag_service: FeatureFlagService | None = None
 portal_audit_log_service: AuditLogService | None = None
 portal_activity_service: OrganizationActivityService | None = None
 portal_support_service: OrganizationSupportService | None = None
+support_ticket_email_delivery: SupportTicketEmailDelivery | None = None
 portal_customer_accounts_repositories: CustomerAccountsRepositories | None = None
 nonprofit_service: NonprofitService | None = None
 nonprofit_query_client: QueryRepository | Any | None = None
@@ -556,8 +562,21 @@ def _get_portal_support_service() -> OrganizationSupportService:
         portal_support_service = OrganizationSupportService(
             organizations=repositories.organizations,
             audits=repositories.audits,
+            support_tickets=repositories.support_tickets if _get_support_ticket_email_delivery() is not None else None,
+            email_delivery=_get_support_ticket_email_delivery(),
         )
     return portal_support_service
+
+
+def _get_support_ticket_email_delivery() -> SupportTicketEmailDelivery | None:
+    global support_ticket_email_delivery
+    if not SUPPORT_TICKET_EMAIL_CONFIG.enabled:
+        return None
+    if support_ticket_email_delivery is None:
+        support_ticket_email_delivery = build_support_ticket_email_delivery(
+            config=SUPPORT_TICKET_EMAIL_CONFIG,
+        )
+    return support_ticket_email_delivery
 
 
 def _get_portal_auth_service() -> AuthService:
@@ -870,7 +889,10 @@ def _get_lambda_invoke_client() -> Any:
 def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
     global organization_integration_settings_store
     if organization_integration_settings_store is None:
-        organization_integration_settings_store = build_organization_settings_store(os.environ)
+        try:
+            organization_integration_settings_store = build_organization_settings_store(os.environ)
+        except ValueError:
+            organization_integration_settings_store = None
     return organization_integration_settings_store
 
 
@@ -3319,8 +3341,16 @@ def _load_cached_profile(ein: str) -> dict | None:
 
 
 def _materialize_profile(ein: str, payload: dict) -> None:
-    del ein, payload
-    return
+    store = _get_profile_store()
+    if store is None:
+        return
+    item = materialize_profile_item(
+        ein,
+        payload,
+        environment=APP_ENV,
+        source_data_versions={},
+    )
+    store.put_profile(item)
 
 
 from verification.ops import S3RunStore

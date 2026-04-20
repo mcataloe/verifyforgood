@@ -1,5 +1,7 @@
 """Backend API runtime package."""
 
+from __future__ import annotations
+
 from pathlib import Path
 import sys
 
@@ -18,8 +20,23 @@ for path in (INFRASTRUCTURE_SRC, PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC):
 RUNTIME_NAME = "api"
 CURRENT_COMPATIBILITY_SOURCE = "infrastructure.lambda_query.handler"
 
-from .app import app, create_app
 from .runtime import handle_api_event, handler
+
+
+def create_app():
+    from .app import create_app as _create_app
+
+    return _create_app()
+
+
+def __getattr__(name: str):
+    if name == "app":
+        from .app import app as _app
+
+        return _app
+    if name == "create_app":
+        return create_app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "RUNTIME_NAME",

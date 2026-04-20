@@ -59,6 +59,7 @@ from .sqlalchemy_models import (
     OrganizationMembershipModel,
     OrganizationModel,
     OrganizationSettingsModel,
+    OrganizationSupportTicketModel,
     OrganizationSubscriptionModel,
     OrganizationUsageMonthlyModel,
     PlanModel,
@@ -76,6 +77,7 @@ from .sqlalchemy_identity import (
     SqlAlchemyUserRepository,
 )
 from .sqlalchemy_audit import SqlAlchemyAuditLogRepository
+from .sqlalchemy_support_tickets import SqlAlchemySupportTicketRepository
 from .identity_models import (
     ApiKeyRecord,
     ApiKeyStatus,
@@ -154,6 +156,20 @@ from .organization_support_service import (
     OrganizationSupportError,
     OrganizationSupportReceipt,
     OrganizationSupportService,
+)
+from .support_tickets import (
+    GmailSmtpSupportTicketEmailDelivery,
+    SupportDeliveryMode,
+    SupportIssueReporting,
+    SupportTicketDeliveryStatus,
+    SupportTicketEmailConfig,
+    SupportTicketEmailDelivery,
+    SupportTicketEmailRequest,
+    SupportTicketEmailResult,
+    SupportTicketRecord,
+    SupportTicketRepository,
+    build_support_ticket_email_delivery,
+    load_support_ticket_email_config,
 )
 from .membership_service import (
     InvitationAcceptRequest,
@@ -251,6 +267,7 @@ __all__ = [
     "SqlAlchemyUsageRepository",
     "SqlAlchemyFeatureFlagRepository",
     "SqlAlchemyAuditLogRepository",
+    "SqlAlchemySupportTicketRepository",
     "UserModel",
     "OrganizationModel",
     "OrganizationMembershipModel",
@@ -261,6 +278,7 @@ __all__ = [
     "OrganizationUsageMonthlyModel",
     "OrganizationFeatureFlagModel",
     "OrganizationAuditLogModel",
+    "OrganizationSupportTicketModel",
     "OrganizationSettingsModel",
     "build_customer_accounts_engine",
     "build_customer_accounts_session_factory",
@@ -286,6 +304,18 @@ __all__ = [
     "OrganizationSupportError",
     "OrganizationSupportReceipt",
     "OrganizationSupportService",
+    "SupportDeliveryMode",
+    "SupportIssueReporting",
+    "SupportTicketDeliveryStatus",
+    "SupportTicketEmailConfig",
+    "SupportTicketEmailDelivery",
+    "SupportTicketEmailRequest",
+    "SupportTicketEmailResult",
+    "SupportTicketRecord",
+    "SupportTicketRepository",
+    "GmailSmtpSupportTicketEmailDelivery",
+    "build_support_ticket_email_delivery",
+    "load_support_ticket_email_config",
     "MembershipManagementError",
     "MemberSummary",
     "InvitationSummary",

@@ -45,6 +45,7 @@ class OrganizationModel(CustomerAccountsBase):
     subscriptions: Mapped[list["OrganizationSubscriptionModel"]] = relationship(back_populates="organization")
     api_keys: Mapped[list["OrganizationApiKeyModel"]] = relationship(back_populates="organization")
     audit_logs: Mapped[list["OrganizationAuditLogModel"]] = relationship(back_populates="organization")
+    support_tickets: Mapped[list["OrganizationSupportTicketModel"]] = relationship(back_populates="organization")
     invitations: Mapped[list["OrganizationInvitationModel"]] = relationship(back_populates="organization")
     usage_records: Mapped[list["OrganizationUsageMonthlyModel"]] = relationship(back_populates="organization")
     feature_flags: Mapped[list["OrganizationFeatureFlagModel"]] = relationship(back_populates="organization")
@@ -140,6 +141,41 @@ class OrganizationAuditLogModel(CustomerAccountsBase):
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False, default=dict)
 
     organization: Mapped[OrganizationModel | None] = relationship(back_populates="audit_logs")
+
+
+class OrganizationSupportTicketModel(CustomerAccountsBase):
+    __tablename__ = "organization_support_tickets"
+    __table_args__ = (
+        UniqueConstraint("support_request_id", name="uq_organization_support_tickets_support_request_id"),
+        Index("ix_organization_support_tickets_organization_created", "organization_id", "created_at"),
+        Index("ix_organization_support_tickets_delivery_status", "delivery_status"),
+    )
+
+    ticket_id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True)
+    support_request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    organization_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, ForeignKey("organizations.organization_id"), nullable=False)
+    actor_user_id: Mapped[int | None] = mapped_column(BIGINT_FOREIGN_KEY, nullable=True)
+    account_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    reply_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    watchers_json: Mapped[list[str]] = mapped_column("watchers", JSON, nullable=False, default=list)
+    route_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    current_plan: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    membership_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    delivery_mode: Mapped[str] = mapped_column(String(64), nullable=False)
+    delivery_provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    delivery_recipient: Mapped[str] = mapped_column(String(320), nullable=False)
+    provider_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    organization: Mapped[OrganizationModel] = relationship(back_populates="support_tickets")
 
 
 class OrganizationInvitationModel(CustomerAccountsBase):

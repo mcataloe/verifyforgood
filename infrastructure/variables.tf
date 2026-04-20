@@ -26,6 +26,72 @@ variable "support_email" {
   default     = "support@verifyforgood.com"
 }
 
+variable "support_ticket_email_enabled" {
+  description = "Enable support ticket email delivery from the backend support intake flow."
+  type        = bool
+  default     = false
+}
+
+variable "support_ticket_email_provider" {
+  description = "Outbound provider identifier for support ticket delivery."
+  type        = string
+  default     = "gmail_smtp"
+}
+
+variable "support_ticket_email_to" {
+  description = "Destination inbox for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_email_from" {
+  description = "Sender address for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_email_subject_prefix" {
+  description = "Subject prefix used for outbound support ticket emails."
+  type        = string
+  default     = "[Verification Support]"
+}
+
+variable "support_ticket_smtp_host" {
+  description = "SMTP host for support ticket email delivery."
+  type        = string
+  default     = "smtp.gmail.com"
+}
+
+variable "support_ticket_smtp_port" {
+  description = "SMTP port for support ticket email delivery."
+  type        = number
+  default     = 587
+}
+
+variable "support_ticket_smtp_username" {
+  description = "SMTP username for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_smtp_app_password" {
+  description = "SMTP app password for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_smtp_starttls" {
+  description = "Whether the support ticket SMTP client should negotiate STARTTLS."
+  type        = bool
+  default     = true
+}
+
+variable "support_ticket_smtp_timeout_seconds" {
+  description = "Timeout in seconds for support ticket SMTP operations."
+  type        = number
+  default     = 15
+}
+
 variable "domain" {
   description = "Customer-facing product domain used by the branding layer. This does not manage Route53 or API custom-domain infrastructure."
   type        = string
