@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from verification_backend.shared.local_dev import load_backend_local_env
 import uvicorn
 
 
 def main() -> None:
     load_backend_local_env()
-    uvicorn.run("verification_backend.api.app:app", host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "verification_backend.api.app:app",
+        host="0.0.0.0",
+        port=8000,
+        loop=asyncio.new_event_loop,
+        http="h11",
+    )
 
 
 if __name__ == "__main__":

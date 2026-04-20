@@ -3,9 +3,8 @@
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal
+import importlib
 from typing import Any
-
-import boto3
 
 from verification.auth.oauth import StoredOAuthClientRecord
 from verification.auth.service import StoredApiKeyRecord
@@ -16,7 +15,7 @@ from .models import Account, ManagedApiKey, ManagedBillingCustomer, ManagedBilli
 class DynamoControlPlaneStore:
     def __init__(self, table_name: str, dynamodb_resource: Any | None = None) -> None:
         self._table_name = table_name
-        self._resource = dynamodb_resource or boto3.resource("dynamodb")
+        self._resource = dynamodb_resource or _load_boto3().resource("dynamodb")
         self._table = self._resource.Table(table_name)
 
     def list_accounts(self) -> list[Account]:
@@ -584,4 +583,14 @@ class FakeDynamoResource:
 
     def Table(self, name: str):  # noqa: N802
         return self._table
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for DynamoDB-backed control-plane storage. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 

@@ -1,8 +1,7 @@
 ﻿from __future__ import annotations
 
+import importlib
 from typing import Any
-
-import boto3
 
 from verification.serving.keys import profile_pk, profile_sk
 from verification.serving.storage_serialization import to_dynamodb_types
@@ -11,7 +10,7 @@ from verification.serving.storage_serialization import to_dynamodb_types
 class DynamoProfileStore:
     def __init__(self, table_name: str, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
         self._table_name = table_name
-        self._resource = None if table is not None else (dynamodb_resource or boto3.resource("dynamodb"))
+        self._resource = None if table is not None else (dynamodb_resource or _load_boto3().resource("dynamodb"))
         self._table = table if table is not None else self._resource.Table(table_name)
 
     def get_profile(self, ein: str) -> dict[str, Any] | None:
@@ -20,4 +19,14 @@ class DynamoProfileStore:
 
     def put_profile(self, item: dict[str, Any]) -> None:
         self._table.put_item(Item=to_dynamodb_types(item))
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for DynamoDB-backed profile storage. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 

@@ -1,14 +1,13 @@
 ﻿from __future__ import annotations
 
+import importlib
 from typing import Any
-
-import boto3
 
 from verification.query.athena_service import AthenaQueryClient
 
 
 def build_boto3_athena_client() -> Any:
-    return boto3.client("athena")
+    return _load_boto3().client("athena")
 
 
 def create_athena_query_client(
@@ -36,4 +35,14 @@ def create_athena_query_client(
         form990_governance_table=form990_governance_table,
         form990_quality_table=form990_quality_table,
     )
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for Athena-backed query access. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-import boto3
+import importlib
 from sqlalchemy import BIGINT, JSON, Boolean, DateTime, Identity, Integer, MetaData, String, UniqueConstraint, or_, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -152,7 +152,7 @@ class InMemoryOrganizationIntegrationSettingsStore:
 class DynamoOrganizationIntegrationSettingsStore:
     def __init__(self, table_name: str, dynamodb_resource: Any | None = None) -> None:
         self._table_name = table_name
-        self._resource = dynamodb_resource or boto3.resource("dynamodb")
+        self._resource = dynamodb_resource or _load_boto3().resource("dynamodb")
         self._table = self._resource.Table(table_name)
 
     def get_settings_document(
@@ -457,4 +457,14 @@ def _format_optional_timestamp(value) -> str | None:
     if getattr(value, "tzinfo", None) is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for DynamoDB-backed organization settings storage. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 

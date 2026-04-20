@@ -1,4 +1,6 @@
-﻿from verification.platform import (
+from typing import TYPE_CHECKING, Any
+
+from verification.platform import (
     ApiKeyAuthContextProvider,
     ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
@@ -28,6 +30,8 @@ from .backend_contracts import (
     version_path,
 )
 from .entrypoints import BackendEntrypoint, ENTRYPOINTS, entrypoint_by_surface
+from .migration_validation import MigrationEntityValidation
+from .nonprofit_db_cutover import NonprofitDatabaseCutoverReport, cutover_nonprofit_database
 from .persistence import (
     CustomerAccountsPostgresRepositories,
     CustomerAccountsRepositories,
@@ -36,11 +40,38 @@ from .persistence import (
     build_nonprofit_postgres_repository,
     build_nonprofit_query_client,
 )
-from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
-from .customer_accounts_migration import CustomerAccountsMigrationReport, run_customer_accounts_migration
-from .nonprofit_migration import NonprofitMigrationCounts, NonprofitMigrationReport, run_nonprofit_migration
-from .nonprofit_db_cutover import NonprofitDatabaseCutoverReport, cutover_nonprofit_database
-from .migration_validation import MigrationEntityValidation
+
+if TYPE_CHECKING:
+    from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
+    from .customer_accounts_migration import CustomerAccountsMigrationReport, run_customer_accounts_migration
+    from .nonprofit_migration import NonprofitMigrationCounts, NonprofitMigrationReport, run_nonprofit_migration
+
+
+def __getattr__(name: str) -> Any:
+    if name in {"CustomerAccountsBackfillStats", "backfill_customer_accounts_from_dynamodb"}:
+        from .customer_accounts_backfill import CustomerAccountsBackfillStats, backfill_customer_accounts_from_dynamodb
+
+        return {
+            "CustomerAccountsBackfillStats": CustomerAccountsBackfillStats,
+            "backfill_customer_accounts_from_dynamodb": backfill_customer_accounts_from_dynamodb,
+        }[name]
+    if name in {"CustomerAccountsMigrationReport", "run_customer_accounts_migration"}:
+        from .customer_accounts_migration import CustomerAccountsMigrationReport, run_customer_accounts_migration
+
+        return {
+            "CustomerAccountsMigrationReport": CustomerAccountsMigrationReport,
+            "run_customer_accounts_migration": run_customer_accounts_migration,
+        }[name]
+    if name in {"NonprofitMigrationCounts", "NonprofitMigrationReport", "run_nonprofit_migration"}:
+        from .nonprofit_migration import NonprofitMigrationCounts, NonprofitMigrationReport, run_nonprofit_migration
+
+        return {
+            "NonprofitMigrationCounts": NonprofitMigrationCounts,
+            "NonprofitMigrationReport": NonprofitMigrationReport,
+            "run_nonprofit_migration": run_nonprofit_migration,
+        }[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ApiKeyAuthContextProvider",
@@ -88,4 +119,3 @@ __all__ = [
     "cutover_nonprofit_database",
     "MigrationEntityValidation",
 ]
-

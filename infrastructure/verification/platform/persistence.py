@@ -2,10 +2,10 @@
 
 import json
 from dataclasses import dataclass
+import importlib
 from typing import Any, Mapping
 from urllib.parse import quote_plus
 
-import boto3
 from verification.control_plane.sqlalchemy_store import SqlAlchemyControlPlaneStore, build_control_plane_session_factory
 from verification.enrichments.organization_store import SqlAlchemyOrganizationIntegrationSettingsStore
 from sqlalchemy.engine import Engine
@@ -80,7 +80,7 @@ def resolve_postgres_credentials(
         raise ValueError("PostgreSQL runtime config is disabled")
     if not config.secret_arn:
         raise ValueError("PLATFORM_POSTGRES_SECRET_ARN is required when resolving PostgreSQL credentials")
-    client = secrets_client or boto3.client("secretsmanager")
+    client = secrets_client or _load_boto3().client("secretsmanager")
     response = client.get_secret_value(SecretId=config.secret_arn)
     secret_string = str(response.get("SecretString") or "").strip()
     if not secret_string:
@@ -261,4 +261,14 @@ def _validate_postgres_runtime_config(
 def _build_sqlalchemy_session_factory(bind: Engine | str) -> sessionmaker[Session]:
     engine = bind if isinstance(bind, Engine) else create_engine(bind, future=True)
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False, class_=Session)
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for Secrets Manager-backed PostgreSQL credential resolution. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 

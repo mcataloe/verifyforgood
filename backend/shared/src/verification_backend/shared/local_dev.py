@@ -31,7 +31,7 @@ from verification_platform.nonprofits import (
     create_nonprofit_tables,
     drop_nonprofit_tables,
 )
-from verification_platform.runtime import cutover_nonprofit_database
+from verification_platform.runtime.nonprofit_db_cutover import cutover_nonprofit_database
 
 
 class _AlembicCommandProxy:

@@ -7,6 +7,7 @@ This module is now the source of truth for shared API request handling.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import importlib
 import json
 import logging
 import os
@@ -16,7 +17,6 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs
 
-import boto3
 from verification.api import ResponseContext, build_response_context, error_response, json_response, normalize_route_key, strip_version_prefix
 from verification.auth import (
     AuthenticationError,
@@ -852,14 +852,18 @@ def _get_ops_run_store() -> Any | None:
     if not OPS_METADATA_BUCKET:
         return None
     if ops_run_store is None:
-        ops_run_store = S3RunStore(bucket=OPS_METADATA_BUCKET, prefix=OPS_METADATA_PREFIX, s3_client=boto3.client("s3"))
+        ops_run_store = S3RunStore(
+            bucket=OPS_METADATA_BUCKET,
+            prefix=OPS_METADATA_PREFIX,
+            s3_client=_load_boto3().client("s3"),
+        )
     return ops_run_store
 
 
 def _get_lambda_invoke_client() -> Any:
     global lambda_invoke_client
     if lambda_invoke_client is None:
-        lambda_invoke_client = boto3.client("lambda")
+        lambda_invoke_client = _load_boto3().client("lambda")
     return lambda_invoke_client
 
 
@@ -3320,6 +3324,16 @@ def _materialize_profile(ein: str, payload: dict) -> None:
 
 
 from verification.ops import S3RunStore
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for AWS-backed backend runtime features. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
 
 
 def policy_id_required(verification_input: VerificationInput) -> bool:

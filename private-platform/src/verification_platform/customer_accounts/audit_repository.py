@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import base64
+import importlib
 import json
 from typing import Any
-
-import boto3
 
 from .audit_logging import AuditLogRepository, AuditRecord, AuditEventType
 from .dynamodb_identity import IDENTITY_TABLE_NAME
@@ -19,7 +18,7 @@ class DynamoAuditLogRepository(AuditLogRepository):
         dynamodb_resource: Any | None = None,
         table: Any | None = None,
     ) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, record: AuditRecord) -> AuditRecord:
         self._table.put_item(Item=_audit_item(record))
@@ -136,3 +135,13 @@ def _decode_cursor(cursor: str | None, *, organization_id: str) -> dict[str, str
     if pk != expected_pk or not sk.startswith("AUDIT#"):
         raise ValueError("cursor is invalid")
     return {"pk": pk, "sk": sk}
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for DynamoDB-backed audit storage. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc

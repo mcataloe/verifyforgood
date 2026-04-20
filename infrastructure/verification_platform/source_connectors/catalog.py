@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
 from typing import Iterable
 
 from verification_platform.source_connectors.normalization import ProviderCapability, SourceCategory, SourceMetadata
 
 
 @dataclass
-class SourceConnectorCatalog:
+class _SourceConnectorCatalog:
     us_only: bool = True
 
     def __post_init__(self) -> None:
@@ -39,6 +40,16 @@ class SourceConnectorCatalog:
             "sources": [source.to_dict() for source in self.list_sources()],
             "provider_capabilities": [capability.to_dict() for capability in sorted(self._capabilities.values(), key=lambda item: item.provider_name)],
         }
+
+
+_PARENT_PACKAGE = sys.modules.get(__name__.split(".", 1)[0])
+_CACHED_SOURCE_CONNECTOR_CATALOG = getattr(_PARENT_PACKAGE, "_source_connector_catalog_class", None)
+if _CACHED_SOURCE_CONNECTOR_CATALOG is None:
+    SourceConnectorCatalog = _SourceConnectorCatalog
+    if _PARENT_PACKAGE is not None:
+        setattr(_PARENT_PACKAGE, "_source_connector_catalog_class", SourceConnectorCatalog)
+else:
+    SourceConnectorCatalog = _CACHED_SOURCE_CONNECTOR_CATALOG
 
 
 def default_organization_source_catalog(capabilities: Iterable[ProviderCapability]) -> SourceConnectorCatalog:

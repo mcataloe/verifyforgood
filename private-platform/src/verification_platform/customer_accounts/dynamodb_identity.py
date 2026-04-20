@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import importlib
 import secrets
 from typing import Any
-
-import boto3
 
 from .identity_models import (
     ApiKeyRecord,
@@ -43,7 +42,7 @@ PLAN_LOOKUP_INDEX = "plan_lookup"
 
 class DynamoUserRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, user: UserRecord) -> UserRecord:
         existing = self.get_by_email(user.email)
@@ -78,7 +77,7 @@ class DynamoUserRepository:
 
 class DynamoOrganizationRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, organization: OrganizationRecord) -> OrganizationRecord:
         existing = self.get_by_slug(organization.slug)
@@ -178,7 +177,7 @@ class DynamoOrganizationRepository:
 
 class DynamoMembershipRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, membership: MembershipRecord) -> MembershipRecord:
         try:
@@ -265,7 +264,7 @@ class DynamoMembershipRepository:
 
 class DynamoInvitationRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, invitation: InvitationRecord) -> InvitationRecord:
         self._table.put_item(
@@ -324,7 +323,7 @@ class DynamoInvitationRepository:
 
 class DynamoApiKeyRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def create(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
         persisted = api_key if api_key.key_id is not None else ApiKeyRecord(
@@ -433,7 +432,7 @@ class DynamoApiKeyRepository:
 
 class DynamoPlanRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def get(self, plan_id: int | str) -> PlanRecord | None:
         plan_key = _normalize_plan_key(plan_id)
@@ -461,7 +460,7 @@ class DynamoPlanRepository:
 
 class DynamoSubscriptionRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def put(self, subscription: SubscriptionRecord) -> SubscriptionRecord:
         persisted = subscription if subscription.subscription_id is not None else SubscriptionRecord(
@@ -492,7 +491,7 @@ class DynamoSubscriptionRepository:
 
 class DynamoUsageRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def increment(
         self,
@@ -570,7 +569,7 @@ class DynamoUsageRepository:
 
 class DynamoFeatureFlagRepository:
     def __init__(self, table_name: str = IDENTITY_TABLE_NAME, dynamodb_resource: Any | None = None, table: Any | None = None) -> None:
-        self._table = table or (dynamodb_resource or boto3.resource("dynamodb")).Table(table_name)
+        self._table = table or (dynamodb_resource or _load_boto3().resource("dynamodb")).Table(table_name)
 
     def get(self, organization_id: str, flag_key: str) -> FeatureFlagRecord | None:
         response = self._table.get_item(Key={"pk": _organization_pk(organization_id), "sk": _feature_flag_sk(flag_key)})
@@ -1023,3 +1022,13 @@ class FakeIdentityDynamoResource:
 
     def Table(self, name: str):  # noqa: N802
         return self._table
+
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for DynamoDB-backed customer account storage. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
