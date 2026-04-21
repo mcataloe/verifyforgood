@@ -1,4 +1,4 @@
-﻿[build-system]
+[build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
@@ -37,4 +37,3 @@ packages = [
 "verification_backend.ingest_task.form990" = "ingest-task/src/verification_backend/ingest_task/form990"
 "verification_backend.ingest_task.monthly" = "ingest-task/src/verification_backend/ingest_task/monthly"
 "verification_backend.shared" = "shared/src/verification_backend/shared"
-

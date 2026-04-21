@@ -17,10 +17,13 @@
       "request": "launch",
       "module": "verification_backend.api.entrypoint",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-      "cwd": "${workspaceFolder}",
+      "cwd": "${workspaceFolder}/backend",
       "envFile": "${workspaceFolder}/backend/.env.local",
       "console": "integratedTerminal",
-      "justMyCode": false
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/api/src;${workspaceFolder}/backend/shared/src;${workspaceFolder}/backend/worker/src;${workspaceFolder}/backend/ingest-task/src"
+      }
     },
     {
       "name": "Form990 Monthly Pipeline",
