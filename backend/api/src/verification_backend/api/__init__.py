@@ -7,16 +7,24 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[5]
+INFRASTRUCTURE_ROOT = ROOT / "infrastructure"
 PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
 BACKEND_SHARED_SRC = ROOT / "backend" / "shared" / "src"
+PUBLIC_CORE_SRC = ROOT / "public-core" / "src"
 
-for path in (PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC):
+for path in (INFRASTRUCTURE_ROOT, PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC, PUBLIC_CORE_SRC):
     path_str = str(path)
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
 
 RUNTIME_NAME = "api"
+
+from verification_backend.shared.local_dev import load_backend_local_env
+
+# Load backend/.env.local before importing runtime modules that snapshot
+# environment-driven settings at import time.
+load_backend_local_env()
 
 from .runtime import handle_api_event
 

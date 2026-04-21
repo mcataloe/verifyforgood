@@ -156,6 +156,19 @@ def load_support_ticket_email_config(
     source = env if env is not None else os.environ
     enabled = _mapping_bool(source, "SUPPORT_TICKET_EMAIL_ENABLED", False)
     provider = _mapping_text(source, "SUPPORT_TICKET_EMAIL_PROVIDER", "gmail_smtp") or "gmail_smtp"
+    if not enabled:
+        return SupportTicketEmailConfig(
+            enabled=False,
+            provider=provider,
+            to=_mapping_text(source, "SUPPORT_TICKET_EMAIL_TO"),
+            from_email=_mapping_text(source, "SUPPORT_TICKET_EMAIL_FROM"),
+            subject_prefix=_mapping_text(source, "SUPPORT_TICKET_EMAIL_SUBJECT_PREFIX", "[Verification Support]")
+            or "[Verification Support]",
+            smtp_host=_mapping_text(source, "SUPPORT_TICKET_SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com",
+            smtp_username=_mapping_text(source, "SUPPORT_TICKET_SMTP_USERNAME"),
+            smtp_app_password=_mapping_text(source, "SUPPORT_TICKET_SMTP_APP_PASSWORD"),
+            smtp_starttls=_mapping_bool(source, "SUPPORT_TICKET_SMTP_STARTTLS", True),
+        )
     config = SupportTicketEmailConfig(
         enabled=enabled,
         provider=provider,
@@ -170,8 +183,6 @@ def load_support_ticket_email_config(
         smtp_starttls=_mapping_bool(source, "SUPPORT_TICKET_SMTP_STARTTLS", True),
         smtp_timeout_seconds=_mapping_int(source, "SUPPORT_TICKET_SMTP_TIMEOUT_SECONDS", 15),
     )
-    if not config.enabled:
-        return config
     if config.provider != "gmail_smtp":
         raise ValueError("SUPPORT_TICKET_EMAIL_PROVIDER must be gmail_smtp when support ticket email is enabled")
     for key, value in (

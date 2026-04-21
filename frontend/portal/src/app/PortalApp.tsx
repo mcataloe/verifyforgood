@@ -22,7 +22,6 @@ import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { PortalOrganizationOnboardingPage } from "../pages/PortalOrganizationOnboardingPage";
-import { PortalHomePage } from "../pages/PortalHomePage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -226,15 +225,18 @@ function PortalAppShell({
         subtitle="Sign in or create an account to continue."
         title={
           currentRoute.key === homePortalRoute.key
-            ? "Customer Portal Entry"
+            ? "Sign In to the Customer Portal"
             : currentRoute.key === registerPortalRoute.key
               ? "Create Your Customer Portal Account"
               : "Sign In to the Customer Portal"
         }
       >
-        {currentRoute.key === homePortalRoute.key ? (
+        {/*
+          Root "#/" previously rendered PortalHomePage. Keep the route in place,
+          but point it at the same sign-in component used by "#/sign-in".
           <PortalHomePage requestedRoute={requestedRoute} />
-        ) : currentRoute.key === registerPortalRoute.key ? (
+        */}
+        {currentRoute.key === registerPortalRoute.key ? (
           <PortalRegisterPage
             endpoints={endpoints}
             isBusy={auth.isBusy}

@@ -563,33 +563,32 @@ describe("PortalApp", () => {
     window.location.hash = "#/usage-billing";
   });
 
-  it("shows the public portal home on an empty hash", async () => {
+  it("shows the sign-in boundary on an empty hash", async () => {
     window.location.hash = "";
 
     render(<App />);
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer Portal Entry",
+        name: "Sign In to the Customer Portal",
       }),
     ).toBeTruthy();
-    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign In" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Create Account" })).toBeTruthy();
     expect(window.location.hash).toBe("#/");
   });
 
-  it("falls back to the public portal home on an unknown hash", async () => {
+  it("falls back to the sign-in boundary on an unknown hash", async () => {
     window.location.hash = "#/missing";
 
     render(<App />);
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer Portal Entry",
+        name: "Sign In to the Customer Portal",
       }),
     ).toBeTruthy();
-    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Create Your Organization" }),
     ).toBeNull();
@@ -831,24 +830,24 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer Portal Entry",
+        name: "Sign In to the Customer Portal",
       }),
     ).toBeTruthy();
-    expect(screen.getByTestId("public-home-auth-cta")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Create Your Organization" }),
     ).toBeNull();
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
   });
 
-  it("keeps unknown hashes on the public home before authentication", async () => {
+  it("keeps unknown hashes on the sign-in boundary before authentication", async () => {
     window.location.hash = "#/missing";
 
     render(<App />);
 
     expect(
       await screen.findByRole("heading", {
-        name: "Customer Portal Entry",
+        name: "Sign In to the Customer Portal",
       }),
     ).toBeTruthy();
     expect(screen.queryByTestId("organization-onboarding-page")).toBeNull();
