@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from verification.form990.metrics import compute_derived_metrics
+from verification.form990.quality import compute_filing_quality
+
 from .sqlalchemy_repository import SqlAlchemyNonprofitRepository
 
 EO_BMF_FILING_FORM_TYPE = "EO_BMF"
@@ -24,7 +27,39 @@ class PostgresNonprofitQueryClient:
         self,
         ein: str,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-        return self._delegate_client.lookup_form990_enrichment(ein)
+        nonprofit = self._repository.get_nonprofit_by_ein(ein)
+        if nonprofit is None or nonprofit.nonprofit_id is None:
+            return None, None, None, None
+
+        filings = self._repository.list_filings_for_nonprofit(nonprofit.nonprofit_id)
+        latest_filing = next(
+            (filing for filing in filings if str(filing.form_type or "").strip().upper() != EO_BMF_FILING_FORM_TYPE),
+            None,
+        )
+        if latest_filing is None:
+            return None, None, None, None
+
+        latest_payload = _filing_enrichment_payload(latest_filing)
+        history_payloads = [
+            _filing_enrichment_payload(filing)
+            for filing in reversed(filings)
+            if filing is not latest_filing and str(filing.form_type or "").strip().upper() != EO_BMF_FILING_FORM_TYPE
+        ]
+
+        metrics = compute_derived_metrics(latest_payload, history=history_payloads)
+        governance = {
+            "independent_board_majority": latest_payload.get("independent_board_majority"),
+            "conflict_of_interest_policy": latest_payload.get("conflict_of_interest_policy"),
+            "whistleblower_policy": latest_payload.get("whistleblower_policy"),
+            "records_retention_policy": latest_payload.get("records_retention_policy"),
+            "contemporaneous_board_minutes": latest_payload.get("contemporaneous_board_minutes"),
+            "material_diversion_reported": latest_payload.get("material_diversion_reported"),
+            "compensation_review_process": latest_payload.get("compensation_review_process"),
+            "public_disclosure_available": latest_payload.get("public_disclosure_available"),
+            "audited_financials_indicator": latest_payload.get("audited_financials_indicator"),
+        }
+        quality = compute_filing_quality(latest_payload, history=history_payloads)
+        return latest_payload, metrics, governance, quality
 
     def list_form990_filings(self, ein: str, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
         rows = self._repository.list_filings_by_ein(ein, limit=None)
@@ -34,7 +69,7 @@ class PostgresNonprofitQueryClient:
         return "postgres:list_form990_filings", filtered
 
     def lookup_peer_benchmark(self, group: dict[str, Any]) -> dict[str, Any]:
-        return self._delegate_client.lookup_peer_benchmark(group)
+        return {"count": 0, "metrics": {}}
 
     def list_nonprofit_eins_page(self, limit: int, start_after_ein: str | None = None) -> list[str]:
         return self._repository.list_nonprofit_eins_page(limit=limit, start_after_ein=start_after_ein)
@@ -63,3 +98,35 @@ class PostgresNonprofitQueryClient:
 
 
 __all__ = ["PostgresNonprofitQueryClient"]
+
+
+def _filing_enrichment_payload(filing: Any) -> dict[str, Any]:
+    payload = dict(filing.raw_payload or {})
+    if not payload:
+        payload = {}
+
+    payload.setdefault("ein", None)
+    payload["tax_year"] = payload.get("tax_year") or _stringify(filing.tax_year)
+    payload["return_type"] = payload.get("return_type") or filing.form_type
+    payload["filing_date"] = payload.get("filing_date") or filing.filing_date
+    payload["amended_return"] = payload.get("amended_return")
+    if payload["amended_return"] is None:
+        payload["amended_return"] = filing.amended
+    payload["parse_status"] = payload.get("parse_status") or filing.parse_status
+    payload["total_assets_eoy"] = payload.get("total_assets_eoy")
+    if payload["total_assets_eoy"] is None:
+        payload["total_assets_eoy"] = filing.total_assets
+    payload["total_income"] = payload.get("total_income")
+    if payload["total_income"] is None:
+        payload["total_income"] = filing.total_income
+    payload["total_revenue"] = payload.get("total_revenue")
+    if payload["total_revenue"] is None:
+        payload["total_revenue"] = filing.total_revenue
+    return payload
+
+
+def _stringify(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel, PricingPlanGrid } from "@charity-status/shared-ui";
-import { Button, Group, Paper, Progress, Stack, Text, Title } from "@mantine/core";
+import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -161,13 +161,13 @@ export function UsageBillingPanel({
       );
   const subscriptionPanelTitle =
     focus === "usage"
-      ? "Usage Overview"
+      ? "Usage"
       : visibilityOnly
         ? "Subscription Visibility"
         : "Current Subscription";
   const subscriptionPanelSubtitle =
     focus === "usage"
-      ? "Review usage, budget settings, and plan access in one place."
+      ? "Track request usage, limits, and budget settings for your organization."
       : visibilityOnly
         ? "Review your current plan, billing dates, limits, and enabled features."
         : "Review your plan, billing cycle, and any pending changes.";
@@ -176,27 +176,6 @@ export function UsageBillingPanel({
   );
   const usageSummary = (
     <>
-      <Paper aria-label="Request usage meter" p="lg" radius="lg" withBorder>
-        <Stack gap="md">
-          <Group align="end" justify="space-between" wrap="wrap">
-            <div>
-              <Title order={3}>
-                {snapshot.usage.used.toLocaleString()} /{" "}
-                {snapshot.usage.limit.toLocaleString()}
-              </Title>
-              <Text c="dimmed" mt={4} size="sm">
-                {snapshot.usage.remaining.toLocaleString()} requests remaining
-                in {snapshot.usage.periodLabel.toLowerCase()}.
-              </Text>
-            </div>
-            <Text fw={700} size="sm">
-              {snapshot.usage.usagePercent}% of the current limit
-            </Text>
-          </Group>
-          <Progress radius="xl" value={snapshot.usage.usagePercent} />
-        </Stack>
-      </Paper>
-
       <UsageContextPanel
         budgetStatus={snapshot.budgetStatus}
         plan={effectivePlan}
@@ -251,8 +230,8 @@ export function UsageBillingPanel({
       sectionWrapper={({ section }) => <section>{section}</section>}
     >
       <Panel
-        title={subscriptionPanelTitle}
-        subtitle={subscriptionPanelSubtitle}
+        title={focus === "usage" ? undefined : subscriptionPanelTitle}
+        subtitle={focus === "usage" ? undefined : subscriptionPanelSubtitle}
       >
         <PortalNoticeList
           notices={visibleUsageSectionNotices}
@@ -502,34 +481,42 @@ function UsageSummaryGrid(input: {
   limit: number;
   totals: PortalUsageTotals;
 }) {
+  const items = [
+    {
+      key: "api-requests",
+      label: "API requests",
+      value: input.totals.apiRequests.toLocaleString(),
+    },
+    {
+      key: "nonprofit-lookups",
+      label: "Nonprofit lookups",
+      value: input.totals.nonprofitLookupRequests.toLocaleString(),
+    },
+    {
+      key: "search-requests",
+      label: "Search requests",
+      value: input.totals.searchRequests.toLocaleString(),
+    },
+    {
+      key: "enrichment-requests",
+      label: "Enrichment requests",
+      value: input.totals.enrichmentRequests.toLocaleString(),
+    },
+    {
+      key: "filing-lookups",
+      label: "Filing lookups",
+      value: input.totals.filingLookupRequests.toLocaleString(),
+    },
+    {
+      key: "included-monthly-requests",
+      label: "Included monthly requests",
+      value: input.limit.toLocaleString(),
+    },
+  ];
+
   return (
-    <section aria-label="Usage totals">
-      <PortalMetricGrid>
-        <UsageSummaryCard
-          label="API requests"
-          value={input.totals.apiRequests.toLocaleString()}
-        />
-        <UsageSummaryCard
-          label="Nonprofit lookups"
-          value={input.totals.nonprofitLookupRequests.toLocaleString()}
-        />
-        <UsageSummaryCard
-          label="Search requests"
-          value={input.totals.searchRequests.toLocaleString()}
-        />
-        <UsageSummaryCard
-          label="Enrichment requests"
-          value={input.totals.enrichmentRequests.toLocaleString()}
-        />
-        <UsageSummaryCard
-          label="Filing lookups"
-          value={input.totals.filingLookupRequests.toLocaleString()}
-        />
-        <UsageSummaryCard
-          label="Included monthly requests"
-          value={input.limit.toLocaleString()}
-        />
-      </PortalMetricGrid>
+    <section aria-label="Usage totals" className="portal-usage-summary-grid">
+      <PortalDetailList columns={3} items={items} />
     </section>
   );
 }
@@ -547,23 +534,21 @@ function UsageMetricBreakdown(input: { metrics: PortalUsageMetricSummary[] }) {
     <section aria-label="Usage metric breakdown">
       <Stack gap="md">
         <Title order={3}>Usage Metrics Recorded This Month</Title>
-        <PortalMetricGrid>
-          {input.metrics.map((metric) => (
-            <Paper key={metric.metricType} p="md" radius="md" withBorder>
-              <Stack gap={2}>
-                <Text c="dimmed" fz="sm">
-                  {formatUsageMetricLabel(metric.metricType)}
-                </Text>
-                <Text fw={700} size="lg">
-                  {metric.requestCount.toLocaleString()}
-                </Text>
-                <Text c="dimmed" size="sm">
-                  {metric.lastUpdated ?? "Not yet updated"}
-                </Text>
-              </Stack>
-            </Paper>
-          ))}
-        </PortalMetricGrid>
+        <div className="portal-usage-summary-grid">
+          <PortalDetailList
+            columns={3}
+            items={input.metrics.map((metric) => ({
+              key: metric.metricType,
+              label: formatUsageMetricLabel(metric.metricType),
+              value: (
+                <div className="portal-usage-detail-value">
+                  <strong>{metric.requestCount.toLocaleString()}</strong>
+                  <span>{metric.lastUpdated ?? "Not yet updated"}</span>
+                </div>
+              ),
+            }))}
+          />
+        </div>
       </Stack>
     </section>
   );

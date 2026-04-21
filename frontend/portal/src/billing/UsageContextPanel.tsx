@@ -1,9 +1,7 @@
-import { Group, Paper, Progress, Stack, Text, Title } from "@mantine/core";
+import { Group, Progress, Stack, Text, Title } from "@mantine/core";
 import type { PricingPlanMetadata } from "@charity-status/shared-types";
 import {
   PortalDetailList,
-  PortalMetricCard,
-  PortalMetricGrid,
 } from "../components/PortalPrimitives";
 import type {
   PortalBudgetStatus,
@@ -35,57 +33,79 @@ export function UsageContextPanel({
       : projectedOverageRequests * overageUnitPriceMicros;
 
   return (
-    <Paper p="lg" radius="lg" withBorder>
-      <Stack gap="md">
-        <Group align="start" justify="space-between" wrap="wrap">
-          <div>
-            <Title order={3}>Usage compared with this plan&apos;s included quota</Title>
-            <Text c="dimmed" mt={4} size="sm">
-              Simple month-end estimate based on average daily requests so far in
-              this month.
-            </Text>
-          </div>
-          <Text fw={700} size="sm">
-            Projected month end: {forecast.projectedPercent}% of included quota
+    <Stack gap="md" className="portal-usage-context">
+      <Group align="start" justify="space-between" wrap="wrap">
+        <div>
+          <Title order={3}>Usage compared with this plan&apos;s included quota</Title>
+          <Text c="dimmed" mt={4} size="sm">
+            Current month usage and estimate based on average daily requests so
+            far this month.
           </Text>
-        </Group>
+        </div>
+        <Text fw={700} size="sm">
+          Projected month end: {forecast.projectedPercent}% of included quota
+        </Text>
+      </Group>
 
-        <UsageProgressRow
-          label="Current usage"
-          progress={usage.usagePercent}
-          value={`${usage.used.toLocaleString()} requests used`}
-        />
-        <UsageProgressRow
-          label="Projected month end"
-          progress={forecast.projectedPercent}
-          value={`About ${forecast.projectedTotal.toLocaleString()} requests`}
-        />
+      <PortalDetailList
+        columns={3}
+        items={[
+          {
+            key: "current-usage",
+            label: "Current usage",
+            value: `${usage.used.toLocaleString()} / ${includedQuota.toLocaleString()}`,
+          },
+          {
+            key: "remaining-usage",
+            label: "Remaining in current period",
+            value: `${usage.remaining.toLocaleString()} requests`,
+          },
+          {
+            key: "current-percent",
+            label: "Current usage share",
+            value: `${usage.usagePercent}% of included quota`,
+          },
+        ]}
+      />
 
-        <PortalMetricGrid>
-          <PortalMetricCard
-            label="Included quota"
-            value={`${includedQuota.toLocaleString()} requests`}
-          />
-          <PortalMetricCard
-            label="Current pace"
-            value={`${forecast.dailyAverage.toLocaleString()} requests / day`}
-          />
-          <PortalMetricCard
-            label="Projected month end"
-            value={`${forecast.projectedTotal.toLocaleString()} requests`}
-          />
-          <PortalMetricCard
-            label="Cost scaling"
-            value={
-              overageUnitPriceMicros === null
-                ? "Unavailable"
-                : `${formatUsdMicros(overageUnitPriceMicros)} per extra request`
-            }
-          />
-        </PortalMetricGrid>
+      <UsageProgressRow
+        label="Current usage"
+        progress={usage.usagePercent}
+        value={`${usage.used.toLocaleString()} requests used`}
+      />
+      <UsageProgressRow
+        label="Projected month end"
+        progress={forecast.projectedPercent}
+        value={`About ${forecast.projectedTotal.toLocaleString()} requests`}
+      />
 
+      <div className="portal-usage-summary-grid">
         <PortalDetailList
+          columns={3}
           items={[
+            {
+              key: "included-quota",
+              label: "Included quota",
+              value: `${includedQuota.toLocaleString()} requests`,
+            },
+            {
+              key: "current-pace",
+              label: "Current pace",
+              value: `${forecast.dailyAverage.toLocaleString()} requests / day`,
+            },
+            {
+              key: "projected-month-end",
+              label: "Projected month end",
+              value: `${forecast.projectedTotal.toLocaleString()} requests`,
+            },
+            {
+              key: "cost-scaling",
+              label: "Cost scaling",
+              value:
+                overageUnitPriceMicros === null
+                  ? "Unavailable"
+                  : `${formatUsdMicros(overageUnitPriceMicros)} per extra request`,
+            },
             {
               key: "forecast-summary",
               label: "Forecast summary",
@@ -104,8 +124,8 @@ export function UsageContextPanel({
             },
           ]}
         />
-      </Stack>
-    </Paper>
+      </div>
+    </Stack>
   );
 }
 

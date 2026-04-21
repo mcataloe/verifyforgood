@@ -205,25 +205,31 @@ export function SupportHelpPanel({
           />
 
           {validationMessage ? (
-            <PortalNotice tone="error">
-              <p>{validationMessage}</p>
-            </PortalNotice>
+            <div className="portal-support-help-panel__notice">
+              <PortalNotice tone="error">
+                <p>{validationMessage}</p>
+              </PortalNotice>
+            </div>
           ) : null}
 
           {controller.error ? (
-            <PortalNotice tone="error">
-              <p>{controller.error}</p>
-            </PortalNotice>
+            <div className="portal-support-help-panel__notice">
+              <PortalNotice tone="error">
+                <p>{controller.error}</p>
+              </PortalNotice>
+            </div>
           ) : null}
 
           {controller.receipt ? (
-            <PortalNotice title="Support request sent" tone="warning">
-              <p>
-                Your request was sent on{" "}
-                {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
-                through {controller.receipt.support_email}.
-              </p>
-            </PortalNotice>
+            <div className="portal-support-help-panel__notice">
+              <PortalNotice title="Support request sent" tone="warning">
+                <p>
+                  Your request was sent on{" "}
+                  {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
+                  through {controller.receipt.support_email}.
+                </p>
+              </PortalNotice>
+            </div>
           ) : null}
 
           <PortalActionGroup>

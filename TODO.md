@@ -899,3 +899,53 @@ Keep current Form 990 payload contracts, S3 manifest behavior, and PostgreSQL
 persistence hooks stable while moving archive lifecycle responsibilities behind
 the new workspace-oriented modules.
 
+## TODO-ARCH-100
+
+### Title
+
+Restore PostgreSQL peer benchmark parity for nonprofit verification lookups.
+
+### Rationale
+
+The nonprofit lookup path now derives Form 990 enrichment directly from
+`nonprofit_filings.raw_payload` in PostgreSQL, but peer benchmark aggregation is
+still Athena-specific. Local and ECS PostgreSQL-first runtimes should gain a
+datastore-native benchmark implementation so score behavior no longer depends on
+Athena availability.
+
+## TODO-ARCH-101
+
+### Title
+
+Execute the hard Form 990 cutover away from Athena, Glue, and S3 onto a
+PostgreSQL-plus-workspace runtime.
+
+### Rationale
+
+The active backend Form 990 processing path is already largely local-workspace
+and PostgreSQL-oriented, but the repo still retains meaningful legacy coupling
+in:
+
+- API/runtime Athena client construction and selector wiring
+- Form 990 ops metadata stored through `S3RunStore`
+- S3-shaped monthly ingest workflow contracts and docs
+- Terraform Athena workgroups, Glue tables, Form 990 S3 bucket/prefix wiring,
+  and broad IAM grants
+
+This follow-on should be treated as a hard cutover rather than a compatibility
+phase. Once complete, no supported Form 990 runtime or deployment path should
+depend on Athena, Glue, or S3.
+
+### Migration Triggers
+
+- PostgreSQL query parity for remaining Form 990 read behavior
+- replacement or retirement of S3-backed Form 990 ops/run metadata
+- decision to delete legacy Form 990 AWS resources rather than keep rollback
+  selectors
+
+### Constraint
+
+Do not preserve Athena/S3-era Form 990 behavior behind feature flags, backend
+selectors, or compatibility shims. The cutover should converge the repo on one
+authoritative Form 990 architecture.
+

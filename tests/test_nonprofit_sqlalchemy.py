@@ -581,6 +581,105 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
     assert client.lookup_nonprofit("123456789")[1]["name"] == "Query Runtime Org"
 
 
+def test_postgres_query_client_builds_form990_enrichment_without_athena(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="12-3456789",
+            canonical_name="Form 990 Org",
+            normalized_name="form 990 org",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2023,
+            tax_period="202312",
+            form_type="990",
+            filing_date="2024-02-01",
+            amended=False,
+            parse_status="parsed",
+            total_assets=400,
+            total_income=850,
+            total_revenue=1000,
+            source_name="irs.form990",
+            source_record_id="return-2023",
+            raw_payload={
+                "ein": "123456789",
+                "tax_year": "2023",
+                "filing_date": "2024-02-01",
+                "return_type": "990",
+                "amended_return": False,
+                "parse_status": "parsed",
+                "total_revenue": 1000,
+                "total_expenses": 800,
+                "program_service_expenses": 600,
+                "management_general_expenses": 100,
+                "fundraising_expenses": 50,
+                "contributions_revenue": 700,
+                "total_assets_eoy": 400,
+                "total_liabilities_eoy": 100,
+                "net_assets_eoy": 300,
+                "mission_description_present": True,
+                "program_accomplishments_present": True,
+                "leadership_disclosed": True,
+                "narrative_sections_missing": [],
+                "public_disclosure_available": True,
+                "material_diversion_reported": False,
+                "whistleblower_policy": True,
+            },
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+
+    delegate = type(
+        "AthenaDelegate",
+        (),
+        {
+            "lookup_form990_enrichment": staticmethod(lambda ein: (_ for _ in ()).throw(AssertionError("unexpected Athena enrichment call"))),
+            "lookup_peer_benchmark": staticmethod(lambda group: (_ for _ in ()).throw(AssertionError("unexpected Athena peer benchmark call"))),
+        },
+    )()
+    client = PostgresNonprofitQueryClient(repository=repository, delegate_client=delegate)
+
+    filings, metrics, governance, quality = client.lookup_form990_enrichment("123456789")
+    peer_benchmark = client.lookup_peer_benchmark({"ntee": "B"})
+
+    assert filings is not None
+    assert filings["tax_year"] == "2023"
+    assert filings["return_type"] == "990"
+    assert metrics == {
+        "programExpenseRatio": 0.75,
+        "adminExpenseRatio": 0.125,
+        "fundraisingRatio": 0.0625,
+        "liabilitiesToAssetsRatio": 0.25,
+        "operatingMargin": 0.2,
+        "fundraisingEfficiency": 14.0,
+        "workingCapital": 300.0,
+        "monthsOfRunway": 4.5,
+    }
+    assert governance == {
+        "independent_board_majority": None,
+        "conflict_of_interest_policy": None,
+        "whistleblower_policy": True,
+        "records_retention_policy": None,
+        "contemporaneous_board_minutes": None,
+        "material_diversion_reported": False,
+        "compensation_review_process": None,
+        "public_disclosure_available": True,
+        "audited_financials_indicator": None,
+    }
+    assert quality is not None
+    assert quality["narrativeMissing"] is False
+    assert quality["scoreConfidence"] == "high"
+    assert peer_benchmark == {"count": 0, "metrics": {}}
+
+
 def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_path: Path):
     nonprofit_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_dedicated.sqlite3'}"
     platform_url = f"sqlite+pysqlite:///{tmp_path / 'platform.sqlite3'}"
