@@ -55,7 +55,7 @@ def test_backend_local_env_loader_ignores_inline_recommended_markers(tmp_path, m
         "\n".join(
             [
                 "BACKEND_API_HOST=0.0.0.0 ##RECOMMENDED##",
-                "BACKEND_API_PORT=8001 ##RECOMMENDED##",
+                "BACKEND_API_PORT=8000 ##RECOMMENDED##",
                 "PORTAL_AUTH_TOKEN_SECRET='dev-portal-auth-secret # literal'",
             ]
         )
@@ -70,7 +70,7 @@ def test_backend_local_env_loader_ignores_inline_recommended_markers(tmp_path, m
     load_backend_local_env(env_path=env_path, override=True)
 
     assert __import__("os").environ["BACKEND_API_HOST"] == "0.0.0.0"
-    assert __import__("os").environ["BACKEND_API_PORT"] == "8001"
+    assert __import__("os").environ["BACKEND_API_PORT"] == "8000"
     assert __import__("os").environ["PORTAL_AUTH_TOKEN_SECRET"] == "dev-portal-auth-secret # literal"
 
 
