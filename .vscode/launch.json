@@ -8,7 +8,7 @@
       "name": "Frontend Portal",
       "type": "pwa-chrome",
       "request": "launch",
-      "url": "http://localhost:5173",
+      "url": "http://localhost:3953",
       "webRoot": "${workspaceFolder}/frontend/portal/src"
     },
     {

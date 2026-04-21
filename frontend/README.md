@@ -87,7 +87,7 @@ Local browser runtime config should also stay explicit per app:
 - `marketing/.env.example` points local marketing dev at the AWS dev API and
   assumes `http://localhost:5174`
 - `portal/.env.example` points local portal dev at the AWS dev API and assumes
-  `http://localhost:5173`
+  `http://localhost:3953`
 - if browser-based local apps call the AWS dev API directly, Terraform
   `cors_allowed_origins` must allowlist those local origins
 

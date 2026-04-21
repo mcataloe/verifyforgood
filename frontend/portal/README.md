@@ -192,8 +192,9 @@ https://dev.charitystatusapi.com
 
 For local browser development, the AWS dev API must also allowlist your frontend
 origin through the Terraform `cors_allowed_origins` setting. The current dev
-defaults include `http://localhost:5173`, `http://127.0.0.1:5173`,
-`http://localhost:5174`, and `http://127.0.0.1:5174`.
+defaults include `http://localhost:3953`, `http://127.0.0.1:3953`,
+`http://localhost:5174`, `http://127.0.0.1:5174`, `http://localhost:5621`,
+and `http://127.0.0.1:5621`.
 
 The AWS dev API is expected to expose the current portal auth and onboarding
 routes, including:
