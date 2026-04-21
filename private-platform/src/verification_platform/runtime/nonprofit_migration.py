@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from sqlalchemy import select
 
 from verification.normalization import map_deductibility, map_entity_type, map_irs_status, map_ntee_category
-from verification.platform import QueryRuntimeConfig, build_athena_client, resolve_nonprofit_postgres_sqlalchemy_url
+from verification.platform import resolve_nonprofit_postgres_sqlalchemy_url
 from verification.serving import DynamoProfileStore
 from verification_platform.nonprofits import (
     ComplianceCheckModel,
@@ -29,6 +29,7 @@ from verification_platform.nonprofits import (
 )
 
 from .migration_validation import MigrationEntityValidation, build_entity_validation
+from .persistence import build_nonprofit_query_client
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,11 @@ def run_nonprofit_migration(
     create_nonprofit_tables(engine)
     session_factory = build_nonprofit_session_factory(engine)
     repository = SqlAlchemyNonprofitRepository(session_factory)
-    effective_query_client = query_client or build_athena_client(_query_runtime_config(source))
+    effective_query_client = query_client or build_nonprofit_query_client(
+        env=source,
+        sqlalchemy_url=resolved_url,
+        secrets_client=secrets_client,
+    )
     effective_profile_store = profile_store or _build_profile_store(
         source,
         include_profile_cache=include_profile_cache,
@@ -198,18 +203,6 @@ def run_nonprofit_migration(
     )
 
 
-def _query_runtime_config(source: Mapping[str, str]) -> QueryRuntimeConfig:
-    return QueryRuntimeConfig(
-        database=str(source.get("DATABASE", "irs_nonprofits") or "irs_nonprofits"),
-        table=str(source.get("TABLE", "eo_bmf") or "eo_bmf"),
-        workgroup=str(source.get("WORKGROUP", "") or "").strip() or None,
-        form990_filings_table=str(source.get("FORM990_FILINGS_TABLE", "form990_metadata") or "form990_metadata"),
-        form990_metrics_table=str(source.get("FORM990_METRICS_TABLE", "form990_metrics") or "form990_metrics"),
-        form990_governance_table=str(source.get("FORM990_GOVERNANCE_TABLE", "form990_governance") or "form990_governance"),
-        form990_quality_table=str(source.get("FORM990_QUALITY_TABLE", "form990_quality") or "form990_quality"),
-    )
-
-
 def _build_profile_store(
     source: Mapping[str, str],
     *,
@@ -274,7 +267,7 @@ def _filing_record_from_query(nonprofit_id: int, ein: str, row: dict[str, Any]) 
         filing_date=filing_date,
         amended=_to_bool(row.get("amended_return")) or False,
         parse_status=_text(row.get("parse_status")),
-        source_name="athena.form990",
+        source_name="postgres.form990",
         source_record_id=f"{ein}:{tax_year or ''}:{form_type}:{filing_date or ''}",
         raw_payload=dict(row),
         created_at=now_iso,
@@ -540,7 +533,9 @@ def _text(value: Any) -> str | None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Backfill nonprofit PostgreSQL tables from Athena and the optional materialized profile cache.")
+    parser = argparse.ArgumentParser(
+        description="Backfill or validate nonprofit PostgreSQL tables from the current nonprofit query surface and the optional materialized profile cache."
+    )
     parser.add_argument(
         "--sqlalchemy-url",
         default=(

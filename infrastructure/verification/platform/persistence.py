@@ -51,7 +51,6 @@ class PlatformPersistenceConfig:
     postgres: PostgresRuntimeConfig = PostgresRuntimeConfig()
     nonprofit_postgres: PostgresRuntimeConfig = PostgresRuntimeConfig()
     nonprofit_store_backend: str = "disabled"
-    nonprofit_query_backend: str = "athena"
 
 
 def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> PlatformPersistenceConfig:
@@ -65,7 +64,6 @@ def load_platform_persistence_config(env: Mapping[str, str] | None = None) -> Pl
         postgres=postgres,
         nonprofit_postgres=nonprofit_postgres,
         nonprofit_store_backend=_mapping_text(source, "PLATFORM_NONPROFIT_STORE_BACKEND", "disabled") or "disabled",
-        nonprofit_query_backend=_mapping_text(source, "PLATFORM_NONPROFIT_QUERY_BACKEND", "athena") or "athena",
     )
     _validate_platform_persistence_config(config)
     return config
@@ -175,13 +173,8 @@ def build_organization_settings_store(
 def _validate_platform_persistence_config(config: PlatformPersistenceConfig) -> None:
     if config.nonprofit_store_backend not in {"disabled", "postgres"}:
         raise ValueError("PLATFORM_NONPROFIT_STORE_BACKEND must be either disabled or postgres")
-    if config.nonprofit_query_backend not in {"athena", "postgres"}:
-        raise ValueError("PLATFORM_NONPROFIT_QUERY_BACKEND must be either athena or postgres")
 
-    nonprofit_uses_postgres = (
-        config.nonprofit_store_backend == "postgres"
-        or config.nonprofit_query_backend == "postgres"
-    )
+    nonprofit_uses_postgres = config.nonprofit_store_backend == "postgres"
     nonprofit_has_dedicated_postgres = _postgres_runtime_config_is_configured(config.nonprofit_postgres)
 
     if nonprofit_has_dedicated_postgres:

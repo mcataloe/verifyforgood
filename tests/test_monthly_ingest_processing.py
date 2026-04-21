@@ -132,8 +132,8 @@ class RecordingProgressReporter:
 
 def _worker_env(**overrides):
     payload = {
-        "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
-        "destination_prefix": "form990/normalized/manifests/",
+        "archive_identity": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+        "archive_url": "https://example.org/2026_TEOS_XML_02A.zip",
         "job_id": "job-123",
         "correlation_id": "corr-123",
         "workflow_version": "2026-03",
@@ -144,8 +144,8 @@ def _worker_env(**overrides):
         "MONTHLY_INGEST_WORKFLOW_VERSION": payload["workflow_version"],
         "MONTHLY_INGEST_JOB_ID": payload["job_id"],
         "MONTHLY_INGEST_CORRELATION_ID": payload["correlation_id"],
-        "MONTHLY_INGEST_SOURCE_KEY": payload["source_key"],
-        "MONTHLY_INGEST_DESTINATION_PREFIX": payload["destination_prefix"],
+        "MONTHLY_INGEST_ARCHIVE_IDENTITY": payload["archive_identity"],
+        "MONTHLY_INGEST_ARCHIVE_URL": payload["archive_url"],
         "MONTHLY_INGEST_INPUT_JSON": json.dumps(payload, sort_keys=True),
         "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES": "20971520",
         **overrides,
@@ -188,9 +188,9 @@ def test_parse_form990_source_object_requires_raw_source_zip_contract():
 
 def test_worker_rejects_invalid_runtime_input_before_processing():
     env = _worker_env()
-    env.pop("MONTHLY_INGEST_SOURCE_KEY")
+    env.pop("MONTHLY_INGEST_ARCHIVE_IDENTITY")
 
-    with pytest.raises(MonthlyIngestTaskInputError, match="MONTHLY_INGEST_SOURCE_KEY is required"):
+    with pytest.raises(MonthlyIngestTaskInputError, match="MONTHLY_INGEST_ARCHIVE_IDENTITY is required"):
         run_form990_monthly_processing_task(env=env)
 
 
@@ -200,6 +200,20 @@ def test_worker_processes_staged_zip_without_s3_artifacts(monkeypatch):
     monkeypatch.setattr(
         "infrastructure.verification.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
+    )
+    monkeypatch.setattr(
+        "infrastructure.verification.form990.monthly_processing._probe_archive_metadata",
+        lambda source_url, checked_at: SimpleNamespace(
+            source_url=source_url,
+            resolved_source_url=source_url,
+            etag='"etag-1"',
+            normalized_etag="etag-1",
+            last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+            content_length=1234,
+            response_status=200,
+            checked_at=checked_at.isoformat(),
+            method_used="HEAD",
+        ),
     )
 
     result = run_form990_monthly_processing_task(env=_worker_env())
@@ -293,6 +307,20 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
         "infrastructure.verification.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
+    monkeypatch.setattr(
+        "infrastructure.verification.form990.monthly_processing._probe_archive_metadata",
+        lambda source_url, checked_at: SimpleNamespace(
+            source_url=source_url,
+            resolved_source_url=source_url,
+            etag='"etag-1"',
+            normalized_etag="etag-1",
+            last_modified="Thu, 20 Mar 2026 00:00:00 GMT",
+            content_length=1234,
+            response_status=200,
+            checked_at=checked_at.isoformat(),
+            method_used="HEAD",
+        ),
+    )
 
     first = run_form990_monthly_processing_task(
         env=_worker_env(),
@@ -347,7 +375,7 @@ def test_process_form990_archive_reports_selection_progress_before_parse_progres
             archive_size=size,
             extracted_workdir=str(tmp_path / "selection-progress"),
             processing_context={
-                "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+                "archive_identity": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
                 "job_id": "selection-progress-job",
                 "correlation_id": "selection-progress-corr",
                 "workflow_version": "2026-03",
@@ -400,7 +428,7 @@ def test_process_form990_archive_logs_split_persistence_stage_timings(tmp_path, 
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "timing-extracted"),
         processing_context={
-            "source_key": "local/archive.zip",
+            "archive_identity": "local/archive.zip",
             "job_id": "timing-job",
             "correlation_id": "timing-corr",
             "workflow_version": "local-cli",
@@ -457,7 +485,7 @@ def test_process_form990_archive_forwards_canonical_raw_filing_records(tmp_path,
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "canonical-raw"),
         processing_context={
-            "source_key": "local/archive.zip",
+            "archive_identity": "local/archive.zip",
             "job_id": "raw-job",
             "correlation_id": "raw-corr",
             "workflow_version": "local-cli",

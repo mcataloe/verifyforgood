@@ -1,7 +1,5 @@
-﻿from verification.ops import InMemoryRunStore, S3RunStore
+from verification.ops import InMemoryRunStore
 
 __all__ = [
     "InMemoryRunStore",
-    "S3RunStore",
 ]
-

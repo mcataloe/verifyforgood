@@ -528,7 +528,6 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
     disabled = build_nonprofit_postgres_repository(
         {
             "PLATFORM_NONPROFIT_STORE_BACKEND": "disabled",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "athena",
         }
     )
 
@@ -536,7 +535,7 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
     assert disabled is None
 
 
-def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selected(tmp_path: Path):
+def test_runtime_builder_returns_postgres_nonprofit_query_client_when_postgres_repository_is_enabled(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_runtime.sqlite3'}"
     engine = build_nonprofit_engine(sqlite_url)
     create_nonprofit_tables(engine)
@@ -552,32 +551,15 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
         )
     )
 
-    athena_delegate = type(
-        "AthenaDelegate",
-        (),
-        {
-            "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
-            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
-        },
-    )()
     client = build_nonprofit_query_client(
-        athena_client=athena_delegate,
         env={
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
-        },
-    )
-    disabled = build_nonprofit_query_client(
-        athena_client=athena_delegate,
-        env={
-            "PLATFORM_NONPROFIT_STORE_BACKEND": "disabled",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "athena",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         },
     )
 
     assert isinstance(client, PostgresNonprofitQueryClient)
-    assert disabled is athena_delegate
     assert client.lookup_nonprofit("123456789")[1]["name"] == "Query Runtime Org"
 
 
@@ -637,15 +619,7 @@ def test_postgres_query_client_builds_form990_enrichment_without_athena(tmp_path
         )
     )
 
-    delegate = type(
-        "AthenaDelegate",
-        (),
-        {
-            "lookup_form990_enrichment": staticmethod(lambda ein: (_ for _ in ()).throw(AssertionError("unexpected Athena enrichment call"))),
-            "lookup_peer_benchmark": staticmethod(lambda group: (_ for _ in ()).throw(AssertionError("unexpected Athena peer benchmark call"))),
-        },
-    )()
-    client = PostgresNonprofitQueryClient(repository=repository, delegate_client=delegate)
+    client = PostgresNonprofitQueryClient(repository=repository)
 
     filings, metrics, governance, quality = client.lookup_form990_enrichment("123456789")
     peer_benchmark = client.lookup_peer_benchmark({"ntee": "B"})
@@ -677,7 +651,8 @@ def test_postgres_query_client_builds_form990_enrichment_without_athena(tmp_path
     assert quality is not None
     assert quality["narrativeMissing"] is False
     assert quality["scoreConfidence"] == "high"
-    assert peer_benchmark == {"count": 0, "metrics": {}}
+    assert peer_benchmark["count"] == 0
+    assert peer_benchmark["metrics"]["programExpenseRatio"]["count"] == 0
 
 
 def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_path: Path):
@@ -697,21 +672,12 @@ def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_p
         )
     )
 
-    athena_delegate = type(
-        "AthenaDelegate",
-        (),
-        {
-            "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
-            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
-        },
-    )()
     client = build_nonprofit_query_client(
-        athena_client=athena_delegate,
         env={
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": platform_url,
             "PLATFORM_NONPROFIT_POSTGRES_URL": nonprofit_url,
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         },
     )
 

@@ -2977,7 +2977,6 @@ def test_nonprofits_search_reads_from_postgres_query_backend(monkeypatch, tmp_pa
     _seed_postgres_nonprofit(sqlite_url, name="Helping Hands Foundation")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
@@ -3059,7 +3058,6 @@ def test_nonprofit_filings_reads_from_postgres_query_backend(monkeypatch, tmp_pa
     _seed_postgres_nonprofit(sqlite_url, name="Filings Org")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
@@ -3663,7 +3661,6 @@ def test_nonprofit_lookup_uses_postgres_query_backend_for_base_record(monkeypatc
     _seed_postgres_nonprofit(sqlite_url, name="Postgres Lookup Org")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
@@ -3951,7 +3948,6 @@ def test_ops_ingest_runs_listing_and_detail(monkeypatch):
         get_run=lambda run_type, run_id: {"ingest_run_id": run_id, "status": "partial_success"} if run_type == "ingest" else None,
         get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}] if (run_type, item_name) == ("ingest", "filings") else None,
     )
-    module.OPS_METADATA_BUCKET = "test-bucket"
 
     headers = {"x-admin-key": admin_key}
     list_result = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": headers}, None)
@@ -3986,7 +3982,6 @@ def test_ops_refresh_runs_listing_and_not_found(monkeypatch):
         get_run=lambda run_type, run_id: None,
         get_run_items=lambda run_type, run_id, item_name: None,
     )
-    module.OPS_METADATA_BUCKET = "test-bucket"
     headers = {"x-admin-key": admin_key}
     list_result = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": headers}, None)
     detail_result = module.handle_api_event(
@@ -4004,7 +3999,6 @@ def test_ops_refresh_runs_listing_and_not_found(monkeypatch):
 
 def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
     module, admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": SCORING_MODEL_VERSION, "environment": "dev"})
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=100: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [{"refresh_run_id": "ref-1", "status": "completed"}],
@@ -4261,7 +4255,6 @@ def test_ops_form990_runs_post_returns_500_when_run_task_fails(monkeypatch):
 
 def test_ops_routes_require_admin_key(monkeypatch):
     module, _admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [],
         get_run=lambda run_type, run_id: None,
@@ -4286,7 +4279,6 @@ def test_ops_routes_reject_customer_api_key(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     module, _admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [],
         get_run=lambda run_type, run_id: None,

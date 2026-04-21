@@ -21,8 +21,6 @@ from verification.enrichments.providers import (
     USAspendingMockProvider,
     USAspendingProvider,
 )
-from verification.query import AthenaQueryClient
-from verification.query.athena_adapter import create_athena_query_client
 from verification.state_registry import StateRegistryLookupService, build_state_registry_adapter_registry
 from verification.state_registry.adapters import (
     ColoradoBusinessRegistryAdapter,
@@ -33,18 +31,7 @@ from verification.state_registry.adapters import (
 
 
 @dataclass(frozen=True)
-class QueryRuntimeConfig:
-    database: str
-    table: str
-    workgroup: str | None
-    form990_filings_table: str
-    form990_metrics_table: str
-    form990_governance_table: str
-    form990_quality_table: str
-
-
-@dataclass(frozen=True)
-class RefreshRuntimeConfig(QueryRuntimeConfig):
+class RefreshRuntimeConfig:
     platform_integrations: "PlatformIntegrationsConfig" = field(default_factory=lambda: PlatformIntegrationsConfig())
     enrichment_mock_offered: bool | None = None
     enrichment_mock_enabled: bool = False
@@ -111,18 +98,6 @@ class PlatformIntegrationsConfig:
             for integration_id, config in self.integrations.items()
             if config.default_required_for_evaluation
         }
-
-
-def build_athena_client(config: QueryRuntimeConfig) -> AthenaQueryClient:
-    return create_athena_query_client(
-        database=config.database,
-        table=config.table,
-        workgroup=config.workgroup,
-        form990_filings_table=config.form990_filings_table,
-        form990_metrics_table=config.form990_metrics_table,
-        form990_governance_table=config.form990_governance_table,
-        form990_quality_table=config.form990_quality_table,
-    )
 
 
 def load_platform_integrations_config(env: Mapping[str, str] | None = None) -> PlatformIntegrationsConfig:

@@ -1,8 +1,7 @@
-﻿import importlib
+import importlib
 
 from verification.form990 import Form990IngestService as LegacyForm990IngestService
 from verification.normalization import normalize_ein as legacy_normalize_ein
-from verification.platform import QueryRuntimeConfig as LegacyQueryRuntimeConfig
 from verification.platform import build_resource_name as legacy_build_resource_name
 from verification.query import verify_nonprofit as legacy_verify_nonprofit
 from verification.state_registry import StateRegistryLookupService as LegacyStateRegistryLookupService
@@ -10,7 +9,7 @@ from verification_platform import capability_module_names, resolve_legacy_module
 from verification_platform.entity_resolution import normalize_ein
 from verification_platform.filing_ingestion import Form990IngestService
 from verification_platform.organization_verification import verify_nonprofit
-from verification_platform.platform_contracts import QueryRuntimeConfig, build_resource_name
+from verification_platform.platform_contracts import build_resource_name
 from verification_platform.source_connectors import SourceCatalog
 
 
@@ -44,7 +43,6 @@ def test_new_namespace_re_exports_legacy_verification_objects():
     assert verify_nonprofit is legacy_verify_nonprofit
     assert normalize_ein is legacy_normalize_ein
     assert Form990IngestService is LegacyForm990IngestService
-    assert QueryRuntimeConfig is LegacyQueryRuntimeConfig
     assert build_resource_name is legacy_build_resource_name
 
 
@@ -62,4 +60,3 @@ def test_registry_and_source_connector_namespaces_resolve_capability_exports():
 
     assert registry_module.StateRegistryLookupService is LegacyStateRegistryLookupService
     assert connector_module.SourceCatalog is SourceCatalog
-

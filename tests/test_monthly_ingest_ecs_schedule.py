@@ -15,8 +15,6 @@ def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
     assert 'entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]' in content
     assert 'command    = ["ecs-run"]' in content
     assert 'command    = ["ecs-run-eo-bmf"]' in content
-    assert 'OPS_METADATA_BUCKET' in content
-    assert 'OPS_METADATA_PREFIX' in content
 
 
 def test_eventbridge_targets_ecs_directly_without_step_functions_or_lambda():

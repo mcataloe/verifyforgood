@@ -76,9 +76,7 @@ from verification.platform import (
     ApiKeyOrOAuthAuthContextProvider,
     ApiKeyQuotaMeteringHook,
     OAuthClientCredentialsService,
-    QueryRuntimeConfig,
     RefreshRuntimeConfig,
-    build_athena_client,
     build_control_plane_store,
     build_enrichment_service,
     build_organization_settings_store,
@@ -110,7 +108,6 @@ from verification.query.source_views import (
     get_nonprofit_single_source_view,
     get_nonprofit_sources_view,
 )
-from verification.query.athena import AthenaQueryError, AthenaQueryTimeout
 from verification.scoring import SCORING_MODEL_VERSION
 from verification.serving.materializer import materialize_profile_item
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
@@ -160,6 +157,7 @@ from verification_platform.identity_access import (
     UserCreateRequest,
     UserLoginRequest,
 )
+from verification.ops import InMemoryRunStore
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -183,14 +181,6 @@ def _env_csv(name: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-DATABASE = os.environ.get("DATABASE", "irs_nonprofits")
-TABLE = os.environ.get("TABLE", "eo_bmf")
-WORKGROUP = os.environ.get("WORKGROUP")
-FORM990_FILINGS_TABLE = os.environ.get("FORM990_FILINGS_TABLE", "form990_metadata")
-FORM990_METRICS_TABLE = os.environ.get("FORM990_METRICS_TABLE", "form990_metrics")
-FORM990_GOVERNANCE_TABLE = os.environ.get("FORM990_GOVERNANCE_TABLE", "form990_governance")
-FORM990_QUALITY_TABLE = os.environ.get("FORM990_QUALITY_TABLE", "form990_quality")
-
 ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
 PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
 APP_ENV = os.environ.get("APP_ENV", "dev")
@@ -205,8 +195,6 @@ OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
 OAUTH_CLIENT_RECORDS_JSON = os.environ.get("OAUTH_CLIENT_RECORDS_JSON", "")
 OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
 ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
-OPS_METADATA_BUCKET = os.environ.get("OPS_METADATA_BUCKET", "").strip()
-OPS_METADATA_PREFIX = os.environ.get("OPS_METADATA_PREFIX", "ops").strip()
 FORM990_RUN_TASK_CLUSTER_ARN = os.environ.get("FORM990_RUN_TASK_CLUSTER_ARN", "").strip()
 FORM990_RUN_TASK_DEFINITION_ARN = os.environ.get("FORM990_RUN_TASK_DEFINITION_ARN", "").strip()
 FORM990_RUN_TASK_CONTAINER_NAME = os.environ.get("FORM990_RUN_TASK_CONTAINER_NAME", "").strip() or "monthly-ingest"
@@ -225,7 +213,6 @@ STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
 TRIAL_CONFIG = load_trial_config(os.environ)
 SUPPORT_TICKET_EMAIL_CONFIG = load_support_ticket_email_config(os.environ)
 
-athena_client: QueryRepository | None = None
 enrichment_service: EnrichmentProviderGateway | None = None
 profile_store: ProfileStoreAdapter | None = None
 auth_context_provider: AuthContextProvider | None = None
@@ -294,35 +281,11 @@ class TenantContext:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
-def _get_athena_client() -> QueryRepository:
-    global athena_client
-    if athena_client is None:
-        athena_client = build_athena_client(
-            QueryRuntimeConfig(
-                database=DATABASE,
-                table=TABLE,
-                workgroup=WORKGROUP,
-                form990_filings_table=FORM990_FILINGS_TABLE,
-                form990_metrics_table=FORM990_METRICS_TABLE,
-                form990_governance_table=FORM990_GOVERNANCE_TABLE,
-                form990_quality_table=FORM990_QUALITY_TABLE,
-            )
-        )
-    return athena_client
-
-
 def _get_enrichment_service() -> EnrichmentProviderGateway:
     global enrichment_service
     if enrichment_service is None:
         enrichment_service = build_enrichment_service(
             RefreshRuntimeConfig(
-                database=DATABASE,
-                table=TABLE,
-                workgroup=WORKGROUP,
-                form990_filings_table=FORM990_FILINGS_TABLE,
-                form990_metrics_table=FORM990_METRICS_TABLE,
-                form990_governance_table=FORM990_GOVERNANCE_TABLE,
-                form990_quality_table=FORM990_QUALITY_TABLE,
                 platform_integrations=PLATFORM_INTEGRATIONS,
                 enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
                 enrichment_mock_offered=_env_optional_bool("ENRICHMENT_MOCK_OFFERED"),
@@ -359,10 +322,7 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
 def _get_nonprofit_query_client() -> QueryRepository:
     global nonprofit_query_client
     if nonprofit_query_client is None:
-        nonprofit_query_client = build_nonprofit_query_client(
-            athena_client=_get_athena_client(),
-            env=os.environ,
-        )
+        nonprofit_query_client = build_nonprofit_query_client(env=os.environ)
     return nonprofit_query_client
 
 
@@ -904,14 +864,8 @@ def _to_stored_api_key_record(record):
 
 def _get_ops_run_store() -> Any | None:
     global ops_run_store
-    if not OPS_METADATA_BUCKET:
-        return None
     if ops_run_store is None:
-        ops_run_store = S3RunStore(
-            bucket=OPS_METADATA_BUCKET,
-            prefix=OPS_METADATA_PREFIX,
-            s3_client=_load_boto3().client("s3"),
-        )
+        ops_run_store = InMemoryRunStore()
     return ops_run_store
 
 
@@ -2200,15 +2154,6 @@ def handle_api_event(event, context=None):
         response = fail(400, str(exc))
         _get_quota_metering_hook().on_response(auth_context, route_key, 400)
         return response
-    except AthenaQueryTimeout as exc:
-        response = fail(504, str(exc), code="timeout")
-        _get_quota_metering_hook().on_response(auth_context, route_key, 504)
-        return response
-    except AthenaQueryError as exc:
-        log_exception(logger, "athena_query_error", exc, env=os.environ)
-        response = fail(500, "Internal server error")
-        _get_quota_metering_hook().on_response(auth_context, route_key, 500)
-        return response
     except Exception as exc:
         log_exception(logger, "api_runtime_unhandled_exception", exc, env=os.environ)
         response = fail(500, "Internal server error")
@@ -2899,8 +2844,6 @@ def _build_form990_task_overrides(
         {"name": "FORM990_MANUAL_RUN_ID", "value": run_id},
         {"name": "FORM990_MANUAL_MODE", "value": mode},
         {"name": "FORM990_MANUAL_TARGET_YEARS", "value": json.dumps(target_years)},
-        {"name": "OPS_METADATA_BUCKET", "value": OPS_METADATA_BUCKET},
-        {"name": "OPS_METADATA_PREFIX", "value": OPS_METADATA_PREFIX},
     ]
     if target_years_present:
         env.append({"name": "FORM990_TARGET_YEARS", "value": ",".join(target_years)})
@@ -3529,11 +3472,6 @@ def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationCont
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_ein", "message": str(exc)}
     except ValueError as exc:
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_policy", "message": str(exc)}
-    except AthenaQueryTimeout as exc:
-        return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_timeout", "message": str(exc)}
-    except AthenaQueryError as exc:
-        log_exception(logger, "athena_query_error_batch_item", exc, env=os.environ, index=index, ein=str(ein))
-        return {"index": index, "ein": str(ein), "status": "error", "error_code": "athena_error", "message": "Athena query failed"}
     except Exception as exc:
         log_exception(logger, "batch_item_unhandled_exception", exc, env=os.environ, index=index, ein=str(ein))
         return {"index": index, "ein": str(ein), "status": "error", "error_code": "internal_error", "message": "Internal server error"}
@@ -3642,10 +3580,6 @@ def _materialize_profile(ein: str, payload: dict) -> None:
         source_data_versions={},
     )
     store.put_profile(item)
-
-
-from verification.ops import S3RunStore
-
 
 def _load_boto3():
     try:

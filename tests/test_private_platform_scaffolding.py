@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import pathlib
@@ -29,8 +29,8 @@ def test_private_platform_service_area_packages_import():
     assert hasattr(customer_accounts, "OrganizationIntegrationSettingsService")
     assert hasattr(billing_usage, "EntitlementService")
     assert hasattr(billing_usage, "enforce_quota_and_scope")
-    assert hasattr(admin_operations, "S3RunStore")
-    assert hasattr(runtime, "build_athena_client")
+    assert hasattr(admin_operations, "InMemoryRunStore")
+    assert hasattr(runtime, "build_nonprofit_query_client")
     assert notifications.__all__ == []
 
 
@@ -66,4 +66,3 @@ def test_split_plan_defines_private_service_areas():
     }
     assert "infrastructure/verification/billing/" in service_areas["billing_usage"]
     assert "infrastructure/verification/control_plane/" in service_areas["customer_accounts"]
-

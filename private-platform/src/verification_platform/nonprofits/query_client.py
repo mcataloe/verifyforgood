@@ -4,6 +4,7 @@ from typing import Any
 
 from verification.form990.metrics import compute_derived_metrics
 from verification.form990.quality import compute_filing_quality
+from verification.scoring.peer_stats import compute_peer_stats
 
 from .sqlalchemy_repository import SqlAlchemyNonprofitRepository
 
@@ -11,9 +12,8 @@ EO_BMF_FILING_FORM_TYPE = "EO_BMF"
 
 
 class PostgresNonprofitQueryClient:
-    def __init__(self, *, repository: SqlAlchemyNonprofitRepository, delegate_client: Any) -> None:
+    def __init__(self, *, repository: SqlAlchemyNonprofitRepository) -> None:
         self._repository = repository
-        self._delegate_client = delegate_client
 
     def lookup_nonprofit(self, ein: str, subsection: str | None = None) -> tuple[str, dict[str, Any] | None]:
         row = self._repository.get_nonprofit_snapshot_by_ein(ein)
@@ -69,7 +69,21 @@ class PostgresNonprofitQueryClient:
         return "postgres:list_form990_filings", filtered
 
     def lookup_peer_benchmark(self, group: dict[str, Any]) -> dict[str, Any]:
-        return {"count": 0, "metrics": {}}
+        rows = self._repository.list_peer_benchmark_filings(
+            ntee=_stringify(group.get("ntee")),
+            org_type=_stringify(group.get("org_type")),
+            revenue_band=_stringify(group.get("revenue_band")),
+        )
+        metric_rows = []
+        for row in rows:
+            payload = row.get("raw_payload")
+            if not isinstance(payload, dict) or not payload:
+                continue
+            metric_rows.append(compute_derived_metrics(payload))
+        return compute_peer_stats(
+            metric_rows,
+            ["programExpenseRatio", "liabilitiesToAssetsRatio", "operatingMargin", "monthsOfRunway"],
+        )
 
     def list_nonprofit_eins_page(self, limit: int, start_after_ein: str | None = None) -> list[str]:
         return self._repository.list_nonprofit_eins_page(limit=limit, start_after_ein=start_after_ein)

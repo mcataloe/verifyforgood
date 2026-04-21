@@ -105,7 +105,6 @@
       "infrastructure/verification/ingest/",
       "infrastructure/verification/ops/",
       "infrastructure/verification/platform/",
-      "infrastructure/verification/query/athena.py",
       "infrastructure/verification/serving/dynamodb_store.py",
       "infrastructure/verification/enrichments/organization_store.py",
                   "infrastructure/eo_bmf_ingest_worker.py",
@@ -205,7 +204,6 @@
   "highest_risk_refactors": [
         "infrastructure/verification/core/models.py",
     "infrastructure/verification/billing/",
-    "infrastructure/verification/query/athena.py",
     "infrastructure/verification/enrichments/organization_store.py",
     "infrastructure/verification/form990/",
     "infrastructure/verification/serving/"

@@ -82,7 +82,6 @@ def test_backend_local_dev_commands_use_env_file_for_migrations(tmp_path, monkey
                 "PLATFORM_POSTGRES_ENABLED=true",
                 "PLATFORM_POSTGRES_URL=sqlite+pysqlite:///local-dev.sqlite3",
                 "PLATFORM_NONPROFIT_STORE_BACKEND=postgres",
-                "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres",
             ]
         )
         + "\n",
@@ -118,7 +117,6 @@ def test_backend_local_dev_can_bootstrap_dedicated_nonprofit_database(tmp_path):
                 "PLATFORM_POSTGRES_ENABLED=true",
                 "PLATFORM_POSTGRES_URL=sqlite+pysqlite:///platform.sqlite3",
                 "PLATFORM_NONPROFIT_STORE_BACKEND=postgres",
-                "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres",
                 "PLATFORM_NONPROFIT_POSTGRES_ENABLED=true",
                 f"PLATFORM_NONPROFIT_POSTGRES_URL={nonprofit_url}",
             ]
@@ -166,7 +164,6 @@ def test_backend_local_dev_can_reset_dedicated_nonprofit_database(tmp_path, monk
                 "PLATFORM_POSTGRES_ENABLED=true",
                 "PLATFORM_POSTGRES_URL=sqlite+pysqlite:///platform.sqlite3",
                 "PLATFORM_NONPROFIT_STORE_BACKEND=postgres",
-                "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres",
                 "PLATFORM_NONPROFIT_POSTGRES_ENABLED=true",
                 f"PLATFORM_NONPROFIT_POSTGRES_URL={nonprofit_url}",
             ]
@@ -213,7 +210,6 @@ def test_backend_local_dev_nonprofit_commands_require_dedicated_database(tmp_pat
                 "PLATFORM_POSTGRES_ENABLED=true",
                 "PLATFORM_POSTGRES_URL=sqlite+pysqlite:///platform.sqlite3",
                 "PLATFORM_NONPROFIT_STORE_BACKEND=postgres",
-                "PLATFORM_NONPROFIT_QUERY_BACKEND=postgres",
             ]
         )
         + "\n",
@@ -346,4 +342,3 @@ def test_sync_identity_sequences_uses_sequence_start_for_empty_tables():
             "is_called": False,
         }
     ]
-

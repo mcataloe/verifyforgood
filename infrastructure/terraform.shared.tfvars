@@ -43,7 +43,6 @@ monthly_ingest_task_cpu                           = 2048
 monthly_ingest_task_memory                        = 8192
 monthly_ingest_task_ephemeral_storage_gib         = 100
 monthly_ingest_task_log_retention_days            = 30
-monthly_ingest_task_allowed_bucket_arns           = []
 api_ecs_enabled                                   = false
 api_ecs_image_tag                                 = "latest"
 api_ecs_container_name                            = "api"

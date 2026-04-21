@@ -312,7 +312,7 @@ def test_process_form990_archive_reports_xml_failures_with_file_context_without_
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted"),
         processing_context={
-            "source_key": "form990/raw-sources/2026/zip_archive/2026_teos_xml_05a/sig-1/2026_TEOS_XML_05A.zip",
+            "archive_identity": "form990/raw-sources/2026/zip_archive/2026_teos_xml_05a/sig-1/2026_TEOS_XML_05A.zip",
             "job_id": "local-cli-job",
             "correlation_id": "local-cli-corr",
             "workflow_version": "local-cli",
@@ -341,7 +341,7 @@ def test_process_form990_archive_deletes_selected_xml_files_after_parsing(tmp_pa
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted-cleanup"),
         processing_context={
-            "source_key": "local/archive.zip",
+            "archive_identity": "local/archive.zip",
             "job_id": "cleanup-job",
             "correlation_id": "cleanup-corr",
             "workflow_version": "local-cli",
@@ -368,7 +368,7 @@ def test_process_form990_archive_runs_without_bucket_based_processing(tmp_path):
         archive_path=str(archive_path),
         extracted_workdir=str(tmp_path / "extracted-no-s3"),
         processing_context={
-            "source_key": "local/archive.zip",
+            "archive_identity": "local/archive.zip",
             "job_id": "no-s3-job",
             "correlation_id": "no-s3-corr",
             "workflow_version": "local-cli",

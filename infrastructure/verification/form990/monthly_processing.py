@@ -72,7 +72,7 @@ class _RuntimeArchiveProbe:
 
 @dataclass(frozen=True)
 class _ArchiveProcessingContext:
-    source_key: str
+    archive_identity: str
     job_id: str
     correlation_id: str
     workflow_version: str
@@ -109,18 +109,19 @@ def run_form990_monthly_processing_task(
     config_errors = _validate_runtime_environment(source)
     if config_errors:
         raise MonthlyIngestTaskInputError("; ".join(config_errors))
-    source_object = parse_form990_source_object(input_payload.source_key)
+    source_object = parse_form990_source_object(input_payload.archive_identity)
     processing_context = _ArchiveProcessingContext(
-        source_key=input_payload.source_key,
+        archive_identity=input_payload.archive_identity,
         job_id=input_payload.job_id,
         correlation_id=input_payload.correlation_id,
         workflow_version=input_payload.workflow_version,
+        source_url=input_payload.archive_url,
     )
     _log_structured(
         "monthly_ingest.worker.start",
         job_id=input_payload.job_id,
         correlation_id=input_payload.correlation_id,
-        source_key=input_payload.source_key,
+        archive_identity=input_payload.archive_identity,
     )
     archive_source_url = _resolve_archive_source_url(input_payload) or _default_archive_source_url(source_object)
     archive_record = None
@@ -228,15 +229,15 @@ def run_form990_monthly_processing_task(
             pass
 
 
-def parse_form990_source_object(source_key: str) -> MonthlyIngestSourceObject:
-    parts = [part for part in str(source_key or "").strip("/").split("/") if part]
+def parse_form990_source_object(archive_identity: str) -> MonthlyIngestSourceObject:
+    parts = [part for part in str(archive_identity or "").strip("/").split("/") if part]
     if len(parts) < 5:
-        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_SOURCE_KEY must use the raw source contract")
+        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_ARCHIVE_IDENTITY must use the raw source contract")
     source_year, source_kind, source_archive_key, source_signature, source_filename = parts[-5:]
     if source_kind != "zip_archive":
-        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_SOURCE_KEY must reference a zip_archive source object")
+        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_ARCHIVE_IDENTITY must reference a zip_archive source object")
     if not source_filename.lower().endswith(".zip"):
-        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_SOURCE_KEY must reference a .zip object")
+        raise MonthlyIngestTaskInputError("MONTHLY_INGEST_ARCHIVE_IDENTITY must reference a .zip object")
     return MonthlyIngestSourceObject(
         source_year=source_year,
         source_kind=source_kind,
@@ -302,7 +303,7 @@ def extract_zip_xml_members_to_workdir(
 def build_local_index_records(
     *,
     extracted_members: list[LocalExtractedXmlMember],
-    source_key: str,
+    archive_identity: str,
     source_object: MonthlyIngestSourceObject,
     archive_checksum: str,
 ) -> tuple[list[Form990IndexRecord], dict[str, str]]:
@@ -310,7 +311,7 @@ def build_local_index_records(
     local_file_lookup: dict[str, str] = {}
     for member in extracted_members:
         xml_bytes = Path(member.local_path).read_bytes()
-        xml_reference = _xml_reference(source_key=source_key, member_name=member.member_name)
+        xml_reference = _xml_reference(archive_identity=archive_identity, member_name=member.member_name)
         local_file_lookup[xml_reference] = member.local_path
         irs_object_id = _object_id_from_member_name(member.member_name)
         if not irs_object_id:
@@ -363,7 +364,7 @@ def process_form990_archive(
         context = processing_context
     else:
         context = _ArchiveProcessingContext(
-            source_key=str(processing_context.get("source_key") or "").strip(),
+            archive_identity=str(processing_context.get("archive_identity") or "").strip(),
             job_id=str(processing_context.get("job_id") or "").strip(),
             correlation_id=str(processing_context.get("correlation_id") or "").strip(),
             workflow_version=str(processing_context.get("workflow_version") or "").strip(),
@@ -373,7 +374,7 @@ def process_form990_archive(
     total_started_at = time.perf_counter()
     checksum = archive_checksum or _hash_file(archive_path)
     size = int(archive_size) if archive_size is not None else Path(archive_path).stat().st_size
-    archive_identity = context.source_url or f"workspace://{context.source_key}"
+    archive_identity = context.source_url or f"workspace://{context.archive_identity}"
     if archive_metadata_service is not None and archive_record is None:
         archive_record = archive_metadata_service.ensure_archive_record(
             source_url=archive_identity,
@@ -469,7 +470,7 @@ def process_form990_archive(
                         )
                     parse_task = _build_local_xml_parse_task(
                         member=extracted_member,
-                        source_key=context.source_key,
+                        archive_identity=context.archive_identity,
                         source_object=source_object,
                         xml_content_hash=content_hash,
                     )
@@ -662,14 +663,14 @@ def _extract_zip_member_to_workdir(
 def _build_local_xml_parse_task(
     *,
     member: LocalExtractedXmlMember,
-    source_key: str,
+    archive_identity: str,
     source_object: MonthlyIngestSourceObject,
     xml_content_hash: str | None = None,
 ) -> _LocalXmlParseTask | None:
     irs_object_id = _object_id_from_member_name(member.member_name)
     if not irs_object_id:
         return None
-    xml_reference = _xml_reference(source_key=source_key, member_name=member.member_name)
+    xml_reference = _xml_reference(archive_identity=archive_identity, member_name=member.member_name)
     return _LocalXmlParseTask(
         member=member,
         source_reference=xml_reference,
@@ -796,7 +797,8 @@ def _load_workflow_input(source: Mapping[str, str], contract: EcsTaskRuntimeCont
 def _validate_runtime_environment(source: Mapping[str, str]) -> list[str]:
     return validate_runtime_config(
         required_text={
-            "MONTHLY_INGEST_SOURCE_KEY": source.get("MONTHLY_INGEST_SOURCE_KEY"),
+            "MONTHLY_INGEST_ARCHIVE_IDENTITY": source.get("MONTHLY_INGEST_ARCHIVE_IDENTITY"),
+            "MONTHLY_INGEST_ARCHIVE_URL": source.get("MONTHLY_INGEST_ARCHIVE_URL"),
         },
         positive_ints={
             "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES": int(source.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES") or DEFAULT_MAX_XML_FILE_SIZE_BYTES),
@@ -858,11 +860,14 @@ def _delete_local_xml_file(path: str) -> None:
             target.unlink()
 
 
-def _xml_reference(*, source_key: str, member_name: str) -> str:
-    return f"workspace://{source_key}#{member_name}"
+def _xml_reference(*, archive_identity: str, member_name: str) -> str:
+    return f"workspace://{archive_identity}#{member_name}"
 
 
 def _resolve_archive_source_url(workflow_input: MonthlyIngestWorkflowInput) -> str | None:
+    archive_url = str(workflow_input.archive_url or "").strip()
+    if archive_url:
+        return archive_url
     schedule_context = workflow_input.schedule_context
     if isinstance(schedule_context, Mapping):
         value = str(schedule_context.get("source_url") or "").strip()

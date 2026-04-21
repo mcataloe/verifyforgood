@@ -66,7 +66,7 @@ def test_ecs_and_schedule_resources_use_neutral_capability_maps():
     assert "local.worker_ecs_service_name" in ecs_content
     assert "local.scheduled_workflow_names.regulatory_data_ingestion" in ecs_content
     assert "local.scheduled_workflow_names.monthly_filing_ingestion" in ecs_content
-    assert "PLATFORM_NONPROFIT_QUERY_BACKEND" in ecs_content
+    assert "PLATFORM_NONPROFIT_QUERY_BACKEND" not in ecs_content
     assert '"ecs:RunTask"' in ecs_content
     assert '"iam:PassRole"' in ecs_content
 

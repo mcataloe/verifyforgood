@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import importlib
 import logging
 import os
 import traceback
@@ -28,7 +27,7 @@ from verification.form990.source_catalog import (
     normalize_configured_sources,
 )
 from verification.form990.static_source_discovery import discover_static_form990_sources
-from verification.ops import S3RunStore, build_progress_reporter, prepare_stream_for_external_write
+from verification.ops import InMemoryRunStore, build_progress_reporter, prepare_stream_for_external_write
 from verification.ops.run_store import safe_error_summary
 from verification.runtime_logging import configure_runtime_logging, resolve_runtime_logging_config, sanitize_log_value
 
@@ -281,7 +280,7 @@ def run_local_form990_ingest_config(
             )
             archive_run_id = run_context.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             processing_context = {
-                "source_key": _local_source_key(artifact),
+                "archive_identity": _local_archive_identity(artifact),
                 "job_id": archive_run_id,
                 "correlation_id": archive_run_id,
                 "workflow_version": run_context.execution_mode,
@@ -462,7 +461,7 @@ def _download_archive_to_path(*, url: str, destination: Path, timeout_seconds: i
     )
 
 
-def _local_source_key(artifact: Any) -> str:
+def _local_archive_identity(artifact: Any) -> str:
     return (
         f"form990/raw-sources/{artifact.source_year}/zip_archive/"
         f"{artifact.source_archive_key}/{artifact.source_signature}/{artifact.source_filename}"
@@ -507,10 +506,6 @@ def _env_optional_bool(source_env: Mapping[str, str], key: str) -> bool | None:
     return str(raw).strip().lower() == "true"
 
 
-def _load_boto3():
-    return importlib.import_module("boto3")
-
-
 def _parse_json_string_list(source_env: Mapping[str, str], key: str) -> tuple[str, ...]:
     raw = _env_text(source_env, key)
     if not raw:
@@ -541,15 +536,9 @@ def _resolve_form990_run_context(source_env: Mapping[str, str]) -> Form990RunCon
     )
 
 
-def _build_ops_run_store(source_env: Mapping[str, str]) -> S3RunStore | None:
-    bucket = _env_text(source_env, "OPS_METADATA_BUCKET")
-    if not bucket:
-        return None
-    return S3RunStore(
-        bucket=bucket,
-        prefix=_env_text(source_env, "OPS_METADATA_PREFIX", "ops"),
-        s3_client=_load_boto3().client("s3"),
-    )
+def _build_ops_run_store(source_env: Mapping[str, str]) -> InMemoryRunStore | None:
+    del source_env
+    return InMemoryRunStore()
 
 
 def _build_filing_summaries(result: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -575,7 +564,7 @@ def _build_filing_summaries(result: Mapping[str, Any]) -> list[dict[str, Any]]:
 def _write_ops_ingest_run(
     *,
     env: Mapping[str, str],
-    store: S3RunStore | None,
+    store: InMemoryRunStore | None,
     run_context: Form990RunContext,
     started_at: datetime,
     completed_at: datetime,

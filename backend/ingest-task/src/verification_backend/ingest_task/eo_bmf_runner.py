@@ -193,7 +193,6 @@ def resolve_eo_bmf_runtime_environment_aliases(env: Mapping[str, str] | None = N
             resolved["EOBMF_WORKSPACE_DIR"] = workspace_path
 
     resolved.setdefault("PLATFORM_NONPROFIT_STORE_BACKEND", "postgres")
-    resolved.setdefault("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
     return resolved
 
 

@@ -722,17 +722,6 @@ variable "platform_nonprofit_store_backend" {
   }
 }
 
-variable "platform_nonprofit_query_backend" {
-  description = "Read backend for nonprofit lookup, search, and filings query paths."
-  type        = string
-  default     = "athena"
-
-  validation {
-    condition     = contains(["athena", "postgres"], var.platform_nonprofit_query_backend)
-    error_message = "platform_nonprofit_query_backend must be either athena or postgres."
-  }
-}
-
 variable "platform_nonprofit_postgres_enabled" {
   description = "Wire an external dedicated nonprofit PostgreSQL endpoint for nonprofit and Form 990 runtime data."
   type        = bool
@@ -880,36 +869,6 @@ variable "monthly_ingest_task_log_retention_days" {
   default     = 30
 }
 
-variable "monthly_ingest_task_allowed_bucket_arns" {
-  description = "Additional S3 bucket ARNs the managed monthly private-ingest ECS task role may access for source or destination objects."
-  type        = list(string)
-  default     = []
-}
-
-variable "monthly_ingest_schedule_source_bucket" {
-  description = "Optional source bucket passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_source_key" {
-  description = "Optional pre-staged source key passed by the monthly private-ingest EventBridge schedule. When empty and skip_staging=false, the schedule uses an internal placeholder until the staging Lambda returns the real key."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_destination_bucket" {
-  description = "Optional destination bucket passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_destination_prefix" {
-  description = "Optional destination prefix passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
 variable "monthly_ingest_schedule_job_id" {
   description = "Optional job identifier used by the monthly private-ingest EventBridge schedule input."
   type        = string
@@ -920,12 +879,6 @@ variable "monthly_ingest_schedule_correlation_id" {
   description = "Optional correlation identifier used by the monthly private-ingest EventBridge schedule input. Empty falls back to monthly_ingest_schedule_job_id."
   type        = string
   default     = ""
-}
-
-variable "monthly_ingest_schedule_skip_staging" {
-  description = "Whether the EventBridge schedule should bypass the staging Lambda and assume the source key already exists in S3."
-  type        = bool
-  default     = false
 }
 
 variable "monthly_ingest_schedule_context_json" {

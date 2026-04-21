@@ -21,7 +21,6 @@ def test_form990_ecs_envs_include_required_paths_and_run_task_wiring():
     assert "FORM990_RUN_TASK_CONTAINER_NAME" in api_content
     assert "FORM990_RUN_TASK_SUBNET_IDS" in api_content
     assert "FORM990_RUN_TASK_SECURITY_GROUP_IDS" in api_content
-    assert "OPS_METADATA_BUCKET" in api_content
     assert '"ecs:RunTask"' in api_content
     assert '"iam:PassRole"' in api_content
 
@@ -42,11 +41,11 @@ def test_form990_static_manifest_is_packaged_with_form990_code():
     assert Path("infrastructure/verification/form990/Form990Links.txt").exists()
 
 
-def test_ingest_task_policies_include_storage_access_without_lambda_iam():
+def test_ingest_task_policies_remove_legacy_s3_bucket_access():
     content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
-    assert '"s3:GetObject"' in content
-    assert '"s3:PutObject"' in content
-    assert '"s3:ListBucket"' in content
+    assert '"s3:GetObject"' not in content
+    assert '"s3:PutObject"' not in content
+    assert '"s3:ListBucket"' not in content
 
 
 def test_monthly_ingest_worker_packaging_and_task_access_exist():
@@ -61,9 +60,9 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
     assert 'STRICT_MODE' in ecs_content
     assert 'MAX_ARCHIVES' in ecs_content
     assert 'LOG_LEVEL' in ecs_content
-    assert '"s3:GetObject"' in ecs_content
-    assert '"s3:PutObject"' in ecs_content
-    assert '"s3:ListBucket"' in ecs_content
+    assert '"s3:GetObject"' not in ecs_content
+    assert '"s3:PutObject"' not in ecs_content
+    assert '"s3:ListBucket"' not in ecs_content
 
 
 def test_monthly_and_persistence_runtime_entrypoints_are_backend_owned_behind_shims():

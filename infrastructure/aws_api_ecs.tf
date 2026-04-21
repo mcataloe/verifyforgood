@@ -14,13 +14,6 @@ locals {
   }
   api_ecs_execution_secret_arns = distinct(values(local.api_ecs_secret_arns_resolved))
   api_ecs_container_plaintext_environment = {
-    DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
-    TABLE                                            = aws_glue_catalog_table.eo_bmf.name
-    WORKGROUP                                        = aws_athena_workgroup.eo_bmf.name
-    FORM990_FILINGS_TABLE                            = aws_glue_catalog_table.form990_metadata.name
-    FORM990_METRICS_TABLE                            = aws_glue_catalog_table.form990_metrics.name
-    FORM990_GOVERNANCE_TABLE                         = aws_glue_catalog_table.form990_governance.name
-    FORM990_QUALITY_TABLE                            = aws_glue_catalog_table.form990_quality.name
     THIRD_PARTY_INTEGRATIONS_ENABLED                 = tostring(var.third_party_integrations_enabled)
     INTEGRATION_CANDID_ENABLED                       = tostring(var.integration_candid_enabled)
     INTEGRATION_CANDID_CLIENT_ID                     = var.integration_candid_client_id
@@ -100,15 +93,12 @@ locals {
     PLATFORM_POSTGRES_DATABASE                       = var.platform_postgres_database_name
     PLATFORM_POSTGRES_SSLMODE                        = var.platform_postgres_sslmode
     PLATFORM_NONPROFIT_STORE_BACKEND                 = var.platform_nonprofit_store_backend
-    PLATFORM_NONPROFIT_QUERY_BACKEND                 = var.platform_nonprofit_query_backend
     PLATFORM_NONPROFIT_POSTGRES_ENABLED              = tostring(var.platform_nonprofit_postgres_enabled)
     PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN           = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
     PLATFORM_NONPROFIT_POSTGRES_HOST                 = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
     PLATFORM_NONPROFIT_POSTGRES_PORT                 = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
     PLATFORM_NONPROFIT_POSTGRES_DATABASE             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
     PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
-    OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
-    OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
     FORM990_RUN_TASK_CLUSTER_ARN                     = trim(var.monthly_ingest_ecs_cluster_arn, " ") != "" ? trim(var.monthly_ingest_ecs_cluster_arn, " ") : ((var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].arn : "")
     FORM990_RUN_TASK_DEFINITION_ARN                  = local.monthly_ingest_task_definition_arn_resolved
     FORM990_RUN_TASK_CONTAINER_NAME                  = trim(var.monthly_ingest_container_name, " ")
@@ -385,16 +375,6 @@ resource "aws_iam_role_policy" "api_task" {
     Version = "2012-10-17"
     Statement = concat(
       [
-        {
-          Sid    = "ApiTaskDataPlane"
-          Effect = "Allow"
-          Action = [
-            "s3:*",
-            "athena:*",
-            "glue:*"
-          ]
-          Resource = "*"
-        },
         {
           Sid    = "ApiTaskRunForm990IngestTask"
           Effect = "Allow"

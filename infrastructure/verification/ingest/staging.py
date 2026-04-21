@@ -5,8 +5,8 @@ from typing import Any, Mapping
 
 
 STAGING_RESULT_REQUIRED_FIELDS: tuple[str, ...] = (
-    "bucket",
-    "key",
+    "archive_identity",
+    "archive_url",
     "job_id",
     "correlation_id",
 )
@@ -14,8 +14,8 @@ STAGING_RESULT_REQUIRED_FIELDS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class MonthlyIngestStagingResult:
-    bucket: str
-    key: str
+    archive_identity: str
+    archive_url: str
     job_id: str
     correlation_id: str
     size: int | None = None
@@ -27,10 +27,8 @@ class MonthlyIngestStagingResult:
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            "bucket": self.bucket,
-            "key": self.key,
-            "source_bucket": self.bucket,
-            "source_key": self.key,
+            "archive_identity": self.archive_identity,
+            "archive_url": self.archive_url,
             "job_id": self.job_id,
             "correlation_id": self.correlation_id,
             "status": self.status,
@@ -52,13 +50,11 @@ class MonthlyIngestStagingResult:
         errors = validate_staging_result_payload(payload)
         if errors:
             raise ValueError("; ".join(errors))
-        bucket = _clean_text(payload.get("bucket")) or _clean_text(payload.get("source_bucket")) or ""
-        key = _clean_text(payload.get("key")) or _clean_text(payload.get("source_key")) or ""
         size_raw = payload.get("size")
         size = None if size_raw is None else int(size_raw)
         return cls(
-            bucket=bucket,
-            key=key,
+            archive_identity=_clean_text(payload.get("archive_identity")) or "",
+            archive_url=_clean_text(payload.get("archive_url")) or "",
             job_id=_clean_text(payload.get("job_id")) or "",
             correlation_id=_clean_text(payload.get("correlation_id")) or "",
             size=size,
@@ -72,8 +68,8 @@ class MonthlyIngestStagingResult:
 
 def shape_staging_result(
     *,
-    bucket: str,
-    key: str,
+    archive_identity: str,
+    archive_url: str,
     job_id: str,
     correlation_id: str,
     size: int | None = None,
@@ -85,8 +81,8 @@ def shape_staging_result(
 ) -> MonthlyIngestStagingResult:
     return MonthlyIngestStagingResult.from_mapping(
         {
-            "bucket": bucket,
-            "key": key,
+            "archive_identity": archive_identity,
+            "archive_url": archive_url,
             "job_id": job_id,
             "correlation_id": correlation_id,
             "size": size,
@@ -103,12 +99,12 @@ def validate_staging_result_payload(payload: Mapping[str, Any] | None) -> list[s
     if not isinstance(payload, Mapping):
         return ["staging result payload must be an object"]
     errors: list[str] = []
-    bucket = _clean_text(payload.get("bucket")) or _clean_text(payload.get("source_bucket"))
-    key = _clean_text(payload.get("key")) or _clean_text(payload.get("source_key"))
-    if not bucket:
-        errors.append("bucket is required")
-    if not key:
-        errors.append("key is required")
+    archive_identity = _clean_text(payload.get("archive_identity"))
+    archive_url = _clean_text(payload.get("archive_url"))
+    if not archive_identity:
+        errors.append("archive_identity is required")
+    if not archive_url:
+        errors.append("archive_url is required")
     for field_name in ("job_id", "correlation_id"):
         if not _clean_text(payload.get(field_name)):
             errors.append(f"{field_name} is required")

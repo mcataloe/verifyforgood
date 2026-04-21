@@ -19,15 +19,14 @@ DEFAULT_ECS_TASK_TIMEOUT_SECONDS = 14400
 DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS = 21600
 
 STEP_FUNCTION_INPUT_FIELDS: tuple[str, ...] = (
-    "source_key",
-    "destination_prefix",
+    "archive_identity",
+    "archive_url",
     "job_id",
     "correlation_id",
     "workflow_version",
 )
 STEP_FUNCTION_OPTIONAL_FIELDS: tuple[str, ...] = (
     "schedule_context",
-    "skip_staging",
 )
 
 ECS_TASK_REQUIRED_ENV_VARS: tuple[str, ...] = (
@@ -35,34 +34,31 @@ ECS_TASK_REQUIRED_ENV_VARS: tuple[str, ...] = (
     "MONTHLY_INGEST_WORKFLOW_VERSION",
     "MONTHLY_INGEST_JOB_ID",
     "MONTHLY_INGEST_CORRELATION_ID",
-    "MONTHLY_INGEST_SOURCE_KEY",
-    "MONTHLY_INGEST_DESTINATION_PREFIX",
+    "MONTHLY_INGEST_ARCHIVE_IDENTITY",
+    "MONTHLY_INGEST_ARCHIVE_URL",
     "MONTHLY_INGEST_INPUT_JSON",
 )
 
 
 @dataclass(frozen=True)
 class MonthlyIngestWorkflowInput:
-    source_key: str
-    destination_prefix: str
+    archive_identity: str
+    archive_url: str
     job_id: str
     correlation_id: str
     workflow_version: str = DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION
     schedule_context: Mapping[str, Any] | None = None
-    skip_staging: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            "source_key": self.source_key,
-            "destination_prefix": self.destination_prefix,
+            "archive_identity": self.archive_identity,
+            "archive_url": self.archive_url,
             "job_id": self.job_id,
             "correlation_id": self.correlation_id,
             "workflow_version": self.workflow_version,
         }
         if isinstance(self.schedule_context, Mapping) and self.schedule_context:
             payload["schedule_context"] = dict(self.schedule_context)
-        if self.skip_staging:
-            payload["skip_staging"] = True
         return payload
 
     @classmethod
@@ -71,13 +67,12 @@ class MonthlyIngestWorkflowInput:
         if errors:
             raise ValueError("; ".join(errors))
         return cls(
-            source_key=_clean_text(payload.get("source_key")) or "",
-            destination_prefix=_clean_text(payload.get("destination_prefix")) or "",
+            archive_identity=_clean_text(payload.get("archive_identity")) or "",
+            archive_url=_clean_text(payload.get("archive_url")) or "",
             job_id=_clean_text(payload.get("job_id")) or "",
             correlation_id=_clean_text(payload.get("correlation_id")) or "",
             workflow_version=_clean_text(payload.get("workflow_version")) or DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION,
             schedule_context=_mapping_or_none(payload.get("schedule_context")),
-            skip_staging=_coerce_bool(payload.get("skip_staging"), default=False, field_name="skip_staging"),
         )
 
 
@@ -122,8 +117,8 @@ class EcsTaskRuntimeContract:
             "MONTHLY_INGEST_WORKFLOW_VERSION": contract_input.workflow_version,
             "MONTHLY_INGEST_JOB_ID": contract_input.job_id,
             "MONTHLY_INGEST_CORRELATION_ID": contract_input.correlation_id,
-            "MONTHLY_INGEST_SOURCE_KEY": contract_input.source_key,
-            "MONTHLY_INGEST_DESTINATION_PREFIX": contract_input.destination_prefix,
+            "MONTHLY_INGEST_ARCHIVE_IDENTITY": contract_input.archive_identity,
+            "MONTHLY_INGEST_ARCHIVE_URL": contract_input.archive_url,
             "MONTHLY_INGEST_INPUT_JSON": json.dumps(payload, sort_keys=True),
         }
         return env
@@ -197,7 +192,7 @@ class MonthlyIngestWorkflowConfig:
     state_machine_timeout_seconds: int = DEFAULT_STATE_MACHINE_TIMEOUT_SECONDS
     endpoint_services: tuple[VpcEndpointServiceConfig, ...] = field(default_factory=tuple)
     retry: WorkflowRetryConfig = field(default_factory=WorkflowRetryConfig)
-    permanent_network_dependencies: tuple[str, ...] = ("s3_gateway",)
+    permanent_network_dependencies: tuple[str, ...] = ()
 
     def validate(self) -> list[str]:
         errors: list[str] = []
@@ -245,25 +240,22 @@ class MonthlyIngestWorkflowConfig:
 
 def shape_step_function_input(
     *,
-    source_key: str,
-    destination_prefix: str,
+    archive_identity: str,
+    archive_url: str,
     job_id: str,
     correlation_id: str | None = None,
     workflow_version: str = DEFAULT_MONTHLY_INGEST_WORKFLOW_VERSION,
     schedule_context: Mapping[str, Any] | None = None,
-    skip_staging: bool = False,
 ) -> MonthlyIngestWorkflowInput:
     payload: dict[str, Any] = {
-        "source_key": source_key,
-        "destination_prefix": destination_prefix,
+        "archive_identity": archive_identity,
+        "archive_url": archive_url,
         "job_id": job_id,
         "correlation_id": correlation_id or job_id,
         "workflow_version": workflow_version,
     }
     if isinstance(schedule_context, Mapping):
         payload["schedule_context"] = dict(schedule_context)
-    if skip_staging:
-        payload["skip_staging"] = True
     return MonthlyIngestWorkflowInput.from_mapping(payload)
 
 
@@ -277,12 +269,6 @@ def validate_step_function_input_payload(payload: Mapping[str, Any] | None) -> l
     schedule_context = payload.get("schedule_context")
     if schedule_context is not None and not isinstance(schedule_context, Mapping):
         errors.append("schedule_context must be an object when provided")
-    skip_staging = payload.get("skip_staging")
-    if skip_staging is not None and not isinstance(skip_staging, bool):
-        try:
-            _coerce_bool(skip_staging, default=False, field_name="skip_staging")
-        except ValueError as exc:
-            errors.append(str(exc))
     return errors
 
 

@@ -1,7 +1,6 @@
 ﻿from verification.decision.engine import build_decision
 from verification.evidence.builder import build_evidence
 from verification.policy.engine import evaluate_policy
-from verification.query.athena import AthenaQueryClient
 from verification.query.search import search_nonprofit_summaries
 from verification.scoring.calculator import (
     SCORING_MODEL_VERSION,
@@ -25,7 +24,6 @@ from .verification_service import (
 )
 
 __all__ = [
-    "AthenaQueryClient",
     "OrganizationVerificationInput",
     "SCORING_MODEL_VERSION",
     "ScoreResult",

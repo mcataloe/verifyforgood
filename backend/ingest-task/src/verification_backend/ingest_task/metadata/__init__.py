@@ -12,7 +12,7 @@ from .archive_probe import ArchiveProbeResult, normalize_etag, probe_archive_met
 class ArchiveProcessingMetadata:
     archive_name: str
     archive_year: str | None = None
-    source_key: str | None = None
+    archive_identity: str | None = None
     source_url: str | None = None
     run_id: str | None = None
     correlation_id: str | None = None

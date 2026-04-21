@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -248,17 +248,7 @@ def test_postgres_query_client_filters_eo_bmf_pseudo_filings(tmp_path: Path):
             updated_at="2026-04-05T00:00:00+00:00",
         )
     )
-    client = PostgresNonprofitQueryClient(
-        repository=repository,
-        delegate_client=type(
-            "Delegate",
-            (),
-            {
-                "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
-                "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
-            },
-        )(),
-    )
+    client = PostgresNonprofitQueryClient(repository=repository)
 
     _source, filings = client.list_form990_filings("123456789", limit=10)
 
@@ -302,7 +292,6 @@ def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, 
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -366,7 +355,6 @@ def test_run_local_eo_bmf_ingest_processes_multiple_files_with_workers(tmp_path:
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -419,7 +407,6 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -432,4 +419,6 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
     assert sum(int(call["completed_items"]) for call in reporter.sessions[0].calls) == 4
     assert any(call["increments"] == {"invalid": 1} for call in reporter.sessions[0].calls)
     assert any(call["increments"] == {"processed": 1} for call in reporter.sessions[0].calls)
+
+
 

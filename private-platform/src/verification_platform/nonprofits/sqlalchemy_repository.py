@@ -368,6 +368,34 @@ class SqlAlchemyNonprofitRepository:
             rows = session.execute(statement).mappings().all()
             return [_filing_query_row(dict(row)) for row in rows]
 
+    def list_peer_benchmark_filings(
+        self,
+        *,
+        ntee: str | None = None,
+        org_type: str | None = None,
+        revenue_band: str | None = None,
+    ) -> list[dict[str, Any]]:
+        latest_filing = _latest_filing_with_payload_subquery()
+        with nonprofit_session_scope(self._session_factory) as session:
+            statement = (
+                select(
+                    NonprofitModel.ein,
+                    NonprofitModel.ntee_category,
+                    NonprofitModel.subsection_code,
+                    latest_filing.c.total_revenue,
+                    latest_filing.c.raw_payload,
+                )
+                .join(latest_filing, latest_filing.c.nonprofit_id == NonprofitModel.nonprofit_id)
+            )
+            if ntee and ntee != "unknown":
+                statement = statement.where(func.substr(func.coalesce(NonprofitModel.ntee_category, ""), 1, 1) == ntee)
+            if org_type and org_type != "unknown":
+                statement = statement.where(func.coalesce(NonprofitModel.subsection_code, "") == org_type)
+            if revenue_band and revenue_band != "unknown":
+                statement = statement.where(_revenue_band_predicate(latest_filing.c.total_revenue, revenue_band))
+            rows = session.execute(statement).mappings().all()
+            return [dict(row) for row in rows]
+
     def get_raw_filing_by_identity(
         self,
         *,
@@ -763,6 +791,49 @@ def _latest_filing_subquery():
         .where(ranked.c.row_number == 1)
         .subquery()
     )
+
+
+def _latest_filing_with_payload_subquery():
+    ranked = (
+        select(
+            NonprofitFilingModel.nonprofit_id.label("nonprofit_id"),
+            NonprofitFilingModel.total_revenue.label("total_revenue"),
+            NonprofitFilingModel.raw_payload.label("raw_payload"),
+            func.row_number()
+            .over(
+                partition_by=NonprofitFilingModel.nonprofit_id,
+                order_by=(
+                    desc(NonprofitFilingModel.tax_year),
+                    desc(NonprofitFilingModel.filing_date),
+                    desc(NonprofitFilingModel.updated_at),
+                ),
+            )
+            .label("row_number"),
+        ).subquery()
+    )
+    return (
+        select(
+            ranked.c.nonprofit_id,
+            ranked.c.total_revenue,
+            ranked.c.raw_payload,
+        )
+        .where(ranked.c.row_number == 1)
+        .subquery()
+    )
+
+
+def _revenue_band_predicate(column: Any, band: str):
+    if band == "under_250k":
+        return column < 250_000
+    if band == "250k_to_1m":
+        return and_(column >= 250_000, column < 1_000_000)
+    if band == "1m_to_10m":
+        return and_(column >= 1_000_000, column < 10_000_000)
+    if band == "10m_to_100m":
+        return and_(column >= 10_000_000, column < 100_000_000)
+    if band == "100m_plus":
+        return column >= 100_000_000
+    return True
 
 
 def _snapshot_row(row: dict[str, Any]) -> dict[str, Any]:

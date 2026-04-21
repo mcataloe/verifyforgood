@@ -80,10 +80,7 @@ def build_nonprofit_postgres_repository(
 ) -> SqlAlchemyNonprofitRepository | None:
     source = env or os.environ
     persistence_config = load_platform_persistence_config(source)
-    if (
-        persistence_config.nonprofit_store_backend != "postgres"
-        and persistence_config.nonprofit_query_backend != "postgres"
-    ):
+    if persistence_config.nonprofit_store_backend != "postgres":
         return None
     resolved_url = sqlalchemy_url or resolve_nonprofit_postgres_sqlalchemy_url(source, secrets_client=secrets_client)
     session_factory = build_nonprofit_session_factory(resolved_url)
@@ -92,23 +89,19 @@ def build_nonprofit_postgres_repository(
 
 def build_nonprofit_query_client(
     *,
-    athena_client: Any,
     env: Mapping[str, str] | None = None,
     sqlalchemy_url: str | None = None,
     secrets_client: Any | None = None,
 ) -> Any:
     source = env or os.environ
-    persistence_config = load_platform_persistence_config(source)
-    if persistence_config.nonprofit_query_backend != "postgres":
-        return athena_client
     repository = build_nonprofit_postgres_repository(
         source,
         sqlalchemy_url=sqlalchemy_url,
         secrets_client=secrets_client,
     )
     if repository is None:
-        raise ValueError("PostgreSQL nonprofit query backend was selected but the PostgreSQL repository could not be built")
-    return PostgresNonprofitQueryClient(repository=repository, delegate_client=athena_client)
+        raise ValueError("PostgreSQL nonprofit repository could not be built")
+    return PostgresNonprofitQueryClient(repository=repository)
 
 
 def build_customer_accounts_postgres_repositories(

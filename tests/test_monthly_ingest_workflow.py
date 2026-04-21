@@ -1,4 +1,4 @@
-﻿import json
+import json
 
 from verification.ingest import (
     EcsTaskRuntimeContract,
@@ -11,14 +11,14 @@ from verification.ingest import (
 
 def test_shape_step_function_input_defaults_correlation_id_to_job_id():
     payload = shape_step_function_input(
-        source_key="raw/monthly/2026-02.zip",
-        destination_prefix="ops/manifests/",
+        archive_identity="form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+        archive_url="https://example.org/2026_TEOS_XML_02A.zip",
         job_id="job-123",
     )
 
     assert payload.to_dict() == {
-        "source_key": "raw/monthly/2026-02.zip",
-        "destination_prefix": "ops/manifests/",
+        "archive_identity": "form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+        "archive_url": "https://example.org/2026_TEOS_XML_02A.zip",
         "job_id": "job-123",
         "correlation_id": "job-123",
         "workflow_version": "2026-03",
@@ -28,36 +28,34 @@ def test_shape_step_function_input_defaults_correlation_id_to_job_id():
 def test_validate_step_function_input_payload_reports_missing_required_fields():
     errors = validate_step_function_input_payload(
         {
-            "source_key": "",
-            "destination_prefix": "ops/manifests/",
+            "archive_identity": "",
+            "archive_url": "https://example.org/2026_TEOS_XML_02A.zip",
             "job_id": "job-123",
             "correlation_id": "",
             "workflow_version": "2026-03",
         }
     )
 
-    assert "source_key is required" in errors
+    assert "archive_identity is required" in errors
     assert "correlation_id is required" in errors
 
 
-def test_shape_step_function_input_supports_optional_schedule_context_and_skip_staging():
+def test_shape_step_function_input_supports_optional_schedule_context():
     payload = shape_step_function_input(
-        source_key="raw/monthly/2026-02.zip",
-        destination_prefix="ops/manifests/",
+        archive_identity="form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+        archive_url="https://example.org/2026_TEOS_XML_02A.zip",
         job_id="job-123",
         schedule_context={"trigger": "eventbridge"},
-        skip_staging=True,
     )
 
     assert payload.to_dict()["schedule_context"] == {"trigger": "eventbridge"}
-    assert payload.to_dict()["skip_staging"] is True
     assert validate_step_function_input_payload(payload.to_dict()) == []
 
 
 def test_ecs_task_runtime_contract_builds_valid_environment():
     workflow_input = shape_step_function_input(
-        source_key="raw/monthly/2026-02.zip",
-        destination_prefix="ops/manifests/",
+        archive_identity="form990/raw-sources/2026/zip_archive/2026_teos_xml_02a/sig-1/2026_TEOS_XML_02A.zip",
+        archive_url="https://example.org/2026_TEOS_XML_02A.zip",
         job_id="job-123",
         correlation_id="corr-123",
     )
@@ -70,6 +68,9 @@ def test_ecs_task_runtime_contract_builds_valid_environment():
     assert payload["job_id"] == "job-123"
     assert payload["correlation_id"] == "corr-123"
     assert env["MONTHLY_INGEST_WORKFLOW_NAME"] == "monthly-ingest-prod"
+    assert env["MONTHLY_INGEST_ARCHIVE_IDENTITY"] == workflow_input.archive_identity
+    assert env["MONTHLY_INGEST_ARCHIVE_URL"] == workflow_input.archive_url
+
 
 def test_monthly_ingest_workflow_config_loads_env_and_resolves_endpoint_services():
     config = load_monthly_ingest_workflow_config(
@@ -124,4 +125,3 @@ def test_interface_endpoint_contract_is_environment_aware():
         "job_id": "job-123",
         "correlation_id": "corr-123",
     }
-
