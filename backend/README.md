@@ -99,6 +99,18 @@ API local run:
 python -m verification_backend.api.entrypoint
 ```
 
+VS Code fallback debug path:
+
+```powershell
+python -m debugpy --listen 5678 -m verification_backend.api.entrypoint
+```
+
+If the VS Code `Backend API` launch configuration exits immediately after
+startup on Windows, start the API with the command above and use the
+`Backend API (Attach)` launch configuration. The backend runtime itself should
+stay up and continue serving the frontend while the debugger attaches over port
+`5678`.
+
 Container build contracts:
 
 ```powershell

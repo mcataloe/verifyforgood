@@ -21,9 +21,30 @@
       "envFile": "${workspaceFolder}/backend/.env.local",
       "console": "integratedTerminal",
       "justMyCode": false,
+      "subProcess": false,
+      "logToFile": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/backend/api/src;${workspaceFolder}/backend/shared/src;${workspaceFolder}/backend/worker/src;${workspaceFolder}/backend/ingest-task/src"
       }
+    },
+    {
+      "name": "Backend API (Attach)",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": 5678
+      },
+      "cwd": "${workspaceFolder}/backend",
+      "justMyCode": false,
+      "subProcess": false,
+      "logToFile": true,
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "${workspaceFolder}"
+        }
+      ]
     },
     {
       "name": "Form990 Monthly Pipeline",
