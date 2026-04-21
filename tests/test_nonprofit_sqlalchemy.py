@@ -464,7 +464,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
             "state": "IL",
             "subsection": "03",
             "status": "active",
-            "tax_period": "202412",
+            "tax_period": None,
         }
     ]
     assert filing_rows == [

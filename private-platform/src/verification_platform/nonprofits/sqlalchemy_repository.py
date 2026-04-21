@@ -570,9 +570,9 @@ class SqlAlchemyNonprofitRepository:
         cursor_name: str | None = None,
         cursor_ein: str | None = None,
     ) -> list[dict[str, Any]]:
-        latest_filing = _latest_filing_subquery()
         normalized_query = str(name_query or "").strip().lower()
         cursor_name_normalized = str(cursor_name or "").strip().lower() or None
+        canonical_name_order = func.lower(NonprofitModel.canonical_name)
 
         with nonprofit_session_scope(self._session_factory) as session:
             statement = (
@@ -582,11 +582,9 @@ class SqlAlchemyNonprofitRepository:
                     NonprofitModel.state,
                     NonprofitModel.subsection_code,
                     NonprofitModel.irs_status,
-                    latest_filing.c.tax_period,
                 )
-                .outerjoin(latest_filing, latest_filing.c.nonprofit_id == NonprofitModel.nonprofit_id)
                 .where(NonprofitModel.normalized_name.contains(normalized_query))
-                .order_by(NonprofitModel.normalized_name.asc(), NonprofitModel.ein.asc())
+                .order_by(canonical_name_order.asc(), NonprofitModel.ein.asc())
             )
             if state:
                 statement = statement.where(NonprofitModel.state == state.strip().upper())
@@ -597,8 +595,8 @@ class SqlAlchemyNonprofitRepository:
             if cursor_name_normalized and cursor_ein:
                 statement = statement.where(
                     or_(
-                        NonprofitModel.normalized_name > cursor_name_normalized,
-                        and_(NonprofitModel.normalized_name == cursor_name_normalized, NonprofitModel.ein > cursor_ein),
+                        canonical_name_order > cursor_name_normalized,
+                        and_(canonical_name_order == cursor_name_normalized, NonprofitModel.ein > cursor_ein),
                     )
                 )
             rows = session.execute(statement.limit(limit)).mappings().all()

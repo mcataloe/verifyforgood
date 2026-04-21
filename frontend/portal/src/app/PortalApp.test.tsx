@@ -1196,9 +1196,7 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Nonprofit Search" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Nonprofit verification search" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Search query" })).toBeTruthy();
   });
 
   it("redirects the legacy workspace route to the dedicated search route", async () => {

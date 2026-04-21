@@ -2,7 +2,7 @@ import {
   DetailFieldList,
   StatusBadge,
 } from "@charity-status/shared-ui";
-import { Group, List, Stack, Table, Text, Title } from "@mantine/core";
+import { Anchor, Breadcrumbs, Group, List, Stack, Table, Text, Title } from "@mantine/core";
 import {
   DetailPageLayout,
   SectionBlock,
@@ -18,15 +18,36 @@ import type { StatusBadgeStatus } from "@charity-status/shared-ui";
 
 interface PortalNonprofitDetailViewProps {
   detail: PortalNonprofitDetail;
+  onBackToSearch?: () => void;
 }
 
 export function PortalNonprofitDetailView({
   detail,
+  onBackToSearch,
 }: PortalNonprofitDetailViewProps) {
   return (
     <DetailPageLayout
       header={
         <Stack gap="sm">
+          <Breadcrumbs>
+            {onBackToSearch ? (
+              <Anchor
+                component="button"
+                onClick={onBackToSearch}
+                size="sm"
+                type="button"
+              >
+                Search results
+              </Anchor>
+            ) : (
+              <Text c="dimmed" size="sm">
+                Nonprofit Search
+              </Text>
+            )}
+            <Text c="dimmed" size="sm">
+              {detail.name}
+            </Text>
+          </Breadcrumbs>
           <Group align="center" gap="sm" justify="space-between" wrap="wrap">
             <Group align="center" gap="sm" wrap="wrap">
               <Title order={1}>{detail.name}</Title>

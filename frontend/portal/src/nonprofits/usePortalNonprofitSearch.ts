@@ -11,10 +11,12 @@ import {
 import { normalizePortalError } from "../lib/portalError";
 
 export interface PortalNonprofitSearchController {
+  closeDetail: () => void;
   detail: PortalNonprofitDetail | null;
   error: string | null;
   hasSearched: boolean;
   hasMoreResults: boolean;
+  isDetailOpen: boolean;
   isLoading: boolean;
   isLoadingMore: boolean;
   lastQuery: string;
@@ -50,6 +52,7 @@ export function usePortalNonprofitSearch(
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastQuery, setLastQuery] = useState("");
@@ -90,6 +93,7 @@ export function usePortalNonprofitSearch(
           const nonprofitDetail = await service.lookupByEin(trimmedQuery);
           setDetail(nonprofitDetail);
           setResults([]);
+          setIsDetailOpen(nonprofitDetail !== null);
           setSearchMode("ein");
           setRecentSearches((current) =>
             prependSearchHistory(current, {
@@ -107,6 +111,7 @@ export function usePortalNonprofitSearch(
 
         const searchResults = await service.searchByName(trimmedQuery);
         setDetail(null);
+        setIsDetailOpen(false);
         setResults(searchResults.items);
         setNextCursor(searchResults.nextCursor);
         setHasMoreResults(Boolean(searchResults.nextCursor));
@@ -121,6 +126,7 @@ export function usePortalNonprofitSearch(
         );
       } catch (caughtError) {
         setDetail(null);
+        setIsDetailOpen(false);
         setResults([]);
         setNextCursor(null);
         setHasMoreResults(false);
@@ -148,6 +154,7 @@ export function usePortalNonprofitSearch(
       try {
         const nonprofitDetail = await service.lookupByEin(ein);
         setDetail(nonprofitDetail);
+        setIsDetailOpen(nonprofitDetail !== null);
         if (!nonprofitDetail) {
           setError("No nonprofit detail was returned for that EIN.");
         }
@@ -185,11 +192,18 @@ export function usePortalNonprofitSearch(
     }
   }, [lastQuery, nextCursor, searchMode, service]);
 
+  const closeDetail = useCallback(() => {
+    setIsDetailOpen(false);
+    setError(null);
+  }, []);
+
   return {
+    closeDetail,
     detail,
     error,
     hasSearched,
     hasMoreResults,
+    isDetailOpen,
     isLoading,
     isLoadingMore,
     lastQuery,

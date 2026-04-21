@@ -3003,7 +3003,7 @@ def test_nonprofits_search_reads_from_postgres_query_backend(monkeypatch, tmp_pa
             "subsection": "03",
             "irs_status": "active",
             "active": True,
-            "tax_period": "202412",
+            "tax_period": None,
         }
     ]
 
@@ -3039,6 +3039,7 @@ def test_nonprofits_search_pagination_cursor():
         search_rows=[
             {"ein": "123456789", "name": "A Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
             {"ein": "223456789", "name": "B Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
+            {"ein": "323456789", "name": "C Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
         ]
     )
     event = {

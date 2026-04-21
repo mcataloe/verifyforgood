@@ -16,8 +16,7 @@ import {
   SectionDivider,
 } from "../components/shell";
 import { PortalNotice } from "../components/feedback";
-import { PortalActionGroup, PortalHint } from "../components/PortalPrimitives";
-import { usePortalOrganization } from "../organization/usePortalOrganization";
+import { PortalActionGroup } from "../components/PortalPrimitives";
 import {
   PortalNonprofitDetailView,
   summaryStatus,
@@ -112,7 +111,6 @@ const recentSearchColumns: DataTableColumn<PortalNonprofitSearchHistoryEntry>[] 
 export function NonprofitSearchPanel({
   controller,
 }: NonprofitSearchPanelProps) {
-  const organization = usePortalOrganization();
   const defaultController = usePortalNonprofitSearch();
   const search = controller ?? defaultController;
   const [query, setQuery] = useState("");
@@ -153,55 +151,52 @@ export function NonprofitSearchPanel({
     void search.runSearch(trimmedQuery);
   };
 
+  if (search.isDetailOpen && search.detail) {
+    return (
+      <PortalNonprofitDetailView
+        detail={search.detail}
+        onBackToSearch={search.closeDetail}
+      />
+    );
+  }
+
   return (
     <DetailPageLayout>
       <SectionBlock>
-        <Panel
-          title="Nonprofit verification search"
-          subtitle="Search by EIN for an exact lookup or by organization name to review matching nonprofits."
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            runSearchForQuery(query);
+          }}
         >
-          <Stack gap="md">
-            <PortalHint>
-              Search and review nonprofit records for{" "}
-              <strong>{organization.activeOrganization.organization_name}</strong>.
-            </PortalHint>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                runSearchForQuery(query);
+          <Stack gap="md" maw={540}>
+            <TextInput
+              aria-label="Search query"
+              label="Search query"
+              name="query"
+              onChange={(event) => {
+                if (validationMessage) {
+                  setValidationMessage(null);
+                }
+                setQuery(event.target.value);
               }}
-            >
-              <Stack maw={540}>
-                <TextInput
-                  aria-label="Search query"
-                  label="Search query"
-                  name="query"
-                  onChange={(event) => {
-                    if (validationMessage) {
-                      setValidationMessage(null);
-                    }
-                    setQuery(event.target.value);
-                  }}
-                  placeholder="12-3456789 or Helping Hands Foundation"
-                  value={query}
-                />
+              placeholder="12-3456789 or Helping Hands Foundation"
+              value={query}
+            />
 
-                {validationMessage ? (
-                  <PortalNotice tone="error">
-                    <p>{validationMessage}</p>
-                  </PortalNotice>
-                ) : null}
+            {validationMessage ? (
+              <PortalNotice tone="error">
+                <p>{validationMessage}</p>
+              </PortalNotice>
+            ) : null}
 
-                <PortalActionGroup>
-                  <Button disabled={search.isLoading} loading={search.isLoading} type="submit">
-                    {search.isLoading ? "Searching..." : "Search nonprofit"}
-                  </Button>
-                </PortalActionGroup>
-              </Stack>
-            </form>
+            <PortalActionGroup>
+              <Button disabled={search.isLoading} loading={search.isLoading} type="submit">
+                {search.isLoading ? "Searching..." : "Search nonprofit"}
+              </Button>
+            </PortalActionGroup>
           </Stack>
-        </Panel>
+        </form>
       </SectionBlock>
 
       {search.error ? (

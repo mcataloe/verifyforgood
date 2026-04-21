@@ -19,17 +19,18 @@ def search_nonprofit_summaries(
     cursor_name, cursor_ein = _decode_cursor(cursor)
     _, rows = client.search_nonprofits(
         name_query=name_query,
-        limit=limit,
+        limit=limit + 1,
         state=state,
         subsection=subsection,
         active_only=active_only,
         cursor_name=cursor_name,
         cursor_ein=cursor_ein,
     )
-    items = [_to_summary(row) for row in rows]
+    page_rows = rows[:limit]
+    items = [_to_summary(row) for row in page_rows]
     next_cursor = None
-    if rows:
-        last = rows[-1]
+    if len(rows) > limit and page_rows:
+        last = page_rows[-1]
         next_cursor = _encode_cursor(str(last.get("name") or ""), str(last.get("ein") or ""))
 
     return 200, {
