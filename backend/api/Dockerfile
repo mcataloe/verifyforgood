@@ -2,7 +2,7 @@
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/api/src:/app/backend/shared/src
+ENV PYTHONPATH=/app:/app/infrastructure:/app/backend/api/src:/app/backend/shared/src
 
 WORKDIR /app
 
@@ -13,7 +13,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /app/infrastructure/requirements-api.txt
 
 COPY infrastructure /app/infrastructure
-COPY private-platform/src /app/private-platform/src
 COPY backend/api/src /app/backend/api/src
 COPY backend/shared/src /app/backend/shared/src
 

@@ -169,7 +169,6 @@ Current posture after Phase 26C:
 
 - `backend/api` owns the FastAPI app, route registration, and shared API runtime dispatch
 - `infrastructure.lambda_query` remains as a thin rollback adapter and compatibility import path
-- `verification_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
 
 ### Phase 25C: Containerize the API
 

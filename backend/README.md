@@ -1,15 +1,12 @@
 ﻿# Backend Runtime Layer
 
 This directory is the executable backend runtime host layer for the repository.
-It remains the future executable runtime host layer for runtime code that still
-needs to move out of `infrastructure/`.
 
 Current role:
 
-- define where long-lived backend runtimes live as code moves out of `infrastructure/`
-- provide a first-class Python workspace for backend runtime scaffolding and local development
+- define where long-lived backend runtimes live
+- provide a first-class Python workspace for backend runtime development
 - document ownership boundaries for API, worker, ingest-task, and shared runtime concerns
-- keep the runtime topology explicit without forcing a full handler migration yet
 
 Target subdirectories:
 
@@ -33,15 +30,14 @@ Python workspace layout:
 
 Dependency direction:
 
-- `backend/` may depend on `public-core/` and `private-platform/`
-- `backend/` must not become a replacement for `public-core/` or `private-platform/`
+- `backend/` may depend on `frontend/` contracts, `infrastructure/` runtime packages, and other backend subpackages where appropriate
 - `infrastructure/` may deploy/package backend entrypoints, but backend logic should not depend on deployment-only modules
 - `frontend/` must not import backend runtime code directly
 
 Migration note:
 
-- the remaining deploy-time compatibility shims are limited to the rollback API handler, the monthly ingest worker, and nonprofit persistence wiring
-- backend runtime logic should continue moving out of `infrastructure/`
+- runtime bootstrap continues to live under `infrastructure/`
+- backend runtime logic should continue to concentrate in `backend/`
 
 Local development:
 
@@ -50,7 +46,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r .\infrastructure\requirements.txt -r .\infrastructure\requirements-dev.txt
-python -m pip install -e .\public-core -e .\private-platform -e .\backend
+python -m pip install -e .\backend
 ```
 
 Local PostgreSQL workflow:
@@ -175,7 +171,7 @@ Migration/source-of-truth note:
 - `alembic upgrade head` remains the underlying schema source-of-truth command
 - `alembic -c alembic_nonprofit.ini upgrade head` is the underlying dedicated
   nonprofit schema source-of-truth command
-- local backfill/cutover utilities still run from `private-platform`:
+- local backfill/cutover utilities live under `verification_platform.runtime`:
   - `python -m verification_platform.runtime.customer_accounts_migration`
   - `python -m verification_platform.runtime.nonprofit_migration`
 

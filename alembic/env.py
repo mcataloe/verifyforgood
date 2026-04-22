@@ -10,9 +10,8 @@ from sqlalchemy import engine_from_config, pool
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INFRA_PATH = ROOT / "infrastructure"
-PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
 
-for path in (ROOT, INFRA_PATH, PRIVATE_PLATFORM_SRC):
+for path in (ROOT, INFRA_PATH):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 

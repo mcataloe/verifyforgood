@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV FORM990_WORKSPACE_DIR=/tmp/charity-status/form990
 ENV FORM990_WORKSPACE_MAX_BYTES=34359738368
-ENV PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/ingest-task/src:/app/backend/shared/src
+ENV PYTHONPATH=/app:/app/infrastructure:/app/backend/ingest-task/src:/app/backend/shared/src
 
 WORKDIR /app
 
@@ -14,7 +14,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /app/infrastructure/requirements.txt
 
 COPY infrastructure /app/infrastructure
-COPY private-platform/src /app/private-platform/src
 COPY backend/ingest-task/src /app/backend/ingest-task/src
 COPY backend/shared/src /app/backend/shared/src
 

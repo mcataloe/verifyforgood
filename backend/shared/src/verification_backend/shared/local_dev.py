@@ -10,11 +10,7 @@ from types import SimpleNamespace
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
-for _path in (
-    _REPO_ROOT / "infrastructure",
-    _REPO_ROOT / "private-platform" / "src",
-    _REPO_ROOT / "public-core" / "src",
-):
+for _path in (_REPO_ROOT / "infrastructure",):
     if _path.exists():
         resolved = str(_path.resolve())
         if resolved not in sys.path:

@@ -8,11 +8,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[5]
 INFRASTRUCTURE_ROOT = ROOT / "infrastructure"
-PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
 BACKEND_SHARED_SRC = ROOT / "backend" / "shared" / "src"
-PUBLIC_CORE_SRC = ROOT / "public-core" / "src"
 
-for path in (INFRASTRUCTURE_ROOT, PRIVATE_PLATFORM_SRC, BACKEND_SHARED_SRC, PUBLIC_CORE_SRC):
+for path in (INFRASTRUCTURE_ROOT, BACKEND_SHARED_SRC):
     path_str = str(path)
     if path_str not in sys.path:
         sys.path.insert(0, path_str)

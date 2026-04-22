@@ -24,7 +24,6 @@ Current phase posture:
 
 - `verification_backend.api.runtime` now owns the primary API runtime implementation
 - `verification_backend.api.app` now owns FastAPI app assembly, route registration, and health/readiness endpoints
-- `verification_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
 - `infrastructure/` is now deployment-only for API runtime concerns
 
 Local run:
@@ -64,7 +63,5 @@ though Terraform still consumes only image URIs rather than Dockerfile paths.
 
 Not owned here:
 
-- deterministic nonprofit/domain logic from `public-core/`
-- proprietary service implementations that belong in `private-platform/`
 - Terraform, DNS, ALB, ECS, and other deployment wiring from `infrastructure/`
 

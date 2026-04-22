@@ -24,10 +24,5 @@ Planned inbound migration:
 
 - runtime bootstrap helpers currently assembled under `infrastructure/verification/platform/`
 - shared transport/runtime-facing helpers currently rooted under `infrastructure/verification/api/`
-- compatibility exports that may temporarily remain mirrored through `verification_platform.runtime.backend_contracts`
-
-Compatibility rule:
-
-- `private-platform/src/verification_platform/runtime/backend_contracts.py` remains the compatibility re-export root until live imports are moved
-- this directory should host runtime-sharing concerns only, not reusable domain logic that belongs in `public-core/`
+- runtime contracts should remain backend-owned and avoid reintroducing retired package roots
 

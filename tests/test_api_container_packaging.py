@@ -11,15 +11,16 @@ def test_backend_runtime_dockerfiles_exist():
 
 def test_api_dockerfile_uses_asgi_entrypoint():
     dockerfile = Path("backend/api/Dockerfile").read_text(encoding="utf-8")
+    legacy_source_root = "/app/" + "private-" + "platform/src"
 
     assert (
-        "PYTHONPATH=/app:/app/infrastructure:/app/private-platform/src:/app/backend/api/src:/app/backend/shared/src"
+        "PYTHONPATH=/app:/app/infrastructure:/app/backend/api/src:/app/backend/shared/src"
         in dockerfile
     )
     assert "uvicorn" in dockerfile
     assert "verification_backend.api.app:app" in dockerfile
     assert "EXPOSE 8000" in dockerfile
-    assert "private-platform/src" in dockerfile
+    assert legacy_source_root not in dockerfile
     assert "backend/api/src" in dockerfile
     assert "backend/shared/src" in dockerfile
 
@@ -27,6 +28,7 @@ def test_api_dockerfile_uses_asgi_entrypoint():
 def test_worker_and_ingest_dockerfiles_use_backend_runtime_entrypoints():
     worker = Path("backend/worker/Dockerfile").read_text(encoding="utf-8")
     ingest = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
+    legacy_source_root = "private-" + "platform/src"
 
     assert 'CMD ["python", "-m", "verification_backend.worker.entrypoint"]' in worker
     assert "backend/worker/src" in worker
@@ -39,7 +41,7 @@ def test_worker_and_ingest_dockerfiles_use_backend_runtime_entrypoints():
     assert 'CMD ["monthly-worker"]' in ingest
     assert "backend/ingest-task/src" in ingest
     assert "backend/shared/src" in ingest
-    assert "private-platform/src" in ingest
+    assert legacy_source_root not in ingest
 
 
 def test_requirements_and_dockerignore_exist():

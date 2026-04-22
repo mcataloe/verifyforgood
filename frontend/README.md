@@ -18,9 +18,8 @@ The frontend workspace is pnpm-first.
 Frontend-facing naming should prefer VerifyForGood and purpose-based terminology.
 
 - use VerifyForGood branding in workspace metadata, docs, UI copy, and new frontend-local identifiers when a product name is needed
-- avoid introducing new `charity-status` or `CharityStatusAPI` identifiers in frontend-only code unless they are required for compatibility with existing repo/package boundaries
 - the current `@charity-status/*` package scope is intentionally retained for compatibility and staged migration safety
-- backend package names, repository paths, and shared package scopes should only be renamed in a dedicated follow-up phase, not opportunistically
+- backend package names, repository paths, and shared package scopes should remain backend- and infrastructure-oriented
 
 ## Directory Purpose
 

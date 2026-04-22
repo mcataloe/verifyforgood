@@ -8,17 +8,15 @@ rollback stack for the cutover window. See
 `docs/architecture/ADR-ecs-runtime-pivot.md` and
 `docs/implementation/ecs-runtime-migration-blueprint.md`.
 
-The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
+Customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
 
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
-- `docs/contributor-naming-rules.md` is the concise rule set for naming new internal modules, workflows, and infrastructure identifiers.
-- `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
-- `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
-- `docs/infrastructure-naming-normalization.md` documents the neutral infrastructure naming layer, compatibility aliases, and intentionally preserved legacy resource names.
-- `docs/monthly-ingest-architecture.md` documents the implemented monthly private-ingest architecture, runtime contracts, and cost model.
-- `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly private-ingest.
+- `docs/monthly-ingest-architecture.md` documents the implemented monthly ingest architecture, runtime contracts, and cost model.
+- `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly ingest.
+- `docs/architecture/ADR-ecs-runtime-pivot.md` records the API runtime pivot from Lambda to ECS.
+- `docs/implementation/ecs-runtime-migration-blueprint.md` captures the ECS runtime migration plan and rollout details.
 
 ## Frontend Workspace
 
@@ -58,7 +56,7 @@ Important:
 
 ## Naming Layers
 
-Three naming layers now coexist intentionally:
+Three naming layers still matter:
 
 - product / brand naming:
   - customer-facing labels such as `VerifyForGood`
@@ -66,101 +64,8 @@ Three naming layers now coexist intentionally:
 - capability / domain naming:
   - preferred internal naming such as `verification_platform`, `organization_verification`, and `monthly_ingest`
   - use for new modules, workflow labels, service boundaries, and internal docs
-- legacy compatibility naming:
-  - preserved names such as `CharityStatusAPI`, `verification`, `charitystatusapi.*`, and `charitystatusapi-*` backend resources
-  - keep only where compatibility or deployed-resource stability still requires them
-
-Contributor shortcut:
-
-- new internals should be capability-oriented
-- existing legacy names should be wrapped or documented, not spread further
-- customer-facing/public contract terms should stay stable unless a contract change is intentional
-
-## Infrastructure Naming
-
-Infrastructure resource names should be deterministic, composable, and independent from product branding. The shared naming helper lives at `infrastructure/verification/platform/naming.py` and builds names in this format:
-
-- `<namespace>-<platform>-<purpose>-<environment>-<region>`
-
-Defaults for the current verification platform are:
-
-- `namespace = n8x4`
-- `platform = verification`
-- `region = use1`
-
-Naming philosophy:
-
-- infrastructure names identify ownership and deployment context, not marketing identity
-- branding such as current or future product names must not be embedded in infrastructure resource names
-- purpose tokens should describe the resource role (`profiles`, `query-api`, `source-data-bucket`) rather than the brand
-- names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
-- Terraform keeps `resource_name_strategy = "legacy"` by default so existing deployed resources are not renamed accidentally; set it to `standardized` only as part of an explicit migration plan
-- `resource_name_overrides` can pin individual physical names when migrating one resource at a time
-- grouped internal Terraform locals now use neutral capability maps for Lambda, queue, schedule, and tag naming; see `docs/infrastructure-naming-normalization.md` for the migration table and preserved exceptions
-
-Namespace token guidance:
-
-- `namespace` is the short organizational token that scopes shared infrastructure ownership
-- use `n8x4` as the default unless a deployment explicitly requires a different namespace boundary
-- keep namespace changes intentional because the token is part of every generated resource name
-
-## Brand Separation
-
-Internal runtime naming is capability-based even when customer-facing materials use a product brand.
-
-- `APP_NAME` controls neutral internal/runtime identity such as outbound user-agent strings
-- `PUBLIC_BRAND_NAME` controls customer-visible labels used in external systems such as billing metadata
-- `SUPPORT_EMAIL` controls customer-facing support contact details surfaced by the branding layer
-- `DOMAIN` controls the public product domain surfaced by the branding layer; it does not rename infrastructure resources or Route53-managed endpoints by itself
-- public routes and API payloads stay unchanged unless a separate contract change explicitly requires them
-- customer-facing docs may still use a configured public brand; internal module and runtime identifiers should stay brand-neutral
-- deployment-specific bootstrap/state files may still carry existing live names until a separate migration updates those resources deliberately
-- branding defaults now target `VerifyForGood`, but those values remain runtime configuration rather than core platform identifiers
-
-Capability-namespace guidance:
-
-- the legacy `verification` package remains supported for backward compatibility
-- new internal wrappers may be introduced under `verification_platform` when they describe capabilities more clearly than legacy names
-- wrapper namespaces should re-export existing implementations before any deeper code movement or rename
-- new modules should prefer capability-oriented names such as `organization_verification` or `entity_resolution`, not product or repo branding
-
-If you are naming something new:
-
-- read `docs/contributor-naming-rules.md` first
-- use `docs/capability-naming-abstraction.md` for runtime/module mapping
-- use `docs/infrastructure-naming-normalization.md` for Terraform and physical-resource exceptions
-
-## Public-Core Boundary (Phase 11A)
-
-Phase 11A introduces explicit separation boundaries so domain logic can remain canonical/open while deployment/platform wiring can be isolated.
-
-Core/domain modules (intended reusable/public surface):
-
-- `verification/query`, `verification/scoring`, `verification/decision`, `verification/evidence`, `verification/policy`
-- new core interfaces in `verification/core/`:
-  - `QueryRepository`
-  - `ProfileStoreAdapter`
-  - `EnrichmentProviderGateway`
-  - `AuthContextProvider`
-  - `QuotaMeteringHook`
-
-Platform/runtime wiring (environment/deployment concerns):
-
-- `verification/platform/runtime.py` builds concrete Athena and enrichment adapters from env/runtime config
-- Lambda entrypoints consume these boundaries while keeping handlers thin
-
-Contributor guidance:
-
-- Keep business rules and deterministic domain logic inside core/domain packages.
-- Keep provider/env/runtime selection in platform wiring modules.
-- Route handlers should orchestrate only; avoid source-specific or provider-specific business logic in handlers.
-- If adding auth/quotas, implement adapters behind `AuthContextProvider` and `QuotaMeteringHook` first, then inject.
-
-Adapter boundary guidance now used in mixed infrastructure-facing modules:
-
-- service modules own application rules and orchestration
-- adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
-- runtime builders such as `verification.platform.runtime` assemble the concrete adapters used by handlers
+- deployment naming:
+  - Terraform, AWS resources, and bootstrap state names that may remain pinned until a separate migration updates them deliberately
 
 ## Repository Topology
 
@@ -170,72 +75,13 @@ The repository now uses three operational layers:
 - `backend/`
 - `infrastructure/`
 
-Supporting package/code boundaries remain:
-
-- `public-core/`
-- `private-platform/`
-
 How these layers should be interpreted:
 
 - `frontend/` is the dedicated pnpm workspace and browser/runtime UI layer
 - `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
 - `backend/` now uses a dedicated Python workspace scaffold rooted at `backend/pyproject.toml`
-- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and temporary compatibility shims only
-- `public-core/` and `private-platform/` remain package boundaries, not replacements for `backend/`
-
-## Stage-1 Backend Readiness
-
-The repository now has first-stage backend split scaffolding in place for:
-
-- `backend/`
-- `public-core/`
-- `private-platform/`
-- `infrastructure/`
-
-The key practical rules at this point are:
-
-- keep deterministic open-safe logic in `public-core/`
-- keep customer/account/auth/billing/admin/backend orchestration in `private-platform/`
-- keep executable runtime hosts and shared runtime bootstrap in `backend/`
-- keep `infrastructure/` focused on deploy-time entrypoints, Terraform, and runtime wiring
-
-For the current live system:
-
-- `infrastructure/lambda_*.py` remains the deployed handler surface
-- `backend/api` now owns the primary FastAPI app and shared HTTP runtime dispatch for the API service
-- `backend/ingest-task` now owns the Form 990 and monthly ingest-task runtime implementations behind compatibility wrapper entrypoints
-- those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
-- backend-owned Dockerfiles now define the canonical runtime image contracts for
-  API, worker, and ingest-task execution
-- `verification_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
-- `verification_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
-
-Testing guidance is now explicit:
-
-- `public-core/tests/` is the future home for pure public-core unit tests
-- `private-platform/tests/` is the future home for private-platform unit and boundary tests
-- root `tests/` remains the active integration and compatibility suite while runtime imports still rely on `infrastructure/`
-
-## Repo Split Scaffolding (Phase 11B)
-
-Phase 11B adds non-breaking scaffolding to make a future public/private split low risk while keeping this repository fully functional today.
-
-New top-level scaffold directories:
-
-- `public-core/` (future open-source packaging boundary)
-- `private-platform/` (future proprietary platform boundary)
-- `infra-deployment/` (future deployment-only boundary)
-
-Migration planning artifacts:
-
-- `split-plan.json`: machine-readable include/exclude mapping for split execution
-- `docs/repo-split-guide.md`: what belongs in public vs private vs infra repos
-
-Important:
-
-- No proprietary code is removed automatically in this phase.
-- Existing runtime and tests continue to use current paths.
-- Core packaging metadata is prepared in `public-core/pyproject.toml` for extraction planning.
+- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and deploy-time shims only
+- runtime packages now live under `infrastructure/verification/` and `infrastructure/verification_platform/`
 
 ## AWS Data Flow
 
@@ -1952,8 +1798,8 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 ### Relational foundation and migrations
 
 The platform relational foundation now uses SQLAlchemy models under
-`private-platform/src/verification_platform/customer_accounts/` and Alembic
-for schema evolution.
+`infrastructure/verification_platform/customer_accounts/` and Alembic for
+schema evolution.
 
 Backend-local developer workflow:
 
@@ -1968,7 +1814,7 @@ Example local bootstrap:
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install -r infrastructure/requirements.txt -r infrastructure/requirements-dev.txt
-python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend
+python -m pip install -e .\\backend
 cp backend/.env.local.example backend/.env.local
 createdb verification_platform
 python -m verification_backend.shared.local_dev db-upgrade

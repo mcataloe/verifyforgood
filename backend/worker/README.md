@@ -36,6 +36,5 @@ Planned inbound migration:
 Not owned here:
 
 - Form 990 and EO ingest task hosts that belong in `backend/ingest-task/`
-- reusable application/domain logic from `public-core/`
-- private service implementations from `private-platform/`
+- reusable application/domain logic that belongs in backend shared/runtime packages
 
