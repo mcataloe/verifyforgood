@@ -1,5 +1,6 @@
-import { Alert, Stack } from "@mantine/core";
+import { Stack } from "@mantine/core";
 import type { ReactNode } from "react";
+import { PortalNotice } from "./PortalNotice";
 
 export interface PortalNoticeListItem {
   body: ReactNode;
@@ -24,32 +25,15 @@ export function PortalNoticeList({
   return (
     <Stack gap="sm">
       {notices.map((notice) => (
-        <Alert
-          closeButtonLabel={`Dismiss ${notice.title ?? "notification"}`}
-          color={resolveNoticeColor(notice.tone)}
+        <PortalNotice
           key={notice.id}
-          onClose={onDismiss ? () => onDismiss(notice.id) : undefined}
-          radius="md"
+          onDismiss={onDismiss ? () => onDismiss(notice.id) : undefined}
           title={notice.title}
-          variant="light"
-          withCloseButton={Boolean(onDismiss)}
+          tone={notice.tone}
         >
           {notice.body}
-        </Alert>
+        </PortalNotice>
       ))}
     </Stack>
   );
-}
-
-function resolveNoticeColor(tone: PortalNoticeListItem["tone"]) {
-  switch (tone) {
-    case "error":
-      return "red";
-    case "loading":
-      return "blue";
-    case "empty":
-    case "warning":
-    default:
-      return "teal";
-  }
 }

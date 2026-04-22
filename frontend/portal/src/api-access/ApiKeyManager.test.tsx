@@ -101,6 +101,7 @@ describe("ApiKeyManager", () => {
 
     const stackedRoot = document.querySelector(".portal-stacked-sections");
     expect(stackedRoot).toBeTruthy();
+    expect(screen.queryByText("API Key Management")).toBeNull();
     expect(screen.getByText("Portal Test Org")).toBeTruthy();
     const secretInput = screen.getByLabelText(
       "Plaintext API key",
@@ -146,6 +147,14 @@ describe("ApiKeyManager", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "csk_demo.secret",
     );
+    expect(await screen.findByText("API key copied to clipboard.")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByText("API key copied to clipboard.")).toBeNull();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Hide API key" }));
     expect(secretInput.type).toBe("password");

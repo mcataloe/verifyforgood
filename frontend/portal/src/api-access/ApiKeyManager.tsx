@@ -144,10 +144,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
   return (
     <>
       <StackedDetailSections>
-        <Panel
-          title="API Key Management"
-          subtitle="Create, review, and update API keys for your organization."
-        >
+        <Panel>
           <Stack gap="md">
             <PortalHint>
               API keys shown here belong to{" "}
