@@ -31,6 +31,7 @@ export function createPortalApiClient({
   const activeScope = context?.activeOrganization ?? organization ?? session;
 
   return createApiClient({
+    credentials: "include",
     fetchImpl,
     headersProvider: async () => ({
       ...(accessToken

@@ -271,13 +271,18 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
     )
     register_payload = _response_body(register_response)
     access_token = register_payload["data"]["access_token"]
+    assert "Set-Cookie" in register_response["headers"]
+    assert "verifyforgood_portal_session=" in register_response["headers"]["Set-Cookie"]
 
     create_org_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
             "path": "/v1/organizations",
-            "headers": {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+            "headers": {
+                "Cookie": f"verifyforgood_portal_session={access_token}",
+                "Content-Type": "application/json",
+            },
             "body": json.dumps({"name": "Verify For Good Org"}),
         },
         None,
@@ -289,7 +294,7 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
             "httpMethod": "GET",
             "resource": "/v1/auth/me",
             "path": "/v1/auth/me",
-            "headers": {"Authorization": f"Bearer {access_token}"},
+            "headers": {"Cookie": f"verifyforgood_portal_session={access_token}"},
         },
         None,
     )
@@ -299,9 +304,29 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
     assert register_response["statusCode"] == 201
     assert create_org_response["statusCode"] == 201
     assert auth_me_response["statusCode"] == 200
+    assert auth_me_payload["data"]["access_token"] == access_token
     assert auth_me_payload["data"]["user"]["email"] == "person@example.com"
     assert auth_me_payload["data"]["organization_context"]["organization_id"] == org_payload["data"]["organization_id"]
     assert len(auth_me_payload["data"]["available_organizations"]) == 1
+
+
+def test_postgres_identity_backend_clears_portal_cookie_on_logout(monkeypatch, tmp_path: Path):
+    module, _resource, _sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
+
+    response = module.handle_api_event(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/auth/logout",
+            "path": "/v1/auth/logout",
+            "headers": {"Cookie": "verifyforgood_portal_session=token_test"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert "Set-Cookie" in response["headers"]
+    assert "verifyforgood_portal_session=" in response["headers"]["Set-Cookie"]
+    assert "Max-Age=0" in response["headers"]["Set-Cookie"]
 
 
 def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgres(monkeypatch, tmp_path: Path):

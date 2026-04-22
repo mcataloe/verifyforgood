@@ -975,3 +975,29 @@ customer-visible routes and persisted compatibility shapes.
 Keep internal matching/ranking support implementation-only unless a future
 customer-facing use is explicitly approved.
 
+## TODO-ARCH-104
+
+### Title
+
+Evaluate a server-side browser session store after the cookie-backed portal auth cutover.
+
+### Rationale
+
+The current portal login persistence cutover uses a signed browser session cookie
+so refreshes survive without depending on localStorage. That keeps the browser
+session stateless, but it still leaves the auth token itself embedded in the
+cookie value. A later phase may want a true server-side session or memory-store
+session model for stricter revocation, rotation, or inspection semantics.
+
+### Migration Triggers
+
+- session revocation or rotation requirements exceed signed-cookie behavior
+- operators need server-side session visibility or forced invalidation
+- portal auth policy moves away from stateless browser-held credentials
+
+### Constraint
+
+Keep the existing `POST /v1/auth/login`, `POST /v1/auth/register`, `POST /v1/auth/logout`,
+and `GET /v1/auth/me` contracts stable so a future session store can replace
+the cookie payload without changing the portal surface.
+

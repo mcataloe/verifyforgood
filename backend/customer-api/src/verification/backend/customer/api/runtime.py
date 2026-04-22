@@ -7,6 +7,7 @@ Backend HTTP transport adapters dispatch into this runtime directly.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from http.cookies import SimpleCookie
 import importlib
 import json
 import logging
@@ -205,6 +206,11 @@ FORM990_RUN_TASK_SECURITY_GROUP_IDS = _env_csv("FORM990_RUN_TASK_SECURITY_GROUP_
 FORM990_RUN_TASK_ASSIGN_PUBLIC_IP = _env_bool("FORM990_RUN_TASK_ASSIGN_PUBLIC_IP")
 PORTAL_AUTH_TOKEN_SECRET = os.environ.get("PORTAL_AUTH_TOKEN_SECRET", "dev-portal-auth-secret")
 PORTAL_AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("PORTAL_AUTH_TOKEN_TTL_SECONDS", "86400"))
+PORTAL_AUTH_COOKIE_NAME = os.environ.get("PORTAL_AUTH_COOKIE_NAME", "verifyforgood_portal_session")
+PORTAL_AUTH_COOKIE_SECURE = _env_bool(
+    "PORTAL_AUTH_COOKIE_SECURE",
+    APP_ENV not in {"dev", "local", "test"},
+)
 ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
     "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
     os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
@@ -1113,10 +1119,8 @@ def _resolve_portal_session_tenant_context(
     missing_membership_message: str,
 ) -> tuple[AuthContext, TenantContext]:
     headers = event.get("headers") or {}
-    authorization = str(_get_header(headers, "authorization") or "").strip()
-    if not authorization.lower().startswith("bearer "):
-        raise AuthenticationError("Authentication required")
-    current_user = _get_portal_auth_service().get_current_user(authorization)
+    token = _resolve_portal_auth_token(headers)
+    current_user = _get_portal_auth_service().get_current_user(f"Bearer {token}")
     try:
         organization_id, workspace_id = _resolve_current_portal_context(event)
     except MembershipManagementError as exc:
@@ -1156,9 +1160,10 @@ def _resolve_organization_tenant_context(
     headers = event.get("headers") or {}
     authorization = str(_get_header(headers, "authorization") or "").strip()
     has_current_org_headers = bool(_get_header(headers, "x-portal-account-id") or _get_header(headers, "x-portal-workspace-id"))
-    if authorization.lower().startswith("bearer "):
+    if authorization.lower().startswith("bearer ") or _resolve_portal_auth_token(headers, allow_missing=True) is not None:
         if not has_current_org_headers:
-            _get_portal_auth_service().get_current_user(authorization)
+            token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else str(_resolve_portal_auth_token(headers, allow_missing=True) or "")
+            _get_portal_auth_service().get_current_user(f"Bearer {token}")
             raise AuthorizationError("Current organization headers are required")
         return _resolve_portal_session_tenant_context(
             event,
@@ -1176,6 +1181,62 @@ def _resolve_organization_tenant_context(
         raise AuthorizationError("Portal session authentication is required for this organization route")
     _attach_tenant_context(event, auth_context, tenant_context)
     return auth_context, tenant_context
+
+
+def _resolve_portal_auth_token(headers: dict[str, Any], *, allow_missing: bool = False) -> str | None:
+    authorization = str(_get_header(headers, "authorization") or "").strip()
+    if authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+        if token:
+            return token
+
+    cookie_value = _get_cookie(headers, PORTAL_AUTH_COOKIE_NAME)
+    if cookie_value:
+        return cookie_value
+
+    if allow_missing:
+        return None
+    raise AuthenticationError("Authentication required")
+
+
+def _get_cookie(headers: dict[str, Any], name: str) -> str | None:
+    cookie_header = str(_get_header(headers, "cookie") or "").strip()
+    if not cookie_header:
+        return None
+    jar = SimpleCookie()
+    jar.load(cookie_header)
+    morsel = jar.get(name)
+    if morsel is None:
+        return None
+    value = str(morsel.value or "").strip()
+    return value or None
+
+
+def _build_portal_auth_cookie(access_token: str) -> str:
+    cookie = SimpleCookie()
+    cookie[PORTAL_AUTH_COOKIE_NAME] = access_token
+    morsel = cookie[PORTAL_AUTH_COOKIE_NAME]
+    morsel["path"] = "/"
+    morsel["httponly"] = True
+    morsel["samesite"] = "Lax"
+    morsel["max-age"] = str(max(60, PORTAL_AUTH_TOKEN_TTL_SECONDS))
+    if PORTAL_AUTH_COOKIE_SECURE:
+        morsel["secure"] = True
+    return cookie.output(header="").strip()
+
+
+def _build_cleared_portal_auth_cookie() -> str:
+    cookie = SimpleCookie()
+    cookie[PORTAL_AUTH_COOKIE_NAME] = ""
+    morsel = cookie[PORTAL_AUTH_COOKIE_NAME]
+    morsel["path"] = "/"
+    morsel["httponly"] = True
+    morsel["samesite"] = "Lax"
+    morsel["max-age"] = "0"
+    morsel["expires"] = "Thu, 01 Jan 1970 00:00:00 GMT"
+    if PORTAL_AUTH_COOKIE_SECURE:
+        morsel["secure"] = True
+    return cookie.output(header="").strip()
 
 
 def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
@@ -1264,7 +1325,7 @@ def _is_portal_auth_request(event: dict[str, Any], method: str) -> bool:
         return False
     resource, path = _route_paths(event)
     candidate = resource or path
-    return candidate in {"/auth/register", "/auth/login", "/auth/me"}
+    return candidate in {"/auth/register", "/auth/login", "/auth/logout", "/auth/me"}
 
 
 def _is_portal_organization_request(event: dict[str, Any], method: str) -> bool:
@@ -1320,7 +1381,12 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
                 full_name=(str(payload.get("full_name")) if payload.get("full_name") is not None else None),
             )
         )
-        return json_response(201, session.to_dict(), response_context=response_context)
+        return json_response(
+            201,
+            session.to_dict(),
+            response_context=response_context,
+            headers={"Set-Cookie": _build_portal_auth_cookie(session.access_token)},
+        )
 
     if resource == "/auth/login" and method == "POST":
         payload = _parse_json_body(event)
@@ -1330,27 +1396,42 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
                 password=str(payload.get("password") or ""),
             )
         )
-        return json_response(200, session.to_dict(), response_context=response_context)
+        return json_response(
+            200,
+            session.to_dict(),
+            response_context=response_context,
+            headers={"Set-Cookie": _build_portal_auth_cookie(session.access_token)},
+        )
 
     if resource == "/auth/me" and method == "GET":
         headers = event.get("headers") or {}
-        authorization = str(_get_header(headers, "authorization") or "")
-        user = service.get_current_user(authorization)
+        token = _resolve_portal_auth_token(headers)
+        user = service.get_current_user(f"Bearer {token}")
         context_service = _get_portal_organization_context_service()
         available_organizations = context_service.list_for_user(user_id=user.user_id)
         organization_context = available_organizations[0] if available_organizations else None
         return json_response(
             200,
             {
+                "access_token": token,
                 "available_organizations": [
                     context.to_dict() for context in available_organizations
                 ],
                 "organization_context": organization_context.to_dict()
                 if organization_context is not None
                 else None,
+                "token_type": "Bearer",
                 "user": user.to_dict(),
             },
             response_context=response_context,
+        )
+
+    if resource == "/auth/logout" and method == "POST":
+        return json_response(
+            200,
+            {"signed_out": True},
+            response_context=response_context,
+            headers={"Set-Cookie": _build_cleared_portal_auth_cookie()},
         )
 
     return error_response(404, "Auth route not found", response_context=response_context, code="not_found")
@@ -1359,8 +1440,8 @@ def _handle_portal_auth_request(event: dict[str, Any], response_context: Respons
 def _handle_portal_organization_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
     method = str(event.get("httpMethod") or "GET").upper()
     headers = event.get("headers") or {}
-    authorization = str(_get_header(headers, "authorization") or "")
-    current_user = _get_portal_auth_service().get_current_user(authorization)
+    token = _resolve_portal_auth_token(headers)
+    current_user = _get_portal_auth_service().get_current_user(f"Bearer {token}")
     payload = _parse_json_body(event)
 
     if method == "POST":

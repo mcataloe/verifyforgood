@@ -149,6 +149,7 @@ def _response_headers(
         resolved.update(headers)
     if cors_origin:
         resolved["Access-Control-Allow-Origin"] = cors_origin
+        resolved["Access-Control-Allow-Credentials"] = "true"
         resolved["Access-Control-Allow-Headers"] = _CORS_ALLOWED_HEADERS
         resolved["Access-Control-Allow-Methods"] = _CORS_ALLOWED_METHODS
         resolved["Vary"] = _merge_vary_header(resolved.get("Vary"), "Origin")

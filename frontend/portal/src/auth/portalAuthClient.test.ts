@@ -171,6 +171,47 @@ describe("portal auth client", () => {
     expect(restored?.session.organization_context_status).toBe("pending");
   });
 
+  it("hydrates the current session from /auth/me without a stored auth token", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              access_token: "token_cookie",
+              available_organizations: [],
+              organization_context: null,
+              token_type: "Bearer",
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const restored = await client.getSession();
+
+    expect(restored?.accessToken).toBe("token_cookie");
+    expect(restored?.session.user.email).toBe("person@example.com");
+    const requestInit = vi.mocked(fetchImpl).mock.calls[0]?.[1];
+    expect(requestInit?.credentials).toBe("include");
+  });
+
   it("hydrates backend organization context into the restored session without local org storage", async () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -656,13 +697,26 @@ describe("portal auth client", () => {
         },
       }),
     );
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/logout")) {
+        return new Response(JSON.stringify(buildEnvelope({ signed_out: true })), {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
+        });
+      }
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
     const client = createPortalAuthClient({
-      fetchImpl: vi.fn(async () => new Response("Not Found", { status: 404 })) as typeof fetch,
+      fetchImpl,
       runtimeConfig,
     });
 
     await client.signOut();
 
     expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
+    expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]?.credentials).toBe("include");
   });
 });

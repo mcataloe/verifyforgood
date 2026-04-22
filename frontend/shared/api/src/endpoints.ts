@@ -7,6 +7,9 @@ export const authEndpoints = {
   me: defineEndpoint("GET", "/auth/me", {
     name: "authMe",
   }),
+  logout: defineEndpoint("POST", "/auth/logout", {
+    name: "authLogout",
+  }),
   oauthToken: defineEndpoint("POST", "/oauth/token", {
     name: "oauthToken",
   }),

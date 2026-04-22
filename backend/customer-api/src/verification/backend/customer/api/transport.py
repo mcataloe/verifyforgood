@@ -22,6 +22,7 @@ CUSTOMER_API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/auth/register", "/v1/auth/register", ("POST",)),
     ApiRouteSpec("/v1/auth/login", "/v1/auth/login", ("POST",)),
     ApiRouteSpec("/v1/auth/me", "/v1/auth/me", ("GET",)),
+    ApiRouteSpec("/v1/auth/logout", "/v1/auth/logout", ("POST",)),
     ApiRouteSpec("/v1/invitations/accept", "/v1/invitations/accept", ("POST",)),
     ApiRouteSpec("/v1/nonprofit/{ein}", "/v1/nonprofit/{ein}", ("GET",)),
     ApiRouteSpec("/v1/nonprofit/{ein}/filings", "/v1/nonprofit/{ein}/filings", ("GET",)),

@@ -35,12 +35,14 @@ export type ApiHeadersProvider<TBody = unknown> = (
 
 export interface ApiClientConfig {
   fetchImpl?: FetchLike;
+  credentials?: RequestCredentials;
   headersProvider?: ApiHeadersProvider;
   runtimeConfig: ApiRuntimeConfig;
 }
 
 export interface ApiRequestOptions<TBody = undefined> {
   body?: TBody;
+  credentials?: RequestCredentials;
   fetchImpl?: FetchLike;
   headers?: HeadersInit;
   headersProvider?: ApiHeadersProvider<TBody>;
@@ -180,6 +182,7 @@ export async function requestEnvelope<
     {
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
+      credentials: options.credentials,
       headers,
       method,
       signal: options.signal,
@@ -274,6 +277,7 @@ function withClientConfig<TBody>(
 ): ApiRequestOptions<TBody> {
   return {
     ...(options ?? {}),
+    credentials: options?.credentials ?? config.credentials,
     fetchImpl: config.fetchImpl,
     headersProvider: config.headersProvider as
       | ApiHeadersProvider<TBody>
