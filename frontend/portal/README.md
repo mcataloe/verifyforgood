@@ -111,13 +111,13 @@ The portal API access area now uses the organization-scoped backend API-key life
 
 The dashboard now includes the first core product interaction for portal users:
 
-- exact EIN lookup through `GET /v1/nonprofit/{ein}`
+- exact EIN detail lookup through `GET /v1/nonprofits/{ein}`
 - name-based listing through `GET /v1/nonprofits/search`
-- filing enrichment display through `GET /v1/nonprofit/{ein}/filings`
+- filing history display through `GET /v1/nonprofit/{ein}/filings`
 
 The current implementation is intentionally data-focused:
 
-- exact EIN searches load a detailed verification result
+- exact EIN searches load an advisory nonprofit detail snapshot
 - name searches return summary results and let the user expand a selected nonprofit into the detailed view
 - loading, empty, and error states are handled in the dashboard UI
 

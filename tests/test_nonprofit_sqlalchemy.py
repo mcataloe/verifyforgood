@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
 from verification_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
 from verification_platform.nonprofits import (
+    NonprofitAdvisoryDetailService,
     ComplianceCheckRecord,
     Form990ArchiveRecord,
     Form990ExtractedFileRecord,
@@ -41,6 +42,8 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
     assert "nonprofit_raw_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
+    assert "nonprofit_detail_snapshots" in table_names
+    assert "nonprofit_advisory_artifacts" in table_names
     assert "form990_archives" in table_names
     assert "form990_extracted_files" in table_names
 
@@ -471,6 +474,7 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
         {
             "ein": "123456789",
             "tax_year": "2024",
+            "tax_period": "202412",
             "return_type": "990",
             "filing_date": "2025-05-15",
             "amended_return": "false",
@@ -481,6 +485,86 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
     assert latest_check is not None
     assert latest_check.status == "pass"
     assert eins == ["123456789"]
+
+
+def test_nonprofit_repository_stores_advisory_snapshots_and_artifacts(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="12-3456789",
+            canonical_name="Advisory Org",
+            normalized_name="advisory org",
+            subsection_code="03",
+            tax_deductible=True,
+            entity_type="Public charity",
+            irs_status="active",
+            state="IL",
+            ntee_category="P20",
+            canonical_source="irs.eo_bmf",
+            source_version="2026.04",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2024,
+            tax_period="202412",
+            form_type="990",
+            filing_date="2025-05-01",
+            amended=False,
+            parse_status="parsed",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_source(
+        NonprofitSourceRecord(
+            nonprofit_source_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            source_id="candid",
+            provider_name="Candid",
+            category="compliance",
+            record_id="candid-1",
+            retrieved_at="2026-04-21T00:00:00+00:00",
+            explanation="Matched and refreshed",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+
+    service = NonprofitAdvisoryDetailService(repository=repository)
+    payload = service.get_detail("123456789")
+    snapshot = repository.get_nonprofit_detail_snapshot("123456789")
+
+    assert payload is not None
+    assert payload["organization"]["name"] == "Advisory Org"
+    assert payload["signals"]["appears_because"]
+    assert snapshot is not None
+    assert snapshot.ein == "123456789"
+    assert snapshot.payload_json["organization"]["name"] == "Advisory Org"
+
+    artifact = service.persist_advisory_artifact(
+        ein="123456789",
+        payload={
+            "organization": {"ein": "12-3456789", "name": "Advisory Org"},
+            "verification": {"irs_status": "active"},
+            "scores": {"overall": 92},
+            "score_explanation": {"model_version": "legacy-score"},
+            "final_recommendation": "approve",
+            "evidence": [{"message": "Parsed successfully."}],
+        },
+    )
+    latest_artifact = repository.get_latest_nonprofit_advisory_artifact("123456789")
+
+    assert artifact is not None
+    assert latest_artifact is not None
+    assert latest_artifact.artifact_type == "nonprofit_advisory_evaluation"
+    assert "scores" not in latest_artifact.payload_json
+    assert "final_recommendation" not in latest_artifact.payload_json
 
 
 def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):

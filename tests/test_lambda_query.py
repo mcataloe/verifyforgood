@@ -3290,6 +3290,62 @@ def test_tenant_search_and_filings_track_route_specific_usage():
     }
 
 
+def test_plural_nonprofit_detail_route_returns_advisory_snapshot_payload():
+    module = _load_module()
+    _install_tenant_auth(module)
+    module.nonprofit_advisory_detail_service = SimpleNamespace(
+        get_detail=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Advisory Route Org"},
+            "overview": {
+                "entity_type": "Public charity",
+                "irs_status": "active",
+                "state": "IL",
+                "subsection": "03",
+                "tax_deductible": True,
+            },
+            "filings": {
+                "count": 1,
+                "latest": {
+                    "return_type": "990",
+                    "tax_year": "2024",
+                    "filing_date": "2025-05-01",
+                    "parse_status": "parsed",
+                    "tax_period": "202412",
+                },
+                "recent_990_on_file": True,
+            },
+            "signals": {
+                "appears_because": ["IRS records show a status of active."],
+                "highlights": ["A recent Form 990 period is on file."],
+                "risk_indicators": [],
+                "data_gaps": [],
+            },
+            "sources": [],
+            "snapshot": {
+                "materialized_at": "2026-04-21T20:00:00+00:00",
+                "renderer_version": "advisory_copilot_detail.v1",
+            },
+        }
+    )
+
+    result = module.handle_api_event(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}",
+            "path": "/v1/nonprofits/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Advisory Route Org"
+    assert "scores" not in body
+    assert "final_recommendation" not in body
+
+
 def test_nonprofits_sources_supported_source_lookup():
     module = _load_module()
     _install_tenant_auth(module)

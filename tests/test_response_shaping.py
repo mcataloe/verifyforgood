@@ -116,8 +116,8 @@ def test_free_plan_shapes_nonprofit_lookup_with_upgrade_hints(monkeypatch):
     response = module.handle_api_event(
         {
             "httpMethod": "GET",
-            "resource": "/v1/nonprofits/{ein}",
-            "path": "/v1/nonprofits/123456789",
+            "resource": "/v1/nonprofit/{ein}",
+            "path": "/v1/nonprofit/123456789",
             "pathParameters": {"ein": "123456789"},
             "headers": {"x-api-key": api_key},
         },
@@ -131,6 +131,42 @@ def test_free_plan_shapes_nonprofit_lookup_with_upgrade_hints(monkeypatch):
     assert "state_compliance" not in payload
     assert payload["upgrade_hints"]["risk_flags"] == "available_on_growth"
     assert payload["upgrade_hints"]["financial_trends"] == "available_on_growth"
+
+
+def test_advisory_detail_route_returns_signal_based_payload(monkeypatch):
+    module, api_key = _load_module(monkeypatch, plan_code="free")
+    module.nonprofit_advisory_detail_service = SimpleNamespace(
+        get_detail=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Signal Org"},
+            "overview": {"irs_status": "active"},
+            "signals": {
+                "appears_because": ["IRS records show a status of active."],
+                "highlights": ["A recent Form 990 period is on file."],
+                "risk_indicators": [],
+                "data_gaps": [],
+            },
+            "sources": [],
+            "snapshot": {"materialized_at": "2026-04-21T20:00:00+00:00"},
+        }
+    )
+
+    response = module.handle_api_event(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}",
+            "path": "/v1/nonprofits/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "headers": {"x-api-key": api_key},
+        },
+        None,
+    )
+    payload = _data(response)
+
+    assert response["statusCode"] == 200
+    assert payload["organization"]["name"] == "Signal Org"
+    assert "scores" not in payload
+    assert "final_recommendation" not in payload
+    assert "upgrade_hints" not in payload
 
 
 def test_growth_plan_includes_risk_and_financial_fields_but_redacts_monitoring(monkeypatch):

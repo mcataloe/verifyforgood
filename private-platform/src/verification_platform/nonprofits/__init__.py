@@ -2,6 +2,8 @@ from .sqlalchemy_models import (
     ComplianceCheckModel,
     Form990ArchiveModel,
     Form990ExtractedFileModel,
+    NonprofitAdvisoryArtifactModel,
+    NonprofitDetailSnapshotModel,
     NonprofitFilingModel,
     NonprofitModel,
     NonprofitRawFilingModel,
@@ -11,12 +13,15 @@ from .sqlalchemy_repository import (
     ComplianceCheckRecord,
     Form990ArchiveRecord,
     Form990ExtractedFileRecord,
+    NonprofitAdvisoryArtifactRecord,
+    NonprofitDetailSnapshotRecord,
     NonprofitFilingRecord,
     NonprofitRecord,
     NonprofitRawFilingRecord,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
 )
+from .advisory_service import NonprofitAdvisoryDetailService
 from .query_client import PostgresNonprofitQueryClient
 from .ingest_persistence import Form990NonprofitPersistenceService, Form990PersistenceStats
 from .eo_bmf_persistence import DEFAULT_EO_BMF_BATCH_SIZE, EoBmfNonprofitPersistenceService, EoBmfPersistenceStats
@@ -32,6 +37,8 @@ __all__ = [
     "ComplianceCheckModel",
     "Form990ArchiveModel",
     "Form990ExtractedFileModel",
+    "NonprofitDetailSnapshotModel",
+    "NonprofitAdvisoryArtifactModel",
     "NonprofitRecord",
     "NonprofitFilingRecord",
     "NonprofitRawFilingRecord",
@@ -39,7 +46,10 @@ __all__ = [
     "ComplianceCheckRecord",
     "Form990ArchiveRecord",
     "Form990ExtractedFileRecord",
+    "NonprofitDetailSnapshotRecord",
+    "NonprofitAdvisoryArtifactRecord",
     "SqlAlchemyNonprofitRepository",
+    "NonprofitAdvisoryDetailService",
     "PostgresNonprofitQueryClient",
     "Form990NonprofitPersistenceService",
     "Form990PersistenceStats",

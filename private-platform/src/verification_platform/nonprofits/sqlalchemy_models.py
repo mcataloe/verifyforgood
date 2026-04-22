@@ -329,6 +329,82 @@ class ComplianceCheckModel(CustomerAccountsBase):
     nonprofit: Mapped[NonprofitModel] = relationship(back_populates="compliance_checks")
 
 
+class NonprofitDetailSnapshotModel(CustomerAccountsBase):
+    __tablename__ = "nonprofit_detail_snapshots"
+    __table_args__ = (
+        UniqueConstraint("ein", name="uq_nonprofit_detail_snapshots_ein"),
+        Index("ix_nonprofit_detail_snapshots_nonprofit_id", "nonprofit_id"),
+        Index(
+            "ix_nonprofit_detail_snapshots_materialized_at",
+            "materialized_at",
+        ),
+    )
+
+    snapshot_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
+    nonprofit_id: Mapped[int] = mapped_column(
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
+    )
+    ein: Mapped[str] = mapped_column(String(9), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, nullable=False)
+    source_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    renderer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    materialized_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    build_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class NonprofitAdvisoryArtifactModel(CustomerAccountsBase):
+    __tablename__ = "nonprofit_advisory_artifacts"
+    __table_args__ = (
+        Index(
+            "ix_nonprofit_advisory_artifacts_nonprofit_type_created",
+            "nonprofit_id",
+            "artifact_type",
+            "created_at",
+        ),
+        Index(
+            "ix_nonprofit_advisory_artifacts_ein_type_created",
+            "ein",
+            "artifact_type",
+            "created_at",
+        ),
+    )
+
+    artifact_id: Mapped[int] = mapped_column(
+        BIGINT_PRIMARY_KEY, Identity(start=1), primary_key=True, autoincrement=True
+    )
+    nonprofit_id: Mapped[int] = mapped_column(
+        BIGINT_FOREIGN_KEY, ForeignKey("nonprofits.nonprofit_id"), nullable=False
+    )
+    ein: Mapped[str] = mapped_column(String(9), nullable=False)
+    artifact_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, nullable=False)
+    source_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    renderer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON_VARIANT, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class Form990ArchiveModel(CustomerAccountsBase):
     __tablename__ = "form990_archives"
     __table_args__ = (

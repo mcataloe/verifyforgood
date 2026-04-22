@@ -112,6 +112,9 @@ export const billingEndpoints = {
 } as const;
 
 export const nonprofitEndpoints = {
+  detail: defineEndpoint("GET", "/nonprofits/{ein}", {
+    name: "nonprofitDetail",
+  }),
   filings: defineEndpoint("GET", "/nonprofit/{ein}/filings", {
     name: "nonprofitFilings",
   }),

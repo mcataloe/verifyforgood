@@ -949,3 +949,29 @@ Do not preserve Athena/S3-era Form 990 behavior behind feature flags, backend
 selectors, or compatibility shims. The cutover should converge the repo on one
 authoritative Form 990 architecture.
 
+## TODO-ARCH-102
+
+### Title
+
+Complete the nonprofit customer-surface cutover from score/recommendation
+payloads to advisory copilot semantics.
+
+### Rationale
+
+The portal nonprofit detail route now uses snapshot-backed advisory detail
+payloads and versioned advisory artifacts, but legacy verification and policy
+internals still expose score- and recommendation-oriented fields in older
+customer-visible routes and persisted compatibility shapes.
+
+### Migration Triggers
+
+- retire remaining customer-facing score/recommendation fields from
+  `/v1/nonprofit/{ein}` and related compatibility paths
+- replace score-driven naming in legacy serving/materialization helpers
+- align compliance and evidence payloads with signal/explanation language
+
+### Constraint
+
+Keep internal matching/ranking support implementation-only unless a future
+customer-facing use is explicitly approved.
+

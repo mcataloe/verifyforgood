@@ -16,6 +16,8 @@ from .sqlalchemy_models import (
     ComplianceCheckModel,
     Form990ArchiveModel,
     Form990ExtractedFileModel,
+    NonprofitAdvisoryArtifactModel,
+    NonprofitDetailSnapshotModel,
     NonprofitFilingModel,
     NonprofitModel,
     NonprofitRawFilingModel,
@@ -144,6 +146,38 @@ class ComplianceCheckRecord:
 
 
 @dataclass(frozen=True)
+class NonprofitDetailSnapshotRecord:
+    snapshot_id: int | None
+    nonprofit_id: int
+    ein: str
+    payload_json: dict[str, Any]
+    source_hash: str
+    schema_version: str
+    renderer_version: str
+    materialized_at: str
+    expires_at: str | None = None
+    build_status: str = "succeeded"
+    last_error: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass(frozen=True)
+class NonprofitAdvisoryArtifactRecord:
+    artifact_id: int | None
+    nonprofit_id: int
+    ein: str
+    artifact_type: str
+    payload_json: dict[str, Any]
+    source_hash: str | None = None
+    schema_version: str = ""
+    renderer_version: str = ""
+    build_status: str = "succeeded"
+    error_json: dict[str, Any] | None = None
+    created_at: str = ""
+
+
+@dataclass(frozen=True)
 class Form990ArchiveRecord:
     archive_id: int | None
     source_url: str
@@ -229,6 +263,36 @@ class SqlAlchemyNonprofitRepository:
                 .limit(1)
             ).mappings().first()
             return None if row is None else _snapshot_row(dict(row))
+
+    def get_nonprofit_detail_snapshot(self, ein: str) -> NonprofitDetailSnapshotRecord | None:
+        with nonprofit_session_scope(self._session_factory) as session:
+            model = session.scalar(
+                select(NonprofitDetailSnapshotModel)
+                .where(NonprofitDetailSnapshotModel.ein == _normalize_ein(ein))
+                .limit(1)
+            )
+            return None if model is None else _detail_snapshot_record(model)
+
+    def upsert_nonprofit_detail_snapshot(
+        self,
+        record: NonprofitDetailSnapshotRecord,
+    ) -> NonprofitDetailSnapshotRecord:
+        with nonprofit_session_scope(self._session_factory) as session:
+            normalized_record = _normalized_detail_snapshot_record(record)
+            _execute_upsert(
+                session,
+                NonprofitDetailSnapshotModel,
+                values=_detail_snapshot_values(normalized_record),
+                conflict_columns=["ein"],
+                update_values=_detail_snapshot_update_values(normalized_record),
+            )
+            model = session.scalar(
+                select(NonprofitDetailSnapshotModel)
+                .where(NonprofitDetailSnapshotModel.ein == normalized_record.ein)
+                .limit(1)
+            )
+            assert model is not None
+            return _detail_snapshot_record(model)
 
     def upsert_filing(self, record: NonprofitFilingRecord) -> NonprofitFilingRecord:
         with nonprofit_session_scope(self._session_factory) as session:
@@ -354,6 +418,7 @@ class SqlAlchemyNonprofitRepository:
                 select(
                     NonprofitModel.ein,
                     NonprofitFilingModel.tax_year,
+                    NonprofitFilingModel.tax_period,
                     NonprofitFilingModel.form_type,
                     NonprofitFilingModel.filing_date,
                     NonprofitFilingModel.amended,
@@ -523,6 +588,38 @@ class SqlAlchemyNonprofitRepository:
             session.add(model)
             session.flush()
             return _check_record(model)
+
+    def create_nonprofit_advisory_artifact(
+        self,
+        record: NonprofitAdvisoryArtifactRecord,
+    ) -> NonprofitAdvisoryArtifactRecord:
+        with nonprofit_session_scope(self._session_factory) as session:
+            model = _advisory_artifact_model(record)
+            session.add(model)
+            session.flush()
+            return _advisory_artifact_record(model)
+
+    def get_latest_nonprofit_advisory_artifact(
+        self,
+        ein: str,
+        *,
+        artifact_type: str | None = None,
+    ) -> NonprofitAdvisoryArtifactRecord | None:
+        with nonprofit_session_scope(self._session_factory) as session:
+            statement = (
+                select(NonprofitAdvisoryArtifactModel)
+                .where(NonprofitAdvisoryArtifactModel.ein == _normalize_ein(ein))
+                .order_by(
+                    desc(NonprofitAdvisoryArtifactModel.created_at),
+                    desc(NonprofitAdvisoryArtifactModel.artifact_id),
+                )
+            )
+            if artifact_type:
+                statement = statement.where(
+                    NonprofitAdvisoryArtifactModel.artifact_type == artifact_type
+                )
+            model = session.scalar(statement.limit(1))
+            return None if model is None else _advisory_artifact_record(model)
 
     def latest_compliance_check(
         self,
@@ -854,6 +951,7 @@ def _filing_query_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "ein": row.get("ein"),
         "tax_year": None if row.get("tax_year") is None else str(row.get("tax_year")),
+        "tax_period": row.get("tax_period"),
         "return_type": row.get("form_type"),
         "filing_date": _format_date(row.get("filing_date")),
         "amended_return": _query_bool_string(row.get("amended")),
@@ -1209,6 +1307,76 @@ def _check_record(model: ComplianceCheckModel) -> ComplianceCheckRecord:
     )
 
 
+def _detail_snapshot_model(record: NonprofitDetailSnapshotRecord) -> NonprofitDetailSnapshotModel:
+    normalized = _normalized_detail_snapshot_record(record)
+    return NonprofitDetailSnapshotModel(
+        snapshot_id=normalized.snapshot_id,
+        nonprofit_id=normalized.nonprofit_id,
+        ein=normalized.ein,
+        payload_json=normalized.payload_json,
+        source_hash=normalized.source_hash,
+        schema_version=normalized.schema_version,
+        renderer_version=normalized.renderer_version,
+        materialized_at=_parse_timestamp(normalized.materialized_at) or datetime.now(timezone.utc),
+        expires_at=_parse_timestamp(normalized.expires_at),
+        build_status=normalized.build_status,
+        last_error=normalized.last_error,
+        created_at=_parse_timestamp(normalized.created_at) or datetime.now(timezone.utc),
+        updated_at=_parse_timestamp(normalized.updated_at) or datetime.now(timezone.utc),
+    )
+
+
+def _detail_snapshot_record(model: NonprofitDetailSnapshotModel) -> NonprofitDetailSnapshotRecord:
+    return NonprofitDetailSnapshotRecord(
+        snapshot_id=model.snapshot_id,
+        nonprofit_id=model.nonprofit_id,
+        ein=model.ein,
+        payload_json=dict(model.payload_json or {}),
+        source_hash=model.source_hash,
+        schema_version=model.schema_version,
+        renderer_version=model.renderer_version,
+        materialized_at=_format_timestamp(model.materialized_at) or "",
+        expires_at=_format_timestamp(model.expires_at),
+        build_status=model.build_status,
+        last_error=model.last_error,
+        created_at=_format_timestamp(model.created_at) or "",
+        updated_at=_format_timestamp(model.updated_at) or "",
+    )
+
+
+def _advisory_artifact_model(record: NonprofitAdvisoryArtifactRecord) -> NonprofitAdvisoryArtifactModel:
+    normalized = _normalized_advisory_artifact_record(record)
+    return NonprofitAdvisoryArtifactModel(
+        artifact_id=normalized.artifact_id,
+        nonprofit_id=normalized.nonprofit_id,
+        ein=normalized.ein,
+        artifact_type=normalized.artifact_type,
+        payload_json=normalized.payload_json,
+        source_hash=normalized.source_hash,
+        schema_version=normalized.schema_version,
+        renderer_version=normalized.renderer_version,
+        build_status=normalized.build_status,
+        error_json=normalized.error_json,
+        created_at=_parse_timestamp(normalized.created_at) or datetime.now(timezone.utc),
+    )
+
+
+def _advisory_artifact_record(model: NonprofitAdvisoryArtifactModel) -> NonprofitAdvisoryArtifactRecord:
+    return NonprofitAdvisoryArtifactRecord(
+        artifact_id=model.artifact_id,
+        nonprofit_id=model.nonprofit_id,
+        ein=model.ein,
+        artifact_type=model.artifact_type,
+        payload_json=dict(model.payload_json or {}),
+        source_hash=model.source_hash,
+        schema_version=model.schema_version,
+        renderer_version=model.renderer_version,
+        build_status=model.build_status,
+        error_json=dict(model.error_json or {}) if isinstance(model.error_json, dict) else None,
+        created_at=_format_timestamp(model.created_at) or "",
+    )
+
+
 def _archive_model(record: Form990ArchiveRecord) -> Form990ArchiveModel:
     return Form990ArchiveModel(
         archive_id=record.archive_id,
@@ -1448,6 +1616,42 @@ def _normalized_raw_filing_record(record: NonprofitRawFilingRecord) -> Nonprofit
     )
 
 
+def _normalized_detail_snapshot_record(record: NonprofitDetailSnapshotRecord) -> NonprofitDetailSnapshotRecord:
+    now = datetime.now(timezone.utc)
+    return NonprofitDetailSnapshotRecord(
+        snapshot_id=record.snapshot_id,
+        nonprofit_id=record.nonprofit_id,
+        ein=_normalize_ein(record.ein),
+        payload_json=dict(record.payload_json or {}),
+        source_hash=_normalize_optional_text(record.source_hash) or "",
+        schema_version=_normalize_optional_text(record.schema_version) or "",
+        renderer_version=_normalize_optional_text(record.renderer_version) or "",
+        materialized_at=_format_timestamp(_parse_timestamp(record.materialized_at) or now) or "",
+        expires_at=_format_timestamp(_parse_timestamp(record.expires_at)),
+        build_status=_normalize_optional_text(record.build_status) or "succeeded",
+        last_error=_normalize_optional_text(record.last_error),
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or now) or "",
+        updated_at=_format_timestamp(_parse_timestamp(record.updated_at) or now) or "",
+    )
+
+
+def _normalized_advisory_artifact_record(record: NonprofitAdvisoryArtifactRecord) -> NonprofitAdvisoryArtifactRecord:
+    now = datetime.now(timezone.utc)
+    return NonprofitAdvisoryArtifactRecord(
+        artifact_id=record.artifact_id,
+        nonprofit_id=record.nonprofit_id,
+        ein=_normalize_ein(record.ein),
+        artifact_type=_normalize_optional_text(record.artifact_type) or "",
+        payload_json=dict(record.payload_json or {}),
+        source_hash=_normalize_optional_text(record.source_hash),
+        schema_version=_normalize_optional_text(record.schema_version) or "",
+        renderer_version=_normalize_optional_text(record.renderer_version) or "",
+        build_status=_normalize_optional_text(record.build_status) or "succeeded",
+        error_json=record.error_json,
+        created_at=_format_timestamp(_parse_timestamp(record.created_at) or now) or "",
+    )
+
+
 def _normalized_archive_record(record: Form990ArchiveRecord) -> Form990ArchiveRecord:
     return Form990ArchiveRecord(
         archive_id=record.archive_id,
@@ -1612,6 +1816,51 @@ def _raw_filing_update_values(record: NonprofitRawFilingRecord) -> dict[str, Any
     values = _raw_filing_values(record)
     values.pop("raw_filing_id", None)
     values.pop("created_at", None)
+    return values
+
+
+def _detail_snapshot_values(record: NonprofitDetailSnapshotRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "nonprofit_id": record.nonprofit_id,
+        "ein": record.ein,
+        "payload_json": record.payload_json,
+        "source_hash": record.source_hash,
+        "schema_version": record.schema_version,
+        "renderer_version": record.renderer_version,
+        "materialized_at": _parse_timestamp(record.materialized_at) or datetime.now(timezone.utc),
+        "expires_at": _parse_timestamp(record.expires_at),
+        "build_status": record.build_status,
+        "last_error": record.last_error,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+        "updated_at": _parse_timestamp(record.updated_at) or datetime.now(timezone.utc),
+    }
+    if record.snapshot_id is not None:
+        values["snapshot_id"] = record.snapshot_id
+    return values
+
+
+def _detail_snapshot_update_values(record: NonprofitDetailSnapshotRecord) -> dict[str, Any]:
+    values = _detail_snapshot_values(record)
+    values.pop("snapshot_id", None)
+    values.pop("created_at", None)
+    return values
+
+
+def _advisory_artifact_values(record: NonprofitAdvisoryArtifactRecord) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "nonprofit_id": record.nonprofit_id,
+        "ein": record.ein,
+        "artifact_type": record.artifact_type,
+        "payload_json": record.payload_json,
+        "source_hash": record.source_hash,
+        "schema_version": record.schema_version,
+        "renderer_version": record.renderer_version,
+        "build_status": record.build_status,
+        "error_json": record.error_json,
+        "created_at": _parse_timestamp(record.created_at) or datetime.now(timezone.utc),
+    }
+    if record.artifact_id is not None:
+        values["artifact_id"] = record.artifact_id
     return values
 
 

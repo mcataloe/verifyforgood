@@ -111,6 +111,7 @@ from verification.query.source_views import (
 from verification.scoring import SCORING_MODEL_VERSION
 from verification.serving.materializer import materialize_profile_item
 from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
+from verification_platform.nonprofits import NonprofitAdvisoryDetailService
 from verification_platform.customer_accounts import (
     ApiKeyCreateRequest,
     ApiKeyManagementError,
@@ -147,6 +148,7 @@ from verification_platform.customer_accounts import (
 from verification_platform.runtime import (
     CustomerAccountsRepositories,
     build_customer_accounts_repositories,
+    build_nonprofit_postgres_repository,
     build_nonprofit_query_client,
 )
 from verification_platform.identity_access import (
@@ -251,6 +253,9 @@ portal_support_service: OrganizationSupportService | None = None
 support_ticket_email_delivery: SupportTicketEmailDelivery | None = None
 portal_customer_accounts_repositories: CustomerAccountsRepositories | None = None
 nonprofit_service: NonprofitService | None = None
+nonprofit_advisory_detail_service: NonprofitAdvisoryDetailService | None = None
+nonprofit_postgres_repository: Any | None = None
+athena_client: Any | None = None
 nonprofit_query_client: QueryRepository | Any | None = None
 logger = logging.getLogger(__name__)
 LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=logger)
@@ -320,10 +325,47 @@ def _get_enrichment_service() -> EnrichmentProviderGateway:
 
 
 def _get_nonprofit_query_client() -> QueryRepository:
-    global nonprofit_query_client
+    global athena_client, nonprofit_query_client
+    if nonprofit_query_client is not None:
+        return nonprofit_query_client
+    if _env_bool("PLATFORM_POSTGRES_ENABLED"):
+        try:
+            nonprofit_query_client = build_nonprofit_query_client(env=_nonprofit_runtime_env())
+            return nonprofit_query_client
+        except Exception:
+            if athena_client is None:
+                raise
+    if athena_client is not None:
+        nonprofit_query_client = athena_client
+        return nonprofit_query_client
     if nonprofit_query_client is None:
         nonprofit_query_client = build_nonprofit_query_client(env=os.environ)
     return nonprofit_query_client
+
+
+def _get_nonprofit_postgres_repository():
+    global nonprofit_postgres_repository
+    if nonprofit_postgres_repository is None:
+        nonprofit_postgres_repository = build_nonprofit_postgres_repository(env=_nonprofit_runtime_env())
+    return nonprofit_postgres_repository
+
+
+def _nonprofit_runtime_env() -> dict[str, str]:
+    source = dict(os.environ)
+    general_postgres_url = str(source.get("PLATFORM_POSTGRES_URL") or "").strip()
+    compatibility_mode = _env_bool("PLATFORM_POSTGRES_ENABLED") and (
+        not str(source.get("PLATFORM_NONPROFIT_STORE_BACKEND") or "").strip()
+        or general_postgres_url.startswith("sqlite+")
+    )
+    if compatibility_mode:
+        source["PLATFORM_NONPROFIT_STORE_BACKEND"] = "postgres"
+        for suffix in ("ENABLED", "HOST", "PORT", "DATABASE", "SSLMODE", "SECRET_ARN", "URL"):
+            general_key = f"PLATFORM_POSTGRES_{suffix}"
+            nonprofit_key = f"PLATFORM_NONPROFIT_POSTGRES_{suffix}"
+            value = source.get(general_key)
+            if value is not None:
+                source[nonprofit_key] = value
+    return source
 
 
 def _get_nonprofit_service() -> NonprofitService:
@@ -335,6 +377,18 @@ def _get_nonprofit_service() -> NonprofitService:
             feature_flag_service=_get_portal_feature_flag_service(),
         )
     return nonprofit_service
+
+
+def _get_nonprofit_advisory_detail_service() -> NonprofitAdvisoryDetailService | None:
+    global nonprofit_advisory_detail_service
+    if nonprofit_advisory_detail_service is None:
+        repository = _get_nonprofit_postgres_repository()
+        if repository is None:
+            return None
+        nonprofit_advisory_detail_service = NonprofitAdvisoryDetailService(
+            repository=repository,
+        )
+    return nonprofit_advisory_detail_service
 
 
 def _get_profile_store() -> ProfileStoreAdapter | None:
@@ -2068,6 +2122,27 @@ def handle_api_event(event, context=None):
             _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
             return response
 
+        if _is_advisory_detail_request(event, method):
+            detail_service = _get_nonprofit_advisory_detail_service()
+            if detail_service is None:
+                response = fail(503, "Nonprofit advisory detail service is unavailable")
+                _get_quota_metering_hook().on_response(auth_context, route_key, 503)
+                return response
+            payload = detail_service.get_detail(normalized_ein)
+            status_code = 200 if payload is not None else 404
+            if payload is None:
+                payload = {"message": "Nonprofit detail not found"}
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+
         if method == "GET":
             cached = _load_cached_profile(normalized_ein)
             if cached is not None and _cached_profile_is_current(cached):
@@ -2113,6 +2188,7 @@ def handle_api_event(event, context=None):
             )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
             _materialize_profile(normalized_ein, payload)
+            _persist_advisory_artifact(normalized_ein, payload)
         _record_nonprofit_access_audit_event(
             event=event,
             route_key=route_key,
@@ -2245,6 +2321,27 @@ def _is_filings_request(event: dict, method: str) -> bool:
         return False
     resource, path = _route_paths(event)
     return resource.endswith("/filings") or path.endswith("/filings")
+
+
+def _is_advisory_detail_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    if candidate.endswith("/nonprofits/{ein}") or candidate.endswith("/nonprofits/{ein}/"):
+        return True
+    if "/nonprofits/" not in path:
+        return False
+    return not any(
+        (
+            path.endswith("/sources"),
+            "/sources/" in path,
+            path.endswith("/compliance"),
+            path.endswith("/federal-awards"),
+            path.endswith("/filings"),
+            path.endswith("/search"),
+        )
+    )
 
 
 def _is_search_request(event: dict, method: str) -> bool:
@@ -3580,6 +3677,22 @@ def _materialize_profile(ein: str, payload: dict) -> None:
         source_data_versions={},
     )
     store.put_profile(item)
+
+
+def _persist_advisory_artifact(ein: str, payload: dict[str, Any]) -> None:
+    try:
+        service = _get_nonprofit_advisory_detail_service()
+        if service is None:
+            return
+        service.persist_advisory_artifact(ein=ein, payload=payload)
+    except Exception as exc:  # noqa: BLE001
+        log_exception(
+            logger,
+            "nonprofit_advisory_artifact_persist_failed",
+            exc,
+            env=os.environ,
+            ein=ein,
+        )
 
 def _load_boto3():
     try:

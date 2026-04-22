@@ -74,6 +74,11 @@ describe("NonprofitSearchPanel", () => {
   it("renders a dedicated detail view with breadcrumb navigation", () => {
     const controller = buildController({
       detail: {
+        appearsBecause: ["IRS records show a status of active."],
+        complianceCheckType: "state_compliance",
+        complianceCheckedAt: "2026-04-21T20:00:00+00:00",
+        complianceStatus: "pass",
+        dataGaps: [],
         ein: "12-3456789",
         entityType: "public_charity",
         filingDate: "2025-05-01",
@@ -81,22 +86,28 @@ describe("NonprofitSearchPanel", () => {
         filingParseStatus: "parsed",
         filingTaxYear: "2024",
         filingsCount: 1,
+        highlights: ["A recent Form 990 period is on file."],
         irsStatus: "active",
-        modelSource: "irs.eo_bmf",
-        modelVersion: "1.0.0",
+        modelSource: "nonprofit_detail_snapshot",
+        modelVersion: "advisory_copilot_detail.v1",
         name: "Helping Hands Foundation",
         nteeCategory: "Human services",
-        queryExecutionId: "qry_123",
+        queryExecutionId: "hash_123",
         recent990OnFile: "true",
-        state: "IL",
-        sourceAvailability: [
+        riskIndicators: [],
+        snapshotMaterializedAt: "2026-04-21T20:00:00+00:00",
+        sourceSummaries: [
           {
-            attempted: false,
-            integrationId: "candid",
-            label: "Candid",
-            status: "tenant_disabled",
+            category: "compliance",
+            explanation: "Matched and refreshed",
+            providerName: "Candid",
+            retrievedAt: "2026-04-21T19:00:00+00:00",
+            sourceName: "candid",
+            status: "matched",
+            validAsOf: "2026-04-21T19:00:00+00:00",
           },
         ],
+        state: "IL",
         subsection: "03",
         taxDeductible: "yes",
         taxPeriod: "202412",
@@ -114,7 +125,7 @@ describe("NonprofitSearchPanel", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Search results" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Search results" })).toBeNull();
-    expect(screen.getByText("Not enabled for your organization")).toBeTruthy();
+    expect(screen.getByText("Matched and refreshed")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Search results" }));
     expect(controller.closeDetail).toHaveBeenCalledOnce();

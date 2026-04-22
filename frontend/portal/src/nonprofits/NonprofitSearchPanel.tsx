@@ -312,15 +312,6 @@ export function NonprofitSearchPanel({
         </>
       ) : null}
 
-      {search.detail ? (
-        <>
-          <SectionDivider />
-          <SectionBlock>
-            <PortalNonprofitDetailView detail={search.detail} />
-          </SectionBlock>
-        </>
-      ) : null}
-
       {search.recentSearches.length > 0 ? (
         <>
           <SectionDivider />

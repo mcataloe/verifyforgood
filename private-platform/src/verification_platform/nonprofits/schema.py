@@ -9,6 +9,8 @@ from .sqlalchemy_models import (
     ComplianceCheckModel,
     Form990ArchiveModel,
     Form990ExtractedFileModel,
+    NonprofitAdvisoryArtifactModel,
+    NonprofitDetailSnapshotModel,
     NonprofitFilingModel,
     NonprofitModel,
     NonprofitRawFilingModel,
@@ -22,6 +24,8 @@ NONPROFIT_TABLES = (
     NonprofitRawFilingModel.__table__,
     NonprofitSourceModel.__table__,
     ComplianceCheckModel.__table__,
+    NonprofitDetailSnapshotModel.__table__,
+    NonprofitAdvisoryArtifactModel.__table__,
     Form990ArchiveModel.__table__,
     Form990ExtractedFileModel.__table__,
 )
