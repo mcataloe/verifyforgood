@@ -22,6 +22,14 @@ BIGINT_FOREIGN_KEY = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 
 
 def upgrade() -> None:
+    op.alter_column(
+        "alembic_version_nonprofit",
+        "version_num",
+        existing_type=sa.String(length=32),
+        type_=sa.String(length=128),
+        existing_nullable=False,
+    )
+
     op.create_table(
         "nonprofit_detail_snapshots",
         sa.Column("snapshot_id", BIGINT_PRIMARY_KEY, sa.Identity(start=1), primary_key=True, nullable=False),
