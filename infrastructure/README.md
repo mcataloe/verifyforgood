@@ -186,6 +186,8 @@ GitLab CI/CD rollout baseline:
 
 - `.gitlab-ci.yml` builds `backend/api`, `backend/worker`, and
   `backend/ingest-task`
+- the old `infra-deployment/` scaffold boundary has been absorbed into this
+  infrastructure layer
 - runtime images publish to the managed ECR repositories exposed by Terraform
   outputs
 - image versioning should use immutable commit-SHA tags, not `latest`

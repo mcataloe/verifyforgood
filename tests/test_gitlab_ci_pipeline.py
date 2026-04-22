@@ -48,7 +48,6 @@ def test_docs_describe_gitlab_pipeline_commit_sha_rollout_and_ingest_compatibili
     readme = Path("README.md").read_text(encoding="utf-8")
     infra_readme = Path("infrastructure/README.md").read_text(encoding="utf-8")
     backend_readme = Path("backend/README.md").read_text(encoding="utf-8")
-    infra_deployment_readme = Path("infra-deployment/README.md").read_text(encoding="utf-8")
 
     assert "`.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline" in readme
     assert "immutable commit-SHA tags" in readme
@@ -64,7 +63,6 @@ def test_docs_describe_gitlab_pipeline_commit_sha_rollout_and_ingest_compatibili
     assert "CI publish" in infra_readme
 
     assert "GitLab CI now builds all three backend runtime images" in backend_readme
-    assert "`.gitlab-ci.yml`" in infra_deployment_readme
 
 
 def test_example_tfvars_stop_recommending_latest_image_tags_and_include_worker_controls():
