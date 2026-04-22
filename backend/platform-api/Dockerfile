@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/platform-api/src:/app/backend/shared/src
+ENV PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/platform-api/src:/app/backend/shared/src:/app/backend/ingest/federal/src:/app/backend/ingest/state/src:/app/backend/ingest/shared/src
 
 WORKDIR /app
 
@@ -15,6 +15,9 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
 COPY backend/customer-api/src /app/backend/customer-api/src
 COPY backend/platform-api/src /app/backend/platform-api/src
 COPY backend/shared/src /app/backend/shared/src
+COPY backend/ingest/federal/src /app/backend/ingest/federal/src
+COPY backend/ingest/state/src /app/backend/ingest/state/src
+COPY backend/ingest/shared/src /app/backend/ingest/shared/src
 
 EXPOSE 8000
 

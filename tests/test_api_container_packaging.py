@@ -25,16 +25,26 @@ def test_api_dockerfile_uses_asgi_entrypoint():
     assert legacy_source_root not in dockerfile
     assert "backend/customer-api/src" in dockerfile
     assert "backend/shared/src" in dockerfile
+    assert "backend/ingest/federal/src" in dockerfile
+    assert "backend/ingest/state/src" in dockerfile
+    assert "backend/ingest/shared/src" in dockerfile
+    assert (
+        "PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/shared/src:/app/backend/ingest/federal/src:/app/backend/ingest/state/src:/app/backend/ingest/shared/src"
+        in dockerfile
+    )
     assert "COPY infrastructure /app/infrastructure" not in dockerfile
 
     assert (
-        "PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/platform-api/src:/app/backend/shared/src"
+        "PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/platform-api/src:/app/backend/shared/src:/app/backend/ingest/federal/src:/app/backend/ingest/state/src:/app/backend/ingest/shared/src"
         in platform_dockerfile
     )
     assert "verification.backend.platform.api.app:app" in platform_dockerfile
     assert "backend/platform-api/src" in platform_dockerfile
     assert "backend/customer-api/src" in platform_dockerfile
     assert "backend/shared/src" in platform_dockerfile
+    assert "backend/ingest/federal/src" in platform_dockerfile
+    assert "backend/ingest/state/src" in platform_dockerfile
+    assert "backend/ingest/shared/src" in platform_dockerfile
     assert "COPY infrastructure /app/infrastructure" not in platform_dockerfile
 
 

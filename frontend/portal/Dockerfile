@@ -17,7 +17,7 @@ COPY shared/types/package.json ./shared/types/package.json
 COPY shared/ui/package.json ./shared/ui/package.json
 COPY shared/utils/package.json ./shared/utils/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prod=false
 
 COPY . .
 

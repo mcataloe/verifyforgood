@@ -33,9 +33,9 @@ services:
     env_file:
       - backend/.env.local
     environment:
-      PLATFORM_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform
-      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit
-      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query
+      PLATFORM_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_platform
+      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_nonprofit
+      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_nonprofit_query
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -48,9 +48,9 @@ services:
     env_file:
       - backend/.env.local
     environment:
-      PLATFORM_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform
-      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit
-      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query
+      PLATFORM_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_platform
+      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_nonprofit
+      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://verifyforgood_admin:password@host.docker.internal:5432/verification_nonprofit_query
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

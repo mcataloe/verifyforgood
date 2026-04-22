@@ -516,7 +516,7 @@ function buildAudienceNavigationSections(
               key: "customer-admin-workspace",
               label: "Organization",
               helpText:
-                "Day-to-day home, search, and team areas for your organization.",
+                "Day-to-day home and search areas for your organization.",
               children: [
                 navigationItem(
                   routeByKey,
@@ -541,6 +541,14 @@ function buildAudienceNavigationSections(
                     }),
                   },
                 ),
+              ],
+            },
+            {
+              key: "customer-admin-account",
+              label: "Account",
+              helpText:
+                "Commercial, API, and settings controls for account owners.",
+              children: [
                 navigationItem(
                   routeByKey,
                   "team",
@@ -550,14 +558,6 @@ function buildAudienceNavigationSections(
                     helpText: "Team access and organization details.",
                   },
                 ),
-              ],
-            },
-            {
-              key: "customer-admin-account",
-              label: "Account",
-              helpText:
-                "Commercial, API, and settings controls for account owners.",
-              children: [
                 navigationItem(
                   routeByKey,
                   "billing",
