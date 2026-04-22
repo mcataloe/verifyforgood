@@ -37,8 +37,10 @@ These remain placeholder-first, but the IA is deliberate and keeps public conten
 ## Running the marketing app
 
 Before running the marketing app locally, copy `.env.example` to `.env.local`
-or `.env.development.local` in this package and point `VITE_API_BASE_URL` at
-the AWS dev API host.
+or `.env.development.local` in this package and point:
+
+- `VITE_API_BASE_URL` at the customer API host
+- `VITE_PLATFORM_BASE_URL` at the platform app host
 
 With the current Terraform defaults and custom domain enabled, the dev API host
 is expected to be:
@@ -58,6 +60,19 @@ current dev defaults include `http://localhost:5174` and
 The public pricing page depends on the backend-authored:
 
 - `GET /v1/plans`
+- platform/login handoff now uses `VITE_PLATFORM_BASE_URL` so the public site
+  can redirect into the dedicated platform runtime instead of rendering a
+  same-app placeholder
+
+Docker container build:
+
+```powershell
+docker build -f frontend/marketing/Dockerfile frontend
+```
+
+Local compose host:
+
+- `http://localhost:5174`
 
 From the workspace root:
 

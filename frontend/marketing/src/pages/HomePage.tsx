@@ -11,10 +11,15 @@ import type { MarketingEndpoints } from "../app/marketingEndpoints";
 
 interface HomePageProps {
   endpoints: MarketingEndpoints;
+  platformLoginUrl: string;
   runtimeConfig: FrontendRuntimeConfig;
 }
 
-export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
+export function HomePage({
+  endpoints,
+  platformLoginUrl,
+  runtimeConfig,
+}: HomePageProps) {
   return (
     <div className="marketing-page-stack">
       <HeroSection
@@ -23,7 +28,7 @@ export function HomePage({ endpoints, runtimeConfig }: HomePageProps) {
             <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/product">
               Explore product
             </a>
-            <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/login">
+            <a className="marketing-shell__cta marketing-shell__cta--secondary" href={platformLoginUrl}>
               Portal login
             </a>
           </>

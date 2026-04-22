@@ -5,12 +5,14 @@ from pathlib import Path
 
 def test_backend_runtime_dockerfiles_exist():
     assert Path("backend/api/Dockerfile").exists()
+    assert Path("backend/platform-api/Dockerfile").exists()
     assert Path("backend/worker/Dockerfile").exists()
     assert Path("backend/ingest-task/Dockerfile").exists()
 
 
 def test_api_dockerfile_uses_asgi_entrypoint():
     dockerfile = Path("backend/api/Dockerfile").read_text(encoding="utf-8")
+    platform_dockerfile = Path("backend/platform-api/Dockerfile").read_text(encoding="utf-8")
     legacy_source_root = "/app/" + "private-" + "platform/src"
 
     assert (
@@ -23,6 +25,15 @@ def test_api_dockerfile_uses_asgi_entrypoint():
     assert legacy_source_root not in dockerfile
     assert "backend/api/src" in dockerfile
     assert "backend/shared/src" in dockerfile
+
+    assert (
+        "PYTHONPATH=/app:/app/infrastructure:/app/backend/api/src:/app/backend/platform-api/src:/app/backend/shared/src"
+        in platform_dockerfile
+    )
+    assert "verification_backend.platform_api.app:app" in platform_dockerfile
+    assert "backend/platform-api/src" in platform_dockerfile
+    assert "backend/api/src" in platform_dockerfile
+    assert "backend/shared/src" in platform_dockerfile
 
 
 def test_worker_and_ingest_dockerfiles_use_backend_runtime_entrypoints():

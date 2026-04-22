@@ -1,0 +1,57 @@
+services:
+  marketing:
+    build:
+      context: ./frontend
+      dockerfile: marketing/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5621
+        VITE_API_VERSION: v1
+        VITE_APP_ENVIRONMENT: development
+        VITE_PLATFORM_BASE_URL: http://localhost:3953
+    ports:
+      - "5174:80"
+    depends_on:
+      - api
+
+  platform:
+    build:
+      context: ./frontend
+      dockerfile: portal/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5621
+        VITE_API_VERSION: v1
+        VITE_APP_ENVIRONMENT: development
+    ports:
+      - "3953:80"
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/api/Dockerfile
+    env_file:
+      - backend/.env.local
+    environment:
+      PLATFORM_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform
+      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit
+      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5621:8000"
+
+  platformapi:
+    build:
+      context: .
+      dockerfile: backend/platform-api/Dockerfile
+    env_file:
+      - backend/.env.local
+    environment:
+      PLATFORM_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform
+      PLATFORM_NONPROFIT_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit
+      PLATFORM_NONPROFIT_QUERY_POSTGRES_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5622:8000"

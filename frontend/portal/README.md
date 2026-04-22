@@ -1,5 +1,9 @@
 # Portal App Shell
 
+This package remains the checked-in source tree under `frontend/portal/`, but
+it is the externally named platform app surface in the local container
+contract.
+
 This package is the starting point for the authenticated customer portal.
 
 ## Current structure
@@ -179,9 +183,9 @@ When choosing a layout pattern:
 
 ## Running the portal
 
-Before running the portal locally, copy `.env.example` to `.env.local` or
-`.env.development.local` in this package and point `VITE_API_BASE_URL` at the
-AWS dev API Gateway host.
+Before running the platform app locally, copy `.env.example` to `.env.local`
+or `.env.development.local` in this package and point `VITE_API_BASE_URL` at
+the customer-facing API host.
 
 With the current Terraform defaults and custom domain enabled, the dev API host
 is expected to be:
@@ -220,6 +224,17 @@ pnpm run test
 pnpm run typecheck
 pnpm run build
 ```
+
+Docker container build:
+
+```powershell
+docker build -f frontend/portal/Dockerfile frontend
+```
+
+Local compose host:
+
+- `http://localhost:3953`
+- canonical hostname target `platform.verifyforgood.com`
 
 ## Extending the portal
 

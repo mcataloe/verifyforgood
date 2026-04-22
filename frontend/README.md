@@ -27,6 +27,7 @@ Frontend-facing naming should prefer VerifyForGood and purpose-based terminology
   - public-facing marketing site shell
 - `portal/`
   - authenticated customer portal shell
+  - current source tree for the externally named platform app surface
 - `shared/`
   - reusable frontend code and documented shared boundaries
 - `docs/`
@@ -83,10 +84,10 @@ Pricing-plan display follows the same rule:
 
 Local browser runtime config should also stay explicit per app:
 
-- `marketing/.env.example` points local marketing dev at the AWS dev API and
-  assumes `http://localhost:5174`
-- `portal/.env.example` points local portal dev at the AWS dev API and assumes
-  `http://localhost:3953`
+- `marketing/.env.example` points local marketing dev at the customer API and
+  platform app and assumes `http://localhost:5174`
+- `portal/.env.example` points local platform dev at the customer API and
+  assumes `http://localhost:3953`
 - if browser-based local apps call the AWS dev API directly, Terraform
   `cors_allowed_origins` must allowlist those local origins
 
@@ -114,6 +115,27 @@ pnpm run dev:docs
 pnpm run dev:marketing
 pnpm run dev:portal
 ```
+
+Docker container workflow:
+
+```powershell
+docker compose up --build marketing platform api platformapi
+```
+
+Local container service map:
+
+- `marketing`
+  - host `http://localhost:5174`
+  - canonical hostname target `www.verifyforgood.com`
+- `platform`
+  - host `http://localhost:3953`
+  - canonical hostname target `platform.verifyforgood.com`
+- `api`
+  - host `http://localhost:5621`
+  - canonical hostname target `api.verifyforgood.com`
+- `platformapi`
+  - host `http://localhost:5622`
+  - canonical hostname target `platformapi.verifyforgood.com`
 
 Per-package scripts mirror the same baseline where runtime behavior exists:
 

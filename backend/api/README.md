@@ -36,13 +36,14 @@ Container build/run:
 
 ```powershell
 docker build -f backend/api/Dockerfile .
-docker run -p 5621:5621 --env-file backend/.env.local <api-image>
+docker run -p 5621:8000 --env-file backend/.env.local <api-image>
 ```
 
 Container contract:
 
 - long-lived HTTP service
-- listens on port `5621` with the checked-in local env contract
+- container listens on port `8000`
+- local Docker and compose examples expose it on host port `5621`
 - starts with `uvicorn verification_backend.api.app:app`
 
 Local backend API development should use the shared backend-local env contract:

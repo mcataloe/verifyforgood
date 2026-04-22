@@ -6,12 +6,14 @@ Current role:
 
 - define where long-lived backend runtimes live
 - provide a first-class Python workspace for backend runtime development
-- document ownership boundaries for API, worker, ingest-task, and shared runtime concerns
+- document ownership boundaries for API, platform-api, worker, ingest-task, and shared runtime concerns
 
 Target subdirectories:
 
 - `backend/api/`
   - API server runtime host, ASGI bootstrap, request composition, health/readiness ownership
+- `backend/platform-api/`
+  - platform/control-plane API runtime host for admin, ops, webhook, and machine-auth routes
 - `backend/worker/`
   - non-HTTP worker runtimes such as refresh jobs and future background workers
 - `backend/ingest-task/`
@@ -24,6 +26,7 @@ Python workspace layout:
 - `backend/pyproject.toml`
   - single setuptools project for backend runtime scaffolding
 - `backend/api/src/verification_backend/api/`
+- `backend/platform-api/src/verification_backend/platform_api/`
 - `backend/worker/src/verification_backend/worker/`
 - `backend/ingest-task/src/verification_backend/ingest_task/`
 - `backend/shared/src/verification_backend/shared/`
@@ -95,6 +98,12 @@ API local run:
 python -m verification_backend.api.entrypoint
 ```
 
+Platform API local run:
+
+```powershell
+python -m verification_backend.platform_api.entrypoint
+```
+
 VS Code fallback debug path:
 
 ```powershell
@@ -111,14 +120,38 @@ Container build contracts:
 
 ```powershell
 docker build -f backend/api/Dockerfile .
+docker build -f backend/platform-api/Dockerfile .
 docker build -f backend/worker/Dockerfile .
 docker build -f backend/ingest-task/Dockerfile .
 ```
 
+Local compose contract:
+
+```powershell
+docker compose up --build marketing platform api platformapi
+```
+
+Local service map:
+
+- `marketing`
+  - host `http://localhost:5174`
+  - canonical hostname target `www.verifyforgood.com`
+- `platform`
+  - host `http://localhost:3953`
+  - canonical hostname target `platform.verifyforgood.com`
+- `api`
+  - host `http://localhost:5621`
+  - canonical hostname target `api.verifyforgood.com`
+- `platformapi`
+  - host `http://localhost:5622`
+  - canonical hostname target `platformapi.verifyforgood.com`
+
 Runtime mapping:
 
 - `backend/api/Dockerfile`
-  - ECS-aligned long-lived API service image
+  - customer-facing API service image
+- `backend/platform-api/Dockerfile`
+  - platform/control-plane API service image
 - `backend/worker/Dockerfile`
   - ECS-aligned long-lived worker service image
   - provisionable ECS service slot retained as a neutral future worker host
@@ -156,6 +189,65 @@ The ECS parity path now uses `ecs-run`, which reuses the same orchestration
 core as local `run` and accepts env aliases such as `WORKSPACE_PATH`,
 `STRICT_MODE`, `MAX_ARCHIVES`, `LOG_LEVEL`, and `DATABASE_URL`.
 
+Manual ingest-task Docker runs:
+
+```powershell
+docker build -f backend/ingest-task/Dockerfile -t verification-ingest-task .
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --archive-url https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_01A.zip --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_SOURCE_MODE=irs_page `
+  -e FORM990_IRS_DOWNLOADS_PAGE_URL=https://www.irs.gov/charities-non-profits/form-990-series-downloads `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --limit 1 --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e EOBMF_WORKSPACE_DIR=/tmp/charity-status/eo_bmf `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\eo_bmf:/tmp/charity-status/eo_bmf" `
+  verification-ingest-task `
+  run-eo-bmf --strict
+```
+
+Containerized backend task runs must not use `localhost` database URLs. Inside
+the container, override PostgreSQL hosts to `host.docker.internal`.
+
 Migration/source-of-truth note:
 
 - `python -m verification_backend.shared.local_dev db-upgrade` is the
@@ -179,7 +271,7 @@ Container notes:
 
 - use the repo root as the Docker build context
 - keep image ownership in `backend/`, not `infrastructure/`
-- GitLab CI now builds all three backend runtime images and publishes them to
+- GitLab CI now builds the three existing backend runtime images and publishes them to
   the Terraform-managed ECR repositories using commit-SHA tags
 - the ingest-task image defaults to `monthly-worker`
 

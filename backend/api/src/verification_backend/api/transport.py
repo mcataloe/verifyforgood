@@ -18,7 +18,7 @@ class ApiRouteSpec:
     methods: tuple[str, ...]
 
 
-API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
+CUSTOMER_API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/auth/register", "/v1/auth/register", ("POST",)),
     ApiRouteSpec("/v1/auth/login", "/v1/auth/login", ("POST",)),
     ApiRouteSpec("/v1/auth/me", "/v1/auth/me", ("GET",)),
@@ -33,8 +33,6 @@ API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/nonprofits/{ein}/federal-awards", "/v1/nonprofits/{ein}/federal-awards", ("GET",)),
     ApiRouteSpec("/v1/verify", "/v1/verify", ("POST",)),
     ApiRouteSpec("/v1/verify/batch", "/v1/verify/batch", ("POST",)),
-    ApiRouteSpec("/v1/oauth/token", "/v1/oauth/token", ("POST",)),
-    ApiRouteSpec("/v1/webhooks/stripe", "/v1/webhooks/stripe", ("POST",)),
     ApiRouteSpec("/v1/plans", "/v1/plans", ("GET",)),
     ApiRouteSpec("/v1/organizations", "/v1/organizations", ("POST",)),
     ApiRouteSpec("/v1/organizations/current", "/v1/organizations/current", ("DELETE",)),
@@ -53,6 +51,11 @@ API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/organization/billing/plan-change", "/v1/organization/billing/plan-change", ("POST",)),
     ApiRouteSpec("/v1/organization/billing/portal-session", "/v1/organization/billing/portal-session", ("POST",)),
     ApiRouteSpec("/v1/organization/billing/subscription", "/v1/organization/billing/subscription", ("GET",)),
+)
+
+PLATFORM_API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
+    ApiRouteSpec("/v1/oauth/token", "/v1/oauth/token", ("POST",)),
+    ApiRouteSpec("/v1/webhooks/stripe", "/v1/webhooks/stripe", ("POST",)),
     ApiRouteSpec("/v1/admin/accounts", "/v1/admin/accounts", ("GET", "POST")),
     ApiRouteSpec("/v1/admin/accounts/{accountId}", "/v1/admin/accounts/{accountId}", ("GET", "PATCH")),
     ApiRouteSpec("/v1/admin/accounts/{accountId}/subscription", "/v1/admin/accounts/{accountId}/subscription", ("GET", "PUT")),
@@ -73,6 +76,9 @@ API_ROUTE_SPECS: tuple[ApiRouteSpec, ...] = (
     ApiRouteSpec("/v1/ops/refresh/runs/{refresh_run_id}/eins", "/v1/ops/refresh/runs/{refresh_run_id}/eins", ("GET",)),
     ApiRouteSpec("/v1/ops/nonprofits/{ein}/pipeline-status", "/v1/ops/nonprofits/{ein}/pipeline-status", ("GET",)),
 )
+
+API_ROUTE_SPECS = CUSTOMER_API_ROUTE_SPECS
+ALL_API_ROUTE_SPECS = CUSTOMER_API_ROUTE_SPECS + PLATFORM_API_ROUTE_SPECS
 
 
 def build_backend_request(
@@ -122,6 +128,9 @@ def runtime_response_to_http(response: dict[str, Any]) -> Response:
 __all__ = [
     "ApiRouteSpec",
     "API_ROUTE_SPECS",
+    "ALL_API_ROUTE_SPECS",
+    "CUSTOMER_API_ROUTE_SPECS",
+    "PLATFORM_API_ROUTE_SPECS",
     "build_backend_request",
     "runtime_response_to_http",
 ]

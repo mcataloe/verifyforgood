@@ -22,6 +22,7 @@ classifiers = [
 packages = [
   "ingest_task",
   "verification_backend.api",
+  "verification_backend.platform_api",
   "verification_backend.worker",
   "verification_backend.ingest_task",
   "verification_backend.ingest_task.form990",
@@ -32,6 +33,7 @@ packages = [
 [tool.setuptools.package-dir]
 "ingest_task" = "ingest-task/src/ingest_task"
 "verification_backend.api" = "api/src/verification_backend/api"
+"verification_backend.platform_api" = "platform-api/src/verification_backend/platform_api"
 "verification_backend.worker" = "worker/src/verification_backend/worker"
 "verification_backend.ingest_task" = "ingest-task/src/verification_backend/ingest_task"
 "verification_backend.ingest_task.form990" = "ingest-task/src/verification_backend/ingest_task/form990"

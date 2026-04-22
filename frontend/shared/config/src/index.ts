@@ -8,6 +8,7 @@ export interface SharedEnvSource {
   VITE_API_BASE_URL?: string;
   VITE_API_VERSION?: string;
   VITE_APP_ENVIRONMENT?: string;
+  VITE_PLATFORM_BASE_URL?: string;
 }
 
 const DEFAULT_API_VERSION = "v1";
@@ -55,5 +56,6 @@ export function readRuntimeConfig(
     ),
     apiBaseUrl: normalizeBaseUrl(source.VITE_API_BASE_URL),
     apiVersion: normalizeApiVersion(source.VITE_API_VERSION),
+    platformBaseUrl: normalizeBaseUrl(source.VITE_PLATFORM_BASE_URL),
   };
 }

@@ -54,6 +54,66 @@ docker run --env-file backend/.env.local <ingest-image> run --archive-url https:
 docker run --env-file backend/.env.local <ingest-image> monthly-worker
 ```
 
+Manual Docker runs with host-provided PostgreSQL:
+
+```powershell
+docker build -f backend/ingest-task/Dockerfile -t verification-ingest-task .
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --archive-url https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_01A.zip --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_SOURCE_MODE=irs_page `
+  -e FORM990_IRS_DOWNLOADS_PAGE_URL=https://www.irs.gov/charities-non-profits/form-990-series-downloads `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-ingest-task `
+  run --limit 1 --strict
+```
+
+```powershell
+docker run --rm `
+  --env-file backend/.env.local `
+  -e PLATFORM_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_platform `
+  -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
+  -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
+  -e EOBMF_WORKSPACE_DIR=/tmp/charity-status/eo_bmf `
+  -v "${PWD}\\backend\\ingest-task\\.workspace\\eo_bmf:/tmp/charity-status/eo_bmf" `
+  verification-ingest-task `
+  run-eo-bmf --strict
+```
+
+Containerized ingest runs must not use `localhost` for PostgreSQL. Override
+database hosts to `host.docker.internal` so the container can reach the
+host-provided databases.
+
 Container contract:
 
 - canonical ECS-aligned task image for ingest runtimes

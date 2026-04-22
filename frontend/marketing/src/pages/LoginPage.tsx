@@ -1,12 +1,16 @@
 import { CallToAction, FeatureGrid } from "@charity-status/shared-ui";
 
-export function LoginPage() {
+export function LoginPage({
+  platformLoginUrl,
+}: {
+  platformLoginUrl: string;
+}) {
   return (
     <div className="marketing-page-stack">
       <CallToAction
         actions={
           <>
-            <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/login">
+            <a className="marketing-shell__cta marketing-shell__cta--primary" href={platformLoginUrl}>
               Continue to portal
             </a>
             <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/contact">
@@ -28,7 +32,7 @@ export function LoginPage() {
           {
             title: "Protected workflows stay in the portal",
             description:
-              "Organization review, onboarding, API access, and billing remain inside the dedicated authenticated surface.",
+              "Organization review, onboarding, API access, and billing remain inside the dedicated platform surface.",
           },
         ]}
       />
