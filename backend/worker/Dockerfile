@@ -14,5 +14,5 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
 COPY backend/worker/src /app/backend/worker/src
 COPY backend/shared/src /app/backend/shared/src
 
-CMD ["python", "-m", "verification_backend.worker.entrypoint"]
+CMD ["python", "-m", "verification.backend.worker.entrypoint"]
 

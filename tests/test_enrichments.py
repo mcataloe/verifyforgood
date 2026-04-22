@@ -1,8 +1,8 @@
-﻿from verification.enrichments.base import EnrichmentProvider, ProviderError
-from verification.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
-from verification.enrichments.providers import MockProvider
-from verification.enrichments.registry import ProviderRegistry
-from verification.enrichments.service import EnrichmentService
+﻿from verification.backend.shared.enrichments.base import EnrichmentProvider, ProviderError
+from verification.backend.shared.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
+from verification.backend.shared.enrichments.providers import MockProvider
+from verification.backend.shared.enrichments.registry import ProviderRegistry
+from verification.backend.shared.enrichments.service import EnrichmentService
 
 
 class FailingProvider(EnrichmentProvider):

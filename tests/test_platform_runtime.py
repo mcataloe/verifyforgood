@@ -1,5 +1,5 @@
-from verification.enrichments import EvaluationContext, TenantIntegrationSetting
-from verification.platform.runtime import RefreshRuntimeConfig, build_enrichment_service
+from verification.backend.shared.enrichments import EvaluationContext, TenantIntegrationSetting
+from verification.backend.shared.platform.runtime import RefreshRuntimeConfig, build_enrichment_service
 
 
 def test_build_enrichment_service_from_runtime_config():

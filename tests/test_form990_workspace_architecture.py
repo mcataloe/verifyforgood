@@ -5,13 +5,13 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND_INGEST_SRC = ROOT / "backend" / "ingest-task" / "src"
+BACKEND_INGEST_SRC = ROOT / "backend" / "ingest" / "federal" / "src"
 
 if str(BACKEND_INGEST_SRC) not in sys.path:
     sys.path.insert(0, str(BACKEND_INGEST_SRC))
 
-from verification_backend.ingest_task.hashing import sha256_digest_file
-from verification_backend.ingest_task.orchestration.workspace import (
+from verification.backend.ingest.federal.hashing import sha256_digest_file
+from verification.backend.ingest.federal.orchestration.workspace import (
     DEFAULT_FORM990_WORKSPACE_MAX_BYTES,
     build_workspace_layout,
     resolve_workspace_root,

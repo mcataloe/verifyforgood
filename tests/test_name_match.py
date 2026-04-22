@@ -1,4 +1,4 @@
-﻿from infrastructure.verification.normalization.name_match import compare_names
+﻿from infrastructure.verification.backend.shared.normalization.name_match import compare_names
 
 
 def test_compare_names_true_with_suffix_normalization():

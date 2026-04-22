@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -19,7 +19,7 @@ from verification_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationService,
 )
-from verification_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
+from verification.backend.shared.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
 
 
 def _seed_bootstrapped_org(table: FakeIdentityDynamoTable, *, admin_email: str = "admin@example.com"):
@@ -196,7 +196,7 @@ def test_role_update_behavior_and_duplicate_membership_prevention():
 
 
 def test_post_membership_routes_and_accept_endpoint(monkeypatch):
-    import verification_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification.backend.shared.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -205,8 +205,8 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_membership_service = None

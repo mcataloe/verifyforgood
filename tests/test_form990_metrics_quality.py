@@ -1,7 +1,7 @@
 ﻿from datetime import date
 
-from infrastructure.verification.form990.metrics import compute_derived_metrics
-from infrastructure.verification.form990.quality import compute_filing_quality
+from infrastructure.verification.backend.ingest.federal.form990.metrics import compute_derived_metrics
+from infrastructure.verification.backend.ingest.federal.form990.quality import compute_filing_quality
 
 
 def test_compute_derived_metrics_nominal_case():

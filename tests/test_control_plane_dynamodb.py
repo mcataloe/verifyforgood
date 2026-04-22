@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from verification.auth import build_admin_key_record, build_api_key_record
-from verification.auth.errors import QuotaExceededError
-from verification.auth.oauth import authenticate_oauth_client_credentials
-from verification.auth.service import authenticate_api_key, enforce_quota_and_scope
-from verification.control_plane import (
+from verification.backend.shared.auth import build_admin_key_record, build_api_key_record
+from verification.backend.shared.auth.errors import QuotaExceededError
+from verification.backend.shared.auth.oauth import authenticate_oauth_client_credentials
+from verification.backend.shared.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.backend.shared.control_plane import (
     Account,
     ControlPlaneService,
     DynamoControlPlaneStore,
@@ -23,10 +23,10 @@ from verification.control_plane import (
     ManagedSubscription,
     ManagedTrialHistory,
 )
-from verification.control_plane.sqlalchemy_store import ControlPlaneBase
-from verification.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from verification.enrichments.organization_settings_stores import OrganizationSettingsBase
-from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
+from verification.backend.shared.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.backend.shared.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.backend.shared.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
 
 
 class _BillingSettingsResolver:
@@ -277,8 +277,8 @@ def _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path: Path):
 
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.API_AUTH_ENABLED = True
     module.OAUTH_M2M_ENABLED = str(os.environ.get("OAUTH_M2M_ENABLED", "false")).lower() == "true"
     module.API_KEY_RECORDS_JSON = str(os.environ.get("API_KEY_RECORDS_JSON", "[]"))

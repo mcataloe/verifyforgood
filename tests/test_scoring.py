@@ -1,4 +1,4 @@
-﻿from infrastructure.verification.scoring.calculator import SCORING_MODEL_VERSION, calculate_v1_scores
+﻿from infrastructure.verification.backend.shared.scoring.calculator import SCORING_MODEL_VERSION, calculate_v1_scores
 import pytest
 
 

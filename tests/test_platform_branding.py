@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from verification.branding import default_runtime_user_agent, load_branding_config
-from verification.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
-from verification.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
-from verification.state_registry.adapters.colorado.client import ColoradoRegistryClient
+from verification.backend.shared.branding import default_runtime_user_agent, load_branding_config
+from verification.backend.shared.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
+from verification.backend.shared.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
+from verification.backend.ingest.state.adapters.colorado.client import ColoradoRegistryClient
 
 
 def test_load_branding_config_defaults_to_capability_based_names():
@@ -83,14 +83,14 @@ def test_state_registry_clients_default_to_neutral_runtime_user_agent():
 
 def test_runtime_source_files_no_longer_embed_legacy_brand_identifier():
     files = [
-        "infrastructure/verification/billing/checkout.py",
-        "infrastructure/verification/state_registry/adapters/colorado/client.py",
-        "infrastructure/verification/state_registry/adapters/kentucky/client.py",
-        "infrastructure/verification/state_registry/adapters/nevada/client.py",
-        "infrastructure/verification/state_registry/adapters/new_york/client.py",
-        "infrastructure/verification/state_registry/adapters/ohio/client.py",
-        "infrastructure/verification/state_registry/adapters/south_dakota/client.py",
-        "infrastructure/verification/state_registry/adapters/utah/client.py",
+        "backend/shared/src/verification/backend/shared/billing/checkout.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/colorado/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/kentucky/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/nevada/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/new_york/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/ohio/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/south_dakota/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/utah/client.py",
     ]
 
     for relative_path in files:

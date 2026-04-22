@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -20,7 +20,7 @@ from verification_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     DynamoApiKeyRepository,
     DynamoAuditLogRepository,
     DynamoMembershipRepository,
@@ -29,7 +29,7 @@ from verification_platform.customer_accounts import (
     DynamoSubscriptionRepository,
     DynamoUserRepository,
 )
-from verification_platform.runtime import run_customer_accounts_migration
+from verification.backend.shared.runtime import run_customer_accounts_migration
 
 
 def _sqlite_url(tmp_path: Path, name: str) -> str:

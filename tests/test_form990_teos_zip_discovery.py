@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from infrastructure.verification.form990.teos_zip_discovery import discover_teos_zip_links, parse_teos_zip_links
+from infrastructure.verification.backend.ingest.federal.form990.teos_zip_discovery import discover_teos_zip_links, parse_teos_zip_links
 
 
 def test_parse_teos_zip_links_filters_to_target_year_and_normalizes_absolute_urls():

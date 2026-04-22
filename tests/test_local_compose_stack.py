@@ -10,7 +10,7 @@ def test_local_docker_compose_defines_only_the_expected_services():
     assert "platform:" in compose
     assert "api:" in compose
     assert "platformapi:" in compose
-    assert "ingest-task:" not in compose
+    assert "federal-ingest:" not in compose
 
 
 def test_local_docker_compose_uses_expected_ports_and_host_database_overrides():

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from urllib.error import HTTPError
 
-from infrastructure.verification.form990.teos_zip_probe import probe_teos_zip_metadata, should_download_teos_zip
+from infrastructure.verification.backend.ingest.federal.form990.teos_zip_probe import probe_teos_zip_metadata, should_download_teos_zip
 
 
 @dataclass(frozen=True)

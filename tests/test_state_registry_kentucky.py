@@ -2,16 +2,16 @@
 
 from pathlib import Path
 
-from verification.state_registry import (
+from verification.backend.ingest.state import (
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
     StateRegistryLookupRequest,
     StateRegistryLookupService,
     StateRegistryStanding,
 )
-from verification.state_registry.adapters import KentuckyBusinessRegistryAdapter
-from verification.state_registry.adapters.kentucky.mapper import map_kentucky_company_record
-from verification.state_registry.adapters.kentucky.parser import kentucky_external_entity_id, parse_kentucky_companies_tsv
+from verification.backend.ingest.state.adapters import KentuckyBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters.kentucky.mapper import map_kentucky_company_record
+from verification.backend.ingest.state.adapters.kentucky.parser import kentucky_external_entity_id, parse_kentucky_companies_tsv
 
 
 FIXTURE_DIR = Path("tests/fixtures/state_registry/kentucky")

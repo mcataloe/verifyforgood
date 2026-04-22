@@ -19,23 +19,17 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = [
-  "ingest_task",
-  "verification_backend.api",
-  "verification_backend.platform_api",
-  "verification_backend.worker",
-  "verification_backend.ingest_task",
-  "verification_backend.ingest_task.form990",
-  "verification_backend.ingest_task.monthly",
-  "verification_backend.shared",
-]
+include-package-data = true
 
-[tool.setuptools.package-dir]
-"ingest_task" = "ingest-task/src/ingest_task"
-"verification_backend.api" = "api/src/verification_backend/api"
-"verification_backend.platform_api" = "platform-api/src/verification_backend/platform_api"
-"verification_backend.worker" = "worker/src/verification_backend/worker"
-"verification_backend.ingest_task" = "ingest-task/src/verification_backend/ingest_task"
-"verification_backend.ingest_task.form990" = "ingest-task/src/verification_backend/ingest_task/form990"
-"verification_backend.ingest_task.monthly" = "ingest-task/src/verification_backend/ingest_task/monthly"
-"verification_backend.shared" = "shared/src/verification_backend/shared"
+[tool.setuptools.packages.find]
+where = [
+  "customer-api/src",
+  "platform-api/src",
+  "worker/src",
+  "shared/src",
+  "ingest/federal/src",
+  "ingest/state/src",
+  "ingest/shared/src",
+]
+include = ["verification*"]
+namespaces = true

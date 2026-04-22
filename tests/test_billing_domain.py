@@ -2,14 +2,14 @@
 
 from datetime import datetime, timezone
 
-from verification.billing import (
+from verification.backend.shared.billing import (
     DEFAULT_ENTITLEMENTS,
     EntitlementService,
     Subscription,
     build_plan_catalog_payload,
 )
-from verification.billing.trials import TrialConfig
-from verification.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
+from verification.backend.shared.billing.trials import TrialConfig
+from verification.backend.shared.billing.service import check_feature_entitlement, check_quota_and_calculate, monthly_period_for, quota_period_state
 
 
 def test_plan_entitlements():

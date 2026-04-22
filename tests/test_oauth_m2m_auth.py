@@ -5,10 +5,10 @@ import json
 import sys
 from types import SimpleNamespace
 
-from verification.auth import InMemoryUsageStore, build_api_key_record, build_oauth_client_record, build_oauth_token_record
-from verification.auth.errors import AuthenticationError
-from verification.auth.oauth import StaticOAuthClientStore, StaticOAuthTokenStore, authenticate_bearer_token, authenticate_oauth_client_credentials
-from verification.platform.auth import OAuthClientCredentialsService
+from verification.backend.shared.auth import InMemoryUsageStore, build_api_key_record, build_oauth_client_record, build_oauth_token_record
+from verification.backend.shared.auth.errors import AuthenticationError
+from verification.backend.shared.auth.oauth import StaticOAuthClientStore, StaticOAuthTokenStore, authenticate_bearer_token, authenticate_oauth_client_credentials
+from verification.backend.shared.platform.auth import OAuthClientCredentialsService
 
 
 def _query_stub():
@@ -126,8 +126,8 @@ def test_scope_enforcement_for_oauth(monkeypatch):
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", json.dumps([record.__dict__]))
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
@@ -159,8 +159,8 @@ def test_oauth_token_endpoint_returns_access_token(monkeypatch):
     monkeypatch.setenv("API_KEY_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([client_record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
 
     response = module.handle_api_event(
         {
@@ -202,8 +202,8 @@ def test_coexistence_api_key_and_oauth(monkeypatch):
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([key_record.__dict__]))
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", json.dumps([oauth_client_record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.athena_client = _query_stub()
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))

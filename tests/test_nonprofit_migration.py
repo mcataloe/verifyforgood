@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from verification_platform.nonprofits import SqlAlchemyNonprofitRepository
-from verification_platform.runtime import run_nonprofit_migration
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification.backend.shared.nonprofits import SqlAlchemyNonprofitRepository
+from verification.backend.shared.runtime import run_nonprofit_migration
 
 
 class _FakeQueryClient:

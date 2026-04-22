@@ -1,7 +1,7 @@
 ﻿# Form 990 Local-first Workspace Architecture
 
 This document defines the local-first runtime model for Form 990 ingestion in
-`backend/ingest-task`.
+`backend/ingest/federal`.
 
 The goal is to keep runtime behavior executable on a developer machine with the
 same archive lifecycle assumptions that later map to ECS task containers.
@@ -47,7 +47,7 @@ Meaning:
   - archive-scoped processing markers, manifests, and resumable local state
 
 The backend-owned helper for this contract lives in
-`verification_backend.ingest_task.orchestration.workspace`.
+`verification.backend.ingest.federal.orchestration.workspace`.
 
 ## Runtime Module Map
 
@@ -66,7 +66,7 @@ Canonical backend-owned module seams:
   - archive and artifact fingerprints for idempotency and integrity checks
   - deterministic XML content hashes used to skip unchanged extracted files
 - `parse/`
-  - XML parsing seams layered over reusable `verification.form990` logic
+  - XML parsing seams layered over reusable `verification.backend.ingest.federal.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence and write-facing adapters
   - PostgreSQL-backed archive metadata and extracted-file hash state
@@ -86,9 +86,9 @@ relocation.
 
 Current live logic now routes through:
 
-- `backend/ingest-task/src/verification_backend/ingest_task/monthly/worker.py`
-- `backend/ingest-task/src/verification_backend/ingest_task/persistence.py`
-- `infrastructure/verification/form990/`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/monthly/worker.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/persistence.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/`
 
 New runtime work should keep moving responsibilities into the workspace-oriented
 seams instead of reintroducing Lambda/S3-era runtime hosts.
@@ -112,7 +112,7 @@ Local development:
 - local runs use the same `archives/`, `extracted/`, `logs/`, and `state/`
   structure
 - VS Code or direct CLI debugging should target
-  `python -m verification_backend.ingest_task.entrypoint`
+  `python -m verification.backend.ingest.federal.cli run`
 
 Container and ECS mapping:
 

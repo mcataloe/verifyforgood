@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from time import time
 
-from verification.billing.webhooks import (
+from verification.backend.shared.billing.webhooks import (
     BillingWebhookSignatureError,
     StripeWebhookConfig,
     StripeWebhookService,
@@ -14,8 +14,8 @@ from verification.billing.webhooks import (
     load_stripe_webhook_config,
     verify_and_parse_stripe_event,
 )
-from verification.billing.trials import TrialConfig, TrialLifecycleService
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.billing.trials import TrialConfig, TrialLifecycleService
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 class _PlanCatalogProvider:

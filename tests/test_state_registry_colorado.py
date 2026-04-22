@@ -3,16 +3,16 @@
 import json
 from pathlib import Path
 
-from verification.state_registry import (
+from verification.backend.ingest.state import (
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
     StateRegistryLookupRequest,
     StateRegistryLookupService,
     StateRegistryStanding,
 )
-from verification.state_registry.adapters import ColoradoBusinessRegistryAdapter
-from verification.state_registry.adapters.colorado.client import ColoradoRegistryClient
-from verification.state_registry.adapters.colorado.mapper import map_colorado_record
+from verification.backend.ingest.state.adapters import ColoradoBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters.colorado.client import ColoradoRegistryClient
+from verification.backend.ingest.state.adapters.colorado.mapper import map_colorado_record
 
 
 FIXTURE_DIR = Path("tests/fixtures/state_registry/colorado")

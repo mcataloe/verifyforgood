@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from infrastructure.verification.form990 import monthly_processing
-from infrastructure.verification.form990.monthly_processing import (
+from infrastructure.verification.backend.ingest.federal.form990 import monthly_processing
+from infrastructure.verification.backend.ingest.federal.form990.monthly_processing import (
     MonthlyIngestMalformedArchiveError,
     MonthlyIngestSourceObject,
     MonthlyIngestSourceObjectNotFoundError,
@@ -198,11 +198,11 @@ def test_worker_processes_staged_zip_without_s3_artifacts(monkeypatch):
     archive_bytes = _make_zip(("folder/obj-1.xml", _valid_xml()))
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._download_source_archive",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._probe_archive_metadata",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,
@@ -230,7 +230,7 @@ def test_worker_raises_for_malformed_zip():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._download_source_archive",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
@@ -242,7 +242,7 @@ def test_worker_raises_for_malformed_zip():
 def test_worker_raises_for_missing_source_object():
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._download_source_archive",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: (_ for _ in ()).throw(MonthlyIngestSourceObjectNotFoundError(f"source archive not found at {source_url}")),
     )
 
@@ -256,7 +256,7 @@ def test_worker_fails_when_zip_contains_no_processable_xml_members():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._download_source_archive",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
@@ -268,7 +268,7 @@ def test_worker_fails_when_zip_contains_no_processable_xml_members():
 def test_worker_skips_archive_when_head_metadata_is_unchanged(monkeypatch):
     metadata_service = FakeArchiveMetadataService(skip_archive=True)
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._probe_archive_metadata",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,
@@ -304,11 +304,11 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._download_source_archive",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
     monkeypatch.setattr(
-        "infrastructure.verification.form990.monthly_processing._probe_archive_metadata",
+        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,

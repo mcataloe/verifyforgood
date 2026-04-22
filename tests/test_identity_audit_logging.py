@@ -2,7 +2,7 @@
 
 import logging
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     AuditEventType,
     AuditLogService,
     DynamoAuditLogRepository,
@@ -18,7 +18,7 @@ from verification_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationService,
 )
-from verification_platform.identity_access import (
+from verification.backend.shared.identity_access import (
     AuthService,
     BcryptPasswordHasher,
     HmacBearerTokenCodec,

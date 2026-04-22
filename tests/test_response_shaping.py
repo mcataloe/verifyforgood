@@ -5,8 +5,8 @@ import json
 import sys
 from types import SimpleNamespace
 
-from verification.auth import InMemoryUsageStore, build_api_key_record
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.auth import InMemoryUsageStore, build_api_key_record
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 def _query_stub():
@@ -71,8 +71,8 @@ def _load_module(monkeypatch, *, plan_code: str):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     monkeypatch.setenv("OAUTH_M2M_ENABLED", "false")
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     module.auth_context_provider = SimpleNamespace(

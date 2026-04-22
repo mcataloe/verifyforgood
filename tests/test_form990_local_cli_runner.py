@@ -8,10 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from verification.form990 import monthly_processing
-from verification.form990.monthly_processing import MonthlyIngestSourceObject, process_form990_archive
-from verification.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, build_source_artifact
-from verification_backend.ingest_task import local_runner
+from verification.backend.ingest.federal.form990 import monthly_processing
+from verification.backend.ingest.federal.form990.monthly_processing import MonthlyIngestSourceObject, process_form990_archive
+from verification.backend.ingest.federal.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, build_source_artifact
+from verification.backend.ingest.federal import local_runner
 
 
 class FakeS3:

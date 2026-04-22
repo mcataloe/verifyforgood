@@ -8,19 +8,19 @@ from decimal import Decimal
 from time import time
 from types import SimpleNamespace
 
-from verification.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
-from verification.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
-from verification.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
-from verification.billing.models import Subscription
-from verification.billing.plan_changes import BillingPlanChangeService
-from verification.billing.portal import BillingPortalService, PortalSessionResult
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from verification.control_plane.models import ManagedSubscription
-from verification.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from verification.platform.auth import ApiKeyQuotaMeteringHook
-from verification.scoring import SCORING_MODEL_VERSION
-from verification.core.models import AuthContext
-from verification_platform.customer_accounts import (
+from verification.backend.shared.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
+from verification.backend.shared.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
+from verification.backend.shared.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from verification.backend.shared.billing.models import Subscription
+from verification.backend.shared.billing.plan_changes import BillingPlanChangeService
+from verification.backend.shared.billing.portal import BillingPortalService, PortalSessionResult
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.control_plane.models import ManagedSubscription
+from verification.backend.shared.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.backend.shared.platform.auth import ApiKeyQuotaMeteringHook
+from verification.backend.shared.scoring import SCORING_MODEL_VERSION
+from verification.backend.shared.core.models import AuthContext
+from verification.backend.shared.customer_accounts import (
     AuditEventType,
     AuditLogService,
     AuditRecord,
@@ -50,7 +50,7 @@ from verification_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from verification_platform.nonprofits import (
+from verification.backend.shared.nonprofits import (
     NonprofitFilingRecord,
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
@@ -141,10 +141,10 @@ def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None
 
 
 def _load_module():
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api", None)
-    return importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    return importlib.import_module("verification.backend.customer.api.runtime")
 
 
 def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organization_id="org_1"):
@@ -171,10 +171,10 @@ def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organizat
 def _load_admin_module(monkeypatch):
     admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api", None)
-    return importlib.import_module("verification_backend.api.runtime"), admin_key
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    return importlib.import_module("verification.backend.customer.api.runtime"), admin_key
 
 
 def _sample_record(name="Test Org", status="1"):

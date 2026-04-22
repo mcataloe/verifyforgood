@@ -2,7 +2,7 @@
 
 import json
 
-from verification.api import DeprecationMetadata, build_response_context, error_response, json_response
+from verification.backend.shared.api import DeprecationMetadata, build_response_context, error_response, json_response
 
 
 def test_json_response_wraps_payload_with_standard_envelope():

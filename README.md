@@ -62,7 +62,7 @@ Three naming layers still matter:
   - customer-facing labels such as `VerifyForGood`
   - use only where customers or external systems see the name
 - capability / domain naming:
-  - preferred internal naming such as `verification_platform`, `organization_verification`, and `monthly_ingest`
+  - preferred internal naming such as `verification.backend.platform`, `organization_verification`, and `monthly_ingest`
   - use for new modules, workflow labels, service boundaries, and internal docs
 - deployment naming:
   - Terraform, AWS resources, and bootstrap state names that may remain pinned until a separate migration updates them deliberately
@@ -81,7 +81,7 @@ How these layers should be interpreted:
 - `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
 - `backend/` now uses a dedicated Python workspace scaffold rooted at `backend/pyproject.toml`
 - `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and deploy-time shims only
-- runtime packages now live under `infrastructure/verification/` and `infrastructure/verification_platform/`
+- runtime packages now live under `backend/*/src/verification/backend/...`
 
 ## AWS Data Flow
 
@@ -278,7 +278,7 @@ CSV reconciliation still runs after raw source persistence for catalog visibilit
 Phase 10G ZIP discovery/reconciliation extension:
 
 - source modes:
-  - `static_manifest` (default): parse the checked-in `infrastructure/verification/form990/Form990Links.txt` manifest
+  - `static_manifest` (default): parse the checked-in `backend/ingest/federal/src/verification/backend/ingest/federal/form990/Form990Links.txt` manifest
   - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
   - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
 - static-manifest validation:
@@ -513,11 +513,11 @@ Current external source framework is explicitly scoped to U.S. nonprofits.
 
 Framework location:
 
-- `infrastructure/verification/enrichments/base.py`
-- `infrastructure/verification/enrichments/registry.py`
-- `infrastructure/verification/enrichments/service.py`
-- `infrastructure/verification/enrichments/providers/`
-- `infrastructure/verification/sources/`
+- `backend/shared/src/verification/backend/shared/enrichments/base.py`
+- `backend/shared/src/verification/backend/shared/enrichments/registry.py`
+- `backend/shared/src/verification/backend/shared/enrichments/service.py`
+- `backend/shared/src/verification/backend/shared/enrichments/providers/`
+- `backend/shared/src/verification/backend/shared/sources/`
 
 Included providers:
 
@@ -1083,9 +1083,9 @@ Terraform/env settings:
 Local dev note:
 
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
-- key generation contract (one-time secret display + hashed-at-rest record) is available via `verification.auth.build_api_key_record`.
-- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `verification.auth.build_oauth_client_record`.
-- OAuth token record generation contract is available via `verification.auth.build_oauth_token_record`.
+- key generation contract (one-time secret display + hashed-at-rest record) is available via `verification.backend.shared.auth.build_api_key_record`.
+- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `verification.backend.shared.auth.build_oauth_client_record`.
+- OAuth token record generation contract is available via `verification.backend.shared.auth.build_oauth_token_record`.
 
 Auth coexistence behavior:
 
@@ -1798,7 +1798,7 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 ### Relational foundation and migrations
 
 The platform relational foundation now uses SQLAlchemy models under
-`infrastructure/verification_platform/customer_accounts/` and Alembic for
+`backend/shared/src/verification/backend/shared/customer_accounts/` and Alembic for
 schema evolution.
 
 Backend-local developer workflow:
@@ -1817,8 +1817,8 @@ python -m pip install -r infrastructure/requirements.txt -r infrastructure/requi
 python -m pip install -e .\\backend
 cp backend/.env.local.example backend/.env.local
 createdb verification_platform
-python -m verification_backend.shared.local_dev db-upgrade
-python -m verification_backend.api.entrypoint
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.customer.api.entrypoint
 ```
 
 Set one of the following before running migrations locally:
@@ -1834,14 +1834,14 @@ Set one of the following before running migrations locally:
 Common commands:
 
 ```bash
-python -m verification_backend.shared.local_dev db-upgrade
-python -m verification_backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.shared.local_dev db-current
 alembic upgrade head
 alembic revision -m "describe change"
-python -m verification_platform.runtime.customer_accounts_backfill --identity-table-name identity
-python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
-python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity
-python -m verification_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
+python -m verification.backend.shared.runtime.customer_accounts_backfill --identity-table-name identity
+python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity --dry-run
+python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity
+python -m verification.backend.shared.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
 ```
 
 Phase 24D moves the customer-account identity domain to PostgreSQL when
@@ -1882,8 +1882,8 @@ enrichment-driven in this phase.
 Phase 24H adds migration wrappers with dry-run and validation reporting for
 identity and nonprofit cutover preparation:
 
-- `python -m verification_platform.runtime.customer_accounts_migration`
-- `python -m verification_platform.runtime.nonprofit_migration`
+- `python -m verification.backend.shared.runtime.customer_accounts_migration`
+- `python -m verification.backend.shared.runtime.nonprofit_migration`
 
 The detailed cutover and rollback sequence now lives in
 `docs/implementation/postgresql-cutover-runbook.md`.
@@ -1935,9 +1935,9 @@ cutover so the ALB-backed ECS service is now the primary ingress path.
 Phase 27C aligns the Terraform deployment model to the backend runtime
 directories:
 
-- `backend/api` -> live ECS service behind the ALB
+- `backend/customer-api` -> live ECS service behind the ALB
 - `backend/worker` -> private ECS service placeholder, disabled by default
-- `backend/ingest-task` -> ECS task-style runtime for scheduled and one-off
+- `backend/ingest/federal` -> ECS task-style runtime for scheduled and one-off
   ingest execution
 
 ECS API deployment configuration additions:
@@ -2001,9 +2001,9 @@ Current CI/CD posture:
 - `.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline for backend
   image build, ECR publish, Terraform plan, and manual ECS rollout
 - the pipeline builds and publishes:
-  - `backend/api`
+  - `backend/customer-api`
   - `backend/worker`
-  - `backend/ingest-task`
+  - `backend/ingest/federal`
 - image versioning now defaults to immutable commit-SHA tags instead of a
   mutable `latest` rollout contract
 - Terraform remains the deploy authority; deploy jobs pass:
@@ -2014,8 +2014,8 @@ Current CI/CD posture:
   `backend-dev.hcl` plus the dev tfvars files
 - prod rollout is exposed as a manual GitLab job on tags using
   `backend-prod.hcl` plus the prod tfvars files
-- the current ingest-task compatibility contract remains:
-  `monthly_ingest_worker_image_tag` still selects the `backend/ingest-task`
+- the current federal-ingest image contract remains:
+  `monthly_ingest_worker_image_tag` still selects the `backend/ingest/federal`
   image for the monthly ECS task definition
 - CI requires standard AWS auth variables plus environment-specific secrets
   content for:
@@ -2023,8 +2023,8 @@ Current CI/CD posture:
   - `TERRAFORM_PROD_SECRETS_TFVARS`
 - the initial Terraform bootstrap still has to create the managed ECR
   repositories before CI publish jobs can push successfully
-- the canonical Dockerfiles now live under `backend/api/`, `backend/worker/`,
-  and `backend/ingest-task/`
+- the canonical Dockerfiles now live under `backend/customer-api/`, `backend/worker/`,
+  and `backend/ingest/federal/`
 
 Lambda event examples:
 

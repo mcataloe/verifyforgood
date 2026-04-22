@@ -1,6 +1,6 @@
 import pytest
 
-from verification.platform import (
+from verification.backend.shared.platform import (
     PostgresRuntimeConfig,
     build_postgres_sqlalchemy_url,
     load_platform_persistence_config,

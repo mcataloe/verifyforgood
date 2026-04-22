@@ -1,5 +1,5 @@
-﻿from verification.enrichments import load_organization_integration_settings
-from verification.platform import load_platform_integrations_config
+﻿from verification.backend.shared.enrichments import load_organization_integration_settings
+from verification.backend.shared.platform import load_platform_integrations_config
 
 
 def test_platform_integrations_default_to_disabled():

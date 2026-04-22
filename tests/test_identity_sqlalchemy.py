@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -30,7 +30,7 @@ from verification_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from verification_platform.runtime import build_customer_accounts_postgres_repositories
+from verification.backend.shared.runtime import build_customer_accounts_postgres_repositories
 
 
 def _session_factory(tmp_path: Path):

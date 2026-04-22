@@ -3,8 +3,8 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from infrastructure.verification.form990.source_catalog import diff_source_catalog, select_sources_by_years
-from infrastructure.verification.form990.static_source_discovery import (
+from infrastructure.verification.backend.ingest.federal.form990.source_catalog import diff_source_catalog, select_sources_by_years
+from infrastructure.verification.backend.ingest.federal.form990.static_source_discovery import (
     GENERATED_NEXT_YEAR_PAGE_URL,
     STATIC_MANIFEST_PAGE_URL,
     _parse_manifest_text,

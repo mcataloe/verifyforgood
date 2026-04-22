@@ -1,6 +1,6 @@
-﻿from verification.serving.hash import calculate_source_hash
-from verification.serving.keys import profile_pk, profile_sk
-from infrastructure.verification.scoring import SCORING_MODEL_VERSION
+﻿from verification.backend.shared.serving.hash import calculate_source_hash
+from verification.backend.shared.serving.keys import profile_pk, profile_sk
+from infrastructure.verification.backend.shared.scoring import SCORING_MODEL_VERSION
 
 
 def test_dynamodb_key_generation():

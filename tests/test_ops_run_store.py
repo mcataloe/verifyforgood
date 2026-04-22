@@ -1,4 +1,4 @@
-﻿from verification.ops.run_store import InMemoryRunStore, safe_error_summary
+﻿from verification.backend.shared.ops.run_store import InMemoryRunStore, safe_error_summary
 
 
 def test_safe_error_summary_redaction():

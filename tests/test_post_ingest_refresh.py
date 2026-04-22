@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from verification.serving.post_ingest_refresh import PostIngestRefreshConfig, refresh_from_ingest_output
-from infrastructure.verification.scoring import SCORING_MODEL_VERSION
+from verification.backend.shared.serving.post_ingest_refresh import PostIngestRefreshConfig, refresh_from_ingest_output
+from infrastructure.verification.backend.shared.scoring import SCORING_MODEL_VERSION
 
 
 class InMemoryStore:

@@ -15,7 +15,7 @@
       "name": "Backend API",
       "type": "python",
       "request": "launch",
-      "module": "verification_backend.api.entrypoint",
+      "module": "verification.backend.customer.api.entrypoint",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "cwd": "${workspaceFolder}/backend",
       "envFile": "${workspaceFolder}/backend/.env.local",
@@ -24,7 +24,7 @@
       "subProcess": false,
       "logToFile": true,
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/backend/api/src;${workspaceFolder}/backend/shared/src;${workspaceFolder}/backend/worker/src;${workspaceFolder}/backend/ingest-task/src"
+        "PYTHONPATH": "${workspaceFolder}/backend/customer-api/src;${workspaceFolder}/backend/shared/src;${workspaceFolder}/backend/worker/src;${workspaceFolder}/backend/ingest/federal/src"
       }
     },
     {
@@ -50,7 +50,7 @@
       "name": "Form990 Monthly Pipeline",
       "type": "python",
       "request": "launch",
-      "module": "verification_backend.ingest_task.cli.monthly_ingest_task",
+      "module": "verification.backend.ingest.federal.cli.monthly_ingest_task",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/backend/.env.local",
@@ -58,7 +58,7 @@
       "justMyCode": false,
       "env": {
         "APP_ENV": "dev",
-        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990",
+        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest/federal/.workspace/form990",
         "MONTHLY_INGEST_WORKFLOW_NAME": "monthly-ingest-dev",
         "MONTHLY_INGEST_WORKFLOW_VERSION": "2026-03",
         "MONTHLY_INGEST_JOB_ID": "local-monthly-debug-2024-teos-xml-01a",
@@ -79,7 +79,7 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990"
+        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest/federal/.workspace/form990"
       },
       "args": [
         "run",
@@ -99,7 +99,7 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/form990",
+        "FORM990_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest/federal/.workspace/form990",
         "FORM990_SOURCE_MODE": "irs_page",
         "FORM990_IRS_DOWNLOADS_PAGE_URL": "https://www.irs.gov/charities-non-profits/form-990-series-downloads",
         "FORM990_INDEX_FETCH_TIMEOUT_SECONDS": "60"
@@ -113,7 +113,7 @@
       "name": "EO BMF Local Run",
       "type": "python",
       "request": "launch",
-      "module": "verification_backend.ingest_task.cli",
+      "module": "verification.backend.ingest.federal.cli",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/backend/.env.local",
@@ -121,14 +121,14 @@
       "justMyCode": false,
       "args": ["run-eo-bmf"],
       "env": {
-        "EOBMF_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest-task/.workspace/eo_bmf"
+        "EOBMF_WORKSPACE_DIR": "${workspaceFolder}/backend/ingest/federal/.workspace/eo_bmf"
       }
     },
     {
       "name": "Form990 ECS Parity",
       "type": "python",
       "request": "launch",
-      "module": "verification_backend.ingest_task.cli",
+      "module": "verification.backend.ingest.federal.cli",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/backend/.env.local",
@@ -136,7 +136,7 @@
       "justMyCode": false,
       "args": ["ecs-run"],
       "env": {
-        "WORKSPACE_PATH": "${workspaceFolder}/backend/ingest-task/.workspace/form990"
+        "WORKSPACE_PATH": "${workspaceFolder}/backend/ingest/federal/.workspace/form990"
       }
     },
 
@@ -144,7 +144,7 @@
       "name": "EO BMF ECS Parity",
       "type": "python",
       "request": "launch",
-      "module": "verification_backend.ingest_task.cli",
+      "module": "verification.backend.ingest.federal.cli",
       "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/backend/.env.local",
@@ -152,7 +152,7 @@
       "justMyCode": false,
       "args": ["ecs-run-eo-bmf"],
       "env": {
-        "WORKSPACE_PATH": "${workspaceFolder}/backend/ingest-task/.workspace/eo_bmf"
+        "WORKSPACE_PATH": "${workspaceFolder}/backend/ingest/federal/.workspace/eo_bmf"
       }
     },
     {

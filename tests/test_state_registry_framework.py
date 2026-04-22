@@ -1,4 +1,4 @@
-﻿from verification.state_registry import (
+﻿from verification.backend.ingest.state import (
     MatchConfidence,
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
@@ -12,7 +12,7 @@
     normalize_entity_status,
     normalize_standing,
 )
-from verification.state_registry.adapters import IllinoisBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters import IllinoisBusinessRegistryAdapter
 
 
 def test_state_registry_record_to_dict_and_traceability():

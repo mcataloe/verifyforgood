@@ -1,7 +1,7 @@
 ﻿import pathlib
 
-from infrastructure.verification.form990.extractors.metadata import extract_metadata_fields
-from infrastructure.verification.form990.parser import XmlParseError, parse_xml
+from infrastructure.verification.backend.ingest.federal.form990.extractors.metadata import extract_metadata_fields
+from infrastructure.verification.backend.ingest.federal.form990.parser import XmlParseError, parse_xml
 
 
 def test_extract_metadata_from_sample_xml():

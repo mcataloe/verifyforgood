@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from verification.enrichments import EvaluationContext, OrganizationIntegrationSetting
-from verification_platform.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
-from verification_platform.organization_verification.verification_service import OrganizationVerificationInput as VerificationInput
+from verification.backend.shared.enrichments import EvaluationContext, OrganizationIntegrationSetting
+from verification.backend.shared.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
+from verification.backend.shared.organization_verification.verification_service import OrganizationVerificationInput as VerificationInput
 
 
 def _tenant_context() -> TenantNonprofitContext:

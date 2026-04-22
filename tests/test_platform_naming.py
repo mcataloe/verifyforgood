@@ -1,6 +1,6 @@
 ﻿import pytest
 
-from verification.platform import (
+from verification.backend.shared.platform import (
     DEFAULT_NAMESPACE,
     DEFAULT_PLATFORM,
     DEFAULT_REGION,

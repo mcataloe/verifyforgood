@@ -89,17 +89,17 @@ deployed secret-backed wiring:
 - copy `backend/.env.local.example` to `backend/.env.local`
 - set `PLATFORM_POSTGRES_URL` to a direct local PostgreSQL endpoint
 - set `PLATFORM_NONPROFIT_POSTGRES_URL` only when nonprofit and Form 990 data should live on a separate database
-- run `python -m verification_backend.shared.local_dev db-upgrade`
-- run `python -m verification_backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
-- use `python -m verification_backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
-- use `python -m verification_backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
-- run `python -m verification_backend.api.entrypoint`
+- run `python -m verification.backend.shared.local_dev db-upgrade`
+- run `python -m verification.backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
+- use `python -m verification.backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
+- use `python -m verification.backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
+- run `python -m verification.backend.customer.api.entrypoint`
 
 PostgreSQL-only rollout order:
 
 1. run `alembic upgrade head`
-2. run `python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
-3. run `python -m verification_platform.runtime.customer_accounts_migration --identity-table-name identity`
+2. run `python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
+3. run `python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity`
 4. deploy with PostgreSQL runtime env wiring only
 5. recreate or reseed any dev-only data that previously lived in DynamoDB
 
@@ -108,12 +108,12 @@ PostgreSQL-only rollout order:
 The Terraform stack now maps the backend runtime directories onto explicit ECS
 deployment roles:
 
-- `backend/api`
+- `backend/customer-api`
   - live ALB-backed ECS Fargate service
 - `backend/worker`
   - provisionable ECS Fargate service slot for the future general worker
     runtime; disabled by default until runtime extraction lands
-- `backend/ingest-task`
+- `backend/ingest/federal`
   - ECS task-style runtime used by scheduled and one-off ingest execution
 
 Phase 25C/25D added the live API service cutover. Phase 27C extends that
@@ -139,8 +139,8 @@ Current deployment posture:
 - PostgreSQL ingress includes the ECS API task security group when
   `platform_postgres_enabled=true`; the worker task security group is also
   allowed when the worker service is enabled
-- container ownership now lives under `backend/api/Dockerfile` and
-  `backend/ingest-task/Dockerfile`; infrastructure consumes image URIs and ECS
+- container ownership now lives under `backend/customer-api/Dockerfile` and
+  `backend/ingest/federal/Dockerfile`; infrastructure consumes image URIs and ECS
   task definitions rather than owning the runtime Dockerfiles
 
 Required environment inputs when `api_ecs_enabled=true`:
@@ -184,8 +184,8 @@ Worker placeholder note:
 
 GitLab CI/CD rollout baseline:
 
-- `.gitlab-ci.yml` builds `backend/api`, `backend/worker`, and
-  `backend/ingest-task`
+- `.gitlab-ci.yml` builds `backend/customer-api`, `backend/worker`, and
+  `backend/ingest/federal`
 - the old `infra-deployment/` scaffold boundary has been absorbed into this
   infrastructure layer
 - runtime images publish to the managed ECR repositories exposed by Terraform
@@ -206,7 +206,7 @@ GitLab CI/CD rollout baseline:
   - `terraform-prod.tfvars`
   - CI-provided `terraform-prod.secrets.tfvars` content
 - `monthly_ingest_worker_image_tag` remains the current deploy-time Terraform
-  variable for the `backend/ingest-task` image so the existing task definition
+  variable for the `backend/ingest/federal` image so the existing task definition
   contract stays backward compatible
 
 Required CI variables:
@@ -232,10 +232,10 @@ Rollback note:
 
 Container build guidance:
 
-- `backend/api/Dockerfile` is the canonical API image contract
+- `backend/customer-api/Dockerfile` is the canonical API image contract
 - `backend/worker/Dockerfile` is the canonical worker-service image contract,
   even while the runtime remains scaffold-only
-- `backend/ingest-task/Dockerfile` is the canonical ECS task image contract for
+- `backend/ingest/federal/Dockerfile` is the canonical ECS task image contract for
   monthly and Form 990 task execution
 - scheduled and one-off ingest execution should keep using ECS tasks, not the
   general worker service

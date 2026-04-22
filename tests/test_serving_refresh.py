@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from verification.serving.change_events import build_change_event
-from verification.serving.compare import compare_materialized_items
-from verification.serving.refresh import RefreshConfig, refresh_materialized_profiles
-from infrastructure.verification.scoring import SCORING_MODEL_VERSION
+from verification.backend.shared.serving.change_events import build_change_event
+from verification.backend.shared.serving.compare import compare_materialized_items
+from verification.backend.shared.serving.refresh import RefreshConfig, refresh_materialized_profiles
+from infrastructure.verification.backend.shared.scoring import SCORING_MODEL_VERSION
 import pytest
 
 

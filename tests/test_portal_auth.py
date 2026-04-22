@@ -4,7 +4,7 @@ import importlib
 import json
 import sys
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -20,7 +20,7 @@ from verification_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch):
-    import verification_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification.backend.shared.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -29,8 +29,8 @@ def _load_module_with_identity_store(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_organization_context_service = None

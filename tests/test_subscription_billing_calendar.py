@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from verification_platform.customer_accounts.billing_calendar import (
+from verification.backend.shared.customer_accounts.billing_calendar import (
     billable_days_remaining,
     days_in_month,
     month_cycle_window,

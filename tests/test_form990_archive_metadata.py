@@ -3,10 +3,10 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from verification_backend.ingest_task.hashing import sha256_xml_content_hash
-from verification_backend.ingest_task.metadata.archive_change_detection import should_process_archive
-from verification_backend.ingest_task.metadata.archive_probe import ArchiveProbeResult, normalize_etag
-from verification_platform.nonprofits import Form990ArchiveRecord
+from verification.backend.ingest.federal.hashing import sha256_xml_content_hash
+from verification.backend.ingest.federal.metadata.archive_change_detection import should_process_archive
+from verification.backend.ingest.federal.metadata.archive_probe import ArchiveProbeResult, normalize_etag
+from verification.backend.shared.nonprofits import Form990ArchiveRecord
 
 
 def test_normalize_etag_strips_quotes_and_weak_prefix():

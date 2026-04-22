@@ -3,9 +3,9 @@
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
-from verification.billing import EntitlementService
-from verification.billing.trials import TrialConfig, TrialLifecycleService
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.billing import EntitlementService
+from verification.backend.shared.billing.trials import TrialConfig, TrialLifecycleService
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 def test_trial_activates_for_eligible_organization_on_first_meaningful_use():

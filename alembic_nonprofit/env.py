@@ -15,9 +15,9 @@ for path in (ROOT, INFRA_PATH):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from verification.platform import resolve_nonprofit_postgres_sqlalchemy_url  # noqa: E402
-from verification_platform.customer_accounts import CustomerAccountsBase  # noqa: E402
-from verification_platform.nonprofits import NONPROFIT_TABLE_NAMES  # noqa: E402
+from verification.backend.shared.platform import resolve_nonprofit_postgres_sqlalchemy_url  # noqa: E402
+from verification.backend.shared.customer_accounts import CustomerAccountsBase  # noqa: E402
+from verification.backend.shared.nonprofits import NONPROFIT_TABLE_NAMES  # noqa: E402
 
 config = context.config
 

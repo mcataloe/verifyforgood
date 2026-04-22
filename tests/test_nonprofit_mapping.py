@@ -1,4 +1,4 @@
-﻿from infrastructure.verification.query.nonprofit_lookup import map_nonprofit_record
+﻿from infrastructure.verification.backend.shared.query.nonprofit_lookup import map_nonprofit_record
 
 
 def test_map_nonprofit_record_normalized_shape():

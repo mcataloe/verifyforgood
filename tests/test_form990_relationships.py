@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
-from infrastructure.verification.form990.parser import parse_xml
-from infrastructure.verification.form990.relationships import extract_relationship_edges
+from infrastructure.verification.backend.ingest.federal.form990.parser import parse_xml
+from infrastructure.verification.backend.ingest.federal.form990.relationships import extract_relationship_edges
 
 
 def _xml_with_people() -> bytes:

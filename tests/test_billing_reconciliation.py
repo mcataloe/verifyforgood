@@ -1,9 +1,9 @@
 ﻿from __future__ import annotations
 
-from verification.billing.checkout import BillingConflictError, StripeCheckoutConfig
-from verification.billing.organization_billing import BillingService, ConfiguredStripeBillingProvider, ControlPlaneBillingCustomerRepository, ControlPlaneBillingEventRepository, ControlPlaneBillingSubscriptionRepository, PlanCatalogMapping
-from verification.billing.reconciliation import BillingReconciliationService
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
+from verification.backend.shared.billing.checkout import BillingConflictError, StripeCheckoutConfig
+from verification.backend.shared.billing.organization_billing import BillingService, ConfiguredStripeBillingProvider, ControlPlaneBillingCustomerRepository, ControlPlaneBillingEventRepository, ControlPlaneBillingSubscriptionRepository, PlanCatalogMapping
+from verification.backend.shared.billing.reconciliation import BillingReconciliationService
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 def _billing_service(store):

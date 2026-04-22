@@ -3,7 +3,7 @@
 import io
 import threading
 
-from verification.ops.progress import ConsoleProgressSession, ProgressField, build_progress_reporter, prepare_stream_for_external_write
+from verification.backend.shared.ops.progress import ConsoleProgressSession, ProgressField, build_progress_reporter, prepare_stream_for_external_write
 
 
 class _FakeStream(io.StringIO):
@@ -33,7 +33,7 @@ def test_build_progress_reporter_returns_noop_for_non_tty_stream():
 def test_console_progress_session_renders_every_tenth_item_with_eta_and_final_flush(monkeypatch):
     stream = _FakeStream(is_tty=True)
     monotonic_values = iter([0.0, 120.0, 240.0])
-    monkeypatch.setattr("verification.ops.progress.time.monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr("verification.backend.shared.ops.progress.time.monotonic", lambda: next(monotonic_values))
     session = ConsoleProgressSession(
         stream=stream,
         total_items=20,
@@ -74,7 +74,7 @@ def test_console_progress_session_renders_every_tenth_item_with_eta_and_final_fl
 def test_console_progress_session_renders_last_item_and_truncates_it(monkeypatch):
     stream = _FakeStream(is_tty=True)
     monotonic_values = iter([0.0, 60.0, 120.0])
-    monkeypatch.setattr("verification.ops.progress.time.monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr("verification.backend.shared.ops.progress.time.monotonic", lambda: next(monotonic_values))
     session = ConsoleProgressSession(
         stream=stream,
         total_items=10,
@@ -118,7 +118,7 @@ def test_console_progress_session_item_completed_is_thread_safe():
 def test_console_progress_session_supports_dynamic_total_and_external_write(monkeypatch):
     stream = _FakeStream(is_tty=True)
     monotonic_values = iter([0.0, 60.0, 120.0, 180.0])
-    monkeypatch.setattr("verification.ops.progress.time.monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr("verification.backend.shared.ops.progress.time.monotonic", lambda: next(monotonic_values))
     session = ConsoleProgressSession(
         stream=stream,
         total_items=0,

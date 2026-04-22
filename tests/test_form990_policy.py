@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from infrastructure.verification.form990.policy import IngestPolicyConfig, select_target_years
+from infrastructure.verification.backend.ingest.federal.form990.policy import IngestPolicyConfig, select_target_years
 
 
 def test_incremental_target_year_selection_default_window():

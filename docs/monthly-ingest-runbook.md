@@ -36,8 +36,8 @@ The staging Lambda is responsible only for:
 
 Ownership note:
 
-- the staging runtime implementation now lives under `backend/ingest-task`
-- the infrastructure Lambda handler path is a compatibility wrapper only
+- the staging runtime implementation now lives under `backend/ingest/federal`
+- deployment wiring should invoke backend-owned runtime modules directly
 
 The staging Lambda does not:
 
@@ -48,8 +48,8 @@ The staging Lambda does not:
 
 Ownership note:
 
-- executable staging and task runtime ownership now lives under `backend/ingest-task/src/verification_backend/ingest_task/`
-- `infrastructure/lambda_monthly_ingest_staging.py` and `infrastructure/monthly_ingest_worker.py` remain temporary compatibility adapters for deployment wiring
+- executable staging and task runtime ownership now lives under `backend/ingest/federal/src/verification/backend/ingest/federal/`
+- deployment wiring should stay aligned to the backend-owned runtime package tree
 
 ## ECS Worker Runtime Contract
 
@@ -71,11 +71,10 @@ It also uses:
 
 Ownership note:
 
-- the ECS worker implementation now lives under `backend/ingest-task`
-- the `infrastructure/monthly_ingest_worker.py` file remains only as a compatibility entrypoint for deployment wiring
+- the ECS worker implementation now lives under `backend/ingest/federal`
 - the managed ECS task now uses the backend-owned `ecs-run` parity command so
   task execution shares the same archive-at-a-time orchestration path as local
-  `python -m ingest_task.cli run`
+  `python -m verification.backend.ingest.federal.cli run`
 - on the parity path, IRS ZIP downloads and extracted XML stay inside the
   task workspace and are not uploaded to S3 as runtime artifacts
 
@@ -214,6 +213,6 @@ Troubleshooting sequence:
 ## Remaining Follow-Up
 
 - connect expected job artifacts (`manifest.json`, `artifacts.json`, `summary.json`) to downstream dataset-specific processing
-- add image build/push automation for the backend-owned `backend/ingest-task/Dockerfile`
+- add image build/push automation for the backend-owned `backend/ingest/federal/Dockerfile`
 - decide whether later phases should emit a customer-safe summary record outside Step Functions execution history
 

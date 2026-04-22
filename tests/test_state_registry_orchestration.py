@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from verification.enrichments.registry import ProviderRegistry
-from verification.enrichments.service import EnrichmentService
-from verification.enrichments.providers.state_registry import StateRegistryProvider
-from verification.query.verification import VerificationInput, verify_nonprofit
-from verification.state_registry import (
+from verification.backend.shared.enrichments.registry import ProviderRegistry
+from verification.backend.shared.enrichments.service import EnrichmentService
+from verification.backend.shared.enrichments.providers.state_registry import StateRegistryProvider
+from verification.backend.shared.query.verification import VerificationInput, verify_nonprofit
+from verification.backend.ingest.state import (
     InMemoryStateRegistryRecordRepository,
     RawStateRegistryRecord,
     StateRegistryAdapter,
@@ -18,7 +18,7 @@ from verification.state_registry import (
     StateRegistrySourceType,
     build_state_registry_adapter_registry,
 )
-from verification.state_registry.adapters import IllinoisBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters import IllinoisBusinessRegistryAdapter
 
 
 def _client(state: str = "IL", name: str = "Example Charity"):

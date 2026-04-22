@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from verification_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from verification_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
-from verification_platform.nonprofits import (
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification.backend.shared.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
+from verification.backend.shared.nonprofits import (
     NonprofitAdvisoryDetailService,
     ComplianceCheckRecord,
     Form990ArchiveRecord,
@@ -24,7 +24,7 @@ from verification_platform.nonprofits import (
     build_nonprofit_session_factory,
     create_nonprofit_tables,
 )
-from verification_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
+from verification.backend.shared.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
 
 def _session_factory(tmp_path: Path):

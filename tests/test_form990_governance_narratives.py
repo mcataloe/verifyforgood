@@ -1,8 +1,8 @@
 ﻿import pathlib
 
-from infrastructure.verification.form990.extractors.governance import extract_governance_fields
-from infrastructure.verification.form990.extractors.narratives import extract_narrative_fields
-from infrastructure.verification.form990.parser import parse_xml
+from infrastructure.verification.backend.ingest.federal.form990.extractors.governance import extract_governance_fields
+from infrastructure.verification.backend.ingest.federal.form990.extractors.narratives import extract_narrative_fields
+from infrastructure.verification.backend.ingest.federal.form990.parser import parse_xml
 
 
 def test_extract_governance_fields_from_sample_xml():

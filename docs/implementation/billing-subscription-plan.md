@@ -2,7 +2,7 @@
 
 ## Summary
 
-This plan defines the documentation-first guardrails for Stripe-backed subscription billing before runtime billing changes begin. The repo already contains billing scaffolding in `infrastructure/verification/billing/` and portal billing UI surfaces, so the implementation should extend those seams rather than create a parallel billing model.
+This plan defines the documentation-first guardrails for Stripe-backed subscription billing before runtime billing changes begin. The repo already contains billing scaffolding in `backend/shared/src/verification/backend/shared/billing/` and portal billing UI surfaces, so the implementation should extend those seams rather than create a parallel billing model.
 
 The core planning default is:
 

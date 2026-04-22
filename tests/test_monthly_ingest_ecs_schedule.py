@@ -12,7 +12,7 @@ def test_monthly_ingest_ecs_terraform_wires_managed_task_definition_and_roles():
     assert 'resource "aws_ecs_task_definition" "eo_bmf_ingest_worker"' in content
     assert 'requires_compatibilities = ["FARGATE"]' in content
     assert 'ephemeral_storage {' in content
-    assert 'entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]' in content
+    assert 'entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]' in content
     assert 'command    = ["ecs-run"]' in content
     assert 'command    = ["ecs-run-eo-bmf"]' in content
 

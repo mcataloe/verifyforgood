@@ -6,7 +6,7 @@
   - explicit `records[]` -> direct ingest
   - legacy `index_url` / `index_urls` -> fetch index rows and ingest
   - discovery mode -> discover source artifacts, persist discovery state/diffs, persist raw source artifacts, reconcile CSV filing catalog, and select filing work
-- IRS-page discovery lives in `verification.form990.irs_page_discovery` and returns per-artifact ZIP/CSV source entries.
+- IRS-page discovery lives in `verification.backend.ingest.federal.form990.irs_page_discovery` and returns per-artifact ZIP/CSV source entries.
 - Discovery state and discovery diff artifacts are already persisted separately from filing manifests.
 - Raw source ZIP/CSV download persistence is implemented and tracked via downloaded-source state.
 - Filing reconciliation from downloaded yearly CSV indexes is implemented and tracked via filing catalog/diff/state manifests.
@@ -176,20 +176,20 @@ Known filename examples the design must support:
 
 ## 9. Files to Change
 
-- `backend/ingest-task/src/verification_backend/ingest_task/`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/`
 - `infrastructure/lambda_form990.py`
 - `infrastructure/lambda_form990_worker.py`
-- `infrastructure/verification/form990/irs_page_discovery.py`
-- `infrastructure/verification/form990/discovery.py`
-- `infrastructure/verification/form990/source_catalog.py`
-- `infrastructure/verification/form990/source_downloads.py`
-- `infrastructure/verification/form990/index.py`
-- `infrastructure/verification/form990/filing_reconciliation.py`
-- `infrastructure/verification/form990/zip_selected_processing.py`
-- `infrastructure/verification/form990/zip_processing.py`
-- `infrastructure/verification/form990/ingest.py`
-- `infrastructure/verification/form990/storage.py`
-- `infrastructure/verification/form990/manifest.py` if source diff helpers belong there
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/irs_page_discovery.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/discovery.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/source_catalog.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/source_downloads.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/index.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/filing_reconciliation.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/zip_selected_processing.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/zip_processing.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/ingest.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/storage.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/manifest.py` if source diff helpers belong there
 - Terraform bucket/prefix wiring for raw source artifacts
 - tests covering discovery, Lambda flow, storage, and worker behavior
 - `README.md`

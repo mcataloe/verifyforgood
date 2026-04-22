@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def test_platform_api_runtime_package_imports_successfully():
-    module = importlib.import_module("verification_backend.platform_api")
+    module = importlib.import_module("verification.backend.platform.api")
 
     assert module.RUNTIME_NAME == "platform-api"
     assert callable(module.create_app)
@@ -14,18 +14,18 @@ def test_platform_api_runtime_package_imports_successfully():
 
 def test_platform_api_runtime_host_is_documented_and_backend_owned():
     readme = Path("backend/platform-api/README.md").read_text(encoding="utf-8")
-    source = Path("backend/platform-api/src/verification_backend/platform_api/__init__.py").read_text(
+    source = Path("backend/platform-api/src/verification/backend/platform/api/__init__.py").read_text(
         encoding="utf-8"
     )
 
     assert "Backend Platform API Runtime" in readme
     assert "platform/control-plane HTTP runtime host" in readme
-    assert "verification_backend.platform_api.app:app" in readme
+    assert "verification.backend.platform.api.app:app" in readme
     assert 'RUNTIME_NAME = "platform-api"' in source
 
 
 def test_platform_api_routes_are_split_from_customer_api_routes():
-    transport = importlib.import_module("verification_backend.api.transport")
+    transport = importlib.import_module("verification.backend.customer.api.transport")
 
     customer_resources = {spec.resource for spec in transport.CUSTOMER_API_ROUTE_SPECS}
     platform_resources = {spec.resource for spec in transport.PLATFORM_API_ROUTE_SPECS}

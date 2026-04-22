@@ -2,9 +2,9 @@
 
 from types import SimpleNamespace
 
-from verification.enrichments import EnrichmentService, ProviderRegistry
-from verification.enrichments.providers import MockProvider
-from verification.query.verification import VerificationInput, verify_nonprofit
+from verification.backend.shared.enrichments import EnrichmentService, ProviderRegistry
+from verification.backend.shared.enrichments.providers import MockProvider
+from verification.backend.shared.query.verification import VerificationInput, verify_nonprofit
 
 
 def _record() -> dict[str, str]:

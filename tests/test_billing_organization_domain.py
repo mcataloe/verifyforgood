@@ -2,7 +2,7 @@
 
 import pytest
 
-from verification.billing import (
+from verification.backend.shared.billing import (
     BillingCustomerBootstrapService,
     BillingEvent,
     BillingMappingError,
@@ -14,8 +14,8 @@ from verification.billing import (
     ControlPlaneBillingSubscriptionRepository,
     PlanCatalogMapping,
 )
-from verification.billing.checkout import BillingProviderError, StripeCheckoutConfig
-from verification.control_plane import ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, InMemoryControlPlaneStore
+from verification.backend.shared.billing.checkout import BillingProviderError, StripeCheckoutConfig
+from verification.backend.shared.control_plane import ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, InMemoryControlPlaneStore
 
 
 def _provider() -> ConfiguredStripeBillingProvider:

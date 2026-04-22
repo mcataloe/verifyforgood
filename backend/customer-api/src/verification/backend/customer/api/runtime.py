@@ -1,0 +1,3709 @@
+﻿"""Backend-owned API runtime implementation.
+
+This module is the source of truth for shared API request handling.
+Backend HTTP transport adapters dispatch into this runtime directly.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import importlib
+import json
+import logging
+import os
+import secrets
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any
+from urllib.parse import parse_qs
+
+from verification.backend.shared.api import ResponseContext, build_response_context, error_response, json_response, normalize_route_key, strip_version_prefix
+from verification.backend.shared.auth import (
+    AuthenticationError,
+    AuthorizationError,
+    FeatureUnavailableError,
+    QuotaExceededError,
+    StaticApiKeyStore,
+    StaticOAuthClientStore,
+    StaticOAuthTokenStore,
+    authenticate_admin_key,
+    load_admin_key_store,
+)
+from verification.backend.shared.billing import (
+    BillingCustomerBootstrapService,
+    BillingService,
+    ConfiguredStripeBillingProvider,
+    ControlPlaneBillingCustomerRepository,
+    ControlPlaneBillingEventRepository,
+    ControlPlaneBillingSubscriptionRepository,
+    EntitlementService,
+    HttpStripeCheckoutClient,
+    PlanCatalogMapping,
+    ResponseShapingService,
+    TrialLifecycleService,
+    build_plan_catalog_payload,
+    load_trial_config,
+)
+from verification.backend.shared.billing.checkout import BillingCheckoutError, BillingCheckoutService, load_stripe_checkout_config
+from verification.backend.shared.billing.plan_changes import BillingPlanChangeError, BillingPlanChangeService
+from verification.backend.shared.billing.portal import BillingPortalError, BillingPortalService
+from verification.backend.shared.billing.reconciliation import BillingReconciliationError, BillingReconciliationService
+from verification.backend.shared.billing.runtime import validate_stripe_billing_environment
+from verification.backend.shared.billing.visibility import BillingVisibilityService
+from verification.backend.shared.billing.webhooks import (
+    BillingWebhookError,
+    BillingWebhookProcessingError,
+    StripeWebhookService,
+    load_stripe_webhook_config,
+    verify_and_parse_stripe_event,
+)
+from verification.backend.shared.billing.service import DEFAULT_PLANS
+from verification.backend.shared.control_plane import ControlPlaneError, ControlPlaneService
+from verification.backend.shared.core.hooks import NoopAuthContextProvider, NoopQuotaMeteringHook
+from verification.backend.shared.core.interfaces import AuthContextProvider, EnrichmentProviderGateway, OrganizationIntegrationSettingsStoreAdapter, ProfileStoreAdapter, QueryRepository, QuotaMeteringHook
+from verification.backend.shared.core.models import AuthContext
+from verification.backend.shared.enrichments import (
+    EvaluationContext,
+    OrganizationIntegrationSettingsResolver,
+    OrganizationIntegrationSettingsService,
+    OrganizationIntegrationSettingsValidationError,
+    load_organization_integration_settings,
+)
+from verification.backend.shared.enrichments.compliance import extract_state_compliance
+from verification.backend.shared.enrichments.external_signals import extract_external_signals
+from verification.backend.shared.platform import (
+    ApiKeyAuthContextProvider,
+    ApiKeyOrOAuthAuthContextProvider,
+    ApiKeyQuotaMeteringHook,
+    OAuthClientCredentialsService,
+    RefreshRuntimeConfig,
+    build_control_plane_store,
+    build_enrichment_service,
+    build_organization_settings_store,
+    load_api_key_store,
+    load_platform_persistence_config,
+    load_oauth_client_store,
+    load_platform_integrations_config,
+    load_oauth_token_store,
+)
+from verification.backend.shared.runtime_logging import configure_runtime_logging, log_exception
+from verification.backend.ingest.federal.form990.irs_page_discovery import discover_irs_form990_sources
+from verification.backend.ingest.federal.form990.source_catalog import SOURCE_KIND_ZIP_ARCHIVE, normalize_configured_sources, select_sources_by_years, source_years
+from verification.backend.ingest.federal.form990.static_source_discovery import discover_static_form990_sources
+from verification.backend.shared.normalization import EINValidationError, normalize_ein
+from verification.backend.shared.policy import evaluate_policy
+from verification.backend.shared.query import VerificationInput, apply_evaluation_overlay, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from verification.backend.shared.query.ops_views import (
+    get_ingest_run,
+    get_ingest_run_filings,
+    get_nonprofit_pipeline_status,
+    get_refresh_run,
+    get_refresh_run_eins,
+    list_ingest_runs,
+    list_refresh_runs,
+)
+from verification.backend.shared.query.source_views import (
+    get_nonprofit_compliance_view,
+    get_nonprofit_federal_awards_view,
+    get_nonprofit_single_source_view,
+    get_nonprofit_sources_view,
+)
+from verification.backend.shared.scoring import SCORING_MODEL_VERSION
+from verification.backend.shared.serving.materializer import materialize_profile_item
+from verification.backend.shared.organization_verification.nonprofit_service import NonprofitService, TenantNonprofitContext
+from verification.backend.shared.nonprofits import NonprofitAdvisoryDetailService
+from verification.backend.shared.customer_accounts import (
+    ApiKeyCreateRequest,
+    ApiKeyManagementError,
+    ApiKeyService,
+    ApiKeyUpdateRequest,
+    AuditEventType,
+    AuditLogService,
+    DynamoUsageRepository,
+    FeatureFlagService,
+    InvitationAcceptRequest,
+    InvitationCreateRequest,
+    MemberUpdateRequest,
+    MembershipManagementError,
+    MembershipManagementService,
+    MembershipStatus,
+    OrganizationBootstrapValidationError,
+    OrganizationActivityError,
+    OrganizationActivityService,
+    OrganizationContextService,
+    OrganizationCreateRequest,
+    OrganizationDeleteRequest,
+    OrganizationSettingsNotFoundError,
+    OrganizationSettingsService,
+    OrganizationSupportError,
+    OrganizationSupportService,
+    OrganizationService,
+    SupportTicketEmailDelivery,
+    SubscriptionService,
+    UsageService,
+    build_support_ticket_email_delivery,
+    load_support_ticket_email_config,
+    usage_metrics_for_route,
+)
+from verification.backend.shared.runtime import (
+    CustomerAccountsRepositories,
+    build_customer_accounts_repositories,
+    build_nonprofit_postgres_repository,
+    build_nonprofit_query_client,
+)
+from verification.backend.shared.identity_access import (
+    AuthService,
+    BcryptPasswordHasher,
+    HmacBearerTokenCodec,
+    PortalAuthValidationError,
+    UserCreateRequest,
+    UserLoginRequest,
+)
+from verification.backend.shared.ops import InMemoryRunStore
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() == "true"
+
+
+def _env_optional_bool(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.lower() == "true"
+
+
+def _env_csv(name: str) -> list[str]:
+    raw = str(os.environ.get(name) or "").strip()
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+ENRICHMENT_TIMEOUT_SECONDS = int(os.environ.get("ENRICHMENT_TIMEOUT_SECONDS", "5"))
+PLATFORM_INTEGRATIONS = load_platform_integrations_config(os.environ)
+APP_ENV = os.environ.get("APP_ENV", "dev")
+PERSISTENCE_CONFIG = load_platform_persistence_config(os.environ)
+BATCH_VERIFY_MAX_SIZE = int(os.environ.get("BATCH_VERIFY_MAX_SIZE", "25"))
+SEARCH_MAX_LIMIT = int(os.environ.get("SEARCH_MAX_LIMIT", "50"))
+SEARCH_DEFAULT_LIMIT = int(os.environ.get("SEARCH_DEFAULT_LIMIT", "20"))
+API_AUTH_ENABLED = _env_bool("API_AUTH_ENABLED")
+API_KEY_RECORDS_JSON = os.environ.get("API_KEY_RECORDS_JSON", "")
+OAUTH_M2M_ENABLED = _env_bool("OAUTH_M2M_ENABLED")
+OAUTH_TOKEN_RECORDS_JSON = os.environ.get("OAUTH_TOKEN_RECORDS_JSON", "")
+OAUTH_CLIENT_RECORDS_JSON = os.environ.get("OAUTH_CLIENT_RECORDS_JSON", "")
+OAUTH_TOKEN_TTL_SECONDS = int(os.environ.get("OAUTH_TOKEN_TTL_SECONDS", "3600"))
+ADMIN_KEY_RECORDS_JSON = os.environ.get("ADMIN_KEY_RECORDS_JSON", "")
+FORM990_RUN_TASK_CLUSTER_ARN = os.environ.get("FORM990_RUN_TASK_CLUSTER_ARN", "").strip()
+FORM990_RUN_TASK_DEFINITION_ARN = os.environ.get("FORM990_RUN_TASK_DEFINITION_ARN", "").strip()
+FORM990_RUN_TASK_CONTAINER_NAME = os.environ.get("FORM990_RUN_TASK_CONTAINER_NAME", "").strip() or "monthly-ingest"
+FORM990_RUN_TASK_SUBNET_IDS = _env_csv("FORM990_RUN_TASK_SUBNET_IDS")
+FORM990_RUN_TASK_SECURITY_GROUP_IDS = _env_csv("FORM990_RUN_TASK_SECURITY_GROUP_IDS")
+FORM990_RUN_TASK_ASSIGN_PUBLIC_IP = _env_bool("FORM990_RUN_TASK_ASSIGN_PUBLIC_IP")
+PORTAL_AUTH_TOKEN_SECRET = os.environ.get("PORTAL_AUTH_TOKEN_SECRET", "dev-portal-auth-secret")
+PORTAL_AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("PORTAL_AUTH_TOKEN_TTL_SECONDS", "86400"))
+ORGANIZATION_INTEGRATION_SETTINGS_JSON = os.environ.get(
+    "ORGANIZATION_INTEGRATION_SETTINGS_JSON",
+    os.environ.get("TENANT_INTEGRATION_SETTINGS_JSON", ""),
+)
+validate_stripe_billing_environment(os.environ)
+STRIPE_CHECKOUT_CONFIG = load_stripe_checkout_config(os.environ)
+STRIPE_WEBHOOK_CONFIG = load_stripe_webhook_config(os.environ)
+TRIAL_CONFIG = load_trial_config(os.environ)
+SUPPORT_TICKET_EMAIL_CONFIG = load_support_ticket_email_config(os.environ)
+
+enrichment_service: EnrichmentProviderGateway | None = None
+profile_store: ProfileStoreAdapter | None = None
+auth_context_provider: AuthContextProvider | None = None
+quota_metering_hook: QuotaMeteringHook | None = None
+usage_store: Any | None = None
+ops_run_store: Any | None = None
+ecs_run_task_client: Any | None = None
+tenant_integration_settings_resolver: OrganizationIntegrationSettingsResolver | None = None
+organization_integration_settings_store: OrganizationIntegrationSettingsStoreAdapter | None = None
+organization_integration_settings_service: OrganizationIntegrationSettingsService | None = None
+organization_settings_service: OrganizationSettingsService | None = None
+oauth_client_credentials_service: OAuthClientCredentialsService | None = None
+control_plane_service: ControlPlaneService | None = None
+entitlement_service: EntitlementService | None = None
+response_shaping_service: ResponseShapingService | None = None
+billing_checkout_service: BillingCheckoutService | None = None
+billing_service: BillingService | None = None
+billing_plan_change_service: BillingPlanChangeService | None = None
+billing_portal_service: BillingPortalService | None = None
+billing_visibility_service: BillingVisibilityService | None = None
+billing_customer_bootstrap_service: BillingCustomerBootstrapService | None = None
+billing_reconciliation_service: BillingReconciliationService | None = None
+stripe_webhook_service: StripeWebhookService | None = None
+trial_lifecycle_service: TrialLifecycleService | None = None
+portal_auth_service: AuthService | None = None
+portal_organization_service: OrganizationService | None = None
+portal_organization_context_service: OrganizationContextService | None = None
+portal_membership_service: MembershipManagementService | None = None
+portal_api_key_service: ApiKeyService | None = None
+portal_usage_service: UsageService | None = None
+portal_subscription_service: SubscriptionService | None = None
+portal_feature_flag_service: FeatureFlagService | None = None
+portal_audit_log_service: AuditLogService | None = None
+portal_activity_service: OrganizationActivityService | None = None
+portal_support_service: OrganizationSupportService | None = None
+support_ticket_email_delivery: SupportTicketEmailDelivery | None = None
+portal_customer_accounts_repositories: CustomerAccountsRepositories | None = None
+nonprofit_service: NonprofitService | None = None
+nonprofit_advisory_detail_service: NonprofitAdvisoryDetailService | None = None
+nonprofit_postgres_repository: Any | None = None
+athena_client: Any | None = None
+nonprofit_query_client: QueryRepository | Any | None = None
+logger = logging.getLogger(__name__)
+LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=logger)
+
+
+class _RuntimeBillingSettingsResolver:
+    def allow_overage(self, account_id: str | None) -> bool:
+        return _resolve_effective_allow_overage(
+            account_id=account_id,
+            fallback_plan_code=_resolve_account_subscription_plan(account_id, fallback_plan="free"),
+        )
+
+    def monthly_request_limit(self, account_id: str | None, default_limit: int) -> int:
+        settings, _updated_at = _load_billing_settings_override(account_id)
+        if settings is None or settings.monthly_request_cap is None:
+            return max(1, int(default_limit))
+        return max(1, int(settings.monthly_request_cap))
+
+
+@dataclass(frozen=True)
+class TenantContext:
+    organization_id: str
+    user_id: str | None
+    membership_role: str | None
+    subscription_plan: str
+    auth_method: str
+    credential_id: str | None
+    metadata: dict[str, str] = field(default_factory=dict)
+
+
+def _get_enrichment_service() -> EnrichmentProviderGateway:
+    global enrichment_service
+    if enrichment_service is None:
+        enrichment_service = build_enrichment_service(
+            RefreshRuntimeConfig(
+                platform_integrations=PLATFORM_INTEGRATIONS,
+                enrichment_timeout_seconds=ENRICHMENT_TIMEOUT_SECONDS,
+                enrichment_mock_offered=_env_optional_bool("ENRICHMENT_MOCK_OFFERED"),
+                enrichment_mock_enabled=_env_bool("ENRICHMENT_MOCK_ENABLED"),
+                enrichment_candid_offered=_env_optional_bool("ENRICHMENT_CANDID_OFFERED"),
+                enrichment_candid_enabled=_env_bool("ENRICHMENT_CANDID_ENABLED"),
+                enrichment_candid_api_key=os.environ.get("ENRICHMENT_CANDID_API_KEY"),
+                enrichment_candid_endpoint=os.environ.get("ENRICHMENT_CANDID_ENDPOINT"),
+                enrichment_state_registry_offered=_env_optional_bool("ENRICHMENT_STATE_REGISTRY_OFFERED"),
+                enrichment_state_registry_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_ENABLED"),
+                enrichment_state_registry_mock_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_MOCK_ENABLED"),
+                enrichment_state_registry_endpoint=os.environ.get("ENRICHMENT_STATE_REGISTRY_ENDPOINT"),
+                enrichment_state_registry_colorado_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_COLORADO_ENABLED"),
+                enrichment_state_registry_colorado_app_token=os.environ.get("ENRICHMENT_STATE_REGISTRY_COLORADO_APP_TOKEN"),
+                enrichment_state_registry_kentucky_enabled=_env_bool("ENRICHMENT_STATE_REGISTRY_KENTUCKY_ENABLED"),
+                enrichment_state_registry_kentucky_companies_url=os.environ.get("ENRICHMENT_STATE_REGISTRY_KENTUCKY_COMPANIES_URL"),
+                enrichment_state_business_offered=_env_optional_bool("ENRICHMENT_STATE_BUSINESS_OFFERED"),
+                enrichment_state_business_enabled=_env_bool("ENRICHMENT_STATE_BUSINESS_ENABLED"),
+                enrichment_state_business_mock_enabled=_env_bool("ENRICHMENT_STATE_BUSINESS_MOCK_ENABLED"),
+                enrichment_state_business_endpoint=os.environ.get("ENRICHMENT_STATE_BUSINESS_ENDPOINT"),
+                enrichment_usaspending_offered=_env_optional_bool("ENRICHMENT_USASPENDING_OFFERED"),
+                enrichment_usaspending_enabled=_env_bool("ENRICHMENT_USASPENDING_ENABLED"),
+                enrichment_usaspending_mock_enabled=_env_bool("ENRICHMENT_USASPENDING_MOCK_ENABLED"),
+                enrichment_usaspending_endpoint=os.environ.get("ENRICHMENT_USASPENDING_ENDPOINT"),
+                enrichment_ofac_offered=_env_optional_bool("ENRICHMENT_OFAC_OFFERED"),
+                enrichment_ofac_enabled=_env_bool("ENRICHMENT_OFAC_ENABLED"),
+                enrichment_ofac_mock_enabled=_env_bool("ENRICHMENT_OFAC_MOCK_ENABLED"),
+                enrichment_ofac_endpoint=os.environ.get("ENRICHMENT_OFAC_ENDPOINT"),
+            )
+        )
+    return enrichment_service
+
+
+def _get_nonprofit_query_client() -> QueryRepository:
+    global athena_client, nonprofit_query_client
+    if nonprofit_query_client is not None:
+        return nonprofit_query_client
+    if _env_bool("PLATFORM_POSTGRES_ENABLED"):
+        try:
+            nonprofit_query_client = build_nonprofit_query_client(env=_nonprofit_runtime_env())
+            return nonprofit_query_client
+        except Exception:
+            if athena_client is None:
+                raise
+    if athena_client is not None:
+        nonprofit_query_client = athena_client
+        return nonprofit_query_client
+    if nonprofit_query_client is None:
+        nonprofit_query_client = build_nonprofit_query_client(env=os.environ)
+    return nonprofit_query_client
+
+
+def _get_nonprofit_postgres_repository():
+    global nonprofit_postgres_repository
+    if nonprofit_postgres_repository is None:
+        nonprofit_postgres_repository = build_nonprofit_postgres_repository(env=_nonprofit_runtime_env())
+    return nonprofit_postgres_repository
+
+
+def _nonprofit_runtime_env() -> dict[str, str]:
+    source = dict(os.environ)
+    general_postgres_url = str(source.get("PLATFORM_POSTGRES_URL") or "").strip()
+    compatibility_mode = _env_bool("PLATFORM_POSTGRES_ENABLED") and (
+        not str(source.get("PLATFORM_NONPROFIT_STORE_BACKEND") or "").strip()
+        or general_postgres_url.startswith("sqlite+")
+    )
+    if compatibility_mode:
+        source["PLATFORM_NONPROFIT_STORE_BACKEND"] = "postgres"
+        for suffix in ("ENABLED", "HOST", "PORT", "DATABASE", "SSLMODE", "SECRET_ARN", "URL"):
+            general_key = f"PLATFORM_POSTGRES_{suffix}"
+            nonprofit_key = f"PLATFORM_NONPROFIT_POSTGRES_{suffix}"
+            value = source.get(general_key)
+            if value is not None:
+                source[nonprofit_key] = value
+    return source
+
+
+def _get_nonprofit_service() -> NonprofitService:
+    global nonprofit_service
+    if nonprofit_service is None:
+        nonprofit_service = NonprofitService(
+            client=_get_nonprofit_query_client(),
+            enrichment_service=_get_enrichment_service(),
+            feature_flag_service=_get_portal_feature_flag_service(),
+        )
+    return nonprofit_service
+
+
+def _get_nonprofit_advisory_detail_service() -> NonprofitAdvisoryDetailService | None:
+    global nonprofit_advisory_detail_service
+    if nonprofit_advisory_detail_service is None:
+        repository = _get_nonprofit_postgres_repository()
+        if repository is None:
+            return None
+        nonprofit_advisory_detail_service = NonprofitAdvisoryDetailService(
+            repository=repository,
+        )
+    return nonprofit_advisory_detail_service
+
+
+def _get_profile_store() -> ProfileStoreAdapter | None:
+    return profile_store
+
+
+def _get_auth_context_provider() -> AuthContextProvider:
+    global auth_context_provider
+    if auth_context_provider is not None:
+        return auth_context_provider
+    api_auth_enabled = _env_bool("API_AUTH_ENABLED")
+    oauth_m2m_enabled = _env_bool("OAUTH_M2M_ENABLED")
+    if not api_auth_enabled:
+        auth_context_provider = NoopAuthContextProvider()
+        return auth_context_provider
+
+    api_key_store = _load_runtime_api_key_store()
+    if oauth_m2m_enabled:
+        return ApiKeyOrOAuthAuthContextProvider(
+            api_key_store=api_key_store,
+            oauth_token_store=_load_runtime_oauth_token_store(),
+            oauth_client_store=_load_runtime_oauth_client_store(),
+            entitlement_service=_get_entitlement_service(),
+        )
+    return ApiKeyAuthContextProvider(api_key_store, entitlement_service=_get_entitlement_service())
+
+
+def _get_quota_metering_hook() -> QuotaMeteringHook:
+    global quota_metering_hook, usage_store
+    if quota_metering_hook is None:
+        if _env_bool("API_AUTH_ENABLED"):
+            usage_store = usage_store or _get_control_plane_service().store
+            usage_service = _get_portal_usage_service()
+            quota_metering_hook = ApiKeyQuotaMeteringHook(
+                usage_store=usage_store,
+                entitlement_service=_get_entitlement_service(),
+                billing_settings_resolver=_RuntimeBillingSettingsResolver(),
+                trial_lifecycle_service=_get_trial_lifecycle_service(),
+                organization_usage_tracker=_PortalOrganizationUsageTracker(usage_service) if usage_service is not None else None,
+                organization_feature_service=_get_portal_feature_flag_service(),
+            )
+        else:
+            quota_metering_hook = NoopQuotaMeteringHook()
+    return quota_metering_hook
+
+
+def _get_oauth_client_credentials_service() -> OAuthClientCredentialsService:
+    global oauth_client_credentials_service
+    oauth_client_credentials_service = OAuthClientCredentialsService(
+        _load_runtime_oauth_client_store(),
+        token_ttl_seconds=OAUTH_TOKEN_TTL_SECONDS,
+        entitlement_service=_get_entitlement_service(),
+    )
+    return oauth_client_credentials_service
+
+
+def _get_admin_key_store():
+    return load_admin_key_store(ADMIN_KEY_RECORDS_JSON)
+
+
+def _get_control_plane_service() -> ControlPlaneService:
+    global control_plane_service
+    if control_plane_service is None:
+        control_plane_service = ControlPlaneService(store=build_control_plane_store(os.environ))
+    return control_plane_service
+
+
+def _get_entitlement_service() -> EntitlementService:
+    global entitlement_service
+    if entitlement_service is None:
+        entitlement_service = EntitlementService(
+            subscription_loader=_load_runtime_subscription,
+            trial_config=TRIAL_CONFIG,
+        )
+    return entitlement_service
+
+
+def _get_response_shaping_service() -> ResponseShapingService:
+    global response_shaping_service
+    if response_shaping_service is None:
+        response_shaping_service = ResponseShapingService()
+    return response_shaping_service
+
+
+def _get_billing_checkout_service() -> BillingCheckoutService:
+    global billing_checkout_service
+    if billing_checkout_service is None:
+        billing_checkout_service = BillingCheckoutService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+            plan_catalog_provider=_get_billing_service(),
+            customer_bootstrapper=_get_billing_customer_bootstrap_service(),
+        )
+    return billing_checkout_service
+
+
+def _get_billing_service() -> BillingService:
+    global billing_service
+    if billing_service is None:
+        store = _get_control_plane_service().store
+        billing_service = BillingService(
+            customers=ControlPlaneBillingCustomerRepository(store),
+            subscriptions=ControlPlaneBillingSubscriptionRepository(store),
+            events=ControlPlaneBillingEventRepository(store),
+            provider=ConfiguredStripeBillingProvider(
+                [
+                    PlanCatalogMapping(internal_plan_id=plan_code, stripe_price_id=price_id)
+                    for plan_code, price_id in STRIPE_CHECKOUT_CONFIG.price_ids.items()
+                ]
+            ),
+        )
+    return billing_service
+
+
+def _get_billing_plan_change_service() -> BillingPlanChangeService:
+    global billing_plan_change_service
+    if billing_plan_change_service is None:
+        billing_plan_change_service = BillingPlanChangeService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+        )
+    return billing_plan_change_service
+
+
+def _get_billing_portal_service() -> BillingPortalService:
+    global billing_portal_service
+    if billing_portal_service is None:
+        billing_portal_service = BillingPortalService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+        )
+    return billing_portal_service
+
+
+def _get_billing_visibility_service() -> BillingVisibilityService:
+    global billing_visibility_service
+    if billing_visibility_service is None:
+        billing_visibility_service = BillingVisibilityService(
+            store=_get_control_plane_service().store,
+            entitlement_service=_get_entitlement_service(),
+        )
+    return billing_visibility_service
+
+
+def _get_billing_customer_bootstrap_service() -> BillingCustomerBootstrapService:
+    global billing_customer_bootstrap_service
+    if billing_customer_bootstrap_service is None:
+        store = _get_control_plane_service().store
+        billing_customer_bootstrap_service = BillingCustomerBootstrapService(
+            store=store,
+            billing_service=_get_billing_service(),
+            config=STRIPE_CHECKOUT_CONFIG,
+            stripe_provider=HttpStripeCheckoutClient(
+                secret_key=STRIPE_CHECKOUT_CONFIG.secret_key or "",
+                public_brand_name=STRIPE_CHECKOUT_CONFIG.public_brand_name,
+            ),
+        )
+    return billing_customer_bootstrap_service
+
+
+def _get_billing_reconciliation_service() -> BillingReconciliationService:
+    global billing_reconciliation_service
+    if billing_reconciliation_service is None:
+        billing_reconciliation_service = BillingReconciliationService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_CHECKOUT_CONFIG,
+            plan_catalog_provider=_get_billing_service(),
+            trial_lifecycle_service=_get_trial_lifecycle_service(),
+        )
+    return billing_reconciliation_service
+
+
+def _get_stripe_webhook_service() -> StripeWebhookService:
+    global stripe_webhook_service
+    if stripe_webhook_service is None:
+        stripe_webhook_service = StripeWebhookService(
+            store=_get_control_plane_service().store,
+            config=STRIPE_WEBHOOK_CONFIG,
+            trial_lifecycle_service=_get_trial_lifecycle_service(),
+            plan_catalog_provider=_get_billing_service(),
+        )
+    return stripe_webhook_service
+
+
+def _get_trial_lifecycle_service() -> TrialLifecycleService:
+    global trial_lifecycle_service
+    if trial_lifecycle_service is None:
+        trial_lifecycle_service = TrialLifecycleService(
+            store=_get_control_plane_service().store,
+            config=TRIAL_CONFIG,
+        )
+    return trial_lifecycle_service
+
+
+def _get_portal_audit_log_service() -> AuditLogService:
+    global portal_audit_log_service
+    if portal_audit_log_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_audit_log_service = AuditLogService(
+            repository=repositories.audits,
+            logger=logger,
+        )
+    return portal_audit_log_service
+
+
+def _get_portal_activity_service() -> OrganizationActivityService:
+    global portal_activity_service
+    if portal_activity_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_activity_service = OrganizationActivityService(
+            audits=repositories.audits,
+            users=repositories.users,
+        )
+    return portal_activity_service
+
+
+def _get_portal_support_service() -> OrganizationSupportService:
+    global portal_support_service
+    if portal_support_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_support_service = OrganizationSupportService(
+            organizations=repositories.organizations,
+            audits=repositories.audits,
+            support_tickets=repositories.support_tickets if _get_support_ticket_email_delivery() is not None else None,
+            email_delivery=_get_support_ticket_email_delivery(),
+        )
+    return portal_support_service
+
+
+def _get_support_ticket_email_delivery() -> SupportTicketEmailDelivery | None:
+    global support_ticket_email_delivery
+    if not SUPPORT_TICKET_EMAIL_CONFIG.enabled:
+        return None
+    if support_ticket_email_delivery is None:
+        support_ticket_email_delivery = build_support_ticket_email_delivery(
+            config=SUPPORT_TICKET_EMAIL_CONFIG,
+        )
+    return support_ticket_email_delivery
+
+
+def _get_portal_auth_service() -> AuthService:
+    global portal_auth_service
+    if portal_auth_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_auth_service = AuthService(
+            users=repositories.users,
+            password_hasher=BcryptPasswordHasher(),
+            token_codec=HmacBearerTokenCodec(
+                secret=PORTAL_AUTH_TOKEN_SECRET,
+                token_ttl_seconds=PORTAL_AUTH_TOKEN_TTL_SECONDS,
+            ),
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return portal_auth_service
+
+
+def _get_portal_usage_service() -> UsageService | None:
+    global portal_usage_service
+    if portal_usage_service is None:
+        try:
+            repositories = _get_portal_customer_accounts_repositories()
+            portal_usage_service = UsageService(
+                organizations=repositories.organizations,
+                usage=repositories.usage,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_usage_service
+
+
+def _get_portal_subscription_service() -> SubscriptionService | None:
+    global portal_subscription_service
+    if portal_subscription_service is None:
+        try:
+            repositories = _get_portal_customer_accounts_repositories()
+            portal_subscription_service = SubscriptionService(
+                organizations=repositories.organizations,
+                plans=repositories.plans,
+                subscriptions=repositories.subscriptions,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_subscription_service
+
+
+def _get_portal_feature_flag_service() -> FeatureFlagService | None:
+    global portal_feature_flag_service
+    if portal_feature_flag_service is None:
+        try:
+            repositories = _get_portal_customer_accounts_repositories()
+            subscription_service = _get_portal_subscription_service()
+            if subscription_service is None:
+                return None
+            portal_feature_flag_service = FeatureFlagService(
+                organizations=repositories.organizations,
+                subscriptions=repositories.subscriptions,
+                flags=repositories.flags,
+                subscription_service=subscription_service,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+    return portal_feature_flag_service
+
+
+def _get_portal_organization_service() -> OrganizationService:
+    global portal_organization_service
+    if portal_organization_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_organization_service = OrganizationService(
+            users=repositories.users,
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return portal_organization_service
+
+
+def _get_portal_organization_context_service() -> OrganizationContextService:
+    global portal_organization_context_service
+    if portal_organization_context_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_organization_context_service = OrganizationContextService(
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+        )
+    return portal_organization_context_service
+
+
+def _get_portal_membership_service() -> MembershipManagementService:
+    global portal_membership_service
+    if portal_membership_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_membership_service = MembershipManagementService(
+            users=repositories.users,
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+            invitations=repositories.invitations,
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return portal_membership_service
+
+
+def _get_portal_api_key_service() -> ApiKeyService:
+    global portal_api_key_service
+    if portal_api_key_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        portal_api_key_service = ApiKeyService(
+            organizations=repositories.organizations,
+            memberships=repositories.memberships,
+            api_keys=repositories.api_keys,
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return portal_api_key_service
+
+
+def _get_portal_customer_accounts_repositories() -> CustomerAccountsRepositories:
+    global portal_customer_accounts_repositories
+    if portal_customer_accounts_repositories is None:
+        portal_customer_accounts_repositories = build_customer_accounts_repositories(
+            os.environ,
+        )
+    return portal_customer_accounts_repositories
+
+
+def _load_runtime_api_key_store() -> StaticApiKeyStore:
+    fallback_store = load_api_key_store(os.environ.get("API_KEY_RECORDS_JSON", ""))
+    primary_store = _ManagedOrganizationApiKeyStore()
+    return _MergedApiKeyStore(
+        primary_store,
+        _ManagedApiKeyStore(_get_control_plane_service().store),
+        fallback_store,
+    )
+
+
+def _load_runtime_oauth_token_store() -> StaticOAuthTokenStore:
+    return load_oauth_token_store(OAUTH_TOKEN_RECORDS_JSON)
+
+
+def _load_runtime_oauth_client_store() -> StaticOAuthClientStore:
+    return _MergedOAuthClientStore(
+        _ManagedOAuthClientStore(_get_control_plane_service().store),
+        load_oauth_client_store(OAUTH_CLIENT_RECORDS_JSON),
+    )
+
+
+def _load_runtime_subscription(account_id: str):
+    store = _get_control_plane_service().store
+    subscription = store.get_subscription(account_id)
+    if subscription is None:
+        return None
+    return subscription.to_subscription()
+
+
+class _ManagedApiKeyStore:
+    def __init__(self, store: Any) -> None:
+        self._store = store
+
+    def get(self, key_id: str):
+        return self._store.get_api_key_record(key_id)
+
+
+class _ManagedOrganizationApiKeyStore:
+    def __init__(self, repository: Any | None = None) -> None:
+        self._repository = repository
+
+    def _get_repository(self):
+        if self._repository is not None:
+            return self._repository
+        try:
+            self._repository = _get_portal_customer_accounts_repositories().api_keys
+        except Exception:  # noqa: BLE001
+            return None
+        return self._repository
+
+    def get(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            record = repository.get_by_key_id(key_id)
+        except Exception:  # noqa: BLE001
+            return None
+        if record is None:
+            return None
+        return _to_stored_api_key_record(record)
+
+    def touch_last_used(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            repository.touch_last_used(key_id, used_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        except Exception:  # noqa: BLE001
+            return None
+
+    def get_organization_id(self, key_id: str):
+        repository = self._get_repository()
+        if repository is None:
+            return None
+        try:
+            record = repository.get_by_key_id(key_id)
+        except Exception:  # noqa: BLE001
+            return None
+        if record is None:
+            return None
+        return record.organization_id
+
+
+class _MergedApiKeyStore:
+    def __init__(self, primary: Any, secondary: Any, fallback: StaticApiKeyStore) -> None:
+        self._primary = primary
+        self._secondary = secondary
+        self._fallback = fallback
+
+    def get(self, key_id: str):
+        return self._primary.get(key_id) or self._secondary.get(key_id) or self._fallback.get(key_id)
+
+    def touch_last_used(self, key_id: str):
+        touch_last_used = getattr(self._primary, "touch_last_used", None)
+        if callable(touch_last_used):
+            touch_last_used(key_id)
+
+    def get_organization_id(self, key_id: str):
+        get_organization_id = getattr(self._primary, "get_organization_id", None)
+        if callable(get_organization_id):
+            return get_organization_id(key_id)
+        return None
+
+
+class _NoopApiKeyStore:
+    def get(self, key_id: str):
+        return None
+
+
+class _PortalOrganizationUsageTracker:
+    def __init__(self, usage_service: UsageService) -> None:
+        self._usage_service = usage_service
+
+    def record_usage(self, *, organization_id: str, route_key: str, billable_units: int, period_month: str) -> None:
+        for metric in usage_metrics_for_route(route_key):
+            self._usage_service.increment_metric(
+                organization_id=organization_id,
+                metric_type=metric.value,
+                period_month=period_month,
+                units=billable_units,
+            )
+
+
+class _ManagedOAuthClientStore:
+    def __init__(self, store: Any) -> None:
+        self._store = store
+
+    def get(self, client_id: str):
+        return self._store.get_oauth_client_record(client_id)
+
+
+class _MergedOAuthClientStore:
+    def __init__(self, primary: Any, fallback: StaticOAuthClientStore) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def get(self, client_id: str):
+        return self._primary.get(client_id) or self._fallback.get(client_id)
+
+
+def _to_stored_api_key_record(record):
+    from verification.backend.shared.auth.service import StoredApiKeyRecord
+
+    return StoredApiKeyRecord(
+        key_id=str(record.key_id),
+        secret_hash=record.hashed_key_value,
+        account_id=str(record.organization_id),
+        workspace_id=str(record.organization_id),
+        scopes=(
+            "verify:read",
+            "verify:write",
+            "nonprofits:read",
+            "sources:read",
+            "compliance:read",
+            "federal_awards:read",
+        ),
+        revoked=record.status.value != "active",
+        plan_id="free",
+        rate_limit_profile="free",
+    )
+
+
+def _get_ops_run_store() -> Any | None:
+    global ops_run_store
+    if ops_run_store is None:
+        ops_run_store = InMemoryRunStore()
+    return ops_run_store
+
+
+def _get_ecs_run_task_client() -> Any:
+    global ecs_run_task_client
+    if ecs_run_task_client is None:
+        ecs_run_task_client = _load_boto3().client("ecs")
+    return ecs_run_task_client
+
+
+def _get_organization_integration_settings_store() -> OrganizationIntegrationSettingsStoreAdapter | None:
+    global organization_integration_settings_store
+    if organization_integration_settings_store is None:
+        try:
+            organization_integration_settings_store = build_organization_settings_store(os.environ)
+        except Exception:
+            organization_integration_settings_store = None
+    return organization_integration_settings_store
+
+
+def _get_tenant_integration_settings_resolver() -> OrganizationIntegrationSettingsResolver:
+    global tenant_integration_settings_resolver
+    if tenant_integration_settings_resolver is None:
+        tenant_integration_settings_resolver = load_organization_integration_settings(
+            ORGANIZATION_INTEGRATION_SETTINGS_JSON,
+            default_settings=PLATFORM_INTEGRATIONS.organization_default_settings(),
+        )
+    return tenant_integration_settings_resolver
+
+
+def _get_organization_integration_settings_service() -> OrganizationIntegrationSettingsService:
+    global organization_integration_settings_service
+    if organization_integration_settings_service is None:
+        organization_integration_settings_service = OrganizationIntegrationSettingsService(
+            fallback_resolver=_get_tenant_integration_settings_resolver(),
+            store=_get_organization_integration_settings_store(),
+        )
+    return organization_integration_settings_service
+
+
+def _get_organization_settings_service() -> OrganizationSettingsService:
+    global organization_settings_service
+    if organization_settings_service is None:
+        repositories = _get_portal_customer_accounts_repositories()
+        organization_settings_service = OrganizationSettingsService(
+            integration_settings=_get_organization_integration_settings_service(),
+            organizations=repositories.organizations,
+            audit_log_service=_get_portal_audit_log_service(),
+        )
+    return organization_settings_service
+
+
+def _resolve_evaluation_context(auth_context: Any) -> EvaluationContext:
+    context = _get_organization_integration_settings_service().resolve_context(
+        workspace_id=getattr(auth_context, "workspace_id", None),
+        account_id=getattr(auth_context, "account_id", None),
+    )
+    metadata = getattr(auth_context, "metadata", {}) or {}
+    organization_id = metadata.get("organization_id")
+    if metadata.get("tenant_scoped_request") != "true" or not organization_id:
+        return context
+    feature_service = _get_portal_feature_flag_service()
+    if feature_service is None:
+        return context
+    try:
+        return feature_service.apply_evaluation_context_overrides(
+            organization_id=str(organization_id),
+            context=context,
+        )
+    except Exception:  # noqa: BLE001
+        return context
+
+
+def _is_tenant_nonprofit_request(event: dict[str, Any], method: str) -> bool:
+    return any(
+        checker(event, method)
+        for checker in (
+            _is_search_request,
+            _is_sources_list_request,
+            _is_sources_detail_request,
+            _is_compliance_request,
+            _is_federal_awards_request,
+            _is_filings_request,
+            _is_lookup_request,
+        )
+    )
+
+
+def _is_lookup_request(event: dict[str, Any], method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    if candidate.endswith("/nonprofit/{ein}") or candidate.endswith("/nonprofit/{ein}/"):
+        return True
+    path_params = event.get("pathParameters") or {}
+    return bool(path_params.get("ein"))
+
+
+def _resolve_organization_subscription_plan(organization_id: str, fallback_plan: str = "free") -> str:
+    plan_code = str(fallback_plan or "free")
+    subscription_service = _get_portal_subscription_service()
+    if subscription_service is None:
+        return plan_code
+    try:
+        resolved = subscription_service.get_subscription_for_organization(organization_id)
+        return str(resolved.subscription.plan.plan_id)
+    except Exception:  # noqa: BLE001
+        return plan_code
+
+
+def _build_portal_session_auth_context(*, organization_id: str, user_id: str, membership_role: str | None, plan_code: str) -> AuthContext:
+    entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
+    return AuthContext(
+        account_id=organization_id,
+        credential_id=user_id,
+        auth_method="portal_session",
+        plan=plan_code,
+        scopes=("verify:read", "nonprofits:read", "sources:read"),
+        rate_limit_profile=plan_code,
+        workspace_id=organization_id,
+        subject=f"portal_session:{user_id}",
+        entitlements=entitlements,
+        metadata={
+            "organization_id": organization_id,
+            "portal_session": "true",
+            "tenant_scoped_request": "true",
+            "tenant_user_id": user_id,
+            "subscription_plan": plan_code,
+            **({"membership_role": membership_role} if membership_role else {}),
+        },
+    )
+
+
+def _build_tenant_context(auth_context: Any) -> TenantContext:
+    metadata = getattr(auth_context, "metadata", {}) or {}
+    organization_id = str(metadata.get("organization_id") or "").strip()
+    if not organization_id:
+        raise AuthorizationError("Organization-scoped authentication is required")
+    auth_method = str(getattr(auth_context, "auth_method", "") or "")
+    credential_id = str(getattr(auth_context, "credential_id", "") or "") or None
+    user_id = str(metadata.get("tenant_user_id") or "").strip() or None
+    if user_id is None and auth_method == "portal_session":
+        user_id = credential_id
+    subscription_plan = (
+        str(metadata.get("subscription_plan") or "").strip()
+        or str(getattr(auth_context, "plan", "") or "").strip()
+        or _resolve_organization_subscription_plan(organization_id)
+    )
+    return TenantContext(
+        organization_id=organization_id,
+        user_id=user_id,
+        membership_role=(str(metadata.get("membership_role") or "").strip() or None),
+        subscription_plan=subscription_plan,
+        auth_method=auth_method,
+        credential_id=credential_id,
+        metadata=dict(metadata),
+    )
+
+
+def _build_tenant_nonprofit_context(*, auth_context: Any, tenant_context: TenantContext) -> TenantNonprofitContext:
+    return TenantNonprofitContext(
+        organization_id=tenant_context.organization_id,
+        authenticated_subject=str(getattr(auth_context, "subject", "") or ""),
+        authenticated_user_id=tenant_context.user_id,
+        auth_method=tenant_context.auth_method,
+        credential_id=tenant_context.credential_id,
+        metadata=dict(tenant_context.metadata),
+    )
+
+
+def _attach_tenant_context(event: dict[str, Any], auth_context: AuthContext, tenant_context: TenantContext) -> None:
+    if isinstance(event, dict):
+        event["_auth_context"] = auth_context
+        event["_tenant_context"] = tenant_context
+    metadata = getattr(auth_context, "metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    metadata["organization_id"] = tenant_context.organization_id
+    metadata["tenant_scoped_request"] = "true"
+    metadata["subscription_plan"] = tenant_context.subscription_plan
+    if tenant_context.user_id:
+        metadata["tenant_user_id"] = tenant_context.user_id
+    if tenant_context.membership_role:
+        metadata["membership_role"] = tenant_context.membership_role
+
+
+def _resolve_portal_session_tenant_context(
+    event: dict[str, Any],
+    *,
+    missing_membership_message: str,
+) -> tuple[AuthContext, TenantContext]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "").strip()
+    if not authorization.lower().startswith("bearer "):
+        raise AuthenticationError("Authentication required")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    try:
+        organization_id, workspace_id = _resolve_current_portal_context(event)
+    except MembershipManagementError as exc:
+        raise AuthorizationError(str(exc)) from exc
+    if organization_id != workspace_id:
+        raise AuthorizationError("Current organization headers must identify the same scope")
+    membership = _get_portal_customer_accounts_repositories().memberships.get(organization_id, current_user.user_id)
+    if membership is None or membership.status != MembershipStatus.ACTIVE:
+        raise AuthorizationError(missing_membership_message)
+    plan_code = _resolve_organization_subscription_plan(organization_id)
+    auth_context = _build_portal_session_auth_context(
+        organization_id=organization_id,
+        user_id=current_user.user_id,
+        membership_role=membership.role.value,
+        plan_code=plan_code,
+    )
+    tenant_context = TenantContext(
+        organization_id=organization_id,
+        user_id=current_user.user_id,
+        membership_role=membership.role.value,
+        subscription_plan=plan_code,
+        auth_method="portal_session",
+        credential_id=current_user.user_id,
+        metadata=dict(auth_context.metadata),
+    )
+    _attach_tenant_context(event, auth_context, tenant_context)
+    return auth_context, tenant_context
+
+
+def _resolve_organization_tenant_context(
+    event: dict[str, Any],
+    *,
+    missing_context_message: str,
+    missing_membership_message: str,
+    require_user: bool,
+) -> tuple[AuthContext, TenantContext]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "").strip()
+    has_current_org_headers = bool(_get_header(headers, "x-portal-account-id") or _get_header(headers, "x-portal-workspace-id"))
+    if authorization.lower().startswith("bearer "):
+        if not has_current_org_headers:
+            _get_portal_auth_service().get_current_user(authorization)
+            raise AuthorizationError("Current organization headers are required")
+        return _resolve_portal_session_tenant_context(
+            event,
+            missing_membership_message=missing_membership_message,
+        )
+
+    auth_context = _get_auth_context_provider().extract_context(event or {})
+    if str(getattr(auth_context, "auth_method", "") or "") == "anonymous":
+        raise AuthenticationError("Authentication required")
+    try:
+        tenant_context = _build_tenant_context(auth_context)
+    except AuthorizationError as exc:
+        raise AuthorizationError(missing_context_message) from exc
+    if require_user and not tenant_context.user_id:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
+    _attach_tenant_context(event, auth_context, tenant_context)
+    return auth_context, tenant_context
+
+
+def _handle_oauth_token_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    if not OAUTH_M2M_ENABLED:
+        return error_response(404, "OAuth token endpoint is not enabled", response_context=response_context, code="not_found")
+    try:
+        client_id, client_secret = _parse_oauth_token_request(event)
+        auth_context, token_payload = _get_oauth_client_credentials_service().issue_token(client_id, client_secret)
+        event["_auth_context"] = auth_context
+        token_context = ResponseContext(
+            request_id=response_context.request_id,
+            plan=str(auth_context.plan or "public"),
+            deprecation=response_context.deprecation,
+            cors_origin=response_context.cors_origin,
+        )
+        return json_response(200, token_payload, response_context=token_context)
+    except AuthenticationError as exc:
+        return error_response(exc.status_code, str(exc), response_context=response_context, code="invalid_client")
+    except ValueError as exc:
+        return error_response(400, str(exc), response_context=response_context, code="invalid_request")
+
+
+def _parse_oauth_token_request(event: dict[str, Any]) -> tuple[str, str]:
+    headers = event.get("headers") or {}
+    content_type = str(_get_header(headers, "content-type") or "").lower()
+    body = str(event.get("body") or "")
+    if not body:
+        raise ValueError("Request body is required")
+
+    if "application/x-www-form-urlencoded" in content_type:
+        params = parse_qs(body, keep_blank_values=True)
+        client_id = str((params.get("client_id") or [""])[0]).strip()
+        client_secret = str((params.get("client_secret") or [""])[0]).strip()
+    else:
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Request body must be valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Request body must be a JSON object")
+        client_id = str(payload.get("client_id") or "").strip()
+        client_secret = str(payload.get("client_secret") or "").strip()
+
+    if not client_id or not client_secret:
+        raise ValueError("client_id and client_secret are required")
+    return client_id, client_secret
+
+
+def _parse_json_body(event: dict[str, Any]) -> dict[str, Any]:
+    body = event.get("body")
+    if not body:
+        raise ValueError("Request body is required")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Request body must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
+
+
+def _parse_optional_json_body(event: dict[str, Any]) -> dict[str, Any]:
+    body = event.get("body")
+    if body is None:
+        return {}
+    if isinstance(body, str) and not body.strip():
+        return {}
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Request body must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
+
+
+def _is_admin_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    return resource.startswith("/admin/") or path.startswith("/admin/")
+
+
+def _is_portal_auth_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {"/auth/register", "/auth/login", "/auth/me"}
+
+
+def _is_portal_organization_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"POST", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {"/organizations", "/organizations/current"}
+
+
+def _is_portal_membership_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "PATCH", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {
+        "/organizations/current/members",
+        "/organizations/current/invitations",
+        "/organizations/current/members/{memberId}",
+    }
+
+
+def _is_portal_api_key_request(event: dict[str, Any], method: str) -> bool:
+    if method not in {"GET", "POST", "DELETE"}:
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate in {
+        "/organizations/current/api-keys",
+        "/organizations/current/api-keys/{keyId}",
+    }
+
+
+def _is_invitation_accept_request(event: dict[str, Any], method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    return candidate == "/invitations/accept"
+
+
+def _handle_portal_auth_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    service = _get_portal_auth_service()
+
+    if resource == "/auth/register" and method == "POST":
+        payload = _parse_json_body(event)
+        session = service.register_user(
+            UserCreateRequest(
+                email=str(payload.get("email") or ""),
+                password=str(payload.get("password") or ""),
+                full_name=(str(payload.get("full_name")) if payload.get("full_name") is not None else None),
+            )
+        )
+        return json_response(201, session.to_dict(), response_context=response_context)
+
+    if resource == "/auth/login" and method == "POST":
+        payload = _parse_json_body(event)
+        session = service.login_user(
+            UserLoginRequest(
+                email=str(payload.get("email") or ""),
+                password=str(payload.get("password") or ""),
+            )
+        )
+        return json_response(200, session.to_dict(), response_context=response_context)
+
+    if resource == "/auth/me" and method == "GET":
+        headers = event.get("headers") or {}
+        authorization = str(_get_header(headers, "authorization") or "")
+        user = service.get_current_user(authorization)
+        context_service = _get_portal_organization_context_service()
+        available_organizations = context_service.list_for_user(user_id=user.user_id)
+        organization_context = available_organizations[0] if available_organizations else None
+        return json_response(
+            200,
+            {
+                "available_organizations": [
+                    context.to_dict() for context in available_organizations
+                ],
+                "organization_context": organization_context.to_dict()
+                if organization_context is not None
+                else None,
+                "user": user.to_dict(),
+            },
+            response_context=response_context,
+        )
+
+    return error_response(404, "Auth route not found", response_context=response_context, code="not_found")
+
+
+def _handle_portal_organization_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    payload = _parse_json_body(event)
+
+    if method == "POST":
+        organization = _get_portal_organization_service().create_organization(
+            creator_user_id=current_user.user_id,
+            request=OrganizationCreateRequest(
+                name=str(payload.get("name") or ""),
+                slug=(str(payload.get("slug")) if payload.get("slug") is not None else None),
+            ),
+        )
+        return json_response(201, organization.to_dict(), response_context=response_context)
+
+    workspace_id, _account_id = _resolve_current_portal_context(event)
+    organization = _get_portal_organization_service().delete_organization(
+        actor_user_id=current_user.user_id,
+        organization_id=workspace_id,
+        request=OrganizationDeleteRequest(
+            slug=str(payload.get("slug") or ""),
+        ),
+    )
+    return json_response(
+        200,
+        {
+            "deleted": True,
+            "organization": organization.to_dict(),
+        },
+        response_context=response_context,
+    )
+
+
+def _resolve_current_portal_context(event: dict[str, Any]) -> tuple[str, str]:
+    headers = event.get("headers") or {}
+    account_id = str(_get_header(headers, "x-portal-account-id") or "").strip()
+    workspace_id = str(_get_header(headers, "x-portal-workspace-id") or "").strip()
+    if not account_id or not workspace_id:
+        raise MembershipManagementError("Current organization headers are required")
+    if account_id != workspace_id:
+        raise MembershipManagementError("Current organization headers must identify the same scope")
+    return account_id, workspace_id
+
+def _handle_portal_membership_request(
+    event: dict[str, Any],
+    response_context: ResponseContext,
+    *,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    account_id = tenant_context.organization_id
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
+    service = _get_portal_membership_service()
+
+    if resource == "/organizations/current/members" and method == "GET":
+        items = [item.to_dict() for item in service.list_members(organization_id=account_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
+    if resource == "/organizations/current/invitations" and method == "GET":
+        items = [item.to_dict() for item in service.list_invitations(organization_id=account_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
+    if resource == "/organizations/current/invitations" and method == "POST":
+        payload = _parse_json_body(event)
+        invitation = service.invite_member(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            request=InvitationCreateRequest(
+                email=str(payload.get("email") or ""),
+                role=str(payload.get("role") or ""),
+            ),
+        )
+        return json_response(201, invitation.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/members/{memberId}" and method == "PATCH":
+        path_params = event.get("pathParameters") or {}
+        member_id = str(path_params.get("memberId") or "")
+        payload = _parse_json_body(event)
+        member = service.update_member(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            member_user_id=member_id,
+            request=MemberUpdateRequest(
+                role=(str(payload.get("role")) if payload.get("role") is not None else None),
+                status=(str(payload.get("status")) if payload.get("status") is not None else None),
+            ),
+        )
+        return json_response(200, member.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/members/{memberId}" and method == "DELETE":
+        path_params = event.get("pathParameters") or {}
+        member_id = str(path_params.get("memberId") or "")
+        payload = service.remove_member(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            member_user_id=member_id,
+        )
+        return json_response(200, payload, response_context=response_context)
+
+    return error_response(404, "Membership route not found", response_context=response_context, code="not_found")
+
+
+def _handle_invitation_accept_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    headers = event.get("headers") or {}
+    authorization = str(_get_header(headers, "authorization") or "")
+    current_user = _get_portal_auth_service().get_current_user(authorization)
+    payload = _parse_json_body(event)
+    accepted = _get_portal_membership_service().accept_invitation(
+        user_id=current_user.user_id,
+        request=InvitationAcceptRequest(token=str(payload.get("token") or "")),
+    )
+    return json_response(200, accepted, response_context=response_context)
+
+
+def _handle_portal_api_key_request(
+    event: dict[str, Any],
+    response_context: ResponseContext,
+    *,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    account_id = tenant_context.organization_id
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for this organization route")
+    service = _get_portal_api_key_service()
+
+    if resource == "/organizations/current/api-keys" and method == "GET":
+        items = [item.to_dict() for item in service.list_keys(organization_id=account_id, actor_user_id=tenant_context.user_id)]
+        return json_response(200, {"items": items}, response_context=response_context)
+
+    if resource == "/organizations/current/api-keys" and method == "POST":
+        payload = _parse_json_body(event)
+        created = service.create_key(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            request=ApiKeyCreateRequest(
+                display_name=str(payload.get("display_name") or ""),
+                description=str(payload.get("description") or ""),
+            ),
+        )
+        return json_response(201, created.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/api-keys/{keyId}" and method == "PATCH":
+        path_params = event.get("pathParameters") or {}
+        key_id = str(path_params.get("keyId") or "")
+        payload = _parse_json_body(event)
+        updated = service.update_key(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            key_id=key_id,
+            request=ApiKeyUpdateRequest(
+                display_name=str(payload.get("display_name") or ""),
+                description=str(payload.get("description") or ""),
+            ),
+        )
+        return json_response(200, updated.to_dict(), response_context=response_context)
+
+    if resource == "/organizations/current/api-keys/{keyId}" and method == "DELETE":
+        path_params = event.get("pathParameters") or {}
+        key_id = str(path_params.get("keyId") or "")
+        revoked = service.revoke_key(
+            organization_id=account_id,
+            actor_user_id=tenant_context.user_id,
+            key_id=key_id,
+        )
+        return json_response(200, revoked.to_dict(), response_context=response_context)
+
+    return error_response(404, "API key route not found", response_context=response_context, code="not_found")
+
+
+def _handle_admin_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    path_params = event.get("pathParameters") or {}
+    account_id = str(path_params.get("accountId") or "")
+    key_id = str(path_params.get("keyId") or "")
+    client_id = str(path_params.get("clientId") or "")
+    service: ControlPlaneService | None = None
+
+    def control_plane() -> ControlPlaneService:
+        nonlocal service
+        if service is None:
+            service = _get_control_plane_service()
+        return service
+
+    if resource == "/admin/accounts":
+        if method == "POST":
+            return json_response(201, control_plane().create_account(_parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": control_plane().list_accounts()}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}":
+        if method == "GET":
+            return json_response(200, control_plane().get_account(account_id), response_context=response_context)
+        if method == "PATCH":
+            return json_response(200, control_plane().update_account(account_id, _parse_json_body(event)), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/subscription":
+        if method == "GET":
+            return json_response(200, control_plane().get_subscription(account_id), response_context=response_context)
+        if method == "PUT":
+            return json_response(200, control_plane().update_subscription(account_id, _parse_json_body(event)), response_context=response_context)
+    if resource == "/admin/accounts/{accountId}/billing/reconcile" and method == "POST":
+        return json_response(
+            200,
+            _get_billing_reconciliation_service().reconcile_account(account_id=account_id),
+            response_context=response_context,
+        )
+
+    if resource == "/admin/accounts/{accountId}/suspend" and method == "POST":
+        return json_response(200, control_plane().suspend_account(account_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/activate" and method == "POST":
+        return json_response(200, control_plane().activate_account(account_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys":
+        if method == "POST":
+            return json_response(201, control_plane().create_api_key(account_id, _parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": control_plane().list_api_keys(account_id)}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys/{keyId}":
+        if method == "DELETE":
+            return json_response(200, control_plane().delete_api_key(account_id, key_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/api-keys/{keyId}/rotate" and method == "POST":
+        return json_response(200, control_plane().rotate_api_key(account_id, key_id), response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/oauth-clients":
+        if method == "POST":
+            return json_response(201, control_plane().create_oauth_client(account_id, _parse_json_body(event)), response_context=response_context)
+        if method == "GET":
+            return json_response(200, {"items": control_plane().list_oauth_clients(account_id)}, response_context=response_context)
+
+    if resource == "/admin/accounts/{accountId}/oauth-clients/{clientId}" and method == "DELETE":
+        return json_response(200, control_plane().delete_oauth_client(account_id, client_id), response_context=response_context)
+
+    return error_response(404, "Admin route not found", response_context=response_context, code="not_found")
+
+
+def handle_api_event(event, context=None):
+    api_context = build_response_context(event, context)
+    route_key = _route_key(event or {})
+    
+    def respond(status_code: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return json_response(status_code, payload, response_context=api_context)
+
+    def fail(status_code: int, message: str, code: str | None = None) -> dict[str, Any]:
+        return error_response(status_code, message, response_context=api_context, code=code)
+
+    method = (event.get("httpMethod") or "GET").upper()
+    if _is_admin_request(event, method) or _is_ops_request(event, method):
+        try:
+            admin_id = authenticate_admin_key((event or {}).get("headers") or {}, _get_admin_key_store())
+            event["_admin_id"] = admin_id
+            admin_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan="admin",
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            if _is_ops_request(event, method):
+                status_code, payload = _handle_ops_request(event)
+                return json_response(status_code, payload, response_context=admin_context)
+            return _handle_admin_request(event, admin_context)
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context)
+        except ControlPlaneError as exc:
+            return error_response(
+                exc.status_code,
+                str(exc),
+                response_context=ResponseContext(
+                    api_context.request_id,
+                    "admin",
+                    api_context.deprecation,
+                    api_context.cors_origin,
+                ),
+            )
+        except ValueError as exc:
+            return error_response(
+                400,
+                str(exc),
+                response_context=ResponseContext(
+                    api_context.request_id,
+                    "admin",
+                    api_context.deprecation,
+                    api_context.cors_origin,
+                ),
+            )
+
+    if method == "OPTIONS":
+        return json_response(200, {}, response_context=api_context)
+
+    if _is_stripe_webhook_request(event, method):
+        try:
+            return _handle_stripe_webhook_request(event, api_context)
+        except BillingWebhookError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+
+    if _is_oauth_token_request(event, method):
+        return _handle_oauth_token_request(event, api_context)
+
+    if _is_public_plan_catalog_request(event, method):
+        return _handle_public_plan_catalog_request(response_context=api_context)
+
+    if _is_portal_auth_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+        try:
+            return _handle_portal_auth_request(event, portal_context)
+        except PortalAuthValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_portal_organization_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+        try:
+            return _handle_portal_organization_request(event, portal_context)
+        except OrganizationBootstrapValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except PortalAuthValidationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    if _is_portal_membership_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for this organization route",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_portal_membership_request(event, portal_context, tenant_context=tenant_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except MembershipManagementError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_portal_api_key_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for this organization route",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_portal_api_key_request(event, portal_context, tenant_context=tenant_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except ApiKeyManagementError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_organization_billing_customer_bootstrap_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing bootstrap",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_billing_customer_bootstrap_request(
+                response_context=portal_context,
+                tenant_context=tenant_context,
+            )
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingCheckoutError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_organization_checkout_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing checkout",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_checkout_request(event, tenant_context=tenant_context, response_context=portal_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingCheckoutError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_organization_plan_change_request(event, method):
+        try:
+            auth_context, tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for billing plan changes",
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+            portal_context = ResponseContext(
+                request_id=api_context.request_id,
+                plan=str(getattr(auth_context, "plan", None) or tenant_context.subscription_plan or "portal"),
+                deprecation=api_context.deprecation,
+                cors_origin=api_context.cors_origin,
+            )
+            return _handle_organization_plan_change_request(event, tenant_context=tenant_context, response_context=portal_context)
+        except AuthorizationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except BillingPlanChangeError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code=getattr(exc, "code", None))
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=api_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=api_context, code="bad_request")
+
+    if _is_invitation_accept_request(event, method):
+        portal_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan="portal",
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+        try:
+            return _handle_invitation_accept_request(event, portal_context)
+        except MembershipManagementError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="bad_request")
+        except AuthenticationError as exc:
+            return error_response(exc.status_code, str(exc), response_context=portal_context, code="unauthorized")
+        except ValueError as exc:
+            return error_response(400, str(exc), response_context=portal_context, code="bad_request")
+
+    tenant_nonprofit_request = _is_tenant_nonprofit_request(event or {}, method)
+    organization_settings_request = _is_organization_settings_request(event or {}, method)
+    organization_usage_request = _is_organization_usage_request(event or {}, method)
+    organization_activity_request = _is_organization_activity_request(event or {}, method)
+    organization_support_request = _is_organization_support_request(event or {}, method)
+    organization_subscription_visibility_request = _is_organization_subscription_visibility_request(event or {}, method)
+    try:
+        resolved_tenant_context: TenantContext | None = None
+        if tenant_nonprofit_request:
+            auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message="Organization-scoped authentication is required for nonprofit queries",
+                missing_membership_message="Active membership is required for nonprofit queries",
+                require_user=False,
+            )
+        elif (
+            organization_settings_request
+            or organization_usage_request
+            or organization_activity_request
+            or organization_support_request
+            or organization_subscription_visibility_request
+        ):
+            auth_context, resolved_tenant_context = _resolve_organization_tenant_context(
+                event or {},
+                missing_context_message=(
+                    "Organization-scoped authentication is required for organization usage"
+                    if organization_usage_request
+                    else "Organization-scoped authentication is required for organization activity"
+                    if organization_activity_request
+                    else "Organization-scoped authentication is required for organization support"
+                    if organization_support_request
+                    else "Organization-scoped authentication is required for billing visibility"
+                    if organization_subscription_visibility_request
+                    else "Organization-scoped authentication is required for organization settings"
+                ),
+                missing_membership_message="Active membership is required for this organization",
+                require_user=True,
+            )
+        else:
+            auth_context = _get_auth_context_provider().extract_context(event or {})
+        _prepare_quota_request_metadata(event or {}, auth_context)
+        api_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+        _get_quota_metering_hook().on_request(auth_context, route_key)
+        api_context = ResponseContext(
+            request_id=api_context.request_id,
+            plan=str(getattr(auth_context, "plan", None) or getattr(auth_context, "plan_id", None) or "public"),
+            deprecation=api_context.deprecation,
+            cors_origin=api_context.cors_origin,
+        )
+    except AuthenticationError as exc:
+        return fail(exc.status_code, str(exc))
+    except FeatureUnavailableError as exc:
+        return error_response(
+            exc.status_code,
+            str(exc),
+            response_context=api_context,
+            code="feature_unavailable",
+            meta={
+                "feature_flag": exc.feature_flag,
+                "capability": exc.capability,
+                "upgrade_plan": exc.upgrade_plan,
+            },
+        )
+    except AuthorizationError as exc:
+        return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+    except QuotaExceededError as exc:
+        return fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+    evaluation_context = _resolve_evaluation_context(auth_context)
+    tenant_context = (
+        _build_tenant_nonprofit_context(auth_context=auth_context, tenant_context=resolved_tenant_context)
+        if tenant_nonprofit_request and resolved_tenant_context is not None
+        else None
+    )
+    if method == "POST" and _is_batch_verify_request(event):
+        response = _handle_batch_verify(
+            event,
+            auth_context=auth_context,
+            evaluation_context=evaluation_context,
+            response_context=api_context,
+        )
+        try:
+            body = json.loads(response.get("body") or "{}")
+            total = (((body.get("data") or {}).get("batch_summary") or {}).get("total"))
+            if isinstance(total, int):
+                auth_context.metadata["batch_items_count"] = str(total)
+        except Exception:
+            pass
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_portal_request(event, method):
+        try:
+            response = _handle_organization_portal_request(event, auth_context, response_context=api_context)
+        except BillingPortalError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_subscription_visibility_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for billing visibility")
+            response = _handle_organization_subscription_visibility_request(
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except BillingCheckoutError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_usage_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization usage")
+            response = _handle_organization_usage_request(
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_activity_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization activity")
+            response = _handle_organization_activity_request(
+                event,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except OrganizationActivityError as exc:
+            response = fail(exc.status_code, str(exc), code="bad_request")
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_support_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization support")
+            response = _handle_organization_support_request(
+                event,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        except OrganizationSupportError as exc:
+            code = "bad_request" if exc.status_code < 500 else "internal_error"
+            response = fail(exc.status_code, str(exc), code=code)
+        except ValueError as exc:
+            response = fail(400, str(exc), code="bad_request")
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+    if _is_organization_settings_request(event, method):
+        try:
+            if resolved_tenant_context is None:
+                raise AuthorizationError("Organization-scoped authentication is required for organization settings")
+            response = _handle_organization_settings_request(
+                event,
+                auth_context=auth_context,
+                tenant_context=resolved_tenant_context,
+                response_context=api_context,
+            )
+        except OrganizationIntegrationSettingsValidationError as exc:
+            response = fail(400, str(exc))
+        except OrganizationSettingsNotFoundError as exc:
+            response = fail(exc.status_code, str(exc), code="not_found")
+        except AuthorizationError as exc:
+            response = fail(exc.status_code, str(exc), code=getattr(exc, "code", None))
+        _get_quota_metering_hook().on_response(auth_context, route_key, int(response.get("statusCode") or 500))
+        return response
+
+    try:
+        if method == "POST":
+            verification_input = _parse_post_request(event)
+        else:
+            verification_input = _parse_get_request(event)
+    except EINValidationError as exc:
+        return fail(400, str(exc))
+    except ValueError as exc:
+        return fail(400, str(exc))
+
+    try:
+        if _is_search_request(event, method):
+            status_code, payload = _handle_search_request(event, tenant_context=tenant_context)
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+
+        normalized_ein = normalize_ein(verification_input.ein)
+        if _is_sources_list_request(event, method):
+            status_code, payload = _get_nonprofit_service().get_sources(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+                subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
+            )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+        if _is_sources_detail_request(event, method):
+            source_name = _extract_source_name(event)
+            status_code, payload = _get_nonprofit_service().get_source_detail(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+                source_name=source_name,
+                subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
+            )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+        if _is_compliance_request(event, method):
+            status_code, payload = _get_nonprofit_service().get_compliance(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+                subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+        if _is_federal_awards_request(event, method):
+            status_code, payload = _get_nonprofit_service().get_federal_awards(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+                subsection=verification_input.subsection,
+                evaluation_context=evaluation_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+
+        if _is_filings_request(event, method):
+            status_code, payload = _get_nonprofit_service().get_filings(
+                tenant_context=tenant_context,
+                ein=normalized_ein,
+            )
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+
+        if _is_advisory_detail_request(event, method):
+            detail_service = _get_nonprofit_advisory_detail_service()
+            if detail_service is None:
+                response = fail(503, "Nonprofit advisory detail service is unavailable")
+                _get_quota_metering_hook().on_response(auth_context, route_key, 503)
+                return response
+            payload = detail_service.get_detail(normalized_ein)
+            status_code = 200 if payload is not None else 404
+            if payload is None:
+                payload = {"message": "Nonprofit detail not found"}
+            _record_nonprofit_access_audit_event(
+                event=event,
+                route_key=route_key,
+                status_code=status_code,
+                payload=payload,
+                tenant_context=tenant_context,
+            )
+            response = respond(status_code, payload)
+            _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+            return response
+
+        if method == "GET":
+            cached = _load_cached_profile(normalized_ein)
+            if cached is not None and _cached_profile_is_current(cached):
+                if policy_id_required(verification_input) or evaluation_context.has_non_default_integrations() or not cached.get("integration_evaluation"):
+                    cached = apply_evaluation_overlay(
+                        payload=cached,
+                        policy_id=verification_input.policy_id,
+                        enrichment_service=_get_enrichment_service(),
+                        evaluation_context=evaluation_context,
+                        ein=normalized_ein,
+                    )
+                shaped = _shape_payload_for_response(cached, auth_context)
+                _record_nonprofit_access_audit_event(
+                    event=event,
+                    route_key=route_key,
+                    status_code=200,
+                    payload=cached,
+                    tenant_context=tenant_context,
+                )
+                response = respond(200, shaped)
+                _get_quota_metering_hook().on_response(auth_context, route_key, 200)
+                return response
+
+        verification_input = VerificationInput(
+            ein=normalized_ein,
+            provided_name=verification_input.provided_name,
+            subsection=verification_input.subsection,
+            policy_id=verification_input.policy_id,
+            weighting_profile=verification_input.weighting_profile,
+        )
+        if tenant_nonprofit_request:
+            status_code, payload = _get_nonprofit_service().lookup_nonprofit(
+                tenant_context=tenant_context,
+                verification_input=verification_input,
+                evaluation_context=evaluation_context,
+            )
+        else:
+            status_code, payload = verify_nonprofit(
+                _get_nonprofit_query_client(),
+                verification_input,
+                enrichment_service=_get_enrichment_service(),
+                evaluation_context=evaluation_context,
+            )
+        if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
+            _materialize_profile(normalized_ein, payload)
+            _persist_advisory_artifact(normalized_ein, payload)
+        _record_nonprofit_access_audit_event(
+            event=event,
+            route_key=route_key,
+            status_code=status_code,
+            payload=payload,
+            tenant_context=tenant_context,
+        )
+        shaped_payload = _shape_payload_for_response(payload, auth_context) if status_code == 200 else payload
+        response = respond(status_code, shaped_payload)
+        _get_quota_metering_hook().on_response(auth_context, route_key, status_code)
+        return response
+    except EINValidationError as exc:
+        response = fail(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
+    except ValueError as exc:
+        response = fail(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
+    except FeatureUnavailableError as exc:
+        response = error_response(
+            exc.status_code,
+            str(exc),
+            response_context=api_context,
+            code="feature_unavailable",
+            meta={
+                "feature_flag": exc.feature_flag,
+                "capability": exc.capability,
+                "upgrade_plan": exc.upgrade_plan,
+            },
+        )
+        _get_quota_metering_hook().on_response(auth_context, route_key, exc.status_code)
+        return response
+    except AuthorizationError as exc:
+        response = fail(exc.status_code, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, exc.status_code)
+        return response
+    except OrganizationIntegrationSettingsValidationError as exc:
+        response = fail(400, str(exc))
+        _get_quota_metering_hook().on_response(auth_context, route_key, 400)
+        return response
+    except Exception as exc:
+        log_exception(logger, "api_runtime_unhandled_exception", exc, env=os.environ)
+        response = fail(500, "Internal server error")
+        _get_quota_metering_hook().on_response(auth_context, route_key, 500)
+        return response
+
+
+def _parse_get_request(event: dict) -> VerificationInput:
+    path_params = event.get("pathParameters") or {}
+    query_params = event.get("queryStringParameters") or {}
+
+    return VerificationInput(
+        ein=path_params.get("ein") or "",
+        subsection=query_params.get("subsection"),
+        policy_id=None,
+        weighting_profile=(query_params.get("weighting_profile") if query_params else None),
+    )
+
+
+def _route_key(event: dict[str, Any]) -> str:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = str(event.get("resource") or "")
+    path = str(event.get("path") or "")
+    return normalize_route_key(f"{method} {resource or path or '/'}")
+
+
+def _prepare_quota_request_metadata(event: dict[str, Any], auth_context: Any) -> None:
+    metadata = getattr(auth_context, "metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    if not _is_batch_verify_request(event):
+        metadata.pop("batch_items_count", None)
+        return
+    body = event.get("body")
+    if not body:
+        metadata.pop("batch_items_count", None)
+        return
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        metadata.pop("batch_items_count", None)
+        return
+    if isinstance(payload, list):
+        metadata["batch_items_count"] = str(len(payload))
+        return
+    if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        metadata["batch_items_count"] = str(len(payload["items"]))
+        return
+    metadata.pop("batch_items_count", None)
+
+
+def _parse_post_request(event: dict) -> VerificationInput:
+    body = event.get("body")
+    if not body:
+        raise ValueError("Request body is required")
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise ValueError("Request body must be valid JSON")
+
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+
+    ein = payload.get("ein")
+    if not ein:
+        raise ValueError("Request body must include ein")
+
+    provided_name = payload.get("name")
+    if provided_name is not None and not isinstance(provided_name, str):
+        raise ValueError("name must be a string")
+    policy_id = payload.get("policy_id")
+    if policy_id is not None and not isinstance(policy_id, str):
+        raise ValueError("policy_id must be a string")
+    weighting_profile = payload.get("weighting_profile")
+    if weighting_profile is not None and not isinstance(weighting_profile, str):
+        raise ValueError("weighting_profile must be a string")
+
+    return VerificationInput(
+        ein=ein,
+        provided_name=provided_name,
+        policy_id=policy_id,
+        weighting_profile=weighting_profile,
+    )
+
+
+def _is_filings_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/filings") or path.endswith("/filings")
+
+
+def _is_advisory_detail_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    candidate = resource or path
+    if candidate.endswith("/nonprofits/{ein}") or candidate.endswith("/nonprofits/{ein}/"):
+        return True
+    if "/nonprofits/" not in path:
+        return False
+    return not any(
+        (
+            path.endswith("/sources"),
+            "/sources/" in path,
+            path.endswith("/compliance"),
+            path.endswith("/federal-awards"),
+            path.endswith("/filings"),
+            path.endswith("/search"),
+        )
+    )
+
+
+def _is_search_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/nonprofits/search") or path.endswith("/nonprofits/search")
+
+
+def _is_batch_verify_request(event: dict) -> bool:
+    resource, path = _route_paths(event)
+    return resource.endswith("/verify/batch") or path.endswith("/verify/batch")
+
+
+def _is_oauth_token_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/oauth/token") or path.endswith("/oauth/token")
+
+
+def _is_stripe_webhook_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/webhooks/stripe") or path.endswith("/webhooks/stripe")
+
+
+def _is_public_plan_catalog_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/plans") or path.endswith("/plans")
+
+
+def _is_ops_request(event: dict, method: str) -> bool:
+    if method not in {"GET", "POST"}:
+        return False
+    resource, path = _route_paths(event)
+    return resource.startswith("/ops/") or path.startswith("/ops/")
+
+
+def _is_organization_settings_request(event: dict, method: str) -> bool:
+    if method not in {"GET", "PUT"}:
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/settings") or path.endswith("/organization/settings")
+
+
+def _is_organization_usage_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/usage") or path.endswith("/organization/usage")
+
+
+def _is_organization_activity_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/activity") or path.endswith("/organization/activity")
+
+
+def _is_organization_support_request(event: dict, method: str) -> bool:
+    if method not in {"GET", "POST"}:
+        return False
+    resource, path = _route_paths(event)
+    return (
+        resource.endswith("/organization/support")
+        or path.endswith("/organization/support")
+        or resource.endswith("/organization/support-requests")
+        or path.endswith("/organization/support-requests")
+    )
+
+
+def _is_organization_checkout_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/checkout-session") or path.endswith("/organization/billing/checkout-session")
+
+
+def _is_organization_plan_change_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/plan-change") or path.endswith("/organization/billing/plan-change")
+
+
+def _is_organization_portal_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/portal-session") or path.endswith("/organization/billing/portal-session")
+
+
+def _is_organization_billing_customer_bootstrap_request(event: dict, method: str) -> bool:
+    if method != "POST":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/customer-bootstrap") or path.endswith("/organization/billing/customer-bootstrap")
+
+
+def _is_organization_subscription_visibility_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/organization/billing/subscription") or path.endswith("/organization/billing/subscription")
+
+
+def _handle_organization_settings_request(
+    event: dict,
+    auth_context: Any,
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization settings")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may manage organization settings")
+    workspace_id = tenant_context.organization_id
+    account_id = tenant_context.organization_id
+    service = _get_organization_settings_service()
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method == "GET":
+        document = service.get_settings(
+            organization_id=tenant_context.organization_id,
+            workspace_id=workspace_id,
+            account_id=account_id,
+        )
+        return json_response(
+            200,
+            _shape_organization_settings_payload(
+                document.to_dict(),
+                account_id=account_id,
+                fallback_plan_code=tenant_context.subscription_plan,
+            ),
+            response_context=response_context,
+        )
+
+    body = event.get("body")
+    if not body:
+        return error_response(400, "Request body is required", response_context=response_context)
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return error_response(400, "Request body must be valid JSON", response_context=response_context)
+    if not isinstance(payload, dict):
+        return error_response(400, "Request body must be a JSON object", response_context=response_context)
+    if "integrations" in payload and not _allows_organization_settings_management(auth_context):
+        return error_response(
+            403,
+            "Plan entitlement does not allow integration settings changes",
+            response_context=response_context,
+            code="forbidden",
+        )
+    document = service.update_settings(
+        organization_id=tenant_context.organization_id,
+        workspace_id=workspace_id,
+        account_id=account_id,
+        payload=payload,
+        actor_user_id=tenant_context.user_id,
+    )
+    return json_response(
+        200,
+        _shape_organization_settings_payload(
+            document.to_dict(),
+            account_id=account_id,
+            fallback_plan_code=tenant_context.subscription_plan,
+        ),
+        response_context=response_context,
+    )
+
+
+def _handle_organization_activity_request(
+    event: dict[str, Any],
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization activity")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization activity")
+    query = event.get("queryStringParameters") or {}
+    limit = 20
+    if query.get("limit") is not None:
+        try:
+            limit = int(str(query.get("limit")))
+        except ValueError as exc:
+            raise OrganizationActivityError("limit must be an integer") from exc
+    cursor = str(query.get("cursor") or "").strip() or None
+    page = _get_portal_activity_service().list_activity(
+        organization_id=tenant_context.organization_id,
+        limit=limit,
+        cursor=cursor,
+    )
+    return json_response(200, page.to_dict(), response_context=response_context)
+
+
+def _handle_organization_support_request(
+    event: dict[str, Any],
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization support")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization support")
+
+    service = _get_portal_support_service()
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method == "GET":
+        context = service.get_support_context(
+            organization_id=tenant_context.organization_id,
+            account_id=tenant_context.organization_id,
+            workspace_id=tenant_context.organization_id,
+            current_plan=tenant_context.subscription_plan,
+            membership_role=tenant_context.membership_role,
+        )
+        return json_response(200, context.to_dict(), response_context=response_context)
+
+    payload = _parse_json_body(event)
+    receipt = service.submit_support_request(
+        organization_id=tenant_context.organization_id,
+        account_id=tenant_context.organization_id,
+        workspace_id=tenant_context.organization_id,
+        actor_user_id=tenant_context.user_id,
+        current_plan=tenant_context.subscription_plan,
+        membership_role=tenant_context.membership_role,
+        payload=payload,
+    )
+    return json_response(201, receipt.to_dict(), response_context=response_context)
+
+
+def _handle_organization_usage_request(
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for organization usage")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view organization usage")
+    usage_records = _get_portal_usage_service().get_monthly_usage(
+        organization_id=tenant_context.organization_id,
+    )
+    period_month = _resolve_usage_period_month(usage_records)
+    return json_response(
+        200,
+        {
+            "period_month": period_month,
+            "period_label": _format_usage_period_label(period_month),
+            "totals": _build_usage_totals(usage_records),
+            "metrics": [
+                {
+                    "metric_type": _usage_metric_key(record),
+                    "request_count": max(0, int(record.request_count or 0)),
+                    "last_updated": record.last_updated,
+                }
+                for record in sorted(
+                    usage_records,
+                    key=lambda item: (_usage_metric_key(item), str(item.last_updated or "")),
+                )
+            ],
+            "plan_limit_context": _build_usage_plan_limit_context(
+                tenant_context=tenant_context,
+            ),
+        },
+        response_context=response_context,
+    )
+
+
+def _handle_stripe_webhook_request(event: dict[str, Any], response_context: ResponseContext) -> dict[str, Any]:
+    headers = event.get("headers") or {}
+    signature = _get_header(headers, "Stripe-Signature")
+    raw_body = _raw_request_body(event)
+    try:
+        service = _get_stripe_webhook_service()
+    except Exception as exc:
+        verify_and_parse_stripe_event(
+            raw_body=raw_body,
+            signature_header=signature,
+            webhook_secret=STRIPE_WEBHOOK_CONFIG.webhook_secret or "",
+            tolerance_seconds=STRIPE_WEBHOOK_CONFIG.signature_tolerance_seconds,
+        )
+        raise BillingWebhookProcessingError("Stripe webhook control plane store is not configured") from exc
+    result = service.handle(
+        raw_body=raw_body,
+        signature_header=signature,
+    )
+    logger.info(
+        "stripe_webhook_processed",
+        extra={
+            "event_id": result.get("event_id"),
+            "processed": result.get("processed", False),
+            "duplicate": result.get("duplicate", False),
+            "ignored": result.get("ignored", False),
+        },
+    )
+    return json_response(200, result, response_context=response_context)
+
+
+def _handle_public_plan_catalog_request(
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    return json_response(200, build_plan_catalog_payload(), response_context=response_context)
+
+
+def _handle_organization_checkout_request(
+    event: dict,
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing checkout")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may initiate billing checkout")
+    payload = _parse_json_body(event)
+    checkout = _get_billing_checkout_service().create_checkout_session(
+        account_id=tenant_context.organization_id,
+        payload=payload,
+    )
+    return json_response(200, checkout, response_context=response_context)
+
+
+def _handle_organization_plan_change_request(
+    event: dict,
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing plan changes")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may initiate billing plan changes")
+    payload = _parse_json_body(event)
+    plan_change = _get_billing_plan_change_service().change_plan(
+        account_id=tenant_context.organization_id,
+        payload=payload,
+    )
+    return json_response(200, plan_change, response_context=response_context)
+
+
+def _handle_organization_portal_request(
+    event: dict,
+    auth_context: Any,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    _workspace_id, account_id = _require_organization_context(auth_context)
+    if not account_id:
+        raise AuthorizationError("Billing portal requires authenticated account context")
+    payload = _parse_json_body(event)
+    portal = _get_billing_portal_service().create_portal_session(
+        account_id=account_id,
+        payload=payload,
+    )
+    return json_response(200, portal, response_context=response_context)
+
+
+def _handle_organization_billing_customer_bootstrap_request(
+    *,
+    response_context: ResponseContext,
+    tenant_context: TenantContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing bootstrap")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may bootstrap billing customers")
+    result = _get_billing_customer_bootstrap_service().bootstrap_customer(
+        organization_id=tenant_context.organization_id,
+        created_by_user_id=tenant_context.user_id,
+    )
+    return json_response(
+        200,
+        {
+            "organization_id": result.organization_id,
+            "stripe_customer_id": result.stripe_customer_id,
+            "created_at": result.created_at,
+            "updated_at": result.updated_at,
+            "reused": result.reused,
+        },
+        response_context=response_context,
+    )
+
+
+def _handle_organization_subscription_visibility_request(
+    *,
+    tenant_context: TenantContext,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    if tenant_context.user_id is None:
+        raise AuthorizationError("Portal session authentication is required for billing visibility")
+    if tenant_context.membership_role != "admin":
+        raise AuthorizationError("Only organization admins may view billing and subscription visibility")
+    summary = _get_billing_visibility_service().get_subscription_summary(
+        account_id=tenant_context.organization_id,
+    )
+    summary = _shape_billing_subscription_summary(
+        summary,
+        account_id=tenant_context.organization_id,
+    )
+    summary["feature_flags"] = _build_billing_feature_flag_summaries(
+        organization_id=tenant_context.organization_id,
+    )
+    return json_response(200, summary, response_context=response_context)
+
+
+def _allows_organization_settings_management(auth_context: Any) -> bool:
+    entitlements = getattr(auth_context, "entitlements", None)
+    if entitlements is None:
+        plan_code = str(getattr(auth_context, "plan", getattr(auth_context, "plan_id", "free")) or "free")
+        entitlements = DEFAULT_PLANS.get(plan_code, DEFAULT_PLANS["free"]).entitlements
+    return entitlements.allows_capability("organization_settings")
+
+
+def _usage_metric_key(record: Any) -> str:
+    metric_type = getattr(record, "metric_type", None)
+    if hasattr(metric_type, "value"):
+        return str(metric_type.value)
+    return str(metric_type or "").strip().lower()
+
+
+def _resolve_usage_period_month(usage_records: list[Any]) -> str:
+    if usage_records:
+        candidate = str(getattr(usage_records[0], "period_month", "") or "").strip()
+        if candidate:
+            return candidate
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _build_usage_totals(usage_records: list[Any]) -> dict[str, int]:
+    totals = {
+        "api_requests": 0,
+        "nonprofit_lookup_requests": 0,
+        "search_requests": 0,
+        "enrichment_requests": 0,
+        "filing_lookup_requests": 0,
+    }
+    for record in usage_records:
+        metric_key = _usage_metric_key(record)
+        if metric_key in totals:
+            totals[metric_key] = max(0, int(getattr(record, "request_count", 0) or 0))
+    return totals
+
+
+def _format_usage_period_label(period_month: str) -> str:
+    try:
+        return datetime.strptime(period_month, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        return "Current month"
+
+
+def _build_usage_plan_limit_context(*, tenant_context: TenantContext) -> dict[str, Any] | None:
+    try:
+        settings = _get_organization_settings_service().get_settings(
+            organization_id=tenant_context.organization_id,
+            workspace_id=tenant_context.organization_id,
+            account_id=tenant_context.organization_id,
+        )
+    except Exception:
+        settings = None
+
+    plan = DEFAULT_PLANS.get(str(tenant_context.subscription_plan or "free").strip().lower())
+    monthly_requests_limit: int | None = None
+    allow_overage = _resolve_effective_allow_overage(
+        account_id=tenant_context.organization_id,
+        fallback_plan_code=tenant_context.subscription_plan,
+    )
+    policy_source = "backend_default"
+    if settings is not None:
+        monthly_request_cap = settings.billing_settings.monthly_request_cap
+        if isinstance(monthly_request_cap, int) and monthly_request_cap > 0:
+            monthly_requests_limit = monthly_request_cap
+            policy_source = "organization_settings"
+    _billing_settings, billing_updated_at = _load_billing_settings_override(tenant_context.organization_id)
+    if billing_updated_at is not None:
+        policy_source = "organization_settings"
+    if monthly_requests_limit is None and plan is not None:
+        monthly_requests_limit = int(plan.monthly_request_limit)
+    if monthly_requests_limit is None:
+        return None
+    return {
+        "monthly_requests_limit": monthly_requests_limit,
+        "allow_overage": allow_overage,
+        "policy_source": policy_source,
+    }
+
+
+def _build_billing_feature_flag_summaries(*, organization_id: str) -> list[dict[str, Any]]:
+    service = _get_portal_feature_flag_service()
+    if service is None:
+        return []
+    try:
+        resolved_flags = service.list_resolved_flags(organization_id=organization_id)
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        {
+            "flag_key": item.flag_key.value,
+            "label": _feature_flag_label(item.flag_key.value),
+            "enabled": item.enabled,
+            "plan_default": item.plan_default,
+            "override_enabled": item.override_enabled,
+        }
+        for item in resolved_flags
+    ]
+
+
+def _feature_flag_label(flag_key: str) -> str:
+    labels = {
+        "enable_advanced_reporting": "Advanced reporting",
+        "enable_bulk_lookup": "Bulk lookup",
+        "enable_candid": "Candid",
+        "enable_charity_navigator": "Charity Navigator",
+    }
+    return labels.get(flag_key, str(flag_key or "").replace("_", " ").title())
+
+
+def _generate_manual_form990_run_id() -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{timestamp}-manual-{secrets.token_hex(4)}"
+
+
+def _manual_form990_task_is_configured() -> bool:
+    return bool(
+        FORM990_RUN_TASK_CLUSTER_ARN
+        and FORM990_RUN_TASK_DEFINITION_ARN
+        and FORM990_RUN_TASK_SUBNET_IDS
+        and FORM990_RUN_TASK_SECURITY_GROUP_IDS
+    )
+
+
+def _resolve_form990_sources(*, now: datetime | None = None) -> list[Any]:
+    source_mode = str(os.environ.get("FORM990_SOURCE_MODE") or "static_manifest").strip().lower()
+    current_time = now or datetime.now(timezone.utc)
+    if source_mode == "configured":
+        payload = json.loads(str(os.environ.get("FORM990_SOURCE_CATALOG_JSON") or "[]"))
+        if not isinstance(payload, list):
+            raise ValueError("FORM990_SOURCE_CATALOG_JSON must decode to a JSON array")
+        return normalize_configured_sources(payload, now=current_time)
+    if source_mode == "irs_page":
+        return discover_irs_form990_sources(
+            str(os.environ.get("FORM990_IRS_DOWNLOADS_PAGE_URL") or "https://www.irs.gov/charities-non-profits/form-990-series-downloads").strip(),
+            timeout_seconds=int(os.environ.get("FORM990_INDEX_FETCH_TIMEOUT_SECONDS") or "60"),
+            now=current_time,
+        )
+    return discover_static_form990_sources(
+        now=current_time,
+        enable_next_year_generation=_env_bool("FORM990_ENABLE_NEXT_YEAR_GENERATION", default=True),
+    )
+
+
+def _build_manual_form990_source_catalog(*, mode: str, target_years: list[str]) -> list[dict[str, Any]]:
+    sources = [
+        item
+        for item in _resolve_form990_sources()
+        if getattr(item, "source_kind", None) == SOURCE_KIND_ZIP_ARCHIVE
+    ]
+    if not sources:
+        raise ValueError("No Form 990 ZIP archive sources are configured")
+
+    if target_years:
+        selected = select_sources_by_years(sources, set(target_years))
+    elif mode == "bootstrap":
+        selected = sources
+    else:
+        available_years = source_years(sources)
+        incremental_window = max(1, int(os.environ.get("FORM990_INCREMENTAL_YEAR_WINDOW") or "2"))
+        selected = select_sources_by_years(sources, set(available_years[-incremental_window:]))
+
+    if not selected:
+        raise ValueError("No Form 990 sources matched the requested year selection")
+    return [item.to_dict() for item in selected]
+
+
+def _build_form990_task_overrides(
+    *,
+    run_id: str,
+    mode: str,
+    target_years: list[str],
+    target_years_present: bool,
+    triggered_at: str,
+) -> dict[str, Any]:
+    env = [
+        {"name": "FORM990_SOURCE_MODE", "value": "configured"},
+        {"name": "FORM990_SOURCE_CATALOG_JSON", "value": json.dumps(_build_manual_form990_source_catalog(mode=mode, target_years=target_years))},
+        {"name": "FORM990_EXECUTION_MODE", "value": "orchestrated"},
+        {"name": "FORM990_RUN_ID", "value": run_id},
+        {"name": "FORM990_RUN_MODE", "value": mode},
+        {"name": "FORM990_TRIGGERED_AT", "value": triggered_at},
+        {"name": "FORM990_MANUAL_RUN_ID", "value": run_id},
+        {"name": "FORM990_MANUAL_MODE", "value": mode},
+        {"name": "FORM990_MANUAL_TARGET_YEARS", "value": json.dumps(target_years)},
+    ]
+    if target_years_present:
+        env.append({"name": "FORM990_TARGET_YEARS", "value": ",".join(target_years)})
+    return {
+        "containerOverrides": [
+            {
+                "name": FORM990_RUN_TASK_CONTAINER_NAME,
+                "command": ["run"],
+                "environment": env,
+            }
+        ]
+    }
+
+
+def _write_queued_form990_run(*, run_id: str, mode: str, target_years: list[str], triggered_at: str) -> None:
+    store = _get_ops_run_store()
+    if store is None:
+        return
+    store.write_ingest_run(
+        run_id,
+        {
+            "ingest_run_id": run_id,
+            "status": "queued",
+            "execution_mode": "orchestrated",
+            "mode": mode,
+            "target_years": target_years,
+            "triggered_at": triggered_at,
+        },
+    )
+
+
+def _parse_manual_form990_request(event: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
+    payload = _parse_optional_json_body(event)
+    allowed_fields = {"mode", "target_years"}
+    unknown_fields = sorted(str(key) for key in payload.keys() if key not in allowed_fields)
+    if unknown_fields:
+        field_list = ", ".join(unknown_fields)
+        raise ValueError(f"Unsupported request field(s): {field_list}")
+
+    mode = str(payload.get("mode") or "incremental").strip().lower()
+    if mode not in {"incremental", "bootstrap"}:
+        raise ValueError("mode must be one of: incremental, bootstrap")
+
+    target_years_present = "target_years" in payload
+    target_years: list[str] = []
+    if target_years_present:
+        raw_target_years = payload.get("target_years")
+        if not isinstance(raw_target_years, list):
+            raise ValueError("target_years must be an array of year strings")
+        for item in raw_target_years:
+            if not isinstance(item, str):
+                raise ValueError("target_years must be an array of year strings")
+            year = item.strip()
+            if not year:
+                raise ValueError("target_years entries must be non-empty strings")
+            target_years.append(year)
+
+    return {"mode": mode}, target_years, target_years_present
+
+
+def _handle_ops_form990_runs_request(event: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if not _manual_form990_task_is_configured():
+        return 503, {"message": "Form 990 ECS task runtime is not configured"}
+
+    request_payload, target_years, target_years_present = _parse_manual_form990_request(event)
+    run_id = _generate_manual_form990_run_id()
+    triggered_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    invoke_payload: dict[str, Any] = {
+        "run_id": run_id,
+        "execution_mode": "orchestrated",
+        "mode": request_payload["mode"],
+    }
+    if target_years_present:
+        invoke_payload["target_years"] = target_years
+
+    try:
+        _write_queued_form990_run(
+            run_id=run_id,
+            mode=request_payload["mode"],
+            target_years=target_years,
+            triggered_at=triggered_at,
+        )
+        run_task_result = _get_ecs_run_task_client().run_task(
+            cluster=FORM990_RUN_TASK_CLUSTER_ARN,
+            taskDefinition=FORM990_RUN_TASK_DEFINITION_ARN,
+            launchType="FARGATE",
+            networkConfiguration={
+                "awsvpcConfiguration": {
+                    "subnets": FORM990_RUN_TASK_SUBNET_IDS,
+                    "securityGroups": FORM990_RUN_TASK_SECURITY_GROUP_IDS,
+                    "assignPublicIp": "ENABLED" if FORM990_RUN_TASK_ASSIGN_PUBLIC_IP else "DISABLED",
+                }
+            },
+            overrides=_build_form990_task_overrides(
+                run_id=run_id,
+                mode=request_payload["mode"],
+                target_years=target_years,
+                target_years_present=target_years_present,
+                triggered_at=triggered_at,
+            ),
+        )
+    except ValueError as exc:
+        return 400, {"message": str(exc)}
+    except Exception as exc:
+        log_exception(logger, "form990.manual_trigger_run_task_failed", exc, env=os.environ, run_id=run_id)
+        return 500, {"message": "Failed to queue Form 990 run"}
+
+    failures = run_task_result.get("failures") or []
+    if failures:
+        logger.error("form990.manual_trigger_task_failures run_id=%s failures=%s", run_id, json.dumps(failures, default=str))
+        return 500, {"message": "Failed to queue Form 990 run"}
+
+    logger.info(
+        "form990.manual_trigger_queued run_id=%s mode=%s target_years=%s",
+        run_id,
+        request_payload["mode"],
+        json.dumps(target_years),
+    )
+
+    return 202, {
+        "status": "queued",
+        "run_id": run_id,
+        "execution_mode": "orchestrated",
+        "mode": request_payload["mode"],
+        "target_years": target_years,
+        "triggered_at": triggered_at,
+        "inspection_paths": {
+            "ingest_runs": "/v1/ops/ingest/runs",
+            "ingest_run": f"/v1/ops/ingest/runs/{run_id}",
+            "ingest_run_filings": f"/v1/ops/ingest/runs/{run_id}/filings",
+        },
+    }
+
+
+def _handle_ops_request(event: dict) -> tuple[int, dict[str, Any]]:
+    method = str(event.get("httpMethod") or "GET").upper()
+    resource = _route_template(event)
+    if resource.endswith("/ops/form990/runs"):
+        if method != "POST":
+            return 404, {"message": "Ops route not found"}
+        return _handle_ops_form990_runs_request(event)
+
+    run_store = _get_ops_run_store()
+    if run_store is None:
+        return 503, {"message": "Operational run store not configured"}
+    path_params = event.get("pathParameters") or {}
+    query = event.get("queryStringParameters") or {}
+    try:
+        limit = int(str(query.get("limit"))) if query.get("limit") else 50
+    except ValueError:
+        return 400, {"message": "limit must be an integer"}
+
+    if resource.endswith("/ops/ingest/runs"):
+        return list_ingest_runs(run_store, limit=limit)
+    if resource.endswith("/ops/ingest/runs/{ingest_run_id}"):
+        return get_ingest_run(run_store, str(path_params.get("ingest_run_id") or ""))
+    if resource.endswith("/ops/ingest/runs/{ingest_run_id}/filings"):
+        return get_ingest_run_filings(run_store, str(path_params.get("ingest_run_id") or ""))
+    if resource.endswith("/ops/refresh/runs"):
+        return list_refresh_runs(run_store, limit=limit)
+    if resource.endswith("/ops/refresh/runs/{refresh_run_id}"):
+        return get_refresh_run(run_store, str(path_params.get("refresh_run_id") or ""))
+    if resource.endswith("/ops/refresh/runs/{refresh_run_id}/eins"):
+        return get_refresh_run_eins(run_store, str(path_params.get("refresh_run_id") or ""))
+    if resource.endswith("/ops/nonprofits/{ein}/pipeline-status"):
+        ein = str(path_params.get("ein") or "")
+        return get_nonprofit_pipeline_status(run_store, _get_profile_store(), ein)
+    return 404, {"message": "Ops route not found"}
+
+
+def _is_sources_list_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/nonprofits/{ein}/sources") or path.endswith("/sources")
+
+
+def _is_sources_detail_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/nonprofits/{ein}/sources/{source_name}") or "/sources/" in path
+
+
+def _is_compliance_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/nonprofits/{ein}/compliance") or path.endswith("/compliance")
+
+
+def _is_federal_awards_request(event: dict, method: str) -> bool:
+    if method != "GET":
+        return False
+    resource, path = _route_paths(event)
+    return resource.endswith("/nonprofits/{ein}/federal-awards") or path.endswith("/federal-awards")
+
+
+def _extract_source_name(event: dict) -> str:
+    path_params = event.get("pathParameters") or {}
+    direct = path_params.get("source_name")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    path = strip_version_prefix(str(event.get("path") or ""))
+    marker = "/sources/"
+    if marker in path:
+        return path.split(marker, 1)[1].strip("/")
+    raise ValueError("source_name is required")
+
+
+def _require_organization_context(auth_context: Any) -> tuple[str | None, str | None]:
+    workspace_id = getattr(auth_context, "workspace_id", None)
+    account_id = getattr(auth_context, "account_id", None)
+    if not workspace_id and not account_id:
+        raise AuthorizationError("Organization settings endpoints require authenticated workspace or account context")
+    return workspace_id, account_id
+
+
+def _handle_search_request(
+    event: dict,
+    *,
+    tenant_context: TenantNonprofitContext | None,
+) -> tuple[int, dict[str, Any]]:
+    query = event.get("queryStringParameters") or {}
+    name_query = str(query.get("q") or query.get("name") or "").strip()
+    if not name_query:
+        raise ValueError("Search query parameter q is required")
+    if len(name_query) < 2:
+        raise ValueError("Search query must be at least 2 characters")
+
+    limit = SEARCH_DEFAULT_LIMIT
+    if query.get("limit") is not None:
+        try:
+            limit = int(str(query.get("limit")))
+        except ValueError as exc:
+            raise ValueError("limit must be an integer") from exc
+    if limit < 1 or limit > SEARCH_MAX_LIMIT:
+        raise ValueError(f"limit must be between 1 and {SEARCH_MAX_LIMIT}")
+
+    active_only = _parse_bool(query.get("active_only"), default=False)
+    state = str(query.get("state")).strip().upper() if query.get("state") else None
+    subsection = str(query.get("subsection")).strip() if query.get("subsection") else None
+    cursor = str(query.get("cursor")).strip() if query.get("cursor") else None
+
+    if tenant_context is None:
+        raise AuthorizationError("Tenant nonprofit routes require organization-scoped authentication")
+
+    return _get_nonprofit_service().search_nonprofits(
+        tenant_context=tenant_context,
+        name_query=name_query,
+        limit=limit,
+        state=state,
+        subsection=subsection,
+        active_only=active_only,
+        cursor=cursor,
+    )
+
+
+def _record_nonprofit_access_audit_event(
+    *,
+    event: dict[str, Any],
+    route_key: str,
+    status_code: int,
+    payload: dict[str, Any],
+    tenant_context: TenantNonprofitContext | None,
+) -> None:
+    if tenant_context is None or status_code < 200 or status_code >= 300:
+        return
+
+    try:
+        event_type = _nonprofit_audit_event_type(event)
+        if event_type is None:
+            return
+
+        metadata = _build_nonprofit_audit_metadata(
+            event=event,
+            route_key=route_key,
+            payload=payload,
+            tenant_context=tenant_context,
+        )
+        _get_portal_audit_log_service().record_event(
+            event_type=event_type,
+            actor_user_id=tenant_context.authenticated_user_id,
+            organization_id=tenant_context.organization_id,
+            target_user_id=None,
+            metadata=metadata,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_exception(
+            logger,
+            "nonprofit_audit_log_failed",
+            exc,
+            env=os.environ,
+            route_key=route_key,
+            organization_id=tenant_context.organization_id,
+            status_code=status_code,
+        )
+
+
+def _nonprofit_audit_event_type(event: dict[str, Any]) -> AuditEventType | None:
+    method = str(event.get("httpMethod") or "GET").upper()
+    if method != "GET":
+        return None
+    if _is_search_request(event, method):
+        return AuditEventType.NONPROFIT_SEARCH
+    if _is_filings_request(event, method):
+        return AuditEventType.NONPROFIT_FILINGS_ACCESS
+    if _is_sources_list_request(event, method) or _is_sources_detail_request(event, method):
+        return AuditEventType.NONPROFIT_SOURCE_ACCESS
+    if _is_lookup_request(event, method):
+        return AuditEventType.NONPROFIT_LOOKUP
+    return None
+
+
+def _build_nonprofit_audit_metadata(
+    *,
+    event: dict[str, Any],
+    route_key: str,
+    payload: dict[str, Any],
+    tenant_context: TenantNonprofitContext,
+) -> dict[str, Any]:
+    query = event.get("queryStringParameters") or {}
+    metadata: dict[str, Any] = {
+        "auth_method": tenant_context.auth_method,
+        "credential_id": tenant_context.credential_id,
+        "endpoint": route_key,
+        "organization_id": tenant_context.organization_id,
+        "response_sources": _extract_nonprofit_response_sources(payload),
+        "user_id": tenant_context.authenticated_user_id,
+    }
+    method = str(event.get("httpMethod") or "GET").upper()
+    if _is_search_request(event, method):
+        metadata.update(
+            {
+                "query_text": _sanitize_audit_text(query.get("q") or query.get("name")),
+                "query_limit": _sanitize_audit_text(query.get("limit")),
+                "query_cursor": _sanitize_audit_text(query.get("cursor")),
+                "query_state": _sanitize_audit_text(query.get("state")),
+                "query_subsection": _sanitize_audit_text(query.get("subsection")),
+                "query_active_only": _sanitize_audit_bool(query.get("active_only")),
+                "result_count": len(payload.get("items") or []),
+            }
+        )
+        return metadata
+
+    path_params = event.get("pathParameters") or {}
+    metadata.update(
+        {
+            "ein": _sanitize_audit_text(
+                (payload.get("ein") if isinstance(payload.get("ein"), str) else None)
+                or path_params.get("ein")
+                or ((payload.get("organization") or {}).get("ein") if isinstance(payload.get("organization"), dict) else None)
+            ),
+            "query_subsection": _sanitize_audit_text(query.get("subsection")),
+        }
+    )
+    if _is_filings_request(event, method):
+        metadata["filing_count"] = len(payload.get("filings") or [])
+        return metadata
+    if _is_sources_detail_request(event, method):
+        metadata["source_name"] = _sanitize_audit_text(_extract_source_name(event))
+    return metadata
+
+
+def _extract_nonprofit_response_sources(payload: dict[str, Any]) -> list[str]:
+    sources: list[str] = []
+    source_entries = payload.get("sources")
+    if isinstance(source_entries, list):
+        for item in source_entries:
+            if isinstance(item, dict):
+                source_name = _sanitize_audit_text(item.get("source_name"))
+                if source_name and source_name not in sources:
+                    sources.append(source_name)
+    single_source = payload.get("source")
+    if isinstance(single_source, dict):
+        source_name = _sanitize_audit_text(single_source.get("source_name"))
+        if source_name and source_name not in sources:
+            sources.append(source_name)
+    integration_evaluation = payload.get("integration_evaluation")
+    if isinstance(integration_evaluation, dict):
+        for item in integration_evaluation.get("integrations") or []:
+            if isinstance(item, dict):
+                integration_id = _sanitize_audit_text(item.get("integration_id"))
+                if integration_id and integration_id not in sources:
+                    sources.append(integration_id)
+    return sources
+
+
+def _sanitize_audit_text(value: Any, *, max_length: int = 200) -> str | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    return candidate[:max_length]
+
+
+def _sanitize_audit_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    candidate = str(value).strip().lower()
+    if candidate in {"true", "1", "yes"}:
+        return True
+    if candidate in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def _handle_batch_verify(
+    event: dict,
+    auth_context: Any,
+    evaluation_context: EvaluationContext,
+    *,
+    response_context: ResponseContext,
+) -> dict[str, Any]:
+    try:
+        body = event.get("body")
+        if not body:
+            return error_response(400, "Request body is required", response_context=response_context)
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return error_response(400, "Request body must be valid JSON", response_context=response_context)
+
+    items_input: list[Any]
+    if isinstance(payload, list):
+        items_input = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items_input = payload["items"]
+    else:
+        return error_response(400, "Request body must be an array or an object with items[]", response_context=response_context)
+
+    plan_entitlements = getattr(auth_context, "entitlements", None)
+    plan_batch_limit = getattr(plan_entitlements, "batch_request_limit", 0)
+    if plan_entitlements is not None and plan_batch_limit <= 0:
+        return error_response(403, "Plan entitlement does not allow this endpoint", response_context=response_context, code="forbidden")
+    if plan_entitlements is not None and len(items_input) > plan_batch_limit:
+        return error_response(403, f"Batch size exceeds plan limit of {plan_batch_limit}", response_context=response_context, code="forbidden")
+    if len(items_input) > BATCH_VERIFY_MAX_SIZE:
+        return error_response(400, f"Batch size exceeds maximum of {BATCH_VERIFY_MAX_SIZE}", response_context=response_context)
+
+    results: list[dict[str, Any]] = []
+    status_counts: Counter[str] = Counter()
+    decision_counts: Counter[str] = Counter()
+    error_counts: Counter[str] = Counter()
+
+    for index, row in enumerate(items_input):
+        item_result = _process_batch_item(index, row, evaluation_context=evaluation_context)
+        results.append(item_result)
+        status_counts[item_result["status"]] += 1
+        if item_result["status"] == "ok":
+            decision_counts[item_result.get("decision_status") or "unknown"] += 1
+        else:
+            error_counts[item_result.get("error_code") or "unknown_error"] += 1
+
+    summary = {
+        "total": len(items_input),
+        "success": status_counts.get("ok", 0),
+        "error": status_counts.get("error", 0),
+        "counts_by_status": dict(status_counts),
+        "counts_by_decision": dict(decision_counts),
+        "counts_by_error": dict(error_counts),
+        "max_batch_size": BATCH_VERIFY_MAX_SIZE,
+    }
+    return json_response(200, {"batch_summary": summary, "items": results}, response_context=response_context)
+
+
+def _route_paths(event: dict[str, Any]) -> tuple[str, str]:
+    return _route_template(event), strip_version_prefix(str(event.get("path") or ""))
+
+
+def _route_template(event: dict[str, Any]) -> str:
+    resource = str(event.get("resource") or "")
+    if resource.strip():
+        return strip_version_prefix(resource)
+    return strip_version_prefix(str(event.get("path") or ""))
+
+
+def _load_billing_settings_override(account_id: str | None) -> tuple[Any | None, str | None]:
+    candidate = str(account_id or "").strip()
+    if not candidate:
+        return None, None
+    store = _get_organization_integration_settings_store()
+    if store is None:
+        return None, None
+    try:
+        return store.load_billing_settings(account_id=candidate)
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+def _plan_default_allows_overage(plan_code: str | None) -> bool:
+    normalized_plan = str(plan_code or "free").strip().lower()
+    return normalized_plan not in {"", "free"}
+
+
+def _resolve_account_subscription_plan(account_id: str | None, *, fallback_plan: str) -> str:
+    candidate = str(account_id or "").strip()
+    if not candidate:
+        return str(fallback_plan or "free")
+    subscription_service = _get_portal_subscription_service()
+    if subscription_service is None:
+        return str(fallback_plan or "free")
+    try:
+        resolved = subscription_service.get_subscription_for_organization(candidate)
+        return str(resolved.subscription.plan.plan_id or fallback_plan or "free")
+    except Exception:  # noqa: BLE001
+        return str(fallback_plan or "free")
+
+
+def _resolve_effective_allow_overage(*, account_id: str | None, fallback_plan_code: str | None) -> bool:
+    settings, updated_at = _load_billing_settings_override(account_id)
+    if updated_at is not None and settings is not None:
+        return bool(settings.allow_overage)
+    return _plan_default_allows_overage(fallback_plan_code)
+
+
+def _shape_organization_settings_payload(
+    payload: dict[str, Any],
+    *,
+    account_id: str | None,
+    fallback_plan_code: str | None,
+) -> dict[str, Any]:
+    shaped = dict(payload or {})
+    billing_payload = dict(shaped.get("billing") or {})
+    billing_payload["allowOverage"] = _resolve_effective_allow_overage(
+        account_id=account_id,
+        fallback_plan_code=fallback_plan_code,
+    )
+    shaped["billing"] = billing_payload
+    return shaped
+
+
+def _shape_billing_subscription_summary(summary: dict[str, Any], *, account_id: str) -> dict[str, Any]:
+    shaped = dict(summary or {})
+    if shaped.get("grace_period_ends_at") is None:
+        shaped.pop("grace_period_ends_at", None)
+
+    try:
+        subscription = _get_control_plane_service().store.get_subscription(account_id)
+    except Exception:  # noqa: BLE001
+        subscription = None
+    if subscription is None:
+        return shaped
+    if str(getattr(subscription, "trial_status", "") or "").strip().lower() != "active":
+        return shaped
+    if str(getattr(subscription, "plan_code", "") or "").strip().lower() != "free":
+        return shaped
+
+    effective_access_plan = str(TRIAL_CONFIG.plan_code or "growth").strip().lower() or "growth"
+    plan = DEFAULT_PLANS.get(effective_access_plan, DEFAULT_PLANS["growth"])
+    entitlements = plan.entitlements
+    effective_display_name = " ".join(part.capitalize() for part in effective_access_plan.split("_") if part) or "Growth"
+    shaped["plan_display"] = {
+        "display_name": "Free",
+        "effective_access_display_name": effective_display_name,
+        "effective_access_plan_code": effective_access_plan,
+        "plan_code": "free",
+    }
+    shaped["effective_access_plan"] = effective_access_plan
+    shaped["included_limits"] = {
+        "monthly_requests": entitlements.monthly_request_limit,
+        "requests_per_minute": entitlements.requests_per_minute,
+        "batch_items": entitlements.batch_request_limit,
+    }
+    shaped["enabled_capabilities"] = list(entitlements.allowed_capabilities)
+    shaped["trial"] = {
+        "active": True,
+        "status": "active",
+        "ends_at": getattr(subscription, "trial_ends_at", None),
+    }
+    return shaped
+
+
+def _get_header(headers: dict[str, Any], name: str) -> str | None:
+    for key, value in headers.items():
+        if str(key).lower() == name.lower():
+            return str(value)
+    return None
+
+
+def _raw_request_body(event: dict[str, Any]) -> str:
+    if "rawBody" in event and isinstance(event.get("rawBody"), str):
+        return str(event.get("rawBody") or "")
+    body = event.get("body")
+    if body is None:
+        return ""
+    if bool(event.get("isBase64Encoded")):
+        import base64
+
+        return base64.b64decode(str(body)).decode("utf-8")
+    return str(body)
+
+
+def _process_batch_item(index: int, row: Any, evaluation_context: EvaluationContext) -> dict[str, Any]:
+    if not isinstance(row, dict):
+        return {"index": index, "status": "error", "error_code": "invalid_item", "message": "Item must be an object"}
+
+    ein = row.get("ein")
+    if not ein:
+        return {"index": index, "status": "error", "error_code": "missing_ein", "message": "Item must include ein"}
+
+    provided_name = row.get("name")
+    if provided_name is not None and not isinstance(provided_name, str):
+        return {"index": index, "status": "error", "error_code": "invalid_name", "message": "name must be a string"}
+
+    policy_id = row.get("policy_id")
+    if policy_id is not None and not isinstance(policy_id, str):
+        return {"index": index, "status": "error", "error_code": "invalid_policy_id", "message": "policy_id must be a string"}
+    weighting_profile = row.get("weighting_profile")
+    if weighting_profile is not None and not isinstance(weighting_profile, str):
+        return {"index": index, "status": "error", "error_code": "invalid_weighting_profile", "message": "weighting_profile must be a string"}
+
+    try:
+        normalized_ein = normalize_ein(str(ein))
+        payload = _verify_single_item(normalized_ein, provided_name, policy_id, weighting_profile, evaluation_context)
+        return {
+            "index": index,
+            "ein": normalized_ein,
+            "status": "ok",
+            "decision_status": (payload.get("decision") or {}).get("status"),
+            "final_recommendation": payload.get("final_recommendation"),
+            "item": payload,
+        }
+    except EINValidationError as exc:
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_ein", "message": str(exc)}
+    except ValueError as exc:
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "invalid_policy", "message": str(exc)}
+    except Exception as exc:
+        log_exception(logger, "batch_item_unhandled_exception", exc, env=os.environ, index=index, ein=str(ein))
+        return {"index": index, "ein": str(ein), "status": "error", "error_code": "internal_error", "message": "Internal server error"}
+
+
+def _verify_single_item(
+    normalized_ein: str,
+    provided_name: str | None,
+    policy_id: str | None,
+    weighting_profile: str | None = None,
+    evaluation_context: EvaluationContext | None = None,
+) -> dict[str, Any]:
+    context = evaluation_context or EvaluationContext()
+    if provided_name is None:
+        cached = _load_cached_profile(normalized_ein)
+        if cached is not None and _cached_profile_is_current(cached):
+            if policy_id or context.has_non_default_integrations() or not cached.get("integration_evaluation"):
+                cached = apply_evaluation_overlay(
+                    payload=cached,
+                    policy_id=policy_id,
+                    enrichment_service=_get_enrichment_service(),
+                    evaluation_context=context,
+                    ein=normalized_ein,
+                )
+            return cached
+
+    verification_input = VerificationInput(
+        ein=normalized_ein,
+        provided_name=provided_name,
+        policy_id=policy_id,
+        weighting_profile=weighting_profile,
+    )
+    status_code, payload = verify_nonprofit(
+        _get_nonprofit_query_client(),
+        verification_input,
+        enrichment_service=_get_enrichment_service(),
+        evaluation_context=context,
+    )
+    if status_code != 200:
+        raise ValueError(payload.get("message") or "Verification failed")
+    payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
+    payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
+    return payload
+
+
+def _parse_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    candidate = str(value).strip().lower()
+    if candidate in {"true", "1", "yes"}:
+        return True
+    if candidate in {"false", "0", "no"}:
+        return False
+    raise ValueError("active_only must be a boolean")
+
+
+def _shape_payload_for_response(payload: dict[str, Any], auth_context: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return payload
+    entitlements = getattr(auth_context, "entitlements", None)
+    return _get_response_shaping_service().shape_verification_response(payload, entitlements)
+
+
+def _cached_profile_is_current(payload: dict[str, Any]) -> bool:
+    cached_version = str(((payload.get("score_explanation") or {}).get("model_version") or (payload.get("model") or {}).get("version") or "")).strip()
+    return cached_version == SCORING_MODEL_VERSION
+
+
+def _load_cached_profile(ein: str) -> dict | None:
+    store = _get_profile_store()
+    if store is None:
+        return None
+    item = store.get_profile(ein)
+    if not item:
+        return None
+    return {
+        "organization": item.get("organization"),
+        "verification": item.get("verification"),
+        "scores": item.get("scores"),
+        "score_explanation": item.get("score_explanation"),
+        "model": {"version": item.get("model_version"), "source": "materialized_profile_cache"},
+        "filing_summary": item.get("latest_filing"),
+        "enrichment": item.get("enrichment") or {"providers": [], "failures": []},
+        "decision": item.get("decision"),
+        "audit": item.get("audit"),
+        "summary": item.get("summary"),
+        "evidence": item.get("evidence"),
+        "policy_evaluation": item.get("policy_evaluation"),
+        "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
+        "state_compliance": item.get("state_compliance"),
+        "external_signals": item.get("external_signals"),
+        "integration_evaluation": item.get("integration_evaluation"),
+    }
+
+
+def _materialize_profile(ein: str, payload: dict) -> None:
+    store = _get_profile_store()
+    if store is None:
+        return
+    item = materialize_profile_item(
+        ein,
+        payload,
+        environment=APP_ENV,
+        source_data_versions={},
+    )
+    store.put_profile(item)
+
+
+def _persist_advisory_artifact(ein: str, payload: dict[str, Any]) -> None:
+    try:
+        service = _get_nonprofit_advisory_detail_service()
+        if service is None:
+            return
+        service.persist_advisory_artifact(ein=ein, payload=payload)
+    except Exception as exc:  # noqa: BLE001
+        log_exception(
+            logger,
+            "nonprofit_advisory_artifact_persist_failed",
+            exc,
+            env=os.environ,
+            ein=ein,
+        )
+
+def _load_boto3():
+    try:
+        return importlib.import_module("boto3")
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            "boto3 is required for AWS-backed backend runtime features. "
+            "The installed boto3/botocore environment could not be imported."
+        ) from exc
+
+
+def policy_id_required(verification_input: VerificationInput) -> bool:
+    return bool(verification_input.policy_id)
+

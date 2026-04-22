@@ -5,12 +5,12 @@ Target ownership for `backend/worker/`:
 - non-HTTP runtime hosts
 - profile refresh job runtime composition
 - future generic worker/background-job entrypoints
-- shared worker bootstrap that is not specific to ingest-task execution
+- shared worker bootstrap that is not specific to federal-ingest execution
 
 Python package root:
 
-- `backend/worker/src/verification_backend/worker/`
-- local scaffold entrypoint: `python -m verification_backend.worker.entrypoint`
+- `backend/worker/src/verification/backend/worker/`
+- local scaffold entrypoint: `python -m verification.backend.worker.entrypoint`
 
 Container build/run:
 
@@ -22,7 +22,7 @@ docker run --env-file backend/.env.local <worker-image>
 Container contract:
 
 - long-lived non-HTTP worker/service image shape
-- default command: `python -m verification_backend.worker.entrypoint`
+- default command: `python -m verification.backend.worker.entrypoint`
 - intended Terraform/ECS mapping: private-subnet ECS service with no ALB
 - Terraform now exposes a disabled-by-default service slot so the deployment
   boundary exists without implying an active refresh migration
@@ -35,6 +35,6 @@ Planned inbound migration:
 
 Not owned here:
 
-- Form 990 and EO ingest task hosts that belong in `backend/ingest-task/`
+- Form 990 and EO ingest task hosts that belong in `backend/ingest/federal/`
 - reusable application/domain logic that belongs in backend shared/runtime packages
 

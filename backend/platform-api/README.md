@@ -8,26 +8,26 @@ Target ownership for `backend/platform-api/`:
 
 Python package root:
 
-- `backend/platform-api/src/verification_backend/platform_api/`
-- canonical ASGI app import: `verification_backend.platform_api.app:app`
-- local runtime entrypoint: `python -m verification_backend.platform_api.entrypoint`
+- `backend/platform-api/src/verification/backend/platform/api/`
+- canonical ASGI app import: `verification.backend.platform.api.app:app`
+- local runtime entrypoint: `python -m verification.backend.platform.api.entrypoint`
 
 Runtime ownership:
 
-- public HTTP entrypoint: `verification_backend.platform_api.app:app`
-- shared backend dispatch/runtime: `verification_backend.api.runtime.handle_api_event`
-- platform route transport seam: `verification_backend.platform_api.transport`
+- public HTTP entrypoint: `verification.backend.platform.api.app:app`
+- shared backend dispatch/runtime: `verification.backend.customer.api.runtime.handle_api_event`
+- platform route transport seam: `verification.backend.platform.api.transport`
 
 Current phase posture:
 
 - `backend/platform-api` is the runtime host for control-plane and operational routes
-- route ownership is intentionally split from `backend/api`
+- route ownership is intentionally split from `backend/customer-api`
 - shared request handling still dispatches through the current backend runtime module while the codebase converges on cleaner service boundaries
 
 Local run:
 
 ```powershell
-python -m verification_backend.platform_api.entrypoint
+python -m verification.backend.platform.api.entrypoint
 ```
 
 Container build/run:
@@ -41,7 +41,7 @@ Container contract:
 
 - long-lived HTTP service
 - compose and local examples expose it on host port `5622`
-- starts with `uvicorn verification_backend.platform_api.app:app`
+- starts with `uvicorn verification.backend.platform.api.app:app`
 
 Not owned here:
 

@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from verification.sources import (
+from verification.backend.shared.sources import (
     NormalizedSourceRecord,
     ProviderCapability,
     SourceAttribution,

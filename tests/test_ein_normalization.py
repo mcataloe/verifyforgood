@@ -1,6 +1,6 @@
 ﻿import pytest
 
-from infrastructure.verification.normalization.ein import EINValidationError, format_ein, normalize_ein
+from infrastructure.verification.backend.shared.normalization.ein import EINValidationError, format_ein, normalize_ein
 
 
 def test_normalize_ein_valid_formats():

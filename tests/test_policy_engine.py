@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
-from verification.policy import evaluate_policy
-from verification.policy.engine import _match_condition
+from verification.backend.shared.policy import evaluate_policy
+from verification.backend.shared.policy.engine import _match_condition
 
 
 def _base_payload() -> dict:

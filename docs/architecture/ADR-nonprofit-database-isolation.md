@@ -66,7 +66,7 @@ Keep these on the platform/control-plane database:
 
 - nonprofit repository and query-client builders resolve
   `PLATFORM_NONPROFIT_POSTGRES_*` first and fall back to `PLATFORM_POSTGRES_*`
-- ingest-task ECS/local env alias handling maps `DATABASE_URL` onto both the
+- federal-ingest ECS/local env alias handling maps `DATABASE_URL` onto both the
   platform and nonprofit URL slots when dedicated nonprofit wiring is absent
 - local developer tooling adds a dedicated nonprofit schema bootstrap command
   without changing the existing platform migration command

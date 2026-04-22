@@ -6,17 +6,17 @@ Current role:
 
 - define where long-lived backend runtimes live
 - provide a first-class Python workspace for backend runtime development
-- document ownership boundaries for API, platform-api, worker, ingest-task, and shared runtime concerns
+- document ownership boundaries for API, platform-api, worker, federal-ingest, and shared runtime concerns
 
 Target subdirectories:
 
-- `backend/api/`
+- `backend/customer-api/`
   - API server runtime host, ASGI bootstrap, request composition, health/readiness ownership
 - `backend/platform-api/`
   - platform/control-plane API runtime host for admin, ops, webhook, and machine-auth routes
 - `backend/worker/`
   - non-HTTP worker runtimes such as refresh jobs and future background workers
-- `backend/ingest-task/`
+- `backend/ingest/federal/`
   - EO/BMF and Form 990 task runtimes, including the monthly ECS worker and local workspace processing hosts
 - `backend/shared/`
   - runtime-only shared bootstrap/config/logging/request helpers and compatibility exports
@@ -25,11 +25,11 @@ Python workspace layout:
 
 - `backend/pyproject.toml`
   - single setuptools project for backend runtime scaffolding
-- `backend/api/src/verification_backend/api/`
-- `backend/platform-api/src/verification_backend/platform_api/`
-- `backend/worker/src/verification_backend/worker/`
-- `backend/ingest-task/src/verification_backend/ingest_task/`
-- `backend/shared/src/verification_backend/shared/`
+- `backend/customer-api/src/verification/backend/customer/api/`
+- `backend/platform-api/src/verification/backend/platform/api/`
+- `backend/worker/src/verification/backend/worker/`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/`
+- `backend/shared/src/verification/backend/shared/`
 
 Dependency direction:
 
@@ -63,23 +63,23 @@ Local PostgreSQL workflow:
 Copy-Item .\backend\.env.local.example .\backend\.env.local
 createdb verification_platform
 createdb verification_nonprofit
-python -m verification_backend.shared.local_dev db-upgrade
-python -m verification_backend.shared.local_dev db-upgrade-nonprofit
-python -m verification_backend.shared.local_dev db-current-nonprofit
-python -m verification_backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.shared.local_dev db-upgrade-nonprofit
+python -m verification.backend.shared.local_dev db-current-nonprofit
+python -m verification.backend.shared.local_dev db-current
 ```
 
 The documented local database name is `verification_platform`. For a full local
 reset, use `dropdb verification_platform`, `createdb verification_platform`,
-then rerun `python -m verification_backend.shared.local_dev db-upgrade`.
+then rerun `python -m verification.backend.shared.local_dev db-upgrade`.
 
 If you enable a dedicated nonprofit database, provision that database
-separately and run `python -m verification_backend.shared.local_dev
+separately and run `python -m verification.backend.shared.local_dev
 db-upgrade-nonprofit` after the platform migration step. The dedicated
 nonprofit flow now has its own Alembic history plus destructive dev helpers:
 
-- `python -m verification_backend.shared.local_dev db-reset-nonprofit`
-- `python -m verification_backend.shared.local_dev db-cutover-nonprofit`
+- `python -m verification.backend.shared.local_dev db-reset-nonprofit`
+- `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
 
 Those commands intentionally refuse to run unless
 `PLATFORM_NONPROFIT_POSTGRES_*` is configured, so destructive nonprofit resets
@@ -88,26 +88,26 @@ or cutovers cannot accidentally target the shared platform database.
 Scaffold runtime commands:
 
 ```powershell
-python -m verification_backend.worker.entrypoint
-python -m verification_backend.ingest_task.entrypoint
+python -m verification.backend.worker.entrypoint
+python -m verification.backend.ingest.federal.cli monthly-worker
 ```
 
 API local run:
 
 ```powershell
-python -m verification_backend.api.entrypoint
+python -m verification.backend.customer.api.entrypoint
 ```
 
 Platform API local run:
 
 ```powershell
-python -m verification_backend.platform_api.entrypoint
+python -m verification.backend.platform.api.entrypoint
 ```
 
 VS Code fallback debug path:
 
 ```powershell
-python -m debugpy --listen 5678 -m verification_backend.api.entrypoint
+python -m debugpy --listen 5678 -m verification.backend.customer.api.entrypoint
 ```
 
 If the VS Code `Backend API` launch configuration exits immediately after
@@ -119,10 +119,10 @@ stay up and continue serving the frontend while the debugger attaches over port
 Container build contracts:
 
 ```powershell
-docker build -f backend/api/Dockerfile .
+docker build -f backend/customer-api/Dockerfile .
 docker build -f backend/platform-api/Dockerfile .
 docker build -f backend/worker/Dockerfile .
-docker build -f backend/ingest-task/Dockerfile .
+docker build -f backend/ingest/federal/Dockerfile .
 ```
 
 Local compose contract:
@@ -148,14 +148,14 @@ Local service map:
 
 Runtime mapping:
 
-- `backend/api/Dockerfile`
+- `backend/customer-api/Dockerfile`
   - customer-facing API service image
 - `backend/platform-api/Dockerfile`
   - platform/control-plane API service image
 - `backend/worker/Dockerfile`
   - ECS-aligned long-lived worker service image
   - provisionable ECS service slot retained as a neutral future worker host
-- `backend/ingest-task/Dockerfile`
+- `backend/ingest/federal/Dockerfile`
   - ECS-aligned task image with command-based ingest runtime selection
   - ECS task-style runtime for scheduled and one-off ingest execution, distinct
     from the general worker service
@@ -167,14 +167,14 @@ The shared local env file is loaded automatically by backend entrypoints before
 their env-driven runtime modules initialize. Future worker and ingest runtimes
 should reuse that same `backend/.env.local` contract for local execution.
 
-Ingest-task local run examples:
+Federal ingest local run examples:
 
 ```powershell
-python -m ingest_task.cli run
-python -m ingest_task.cli run --archive-url https://example.org/2026_TEOS_XML_02A.zip --strict --keep-temp
-python -m verification_backend.ingest_task.cli run --limit 1
-python -m verification_backend.ingest_task.cli ecs-run
-python -m verification_backend.ingest_task.cli monthly-worker
+python -m verification.backend.ingest.federal.cli run
+python -m verification.backend.ingest.federal.cli run --archive-url https://example.org/2026_TEOS_XML_02A.zip --strict --keep-temp
+python -m verification.backend.ingest.federal.cli run --limit 1
+python -m verification.backend.ingest.federal.cli ecs-run
+python -m verification.backend.ingest.federal.cli monthly-worker
 ```
 
 The local `run` command uses the monthly ECS worker archive-processing core and
@@ -189,10 +189,10 @@ The ECS parity path now uses `ecs-run`, which reuses the same orchestration
 core as local `run` and accepts env aliases such as `WORKSPACE_PATH`,
 `STRICT_MODE`, `MAX_ARCHIVES`, `LOG_LEVEL`, and `DATABASE_URL`.
 
-Manual ingest-task Docker runs:
+Manual federal-ingest Docker runs:
 
 ```powershell
-docker build -f backend/ingest-task/Dockerfile -t verification-ingest-task .
+docker build -f backend/ingest/federal/Dockerfile -t verification-federal-ingest .
 ```
 
 ```powershell
@@ -202,8 +202,8 @@ docker run --rm `
   -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
   -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
   -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
-  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
-  verification-ingest-task `
+  -v "${PWD}\\backend\\ingest\\federal\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-federal-ingest `
   run --archive-url https://apps.irs.gov/pub/epostcard/990/xml/2024/2024_TEOS_XML_01A.zip --strict
 ```
 
@@ -216,8 +216,8 @@ docker run --rm `
   -e FORM990_SOURCE_MODE=irs_page `
   -e FORM990_IRS_DOWNLOADS_PAGE_URL=https://www.irs.gov/charities-non-profits/form-990-series-downloads `
   -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
-  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
-  verification-ingest-task `
+  -v "${PWD}\\backend\\ingest\\federal\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-federal-ingest `
   run --strict
 ```
 
@@ -228,8 +228,8 @@ docker run --rm `
   -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
   -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
   -e FORM990_WORKSPACE_DIR=/tmp/charity-status/form990 `
-  -v "${PWD}\\backend\\ingest-task\\.workspace\\form990:/tmp/charity-status/form990" `
-  verification-ingest-task `
+  -v "${PWD}\\backend\\ingest\\federal\\.workspace\\form990:/tmp/charity-status/form990" `
+  verification-federal-ingest `
   run --limit 1 --strict
 ```
 
@@ -240,8 +240,8 @@ docker run --rm `
   -e PLATFORM_NONPROFIT_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit `
   -e PLATFORM_NONPROFIT_QUERY_POSTGRES_URL=postgresql+psycopg://postgres:postgres@host.docker.internal:5432/verification_nonprofit_query `
   -e EOBMF_WORKSPACE_DIR=/tmp/charity-status/eo_bmf `
-  -v "${PWD}\\backend\\ingest-task\\.workspace\\eo_bmf:/tmp/charity-status/eo_bmf" `
-  verification-ingest-task `
+  -v "${PWD}\\backend\\ingest\\federal\\.workspace\\eo_bmf:/tmp/charity-status/eo_bmf" `
+  verification-federal-ingest `
   run-eo-bmf --strict
 ```
 
@@ -250,22 +250,22 @@ the container, override PostgreSQL hosts to `host.docker.internal`.
 
 Migration/source-of-truth note:
 
-- `python -m verification_backend.shared.local_dev db-upgrade` is the
+- `python -m verification.backend.shared.local_dev db-upgrade` is the
   backend-owned wrapper for local development
-- `python -m verification_backend.shared.local_dev db-upgrade-nonprofit`
+- `python -m verification.backend.shared.local_dev db-upgrade-nonprofit`
   applies the dedicated nonprofit Alembic history when
   `PLATFORM_NONPROFIT_POSTGRES_*` settings are used
-- `python -m verification_backend.shared.local_dev db-reset-nonprofit`
+- `python -m verification.backend.shared.local_dev db-reset-nonprofit`
   destructively recreates the dedicated nonprofit schema in dev
-- `python -m verification_backend.shared.local_dev db-cutover-nonprofit`
+- `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
   destructively reloads nonprofit/Form 990 rows from the platform database into
   the dedicated nonprofit database in dev
 - `alembic upgrade head` remains the underlying schema source-of-truth command
 - `alembic -c alembic_nonprofit.ini upgrade head` is the underlying dedicated
   nonprofit schema source-of-truth command
-- local backfill/cutover utilities live under `verification_platform.runtime`:
-  - `python -m verification_platform.runtime.customer_accounts_migration`
-  - `python -m verification_platform.runtime.nonprofit_migration`
+- local backfill/cutover utilities live under `verification.backend.shared.runtime`:
+  - `python -m verification.backend.shared.runtime.customer_accounts_migration`
+  - `python -m verification.backend.shared.runtime.nonprofit_migration`
 
 Container notes:
 
@@ -273,5 +273,5 @@ Container notes:
 - keep image ownership in `backend/`, not `infrastructure/`
 - GitLab CI now builds the three existing backend runtime images and publishes them to
   the Terraform-managed ECR repositories using commit-SHA tags
-- the ingest-task image defaults to `monthly-worker`
+- the federal-ingest image defaults to `monthly-worker`
 

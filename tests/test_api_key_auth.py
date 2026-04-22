@@ -7,17 +7,17 @@ from types import SimpleNamespace
 
 from datetime import datetime, timedelta, timezone
 
-from verification.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
-from verification.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
-from verification.auth.service import authenticate_api_key, enforce_quota_and_scope
-from verification.auth.models import ApiPlan, AuthenticatedPrincipal
-from verification.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
-from verification.billing.trials import TrialConfig, TrialLifecycleService
-from verification.billing.service import monthly_period_for
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from verification.platform.auth import ApiKeyAuthContextProvider
-from verification.platform.auth import ApiKeyQuotaMeteringHook
-from verification_platform.customer_accounts import (
+from verification.backend.shared.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
+from verification.backend.shared.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
+from verification.backend.shared.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.backend.shared.auth.models import ApiPlan, AuthenticatedPrincipal
+from verification.backend.shared.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from verification.backend.shared.billing.trials import TrialConfig, TrialLifecycleService
+from verification.backend.shared.billing.service import monthly_period_for
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.platform.auth import ApiKeyAuthContextProvider
+from verification.backend.shared.platform.auth import ApiKeyQuotaMeteringHook
+from verification.backend.shared.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoFeatureFlagRepository,
     DynamoPlanRepository,
@@ -744,9 +744,9 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
         plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     module.athena_client = SimpleNamespace(
@@ -776,9 +776,9 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
         plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     event = {
         "httpMethod": "POST",

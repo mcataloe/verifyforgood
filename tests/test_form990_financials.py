@@ -1,7 +1,7 @@
 ﻿import pathlib
 
-from infrastructure.verification.form990.extractors.financials import extract_financial_fields
-from infrastructure.verification.form990.parser import parse_xml
+from infrastructure.verification.backend.ingest.federal.form990.extractors.financials import extract_financial_fields
+from infrastructure.verification.backend.ingest.federal.form990.parser import parse_xml
 
 
 def test_extract_financial_fields_from_sample_xml():

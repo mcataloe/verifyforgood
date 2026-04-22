@@ -1,10 +1,10 @@
-﻿from verification.enrichments import (
+﻿from verification.backend.shared.enrichments import (
     InMemoryOrganizationIntegrationSettingsStore,
     OrganizationIntegrationSettingsService,
     OrganizationIntegrationSettingsValidationError,
     load_organization_integration_settings,
 )
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     AuditEventType,
     AuditLogService,
     DynamoAuditLogRepository,

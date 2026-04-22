@@ -1,6 +1,6 @@
 import json
 
-from verification.ingest import (
+from verification.backend.ingest.shared import (
     EcsTaskRuntimeContract,
     default_interface_endpoint_services,
     load_monthly_ingest_workflow_config,

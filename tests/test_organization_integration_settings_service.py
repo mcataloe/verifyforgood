@@ -1,4 +1,4 @@
-﻿from verification.enrichments import (
+﻿from verification.backend.shared.enrichments import (
     InMemoryOrganizationIntegrationSettingsStore,
     OrganizationIntegrationSettingsService,
     OrganizationIntegrationSettingsValidationError,

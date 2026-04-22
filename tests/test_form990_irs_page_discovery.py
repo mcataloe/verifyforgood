@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from infrastructure.verification.form990.irs_page_discovery import (
+from infrastructure.verification.backend.ingest.federal.form990.irs_page_discovery import (
     IrsYearSource,
     diff_source_catalog,
     discover_irs_form990_sources,

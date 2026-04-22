@@ -38,7 +38,9 @@ def test_form990_next_year_generation_defaults_enabled():
 
 
 def test_form990_static_manifest_is_packaged_with_form990_code():
-    assert Path("infrastructure/verification/form990/Form990Links.txt").exists()
+    assert Path(
+        "backend/ingest/federal/src/verification/backend/ingest/federal/form990/Form990Links.txt"
+    ).exists()
 
 
 def test_ingest_task_policies_remove_legacy_s3_bucket_access():
@@ -49,13 +51,13 @@ def test_ingest_task_policies_remove_legacy_s3_bucket_access():
 
 
 def test_monthly_ingest_worker_packaging_and_task_access_exist():
-    dockerfile = Path("backend/ingest-task/Dockerfile").read_text(encoding="utf-8")
+    dockerfile = Path("backend/ingest/federal/Dockerfile").read_text(encoding="utf-8")
     ecs_content = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
 
-    assert "verification_backend.ingest_task.cli" in dockerfile
+    assert "verification.backend.ingest.federal.cli" in dockerfile
     assert 'CMD ["monthly-worker"]' in dockerfile
     assert 'command    = ["ecs-run"]' in ecs_content
-    assert 'entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]' in ecs_content
+    assert 'entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]' in ecs_content
     assert 'WORKSPACE_PATH' in ecs_content
     assert 'STRICT_MODE' in ecs_content
     assert 'MAX_ARCHIVES' in ecs_content
@@ -65,14 +67,18 @@ def test_monthly_ingest_worker_packaging_and_task_access_exist():
     assert '"s3:ListBucket"' not in ecs_content
 
 
-def test_monthly_and_persistence_runtime_entrypoints_are_backend_owned_behind_shims():
-    monthly_worker = Path("infrastructure/monthly_ingest_worker.py").read_text(encoding="utf-8")
-    persistence = Path("infrastructure/nonprofit_ingest_persistence.py").read_text(encoding="utf-8")
+def test_monthly_and_persistence_runtime_entrypoints_are_backend_owned():
+    monthly_worker = Path(
+        "backend/ingest/federal/src/verification/backend/ingest/federal/monthly/worker.py"
+    ).read_text(encoding="utf-8")
+    persistence = Path(
+        "backend/ingest/federal/src/verification/backend/ingest/federal/persistence.py"
+    ).read_text(encoding="utf-8")
 
-    assert "backend-owned monthly ECS worker runtime" in monthly_worker
-    assert "verification_backend.ingest_task.monthly.worker" in monthly_worker
-    assert "backend-owned nonprofit ingest persistence" in persistence
-    assert "verification_backend.ingest_task.persistence" in persistence
+    assert "Backend-owned monthly ECS worker runtime entrypoint." in monthly_worker
+    assert "run_form990_monthly_processing_task" in monthly_worker
+    assert "Backend-owned runtime import root for nonprofit ingest persistence." in persistence
+    assert "build_form990_nonprofit_persistence_service" in persistence
 
 
 def test_dev_form990_defaults_use_orchestrated_current_year_scope():

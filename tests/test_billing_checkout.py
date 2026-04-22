@@ -2,7 +2,7 @@
 
 from urllib.error import URLError
 
-from verification.billing.checkout import (
+from verification.backend.shared.billing.checkout import (
     BillingCheckoutError,
     BillingCheckoutService,
     BillingProviderError,
@@ -11,8 +11,8 @@ from verification.billing.checkout import (
     CheckoutSessionResult,
     load_stripe_checkout_config,
 )
-from verification.billing.runtime import validate_stripe_billing_environment
-from verification.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.billing.runtime import validate_stripe_billing_environment
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 class _StripeClient:
@@ -347,7 +347,7 @@ def test_http_stripe_checkout_client_retries_transient_url_errors(monkeypatch):
             raise URLError("temporary outage")
         return _Response()
 
-    monkeypatch.setattr("verification.billing.checkout.urlopen", _fake_urlopen)
+    monkeypatch.setattr("verification.backend.shared.billing.checkout.urlopen", _fake_urlopen)
     client = HttpStripeCheckoutClient(secret_key="sk_test_123")
 
     session = client.create_checkout_session(

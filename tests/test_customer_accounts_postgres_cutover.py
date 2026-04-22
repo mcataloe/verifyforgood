@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from verification_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -42,9 +42,9 @@ from verification_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from verification.control_plane.sqlalchemy_store import ControlPlaneBase
-from verification.enrichments.organization_settings_stores import OrganizationSettingsBase
-from verification_platform.runtime import (
+from verification.backend.shared.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.backend.shared.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification.backend.shared.runtime import (
     backfill_customer_accounts_from_dynamodb,
     build_customer_accounts_repositories,
 )
@@ -76,10 +76,10 @@ def _load_module_with_postgres_identity_store(monkeypatch, tmp_path: Path, *, ap
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api.runtime", None)
-    sys.modules.pop("verification_backend.api", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_organization_context_service = None

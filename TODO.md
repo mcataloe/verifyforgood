@@ -629,7 +629,7 @@ The backend runtime now has a local/ECS-style EO/BMF ingest path that writes can
 
 ### Migration Triggers
 
-- deployed EO/BMF workers fully switched to the backend-owned ingest-task image
+- deployed EO/BMF workers fully switched to the backend-owned federal-ingest image
 - confirmation that PostgreSQL-backed nonprofit reads are authoritative in all target environments
 - no remaining operational dependency on the legacy EO/BMF Athena/Glue datasets
 
@@ -877,15 +877,15 @@ Refactor Form 990 ingest runtime hosts onto the new workspace-based module seams
 ### Rationale
 
 Phase 27E establishes a local-first Form 990 ingest architecture under
-`backend/ingest-task` with explicit module seams for discovery, download,
+`backend/ingest/federal` with explicit module seams for discovery, download,
 extract, parse, persist, cleanup, and orchestration plus a deterministic
 workspace rooted at `FORM990_WORKSPACE_DIR`.
 
 The live runtime behavior still primarily flows through:
 
-- `backend/ingest-task/src/verification_backend/ingest_task/form990/runtime.py`
-- `backend/ingest-task/src/verification_backend/ingest_task/form990/worker.py`
-- `infrastructure/verification/form990/`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/runtime.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/worker.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/`
 
 ### Migration Triggers
 

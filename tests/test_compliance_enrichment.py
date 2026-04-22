@@ -2,12 +2,12 @@
 
 from types import SimpleNamespace
 
-from verification.enrichments.compliance import extract_state_compliance
-from verification.enrichments.providers.state_registry_mock import StateRegistryMockProvider
-from verification.enrichments.registry import ProviderRegistry
-from verification.enrichments.service import EnrichmentService
-from verification.policy import evaluate_policy
-from verification.query.verification import VerificationInput, verify_nonprofit
+from verification.backend.shared.enrichments.compliance import extract_state_compliance
+from verification.backend.shared.enrichments.providers.state_registry_mock import StateRegistryMockProvider
+from verification.backend.shared.enrichments.registry import ProviderRegistry
+from verification.backend.shared.enrichments.service import EnrichmentService
+from verification.backend.shared.policy import evaluate_policy
+from verification.backend.shared.query.verification import VerificationInput, verify_nonprofit
 
 
 def _client(name: str = "Evidence Org"):

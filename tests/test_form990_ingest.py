@@ -1,7 +1,7 @@
 ﻿import pathlib
 
-from infrastructure.verification.form990.index import parse_index_records
-from infrastructure.verification.form990.ingest import ingest_form990_records
+from infrastructure.verification.backend.ingest.federal.form990.index import parse_index_records
+from infrastructure.verification.backend.ingest.federal.form990.ingest import ingest_form990_records
 
 
 class RecordingProgressSession:
@@ -44,8 +44,8 @@ def test_ingest_result_success_without_s3_artifacts():
 
 
 def test_parse_form990_record_xml_emits_canonical_raw_filing_metadata():
-    from infrastructure.verification.form990.ingest import parse_form990_record_xml
-    from infrastructure.verification.form990.models import Form990IndexRecord
+    from infrastructure.verification.backend.ingest.federal.form990.ingest import parse_form990_record_xml
+    from infrastructure.verification.backend.ingest.federal.form990.models import Form990IndexRecord
 
     xml_content = pathlib.Path("tests/fixtures/form990/form990_sample.xml").read_bytes()
     parsed = parse_form990_record_xml(

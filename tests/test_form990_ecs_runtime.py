@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from verification_backend.ingest_task import ecs_runtime, local_runner
+from verification.backend.ingest.federal import ecs_runtime, local_runner
 
 
 def test_runtime_environment_aliases_map_only_when_repo_native_values_are_absent():

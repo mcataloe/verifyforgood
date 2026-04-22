@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from infrastructure.verification.form990.canonical import (
+from infrastructure.verification.backend.ingest.federal.form990.canonical import (
     canonicalize_xml_to_json,
     compute_normalized_xml_content_hash,
 )

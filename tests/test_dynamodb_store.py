@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from verification.serving.dynamodb_store import DynamoProfileStore
+from verification.backend.shared.serving.dynamodb_store import DynamoProfileStore
 
 
 class _FakeTable:

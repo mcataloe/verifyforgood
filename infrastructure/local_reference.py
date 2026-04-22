@@ -4,9 +4,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from verification.enrichments import EnrichmentService, ProviderRegistry
-from verification.enrichments.providers import MockProvider
-from verification.query import VerificationInput, verify_nonprofit
+from verification.backend.shared.enrichments import EnrichmentService, ProviderRegistry
+from verification.backend.shared.enrichments.providers import MockProvider
+from verification.backend.shared.query import VerificationInput, verify_nonprofit
 
 
 @dataclass

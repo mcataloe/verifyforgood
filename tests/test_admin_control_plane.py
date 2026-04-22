@@ -6,8 +6,8 @@ import re
 import sys
 from types import SimpleNamespace
 
-from verification.auth import build_admin_key_record
-from verification.control_plane import Account, ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
+from verification.backend.shared.auth import build_admin_key_record
+from verification.backend.shared.control_plane import Account, ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 def _query_stub():
@@ -52,8 +52,8 @@ def _load_module(monkeypatch):
     monkeypatch.setenv("OAUTH_TOKEN_RECORDS_JSON", "[]")
     monkeypatch.setenv("OAUTH_CLIENT_RECORDS_JSON", "[]")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    sys.modules.pop("verification_backend.api.runtime", None)
-    module = importlib.import_module("verification_backend.api.runtime")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
     module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     module.athena_client = _query_stub()

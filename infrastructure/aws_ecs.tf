@@ -433,7 +433,7 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
       name      = trim(var.monthly_ingest_container_name, " ")
       image     = local.monthly_ingest_worker_image_uri_resolved
       essential = true
-      entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]
+      entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]
       command    = ["ecs-run"]
       environment = [
         {
@@ -532,7 +532,7 @@ resource "aws_ecs_task_definition" "eo_bmf_ingest_worker" {
       name       = trim(var.monthly_ingest_container_name, " ")
       image      = local.monthly_ingest_worker_image_uri_resolved
       essential  = true
-      entryPoint = ["python", "-m", "verification_backend.ingest_task.cli"]
+      entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]
       command    = ["ecs-run-eo-bmf"]
       environment = [
         {
