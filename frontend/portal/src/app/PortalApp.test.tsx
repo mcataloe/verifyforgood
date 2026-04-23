@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
@@ -131,6 +131,18 @@ function buildFetchMock() {
             "Content-Type": "application/json",
           },
           status: 201,
+        },
+      );
+    }
+
+    if (url.endsWith("/v1/auth/logout")) {
+      return new Response(
+        JSON.stringify(buildEnvelope({ signed_out: true })),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 200,
         },
       );
     }
@@ -950,7 +962,7 @@ describe("PortalApp", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Account\b/i }));
     expect(screen.getByRole("button", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^API Keys\b/i })).toBeTruthy();
-    expect(window.location.hash).toBe("#/dashboard?nav=customer-admin-home");
+    expect(window.location.hash).toBe("#/dashboard");
   });
 
   it("does not dismiss organization setup on overlay click and allows explicit close and reopen from the portal shell", async () => {
@@ -1004,7 +1016,7 @@ describe("PortalApp", () => {
     expect(window.location.hash).toBe("#/dashboard");
   });
 
-  it("redirects to the nearest allowed surface when switching to a lower-role organization on an admin route", async () => {
+  it("shows an authorization error when switching to a lower-role organization on an admin route", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1092,11 +1104,11 @@ describe("PortalApp", () => {
     fireEvent.click(screen.getByTestId("portal-organization-switcher"));
     fireEvent.click(screen.getByTestId("portal-organization-option-secondary-org"));
 
+    expect(await screen.findByText("Access denied")).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
-    expect(screen.getByTestId("portal-page-container")).toBeTruthy();
-    expect(window.location.hash).toBe("#/dashboard");
+      screen.queryByRole("heading", { name: "Organization Activity" }),
+    ).toBeNull();
+    expect(window.location.hash).toBe("#/billing");
   });
 
   it("redirects authenticated onboarding-route access into the dashboard shell", async () => {
@@ -1123,7 +1135,7 @@ describe("PortalApp", () => {
     expect(window.location.hash).toBe("#/dashboard");
   });
 
-  it("redirects customer admins without admin membership away from admin-only routes", async () => {
+  it("shows an authorization error for customer admins without admin membership on admin-only routes", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1155,10 +1167,11 @@ describe("PortalApp", () => {
 
     render(<App />);
 
+    expect(await screen.findByText("Access denied")).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
-    expect(window.location.hash).toBe("#/dashboard");
+      screen.queryByRole("heading", { name: "Organization Activity" }),
+    ).toBeNull();
+    expect(window.location.hash).toBe("#/usage");
   });
 
   it("renders the nonprofit search experience on the dedicated search route", async () => {
@@ -1315,6 +1328,137 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
+    expect(window.location.hash).toBe("#/billing");
+  });
+
+  it("replaces navigation aliases with the canonical route without pushing another history entry", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    window.location.hash = "#/billing?nav=customer-admin-billing";
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
+    expect(window.location.hash).toBe("#/billing");
+    expect(replaceState).toHaveBeenCalledWith(
+      window.history.state,
+      "",
+      `${window.location.pathname}${window.location.search}#/billing`,
+    );
+    replaceState.mockRestore();
+  });
+
+  it("shows an authorization error when a customer user manually opens an admin route", async () => {
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "user@example.org",
+          full_name: "Customer User",
+          user_id: "user_regular",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "user",
+          status: "active",
+          user_id: "user_regular",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    const defaultFetch = buildFetchMock();
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              access_token: "persisted_token",
+              available_organizations: [
+                {
+                  account_id: "org_123",
+                  membership: {
+                    role: "user",
+                    status: "active",
+                    user_id: "user_regular",
+                  },
+                  organization_id: "org_123",
+                  organization_name: "Verify For Good Org",
+                  slug: "verify-for-good-org",
+                  workspace_id: "org_123",
+                },
+              ],
+              organization_context: {
+                account_id: "org_123",
+                membership: {
+                  role: "user",
+                  status: "active",
+                  user_id: "user_regular",
+                },
+                organization_id: "org_123",
+                organization_name: "Verify For Good Org",
+                slug: "verify-for-good-org",
+                workspace_id: "org_123",
+              },
+              roles: ["customer_user"],
+              token_type: "Bearer",
+              user: {
+                email: "user@example.org",
+                full_name: "Customer User",
+                user_id: "user_regular",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      return defaultFetch(input, init);
+    }) as typeof fetch;
+    window.location.hash = "#/billing";
+
+    render(<App />);
+
+    expect(await screen.findByText("Access denied")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Billing" }),
+    ).toBeNull();
     expect(window.location.hash).toBe("#/billing");
   });
 
@@ -1506,5 +1650,73 @@ describe("PortalApp", () => {
     expect(
       await screen.findByRole("heading", { name: "Usage" }),
     ).toBeTruthy();
+  });
+
+  it("warns before idle timeout and signs out after continued inactivity", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "clearTimeout", "setTimeout"] });
+    window.localStorage.setItem(
+      "verifyforgood.portal.auth.session",
+      JSON.stringify({
+        access_token: "persisted_token",
+        token_type: "Bearer",
+        user: {
+          email: "jamie.admin@example.org",
+          full_name: "Jamie Admin",
+          user_id: "user_jamie_admin",
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "verifyforgood.portal.organization.active",
+      JSON.stringify({
+        account_id: "org_123",
+        membership: {
+          role: "admin",
+          status: "active",
+          user_id: "user_jamie_admin",
+        },
+        organization_id: "org_123",
+        organization_name: "Verify For Good Org",
+        slug: "verify-for-good-org",
+        workspace_id: "org_123",
+      }),
+    );
+    window.location.hash = "#/dashboard";
+
+    try {
+      render(<App />);
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(
+        screen.getByRole("heading", { name: "Organization Activity" }),
+      ).toBeTruthy();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(55 * 60 * 1000);
+      });
+
+      expect(screen.getByText("Session expiring soon")).toBeTruthy();
+
+      fireEvent.mouseMove(window);
+      expect(screen.queryByText("Session expiring soon")).toBeNull();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(
+        screen.getByRole("heading", {
+          name: "Sign In to the Customer Portal",
+        }),
+      ).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

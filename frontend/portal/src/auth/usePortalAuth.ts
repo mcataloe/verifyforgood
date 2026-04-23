@@ -23,6 +23,7 @@ export interface PortalAuthContextValue {
   register: (
     request: PortalRegisterRequest,
   ) => Promise<PortalAuthenticatedSession>;
+  refreshSession: () => Promise<PortalAuthenticatedSession | null>;
   session: PortalAuthenticatedSession | null;
   signOut: () => Promise<void>;
   status: PortalAuthStatus;

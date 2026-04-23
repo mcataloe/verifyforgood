@@ -719,4 +719,44 @@ describe("portal auth client", () => {
     expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
     expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]?.credentials).toBe("include");
   });
+
+  it("applies refreshed frontend roles from /auth/me", async () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: createStorageMock(),
+    });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/v1/auth/me")) {
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              access_token: "token_cookie",
+              available_organizations: [],
+              organization_context: null,
+              roles: ["customer_user"],
+              token_type: "Bearer",
+              user: {
+                email: "person@example.com",
+                full_name: "Portal Person",
+                user_id: "user_portal_person",
+              },
+            }),
+          ),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+    const client = createPortalAuthClient({
+      fetchImpl,
+      runtimeConfig,
+    });
+
+    const refreshed = await client.refreshSession();
+
+    expect(refreshed?.session.roles).toEqual(["customer_user"]);
+  });
+
 });

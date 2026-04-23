@@ -497,6 +497,7 @@ function renderWithOrganization(element: ReactNode) {
         login: vi.fn(async () => createMockPortalSession()),
         register: vi.fn(async () => createMockPortalSession()),
         removeOrganization: vi.fn(() => createMockPortalSession()),
+        refreshSession: vi.fn(async () => createMockPortalSession()),
         session: createMockPortalSession(),
         signOut: vi.fn(async () => {}),
         status: "authenticated",

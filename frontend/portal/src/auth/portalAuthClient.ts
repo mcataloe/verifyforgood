@@ -1,5 +1,5 @@
 import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/shared-api";
-import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
+import type { FrontendAccessRole, FrontendRuntimeConfig } from "@charity-status/shared-types";
 import {
   createPortalCompatibilitySession,
   type PortalAvailableOrganizationRecord,
@@ -34,6 +34,7 @@ interface PortalAuthMePayload {
   available_organizations?: PortalOrganizationCreateResponse[] | null;
   access_token?: string | null;
   organization_context?: PortalOrganizationCreateResponse | null;
+  roles?: FrontendAccessRole[] | null;
   token_type?: "Bearer" | null;
   user: PortalIdentityUser;
 }
@@ -58,6 +59,7 @@ export interface PortalAuthState {
 export interface PortalAuthClient {
   getSession(): Promise<PortalAuthState | null>;
   login(request: PortalLoginRequest): Promise<PortalAuthState>;
+  refreshSession(): Promise<PortalAuthState | null>;
   register(request: PortalRegisterRequest): Promise<PortalAuthState>;
   signOut(): Promise<void>;
 }
@@ -79,17 +81,7 @@ export function createPortalAuthClient({
 
   return {
     async getSession() {
-      const cookieSession = await hydrateSessionFromCookie(apiClient);
-      if (cookieSession) {
-        return cookieSession;
-      }
-
-      const record = readStoredPortalAuthRecord();
-      if (!record) {
-        return null;
-      }
-
-      return hydrateSessionFromRecord(apiClient, record);
+      return hydrateCurrentSession(apiClient);
     },
     async login(request) {
       const payload = await apiClient.post<
@@ -100,6 +92,9 @@ export function createPortalAuthClient({
       });
       const record = writeStoredPortalAuthRecord(payload);
       return requireHydratedSession(apiClient, record);
+    },
+    async refreshSession() {
+      return hydrateCurrentSession(apiClient);
     },
     async register(request) {
       const payload = await apiClient.post<
@@ -120,6 +115,21 @@ export function createPortalAuthClient({
       }
     },
   };
+}
+
+function hydrateCurrentSession(apiClient: ApiClient): Promise<PortalAuthState | null> {
+  return hydrateSessionFromCookie(apiClient).then((cookieSession) => {
+    if (cookieSession) {
+      return cookieSession;
+    }
+
+    const record = readStoredPortalAuthRecord();
+    if (!record) {
+      return null;
+    }
+
+    return hydrateSessionFromRecord(apiClient, record);
+  });
 }
 
 async function hydrateSessionFromCookie(
@@ -188,6 +198,7 @@ function buildPortalAuthState(
     session: createPortalCompatibilitySession(
       refreshedRecord.user,
       activeOrganization,
+      { roles: payload.roles ?? undefined },
     ),
   };
 }

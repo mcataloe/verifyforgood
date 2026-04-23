@@ -425,6 +425,7 @@ function renderPortalLayout({
         login: vi.fn(async () => session),
         removeOrganization: vi.fn(() => session),
         register: vi.fn(async () => session),
+        refreshSession: vi.fn(async () => session),
         session,
         signOut: vi.fn(async () => {}),
         status: "authenticated",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   consumePortalReturnTo,
   defaultPortalRoute,
@@ -9,6 +9,7 @@ import {
   registerPortalRoute,
   resolvePortalRoute,
   signInPortalRoute,
+  navigateToPortalRoute,
 } from "./portalRoutes";
 
 describe("portal route resolution", () => {
@@ -93,5 +94,20 @@ describe("portal route resolution", () => {
     rememberPortalReturnTo("#/");
 
     expect(consumePortalReturnTo()).toBe(defaultProtectedPortalRoute.hash);
+  });
+
+  it("can replace the current hash for canonical route rewrites", () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    window.history.pushState(null, "", "#/usage-billing");
+
+    navigateToPortalRoute("#/billing", { replace: true });
+
+    expect(window.location.hash).toBe("#/billing");
+    expect(replaceState).toHaveBeenCalledWith(
+      window.history.state,
+      "",
+      `${window.location.pathname}${window.location.search}#/billing`,
+    );
+    replaceState.mockRestore();
   });
 });

@@ -1,8 +1,10 @@
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import {
   type PropsWithChildren,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -14,6 +16,7 @@ import {
 import {
   createPortalAuthClient,
   type PortalAuthClient,
+  type PortalAuthState as PortalAuthClientState,
   type PortalLoginRequest,
   type PortalRegisterRequest,
 } from "./portalAuthClient";
@@ -62,6 +65,9 @@ export function PortalAuthProvider({
     session: null,
     status: "loading",
   });
+  const refreshSessionPromiseRef = useRef<Promise<PortalAuthenticatedSession | null> | null>(
+    null,
+  );
 
   useEffect(() => {
     let isCancelled = false;
@@ -119,6 +125,56 @@ export function PortalAuthProvider({
       throw error;
     }
   };
+
+  const applyAuthClientState = useCallback((state: PortalAuthClientState | null) => {
+    if (!state) {
+      setAuthState({
+        accessToken: null,
+        availableOrganizations: [],
+        isBusy: false,
+        session: null,
+        status: "unauthenticated",
+      });
+      return null;
+    }
+
+    setAuthState((currentState) => ({
+      ...currentState,
+      accessToken: state.accessToken,
+      availableOrganizations: state.availableOrganizations,
+      isBusy: false,
+      session: state.session,
+      status: "authenticated",
+    }));
+    return state.session;
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    if (refreshSessionPromiseRef.current) {
+      return refreshSessionPromiseRef.current;
+    }
+
+    const refreshPromise = resolvedAuthClient
+      .refreshSession()
+      .then((state) => applyAuthClientState(state))
+      .catch((error) => {
+        if (isAuthenticationRefreshFailure(error)) {
+          setAuthState({
+            accessToken: null,
+            availableOrganizations: [],
+            isBusy: false,
+            session: null,
+            status: "unauthenticated",
+          });
+        }
+        throw error;
+      })
+      .finally(() => {
+        refreshSessionPromiseRef.current = null;
+      });
+    refreshSessionPromiseRef.current = refreshPromise;
+    return refreshPromise;
+  }, [applyAuthClientState, resolvedAuthClient]);
 
   const register = async (request: PortalRegisterRequest) => {
     setAuthState((currentState) => ({ ...currentState, isBusy: true }));
@@ -247,6 +303,7 @@ export function PortalAuthProvider({
         login,
         removeOrganization,
         register,
+        refreshSession,
         session: authState.session,
         signOut,
         status: authState.status,
@@ -255,4 +312,15 @@ export function PortalAuthProvider({
       {children}
     </PortalAuthContext.Provider>
   );
+}
+
+function isAuthenticationRefreshFailure(error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    const status = (error as { status?: unknown }).status;
+    if (status === 401) {
+      return true;
+    }
+  }
+
+  return error instanceof Error && error.message === "Authentication is required";
 }

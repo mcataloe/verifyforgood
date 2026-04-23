@@ -54,6 +54,23 @@ const nearestAllowedCustomerAdminRouteByKey: Partial<
   "usage-billing": "#/billing",
 };
 
+const customerUserAllowedRoutes = new Set<PortalProtectedRouteKey>([
+  "api-access",
+  "dashboard",
+  "settings",
+  "workspace",
+]);
+
+const customerUserNavigationAccess: Record<string, true> = {
+  "customer-user-automation-api": true,
+  "customer-user-automation-general": true,
+  "customer-user-automation-oauth": true,
+  "customer-user-dashboard": true,
+  "customer-user-profile": true,
+  "customer-user-search-address": true,
+  "customer-user-search-ein": true,
+};
+
 export function normalizeCustomerMembershipRole(
   role: string | null | undefined,
 ): CustomerMembershipRole | null {
@@ -116,6 +133,10 @@ export function resolveRouteAuthorization(params: {
   currentRoute: PortalRouteDefinition;
   membershipRole: CustomerMembershipRole | null;
 }) {
+  if (params.audience === "customer_user") {
+    return resolveCustomerUserRouteAuthorization(params);
+  }
+
   if (params.audience !== "customer_admin") {
     return {
       allowed: true,
@@ -165,6 +186,39 @@ export function resolveRouteAuthorization(params: {
         currentRoute: params.currentRoute,
         membershipRole: params.membershipRole,
       }),
+    } as const;
+  }
+
+  return {
+    allowed: true,
+    redirectHash: null,
+  } as const;
+}
+
+function resolveCustomerUserRouteAuthorization(params: {
+  currentHash: string;
+  currentRoute: PortalRouteDefinition;
+}) {
+  if (params.currentRoute.access !== "protected") {
+    return {
+      allowed: true,
+      redirectHash: null,
+    } as const;
+  }
+
+  const protectedRouteKey = asProtectedRouteKey(params.currentRoute);
+  if (!customerUserAllowedRoutes.has(protectedRouteKey)) {
+    return {
+      allowed: false,
+      redirectHash: null,
+    } as const;
+  }
+
+  const alias = resolvePortalNavigationAlias(params.currentHash);
+  if (alias && !customerUserNavigationAccess[alias]) {
+    return {
+      allowed: false,
+      redirectHash: null,
     } as const;
   }
 

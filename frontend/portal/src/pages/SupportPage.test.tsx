@@ -203,6 +203,7 @@ function renderWithOrganization(
         login: vi.fn(async () => null as never),
         register: vi.fn(async () => null as never),
         removeOrganization: vi.fn(() => null as never),
+        refreshSession: vi.fn(async () => null),
         session: null,
         signOut: vi.fn(async () => {}),
         status: "authenticated",
