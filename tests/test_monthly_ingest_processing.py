@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from infrastructure.verification.backend.ingest.federal.form990 import monthly_processing
-from infrastructure.verification.backend.ingest.federal.form990.monthly_processing import (
+from verification.backend.ingest.federal.form990 import monthly_processing
+from verification.backend.ingest.federal.form990.monthly_processing import (
     MonthlyIngestMalformedArchiveError,
     MonthlyIngestSourceObject,
     MonthlyIngestSourceObjectNotFoundError,
@@ -24,6 +24,8 @@ class FakeArchiveMetadataService:
         self.skip_archive = skip_archive
         self.archives = {}
         self.files = {}
+        self.list_extracted_files_calls = []
+        self.get_extracted_file_calls = []
 
     def record_archive_probe(self, *, source_url, filename, probe):
         archive = self.archives.get(source_url)
@@ -56,7 +58,12 @@ class FakeArchiveMetadataService:
         return archive
 
     def get_extracted_file(self, archive_id, filename):
+        self.get_extracted_file_calls.append((archive_id, filename))
         return self.files.get((archive_id, filename))
+
+    def list_extracted_files_for_archive(self, archive_id):
+        self.list_extracted_files_calls.append(archive_id)
+        return [record for (record_archive_id, _), record in self.files.items() if record_archive_id == archive_id]
 
     def upsert_extracted_file(self, *, archive_id, filename, content_hash, parse_status, parsed_at=None, error_message=None):
         record = SimpleNamespace(
@@ -198,11 +205,11 @@ def test_worker_processes_staged_zip_without_s3_artifacts(monkeypatch):
     archive_bytes = _make_zip(("folder/obj-1.xml", _valid_xml()))
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
+        "verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,
@@ -230,7 +237,7 @@ def test_worker_raises_for_malformed_zip():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
@@ -242,7 +249,7 @@ def test_worker_raises_for_malformed_zip():
 def test_worker_raises_for_missing_source_object():
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: (_ for _ in ()).throw(MonthlyIngestSourceObjectNotFoundError(f"source archive not found at {source_url}")),
     )
 
@@ -256,7 +263,7 @@ def test_worker_fails_when_zip_contains_no_processable_xml_members():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
 
@@ -268,7 +275,7 @@ def test_worker_fails_when_zip_contains_no_processable_xml_members():
 def test_worker_skips_archive_when_head_metadata_is_unchanged(monkeypatch):
     metadata_service = FakeArchiveMetadataService(skip_archive=True)
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
+        "verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,
@@ -304,11 +311,11 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     checksum = hashlib.sha256(archive_bytes).hexdigest()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
         lambda source_url: _write_temp_archive(archive_bytes, checksum),
     )
     monkeypatch.setattr(
-        "infrastructure.verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
+        "verification.backend.ingest.federal.form990.monthly_processing._probe_archive_metadata",
         lambda source_url, checked_at: SimpleNamespace(
             source_url=source_url,
             resolved_source_url=source_url,
@@ -335,6 +342,8 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     assert second["parsed_count"] == 0
     assert second["records_processed"] == 0
     assert second["skipped_unchanged_member_count"] == 1
+    assert metadata_service.list_extracted_files_calls == [1, 1]
+    assert metadata_service.get_extracted_file_calls == []
     monkeypatch.undo()
 
 
@@ -506,6 +515,113 @@ def test_process_form990_archive_forwards_canonical_raw_filing_records(tmp_path,
     raw_filing = persistence_calls[0]["canonical_raw_filing_records"][0]
     assert raw_filing["parser_version"] == "form990.xml_parser.v1"
     assert raw_filing["raw_filing_json"]["Return"]["ReturnData"]["IRS990"]["Filer"]["EIN"] == "123456789"
+
+
+def test_process_form990_archive_persists_in_batches(tmp_path):
+    archive_path = tmp_path / "2026_TEOS_XML_08A.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="100000001")),
+            ("obj-2.xml", _valid_xml(ein="100000002")),
+            ("obj-3.xml", _valid_xml(ein="100000003")),
+            ("obj-4.xml", _valid_xml(ein="100000004")),
+            ("obj-5.xml", _valid_xml(ein="100000005")),
+        )
+    )
+    persistence_calls: list[dict[str, object]] = []
+
+    class RecordingPersistenceService:
+        def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
+            persistence_calls.append(
+                {
+                    "filing_records": list(filing_records),
+                    "canonical_raw_filing_records": list(canonical_raw_filing_records or []),
+                }
+            )
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "nonprofits_upserted": len(filing_records),
+                    "filings_upserted": len(filing_records),
+                    "sources_upserted": len(filing_records),
+                    "skipped_records": 0,
+                }
+            )
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "batch-extracted"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "batch-job",
+            "correlation_id": "batch-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_08a",
+            source_signature="sig-8",
+            source_filename="2026_TEOS_XML_08A.zip",
+        ),
+        nonprofit_persistence_service=RecordingPersistenceService(),
+        persist_batch_size=2,
+    )
+
+    assert result["status"] == "success"
+    assert result["records_processed"] == 5
+    assert result["parsed_count"] == 5
+    assert [len(call["filing_records"]) for call in persistence_calls] == [2, 2, 1]
+    assert [len(call["canonical_raw_filing_records"]) for call in persistence_calls] == [2, 2, 1]
+
+
+def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):
+    archive_path = tmp_path / "2026_TEOS_XML_09A.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="200000001")),
+            ("obj-2.xml", _valid_xml(ein="200000002")),
+            ("obj-3.xml", _valid_xml(ein="200000003")),
+            ("obj-4.xml", _valid_xml(ein="200000004")),
+        )
+    )
+    persisted_batches: list[list[dict[str, object]]] = []
+
+    class FlakyPersistenceService:
+        def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
+            if len(persisted_batches) == 1:
+                raise RuntimeError("simulated second batch failure")
+            persisted_batches.append(list(filing_records))
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "nonprofits_upserted": len(filing_records),
+                    "filings_upserted": len(filing_records),
+                    "sources_upserted": len(filing_records),
+                    "skipped_records": 0,
+                }
+            )
+
+    with pytest.raises(RuntimeError, match="second batch failure"):
+        process_form990_archive(
+            archive_path=str(archive_path),
+            extracted_workdir=str(tmp_path / "batch-failure"),
+            processing_context={
+                "archive_identity": "local/archive.zip",
+                "job_id": "batch-failure-job",
+                "correlation_id": "batch-failure-corr",
+                "workflow_version": "local-cli",
+            },
+            source_object=MonthlyIngestSourceObject(
+                source_year="2026",
+                source_kind="zip_archive",
+                source_archive_key="2026_teos_xml_09a",
+                source_signature="sig-9",
+                source_filename="2026_TEOS_XML_09A.zip",
+            ),
+            nonprofit_persistence_service=FlakyPersistenceService(),
+            persist_batch_size=2,
+        )
+
+    assert [len(batch) for batch in persisted_batches] == [2]
 
 
 def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:

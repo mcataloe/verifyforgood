@@ -3,8 +3,8 @@
 import pathlib
 from pathlib import Path
 
-from infrastructure.verification.backend.ingest.federal.form990.index import parse_index_records
-from infrastructure.verification.backend.ingest.federal.form990.ingest import ingest_form990_records
+from verification.backend.ingest.federal.form990.index import parse_index_records
+from verification.backend.ingest.federal.form990.ingest import ingest_form990_records
 
 from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
 from verification.backend.shared.nonprofits import Form990NonprofitPersistenceService, SqlAlchemyNonprofitRepository
