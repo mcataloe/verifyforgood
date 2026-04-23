@@ -1,10 +1,14 @@
-﻿# TODO
+# TODO
 
 ## TODO-ARCH-001
 
 ### Title
 
 Complete post-cutover cleanup for the PostgreSQL-only platform persistence model.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -52,6 +56,10 @@ mixed-mode assumptions from tooling, docs, and tests.
 
 Reconcile API Endpoints
 
+### Type
+
+implementation-only
+
 ### Rationale
 
 Need to ensure that all API endpoints that are expected by the frontend repo are deployed in the infrastructure / data access layer.
@@ -69,6 +77,10 @@ None
 ### Title
 
 Link portal organizations to control-plane accounts and subscriptions for org-managed API keys.
+
+### Type
+
+implementation-after-decision
 
 ### Rationale
 
@@ -97,6 +109,10 @@ Keep the org-managed API-key repository/service interfaces stable so real contro
 
 Reconcile portal subscription scaffolding with control-plane billing accounts and subscriptions.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Phase 19M introduces `PLAN` and `SUBSCRIPTION` entities in the portal identity domain so organization-linked subscription state can exist before full billing parity. The repo already has a mature control-plane billing model, so these portal records are scaffolding until a real linkage model is implemented.
@@ -117,6 +133,10 @@ Keep the portal `PlanRepository`, `SubscriptionRepository`, and `SubscriptionSer
 ### Title
 
 SSO integration design details pending.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -146,6 +166,10 @@ Keep the `IdentityProviderService` abstraction and user provider fields stable s
 
 Define tenant-resolution support for non-portal machine clients on nonprofit query routes.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 20A makes nonprofit query routes organization-aware and intentionally supports only:
@@ -170,6 +194,10 @@ Keep the new tenant nonprofit service contract stable so future non-portal machi
 ### Title
 
 Decide whether nonprofit source, compliance, and federal-awards routes need dedicated organization usage metrics.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -197,6 +225,10 @@ Preserve the Phase 20B metric names and route-to-metric mapping for lookup, sear
 
 Move premium enrichment gating to a registry-driven feature map for future paid providers.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Phase 20C enforces feature flags for current premium integrations through the existing feature-to-integration mapping. As new paid enrichment providers are added, manually extending per-feature mappings in query orchestration will become harder to maintain.
@@ -216,6 +248,10 @@ Keep the Phase 20C nonprofit-service enforcement seam stable so future premium i
 ### Title
 
 Evaluate migrating billing and organization-settings routes onto the centralized tenant authorization middleware.
+
+### Type
+
+implementation-after-decision
 
 ### Rationale
 
@@ -237,6 +273,10 @@ Keep the Phase 20D `TenantContext` contract stable so additional organization-sc
 
 Replace the customer-user address-search placeholder with a backend-supported nonprofit discovery workflow.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Phase 20E moves the real tenant-aware nonprofit experience onto the portal workspace route using the backend-supported EIN and name search endpoints. The older customer-user address-search placeholder remains out of scope until the platform exposes a real address or richer organization discovery API.
@@ -248,6 +288,10 @@ Phase 20E moves the real tenant-aware nonprofit experience onto the portal works
 ### Title
 
 Retire remaining legacy S3-backed Form 990 orchestration paths after the local/workspace ingest runtime cutover.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -286,6 +330,10 @@ Keep the Phase 20E workspace nonprofit-search contract stable so future address 
 
 Define a stable export and warehouse shape for nonprofit access audit analytics.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 20F adds structured audit logging for tenant-aware nonprofit reads and stores analytics-oriented fields inside the audit metadata blob. That is sufficient for in-product auditing and incremental reporting, but downstream export and warehouse consumers may eventually need a stricter schema for durable analytics.
@@ -299,6 +347,10 @@ Phase 20F adds structured audit logging for tenant-aware nonprofit reads and sto
 Retire the legacy TEOS S3 manifest as authoritative processing state once the
 remaining Form 990 discovery/runtime paths fully use PostgreSQL archive
 metadata.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -338,6 +390,10 @@ Keep the Phase 20F nonprofit audit event taxonomy stable and additive so future 
 
 Decide whether public Stripe pricing should default to tax-inclusive or tax-exclusive presentation.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 21A establishes Stripe as the provisional billing provider, but the customer-facing pricing model still needs a durable default. Tax presentation affects checkout clarity, invoice expectations, and how the product markets plan pricing across regions.
@@ -357,6 +413,10 @@ Keep the organization-scoped billing model and backend billing abstractions stab
 ### Title
 
 Define remaining edge-policy semantics for Stripe-backed plan lifecycle management.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -384,6 +444,10 @@ Preserve the Phase 21 organization-scoped subscription model and local pending-p
 
 Confirm whether the free tier stays Stripe-less or every organization receives a Stripe customer object.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 21A keeps free-tier billing behavior open. The choice affects onboarding flow complexity, reconciliation expectations, billing data completeness, and when Stripe becomes part of the lifecycle for organizations that never upgrade.
@@ -403,6 +467,10 @@ Keep `organization_id` as the canonical billing scope and treat Stripe identifie
 ### Title
 
 Decide whether raw Stripe webhook payloads should be archived outside the control-plane billing event record.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -424,6 +492,10 @@ Keep the Phase 21E local billing event model compact and organization-scoped so 
 
 Decide when the portal should expose direct invoice history instead of routing invoice access through the billing portal.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 21G completes the frontend billing management experience using the existing backend-managed billing portal session as the invoice access path. That keeps the customer experience unblocked, but it leaves open whether the product should eventually show invoice rows, download links, and payment history directly inside the portal once the backend exposes a first-class invoice endpoint.
@@ -443,6 +515,10 @@ Keep the Phase 21 billing UI and backend billing-session abstractions stable so 
 ### Title
 
 Define the durable refund handling policy for Stripe-backed subscriptions.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -464,6 +540,10 @@ Keep the organization-scoped billing state model and current Stripe service seam
 
 Define the failed payment grace-period and recovery policy for subscription access.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 21H preserves the current conservative default: `payment_failed` and other past-due states restrict product access without introducing a new automated grace-period workflow. A production rollout still needs an explicit policy for timing, messaging, recovery expectations, and any exceptions for enterprise support handling.
@@ -483,6 +563,10 @@ Keep local subscription state as the entitlement source of truth so any future g
 ### Title
 
 Document the billing support runbook for reconciliation, webhook incidents, and manual exceptions.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -504,6 +588,10 @@ Keep the current admin/support tooling and compact billing event model intact so
 
 Define the future organization slug-rename workflow and redirect semantics.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 Phase 22B adds organization profile management through the existing `/v1/organization/settings` contract but intentionally keeps `slug` read-only. Product and support still need a durable policy for when slug changes are allowed, how collisions are prevented, and whether old slugs should redirect for links, API clients, or customer-facing references.
@@ -523,6 +611,10 @@ Keep `organization_id` as the canonical tenant identifier and treat `slug` as mu
 ### Title
 
 Add historical usage buckets for customer-admin trend views and prior-period comparisons.
+
+### Type
+
+implementation-after-decision
 
 ### Rationale
 
@@ -544,6 +636,10 @@ Keep organization-scoped usage aggregation authoritative in the backend and exte
 
 Replace the audit-backed customer support intake with a durable CRM or ticketing integration when operational support workflows mature.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Phase 22H adds a customer-admin support surface and backend support-intake endpoint, but the current implementation intentionally records acknowledged requests through the existing audit/event infrastructure only. That is enough for early customer administration, yet it does not provide agent assignment, threaded communication, SLA tracking, or customer-visible ticket history.
@@ -564,6 +660,10 @@ Keep the `OrganizationSupportService` read and intake contracts stable so CRM, e
 
 Replace implicit default organization selection with explicit portal organization switching for multi-membership users.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Portal session restore now derives active organization context from backend memberships. Until the portal exposes explicit organization selection, users with multiple active memberships are assigned a temporary default organization based on membership recency.
@@ -583,6 +683,10 @@ Keep the `GET /v1/auth/me` organization-context contract additive so explicit or
 ### Title
 
 Backfill and cut over the nonprofit read model from Athena/materialized cache inputs into the PostgreSQL nonprofit schema.
+
+### Type
+
+implementation-after-decision
 
 ### Rationale
 
@@ -623,6 +727,10 @@ changing customer-visible payloads.
 
 Retire the remaining EO/BMF Athena, Glue, and Lambda deployment scaffolding after the backend PostgreSQL/runtime cutover stabilizes.
 
+### Type
+
+implementation-only
+
 ### Rationale
 
 The backend runtime now has a local/ECS-style EO/BMF ingest path that writes canonical nonprofit data to PostgreSQL and uses workspace-local CSV artifacts. Infrastructure deployment assets still retain older EO/BMF Lambda, Athena, and Glue assumptions for compatibility and staged rollback.
@@ -642,6 +750,10 @@ Do not break existing deployment rollback paths until the backend EO/BMF Postgre
 ### Title
 
 Project canonical Form 990 raw filing content into graph-oriented nodes and edges once graph-backed use cases are ready.
+
+### Type
+
+decision-required
 
 ### Rationale
 
@@ -682,6 +794,10 @@ truth so future graph or richer extraction work projects from
 
 Decide whether portal nonprofit recent-search history should remain session-only or become durable organization-scoped history.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 The customer portal currently stores recent nonprofit searches only in local
@@ -705,6 +821,10 @@ should be additive rather than changing the existing search response payloads.
 ### Title
 
 Complete the portal UI migration from bespoke form/feedback primitives to Mantine equivalents.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -748,6 +868,10 @@ The main portal UI migration is now largely complete:
 ### Title
 
 Finish the dedicated nonprofit-database migration and schema-management flow after the runtime split.
+
+### Type
+
+implementation-after-decision
 
 ### Rationale
 
@@ -800,6 +924,10 @@ completion.
 
 Standardize deployed PostgreSQL connectivity and enablement policy for nonprofit ingest workers.
 
+### Type
+
+implementation-after-decision
+
 ### Rationale
 
 Phase 24F adds an opt-in PostgreSQL nonprofit ingest persistence path, but the
@@ -830,6 +958,10 @@ existing S3 manifest and artifact flow.
 ### Title
 
 Execute the staged API runtime migration from API Gateway/Lambda to ALB + ECS.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -874,6 +1006,10 @@ rollback path until ECS parity is validated.
 
 Refactor Form 990 ingest runtime hosts onto the new workspace-based module seams.
 
+### Type
+
+implementation-only
+
 ### Rationale
 
 Phase 27E establishes a local-first Form 990 ingest architecture under
@@ -905,6 +1041,10 @@ the new workspace-oriented modules.
 
 Restore PostgreSQL peer benchmark parity for nonprofit verification lookups.
 
+### Type
+
+implementation-only
+
 ### Rationale
 
 The nonprofit lookup path now derives Form 990 enrichment directly from
@@ -919,6 +1059,10 @@ Athena availability.
 
 Execute the hard Form 990 cutover away from Athena, Glue, and S3 onto a
 PostgreSQL-plus-workspace runtime.
+
+### Type
+
+implementation-only
 
 ### Rationale
 
@@ -956,6 +1100,10 @@ authoritative Form 990 architecture.
 Complete the nonprofit customer-surface cutover from score/recommendation
 payloads to advisory copilot semantics.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 The portal nonprofit detail route now uses snapshot-backed advisory detail
@@ -981,6 +1129,10 @@ customer-facing use is explicitly approved.
 
 Evaluate a server-side browser session store after the cookie-backed portal auth cutover.
 
+### Type
+
+decision-required
+
 ### Rationale
 
 The current portal login persistence cutover uses a signed browser session cookie
@@ -1000,4 +1152,6 @@ session model for stricter revocation, rotation, or inspection semantics.
 Keep the existing `POST /v1/auth/login`, `POST /v1/auth/register`, `POST /v1/auth/logout`,
 and `GET /v1/auth/me` contracts stable so a future session store can replace
 the cookie payload without changing the portal surface.
+
+
 
