@@ -18,6 +18,7 @@ from verification.backend.ingest.federal.form990.monthly_processing import (
     MonthlyIngestSourceObject,
     process_form990_archive,
 )
+from verification.backend.ingest.federal.metadata import probe_archive_metadata
 from verification.backend.ingest.federal.form990.source_catalog import (
     SOURCE_KIND_ZIP_ARCHIVE,
     build_source_artifact,
@@ -245,6 +246,8 @@ def run_local_form990_ingest_config(
     for artifact in zip_artifacts:
         archive_name = artifact.source_archive_key
         archive_workspace = layout.for_archive(archive_name).ensure()
+        archive_started_at = datetime.now(timezone.utc)
+        archive_record = None
         try:
             logger.log(
                 component="form990.archive",
@@ -252,6 +255,14 @@ def run_local_form990_ingest_config(
                 message="processing archive",
                 archive=archive_name,
             )
+            if archive_metadata_service is not None:
+                archive_record = _prepare_archive_metadata_record(
+                    archive_metadata_service=archive_metadata_service,
+                    artifact=artifact,
+                    logger=logger,
+                    archive_name=archive_name,
+                    checked_at=archive_started_at,
+                )
             logger.log(
                 component="form990.archive",
                 level="DEBUG",
@@ -299,8 +310,9 @@ def run_local_form990_ingest_config(
                 extracted_workdir=str(archive_workspace.extracted_dir),
                 processing_context=processing_context,
                 source_object=source_object,
-                started_at=datetime.now(timezone.utc),
+                started_at=archive_started_at,
                 archive_metadata_service=archive_metadata_service,
+                archive_record=archive_record,
                 nonprofit_persistence_service=nonprofit_persistence_service,
                 max_xml_file_size_bytes=int(source_env.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES") or str(20 * 1024 * 1024)),
                 xml_error_handler=lambda file_name, exc, status: logger.log(
@@ -324,6 +336,13 @@ def run_local_form990_ingest_config(
                 ),
                 archive=archive_name,
             )
+            if archive_metadata_service is not None and archive_record is not None:
+                archive_metadata_service.mark_archive_processing_completed(
+                    archive_record.archive_id,
+                    started_at=archive_started_at,
+                    ended_at=datetime.now(timezone.utc),
+                    processed_at=datetime.now(timezone.utc),
+                )
             records_processed += int(result.get("records_processed") or 0)
             parsed_count += int(result.get("parsed_count") or 0)
             failed_record_count += int(result.get("failed_count") or 0)
@@ -343,6 +362,12 @@ def run_local_form990_ingest_config(
                 archive=archive_name,
                 error=exc,
             )
+            if archive_metadata_service is not None and archive_record is not None:
+                archive_metadata_service.mark_archive_processing_failed(
+                    archive_record.archive_id,
+                    started_at=archive_started_at,
+                    failed_at=datetime.now(timezone.utc),
+                )
             if config.strict:
                 raise
         finally:
@@ -465,6 +490,47 @@ def _local_archive_identity(artifact: Any) -> str:
     return (
         f"form990/raw-sources/{artifact.source_year}/zip_archive/"
         f"{artifact.source_archive_key}/{artifact.source_signature}/{artifact.source_filename}"
+    )
+
+
+def _prepare_archive_metadata_record(
+    *,
+    archive_metadata_service: Any,
+    artifact: Any,
+    logger: _ConsoleStructuredLogger,
+    archive_name: str,
+    checked_at: datetime,
+) -> Any:
+    source_url = str(getattr(artifact, "source_url", "") or "").strip()
+    filename = getattr(artifact, "source_filename", None)
+    if source_url.startswith(("http://", "https://")):
+        try:
+            probe = probe_archive_metadata(source_url)
+            outcome = archive_metadata_service.record_archive_probe(
+                source_url=source_url,
+                filename=filename,
+                probe=probe,
+            )
+            if not outcome.should_process:
+                logger.log(
+                    component="form990.archive",
+                    level="DEBUG",
+                    message=f"archive probe marked unchanged reason={outcome.reason}; continuing local processing",
+                    archive=archive_name,
+                )
+            return outcome.archive
+        except Exception as exc:
+            logger.log(
+                component="form990.archive",
+                level="WARNING",
+                message="archive metadata probe failed; continuing with minimal archive record",
+                archive=archive_name,
+                error=exc,
+            )
+    return archive_metadata_service.ensure_archive_record(
+        source_url=source_url,
+        filename=filename,
+        checked_at=checked_at,
     )
 
 
