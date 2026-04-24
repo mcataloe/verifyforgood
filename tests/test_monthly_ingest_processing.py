@@ -26,6 +26,7 @@ class FakeArchiveMetadataService:
         self.files = {}
         self.list_extracted_files_calls = []
         self.get_extracted_file_calls = []
+        self.upsert_extracted_file_calls = []
 
     def record_archive_probe(self, *, source_url, filename, probe):
         archive = self.archives.get(source_url)
@@ -66,6 +67,16 @@ class FakeArchiveMetadataService:
         return [record for (record_archive_id, _), record in self.files.items() if record_archive_id == archive_id]
 
     def upsert_extracted_file(self, *, archive_id, filename, content_hash, parse_status, parsed_at=None, error_message=None):
+        self.upsert_extracted_file_calls.append(
+            {
+                "archive_id": archive_id,
+                "filename": filename,
+                "content_hash": content_hash,
+                "parse_status": parse_status,
+                "parsed_at": parsed_at,
+                "error_message": error_message,
+            }
+        )
         record = SimpleNamespace(
             archive_id=archive_id,
             filename=filename,
@@ -529,6 +540,12 @@ def test_process_form990_archive_persists_in_batches(tmp_path):
         )
     )
     persistence_calls: list[dict[str, object]] = []
+    metadata_service = FakeArchiveMetadataService()
+    archive_record = metadata_service.ensure_archive_record(
+        source_url="https://example.org/2026_TEOS_XML_08A.zip",
+        filename="2026_TEOS_XML_08A.zip",
+        checked_at=datetime.now(timezone.utc),
+    )
 
     class RecordingPersistenceService:
         def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
@@ -563,6 +580,8 @@ def test_process_form990_archive_persists_in_batches(tmp_path):
             source_signature="sig-8",
             source_filename="2026_TEOS_XML_08A.zip",
         ),
+        archive_metadata_service=metadata_service,
+        archive_record=archive_record,
         nonprofit_persistence_service=RecordingPersistenceService(),
         persist_batch_size=2,
     )
@@ -572,6 +591,14 @@ def test_process_form990_archive_persists_in_batches(tmp_path):
     assert result["parsed_count"] == 5
     assert [len(call["filing_records"]) for call in persistence_calls] == [2, 2, 1]
     assert [len(call["canonical_raw_filing_records"]) for call in persistence_calls] == [2, 2, 1]
+    assert len(metadata_service.upsert_extracted_file_calls) == 5
+    assert sorted(call["filename"] for call in metadata_service.upsert_extracted_file_calls) == [
+        "obj-1.xml",
+        "obj-2.xml",
+        "obj-3.xml",
+        "obj-4.xml",
+        "obj-5.xml",
+    ]
 
 
 def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):
@@ -585,6 +612,12 @@ def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persiste
         )
     )
     persisted_batches: list[list[dict[str, object]]] = []
+    metadata_service = FakeArchiveMetadataService()
+    archive_record = metadata_service.ensure_archive_record(
+        source_url="https://example.org/2026_TEOS_XML_09A.zip",
+        filename="2026_TEOS_XML_09A.zip",
+        checked_at=datetime.now(timezone.utc),
+    )
 
     class FlakyPersistenceService:
         def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
@@ -617,11 +650,17 @@ def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persiste
                 source_signature="sig-9",
                 source_filename="2026_TEOS_XML_09A.zip",
             ),
+            archive_metadata_service=metadata_service,
+            archive_record=archive_record,
             nonprofit_persistence_service=FlakyPersistenceService(),
             persist_batch_size=2,
         )
 
     assert [len(batch) for batch in persisted_batches] == [2]
+    assert len(metadata_service.upsert_extracted_file_calls) == 2
+    assert {call["filename"] for call in metadata_service.upsert_extracted_file_calls}.issubset(
+        {"obj-1.xml", "obj-2.xml", "obj-3.xml", "obj-4.xml"}
+    )
 
 
 def _write_temp_archive(payload: bytes, checksum: str) -> tuple[str, str, int]:

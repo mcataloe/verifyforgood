@@ -531,6 +531,9 @@ def process_form990_archive(
                 progress_session=progress_session,
                 started=started,
                 nonprofit_persistence_service=nonprofit_persistence_service,
+                archive_metadata_service=archive_metadata_service,
+                archive_id=getattr(archive_record, "archive_id", None),
+                member_hashes=member_hashes,
                 persist_batch_size=resolved_persist_batch_size,
             )
         finally:
@@ -538,6 +541,7 @@ def process_form990_archive(
                 progress_session.complete()
         parse_elapsed_ms = _elapsed_ms(parse_started_at)
         nonprofit_persistence_elapsed_ms = int(ingest_result.pop("_nonprofit_persistence_elapsed_ms", 0) or 0)
+        extracted_file_metadata_elapsed_ms = int(ingest_result.pop("_extracted_file_metadata_elapsed_ms", 0) or 0)
     else:
         ingest_result = {
             "status": "success",
@@ -550,6 +554,7 @@ def process_form990_archive(
         }
         parse_elapsed_ms = 0
         nonprofit_persistence_elapsed_ms = 0
+        extracted_file_metadata_elapsed_ms = 0
 
     _log_structured(
         "monthly_ingest.worker.records_parse_completed",
@@ -560,19 +565,6 @@ def process_form990_archive(
         failed_count=int(ingest_result.get("failed_count") or 0),
         records_processed=int(ingest_result.get("records_processed") or 0),
     )
-
-    if archive_metadata_service is not None and archive_record is not None:
-        extracted_file_persistence_started_at = time.perf_counter()
-        _persist_extracted_file_results(
-            archive_metadata_service=archive_metadata_service,
-            archive_id=archive_record.archive_id,
-            selected_members=selected_members,
-            member_hashes=member_hashes,
-            ingest_result=ingest_result,
-        )
-        extracted_file_metadata_elapsed_ms = _elapsed_ms(extracted_file_persistence_started_at)
-    else:
-        extracted_file_metadata_elapsed_ms = 0
 
     completed_at = datetime.now(timezone.utc)
     total_elapsed_ms = _elapsed_ms(total_started_at)
@@ -746,6 +738,9 @@ def _collect_and_persist_parse_results(
     progress_session: Any | None,
     started: datetime,
     nonprofit_persistence_service: Any | None,
+    archive_metadata_service: Any | None,
+    archive_id: int | None,
+    member_hashes: Mapping[str, str],
     persist_batch_size: int,
 ) -> dict[str, Any]:
     aggregated_records: list[dict[str, Any]] = []
@@ -753,6 +748,7 @@ def _collect_and_persist_parse_results(
     failed_count = 0
     records_processed = 0
     nonprofit_persistence_elapsed_ms = 0
+    extracted_file_metadata_elapsed_ms = 0
     parsed_result_batch: list[_ParsedXmlMemberResult] = []
     for future in as_completed(parse_futures):
         result = future.result()
@@ -767,24 +763,32 @@ def _collect_and_persist_parse_results(
                 parsed_result_batch=parsed_result_batch,
                 started=started,
                 nonprofit_persistence_service=nonprofit_persistence_service,
+                archive_metadata_service=archive_metadata_service,
+                archive_id=archive_id,
+                member_hashes=member_hashes,
             )
             aggregated_records.extend(batch_result.get("records") or [])
             parsed_count += int(batch_result.get("parsed_count") or 0)
             failed_count += int(batch_result.get("failed_count") or 0)
             records_processed += int(batch_result.get("records_processed") or 0)
             nonprofit_persistence_elapsed_ms += batch_elapsed_ms
+            extracted_file_metadata_elapsed_ms += int(batch_result.get("_extracted_file_metadata_elapsed_ms", 0) or 0)
             parsed_result_batch.clear()
     if parsed_result_batch:
         batch_result, batch_elapsed_ms = _persist_parse_result_batch(
             parsed_result_batch=parsed_result_batch,
             started=started,
             nonprofit_persistence_service=nonprofit_persistence_service,
+            archive_metadata_service=archive_metadata_service,
+            archive_id=archive_id,
+            member_hashes=member_hashes,
         )
         aggregated_records.extend(batch_result.get("records") or [])
         parsed_count += int(batch_result.get("parsed_count") or 0)
         failed_count += int(batch_result.get("failed_count") or 0)
         records_processed += int(batch_result.get("records_processed") or 0)
         nonprofit_persistence_elapsed_ms += batch_elapsed_ms
+        extracted_file_metadata_elapsed_ms += int(batch_result.get("_extracted_file_metadata_elapsed_ms", 0) or 0)
         parsed_result_batch.clear()
     status = "success" if failed_count == 0 else ("partial_success" if parsed_count > 0 else "failed")
     return {
@@ -796,6 +800,7 @@ def _collect_and_persist_parse_results(
         "artifact_paths": None,
         "nonprofit_persistence": None,
         "_nonprofit_persistence_elapsed_ms": nonprofit_persistence_elapsed_ms,
+        "_extracted_file_metadata_elapsed_ms": extracted_file_metadata_elapsed_ms,
     }
 
 
@@ -804,6 +809,9 @@ def _persist_parse_result_batch(
     parsed_result_batch: list[_ParsedXmlMemberResult],
     started: datetime,
     nonprofit_persistence_service: Any | None,
+    archive_metadata_service: Any | None,
+    archive_id: int | None,
+    member_hashes: Mapping[str, str],
 ) -> tuple[dict[str, Any], int]:
     nonprofit_persistence_started_at = time.perf_counter()
     filing_records = [result.filing_record for result in parsed_result_batch]
@@ -819,6 +827,13 @@ def _persist_parse_result_batch(
         canonical_raw_filing_records=canonical_raw_filing_records,
     ).to_dict()
     nonprofit_persistence_elapsed_ms = _elapsed_ms(nonprofit_persistence_started_at)
+    extracted_file_metadata_elapsed_ms = _persist_extracted_file_result_batch(
+        archive_metadata_service=archive_metadata_service,
+        archive_id=archive_id,
+        parsed_result_batch=parsed_result_batch,
+        member_hashes=member_hashes,
+    )
+    ingest_result["_extracted_file_metadata_elapsed_ms"] = extracted_file_metadata_elapsed_ms
     return ingest_result, nonprofit_persistence_elapsed_ms
 
 
@@ -1048,25 +1063,20 @@ def _list_existing_extracted_files_by_name(
     }
 
 
-def _persist_extracted_file_results(
+def _persist_extracted_file_result_batch(
     *,
-    archive_metadata_service: Any,
-    archive_id: int,
-    selected_members: list[LocalExtractedXmlMember],
+    archive_metadata_service: Any | None,
+    archive_id: int | None,
+    parsed_result_batch: list[_ParsedXmlMemberResult],
     member_hashes: Mapping[str, str],
-    ingest_result: Mapping[str, Any],
-) -> None:
-    result_lookup: dict[str, dict[str, Any]] = {}
-    for item in ingest_result.get("records", []):
-        if not isinstance(item, dict):
-            continue
-        reference = str(item.get("xml_source_reference") or "").strip()
-        member_name = reference.split("#", 1)[1] if "#" in reference else ""
-        if member_name:
-            result_lookup[member_name] = item
+) -> int:
+    if archive_metadata_service is None or archive_id is None or not parsed_result_batch:
+        return 0
+    extracted_file_persistence_started_at = time.perf_counter()
     now = datetime.now(timezone.utc)
-    for member in selected_members:
-        filing = result_lookup.get(member.member_name, {})
+    for result in parsed_result_batch:
+        member = result.member
+        filing = result.filing_record
         parse_status = str(filing.get("parse_status") or "parsed").strip() or "parsed"
         error_message = _as_text(filing.get("parse_error"))
         archive_metadata_service.upsert_extracted_file(
@@ -1077,6 +1087,7 @@ def _persist_extracted_file_results(
             parsed_at=now,
             error_message=error_message,
         )
+    return _elapsed_ms(extracted_file_persistence_started_at)
 
 
 def _object_id_from_member_name(member_name: str) -> str:
