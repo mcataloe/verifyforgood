@@ -122,9 +122,13 @@ class RecordingProgressSession:
     def __init__(self):
         self.calls = []
         self.completed = False
+        self.total_items = None
 
     def item_completed(self, increments=None, *, last_item=None):
         self.calls.append({"increments": dict(increments or {}), "last_item": last_item})
+
+    def set_total_items(self, total_items):
+        self.total_items = total_items
 
     def complete(self):
         self.completed = True
@@ -599,6 +603,79 @@ def test_process_form990_archive_persists_in_batches(tmp_path):
         "obj-4.xml",
         "obj-5.xml",
     ]
+
+
+def test_process_form990_archive_streams_persistence_before_selection_finishes(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_08B.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="300000001")),
+            ("obj-2.xml", _valid_xml(ein="300000002")),
+            ("obj-3.xml", _valid_xml(ein="300000003")),
+            ("obj-4.xml", _valid_xml(ein="300000004")),
+        )
+    )
+    persistence_calls: list[int] = []
+    streaming_observations: list[tuple[int, int]] = []
+    metadata_service = FakeArchiveMetadataService()
+    archive_record = metadata_service.ensure_archive_record(
+        source_url="https://example.org/2026_TEOS_XML_08B.zip",
+        filename="2026_TEOS_XML_08B.zip",
+        checked_at=datetime.now(timezone.utc),
+    )
+
+    class RecordingPersistenceService:
+        def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
+            persistence_calls.append(len(filing_records))
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "nonprofits_upserted": len(filing_records),
+                    "filings_upserted": len(filing_records),
+                    "sources_upserted": len(filing_records),
+                    "skipped_records": 0,
+                }
+            )
+
+    original_extract = monthly_processing._extract_zip_member_to_workdir
+    extraction_counter = {"count": 0}
+
+    def recording_extract(*args, **kwargs):
+        extraction_counter["count"] += 1
+        if extraction_counter["count"] == 3:
+            streaming_observations.append(
+                (len(persistence_calls), len(metadata_service.upsert_extracted_file_calls))
+            )
+        return original_extract(*args, **kwargs)
+
+    monkeypatch.setattr(monthly_processing, "_extract_zip_member_to_workdir", recording_extract)
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "streaming-extracted"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "streaming-job",
+            "correlation_id": "streaming-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_08b",
+            source_signature="sig-8b",
+            source_filename="2026_TEOS_XML_08B.zip",
+        ),
+        archive_metadata_service=metadata_service,
+        archive_record=archive_record,
+        nonprofit_persistence_service=RecordingPersistenceService(),
+        persist_batch_size=1,
+        xml_parser_workers=1,
+    )
+
+    assert result["status"] == "success"
+    assert streaming_observations
+    assert streaming_observations[0][0] >= 1
+    assert streaming_observations[0][1] >= 1
 
 
 def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):

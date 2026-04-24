@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 import hashlib
 import json
 import logging
@@ -9,7 +9,7 @@ import tempfile
 import time
 import urllib.request
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -94,6 +94,23 @@ class _ParsedXmlMemberResult:
     filing_record: dict[str, Any]
     relationship_records: tuple[dict[str, Any], ...] = ()
     canonical_raw_filing_record: dict[str, Any] | None = None
+
+
+@dataclass
+class _StreamingParsePersistenceState:
+    started: datetime
+    nonprofit_persistence_service: Any | None
+    archive_metadata_service: Any | None
+    archive_id: int | None
+    member_hashes: Mapping[str, str]
+    persist_batch_size: int
+    aggregated_records: list[dict[str, Any]] = field(default_factory=list)
+    parsed_result_batch: list[_ParsedXmlMemberResult] = field(default_factory=list)
+    parsed_count: int = 0
+    failed_count: int = 0
+    records_processed: int = 0
+    nonprofit_persistence_elapsed_ms: int = 0
+    extracted_file_metadata_elapsed_ms: int = 0
 
 
 def run_form990_monthly_processing_task(
@@ -435,7 +452,28 @@ def process_form990_archive(
         if progress_reporter is not None
         else None
     )
-    parse_futures: list[Future[_ParsedXmlMemberResult]] = []
+    parse_progress_session = (
+        progress_reporter.start(
+            total_items=len(processable_members),
+            fields=[
+                ProgressField(key="parsed", label="parsed", color="green"),
+                ProgressField(key="failed", label="failed", color="red"),
+            ],
+            update_every=10,
+        )
+        if progress_reporter is not None
+        else None
+    )
+    parse_persistence_state = _StreamingParsePersistenceState(
+        started=started,
+        nonprofit_persistence_service=nonprofit_persistence_service,
+        archive_metadata_service=archive_metadata_service,
+        archive_id=getattr(archive_record, "archive_id", None),
+        member_hashes=member_hashes,
+        persist_batch_size=resolved_persist_batch_size,
+    )
+    parse_started_at = time.perf_counter()
+    parse_futures: set[Future[_ParsedXmlMemberResult]] = set()
     parse_tasks: list[_LocalXmlParseTask] = []
     max_pending_tasks = max(1, parser_workers * 2)
     try:
@@ -482,15 +520,32 @@ def process_form990_archive(
                         selection_duration_seconds += time.perf_counter() - selection_started_at
                         continue
                     parse_tasks.append(parse_task)
-                    parse_futures.append(executor.submit(_parse_local_xml_parse_task, parse_task, xml_error_handler))
+                    parse_futures.add(executor.submit(_parse_local_xml_parse_task, parse_task, xml_error_handler))
                     selection_duration_seconds += time.perf_counter() - selection_started_at
-                    while len(parse_futures) - _count_completed_futures(parse_futures) >= max_pending_tasks:
-                        wait(parse_futures, return_when=FIRST_COMPLETED)
+                    while len(parse_futures) >= max_pending_tasks:
+                        _drain_completed_parse_futures(
+                            parse_futures=parse_futures,
+                            progress_session=parse_progress_session,
+                            state=parse_persistence_state,
+                            wait_for_completion=True,
+                        )
+            if parse_progress_session is not None:
+                parse_progress_session.set_total_items(len(parse_tasks))
+            while parse_futures:
+                _drain_completed_parse_futures(
+                    parse_futures=parse_futures,
+                    progress_session=parse_progress_session,
+                    state=parse_persistence_state,
+                    wait_for_completion=True,
+                )
+            _flush_streaming_parse_result_batch(parse_persistence_state)
     except zipfile.BadZipFile as exc:
         raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
     finally:
         if selection_progress_session is not None:
             selection_progress_session.complete()
+        if parse_progress_session is not None:
+            parse_progress_session.complete()
     unzip_elapsed_ms = int(unzip_duration_seconds * 1000)
     selection_elapsed_ms = int(selection_duration_seconds * 1000)
     _log_structured(
@@ -511,37 +566,11 @@ def process_form990_archive(
         record_count=len(parse_tasks),
         selected_member_count=len(selected_members),
     )
-    parse_started_at = time.perf_counter()
     if parse_tasks:
-        progress_session = (
-            progress_reporter.start(
-                total_items=len(parse_tasks),
-                fields=[
-                    ProgressField(key="parsed", label="parsed", color="green"),
-                    ProgressField(key="failed", label="failed", color="red"),
-                ],
-                update_every=10,
-            )
-            if progress_reporter is not None
-            else None
-        )
-        try:
-            ingest_result = _collect_and_persist_parse_results(
-                parse_futures=parse_futures,
-                progress_session=progress_session,
-                started=started,
-                nonprofit_persistence_service=nonprofit_persistence_service,
-                archive_metadata_service=archive_metadata_service,
-                archive_id=getattr(archive_record, "archive_id", None),
-                member_hashes=member_hashes,
-                persist_batch_size=resolved_persist_batch_size,
-            )
-        finally:
-            if progress_session is not None:
-                progress_session.complete()
         parse_elapsed_ms = _elapsed_ms(parse_started_at)
-        nonprofit_persistence_elapsed_ms = int(ingest_result.pop("_nonprofit_persistence_elapsed_ms", 0) or 0)
-        extracted_file_metadata_elapsed_ms = int(ingest_result.pop("_extracted_file_metadata_elapsed_ms", 0) or 0)
+        ingest_result = _streaming_parse_persistence_result(parse_persistence_state)
+        nonprofit_persistence_elapsed_ms = parse_persistence_state.nonprofit_persistence_elapsed_ms
+        extracted_file_metadata_elapsed_ms = parse_persistence_state.extracted_file_metadata_elapsed_ms
     else:
         ingest_result = {
             "status": "success",
@@ -732,113 +761,75 @@ def _parse_local_xml_parse_task(
         # )
 
 
-def _collect_and_persist_parse_results(
+def _drain_completed_parse_futures(
     *,
-    parse_futures: list[Future[_ParsedXmlMemberResult]],
+    parse_futures: set[Future[_ParsedXmlMemberResult]],
     progress_session: Any | None,
-    started: datetime,
-    nonprofit_persistence_service: Any | None,
-    archive_metadata_service: Any | None,
-    archive_id: int | None,
-    member_hashes: Mapping[str, str],
-    persist_batch_size: int,
-) -> dict[str, Any]:
-    aggregated_records: list[dict[str, Any]] = []
-    parsed_count = 0
-    failed_count = 0
-    records_processed = 0
-    nonprofit_persistence_elapsed_ms = 0
-    extracted_file_metadata_elapsed_ms = 0
-    parsed_result_batch: list[_ParsedXmlMemberResult] = []
-    for future in as_completed(parse_futures):
+    state: _StreamingParsePersistenceState,
+    wait_for_completion: bool,
+) -> None:
+    if not parse_futures:
+        return
+    if wait_for_completion:
+        completed_futures, _ = wait(parse_futures, return_when=FIRST_COMPLETED)
+    else:
+        completed_futures = {future for future in parse_futures if future.done()}
+        if not completed_futures:
+            return
+    for future in completed_futures:
+        parse_futures.discard(future)
         result = future.result()
-        parsed_result_batch.append(result)
+        state.parsed_result_batch.append(result)
         if progress_session is not None:
             progress_session.item_completed(
                 _progress_increments_for_filing(result.filing_record),
                 last_item=Path(result.member.member_name).name,
             )
-        if len(parsed_result_batch) >= persist_batch_size:
-            batch_result, batch_elapsed_ms = _persist_parse_result_batch(
-                parsed_result_batch=parsed_result_batch,
-                started=started,
-                nonprofit_persistence_service=nonprofit_persistence_service,
-                archive_metadata_service=archive_metadata_service,
-                archive_id=archive_id,
-                member_hashes=member_hashes,
-            )
-            aggregated_records.extend(batch_result.get("records") or [])
-            parsed_count += int(batch_result.get("parsed_count") or 0)
-            failed_count += int(batch_result.get("failed_count") or 0)
-            records_processed += int(batch_result.get("records_processed") or 0)
-            nonprofit_persistence_elapsed_ms += batch_elapsed_ms
-            extracted_file_metadata_elapsed_ms += int(batch_result.get("_extracted_file_metadata_elapsed_ms", 0) or 0)
-            parsed_result_batch.clear()
-    if parsed_result_batch:
-        batch_result, batch_elapsed_ms = _persist_parse_result_batch(
-            parsed_result_batch=parsed_result_batch,
-            started=started,
-            nonprofit_persistence_service=nonprofit_persistence_service,
-            archive_metadata_service=archive_metadata_service,
-            archive_id=archive_id,
-            member_hashes=member_hashes,
-        )
-        aggregated_records.extend(batch_result.get("records") or [])
-        parsed_count += int(batch_result.get("parsed_count") or 0)
-        failed_count += int(batch_result.get("failed_count") or 0)
-        records_processed += int(batch_result.get("records_processed") or 0)
-        nonprofit_persistence_elapsed_ms += batch_elapsed_ms
-        extracted_file_metadata_elapsed_ms += int(batch_result.get("_extracted_file_metadata_elapsed_ms", 0) or 0)
-        parsed_result_batch.clear()
-    status = "success" if failed_count == 0 else ("partial_success" if parsed_count > 0 else "failed")
-    return {
-        "status": status,
-        "records_processed": records_processed,
-        "parsed_count": parsed_count,
-        "failed_count": failed_count,
-        "records": aggregated_records,
-        "artifact_paths": None,
-        "nonprofit_persistence": None,
-        "_nonprofit_persistence_elapsed_ms": nonprofit_persistence_elapsed_ms,
-        "_extracted_file_metadata_elapsed_ms": extracted_file_metadata_elapsed_ms,
-    }
+        if len(state.parsed_result_batch) >= state.persist_batch_size:
+            _flush_streaming_parse_result_batch(state)
 
 
-def _persist_parse_result_batch(
-    *,
-    parsed_result_batch: list[_ParsedXmlMemberResult],
-    started: datetime,
-    nonprofit_persistence_service: Any | None,
-    archive_metadata_service: Any | None,
-    archive_id: int | None,
-    member_hashes: Mapping[str, str],
-) -> tuple[dict[str, Any], int]:
+def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) -> None:
+    if not state.parsed_result_batch:
+        return
     nonprofit_persistence_started_at = time.perf_counter()
-    filing_records = [result.filing_record for result in parsed_result_batch]
+    filing_records = [result.filing_record for result in state.parsed_result_batch]
     canonical_raw_filing_records = [
         result.canonical_raw_filing_record
-        for result in parsed_result_batch
+        for result in state.parsed_result_batch
         if result.canonical_raw_filing_record is not None
     ]
     ingest_result = finalize_form990_filing_records(
         filing_records,
-        started=started,
-        nonprofit_persistence_service=nonprofit_persistence_service,
+        started=state.started,
+        nonprofit_persistence_service=state.nonprofit_persistence_service,
         canonical_raw_filing_records=canonical_raw_filing_records,
     ).to_dict()
-    nonprofit_persistence_elapsed_ms = _elapsed_ms(nonprofit_persistence_started_at)
-    extracted_file_metadata_elapsed_ms = _persist_extracted_file_result_batch(
-        archive_metadata_service=archive_metadata_service,
-        archive_id=archive_id,
-        parsed_result_batch=parsed_result_batch,
-        member_hashes=member_hashes,
+    state.nonprofit_persistence_elapsed_ms += _elapsed_ms(nonprofit_persistence_started_at)
+    state.extracted_file_metadata_elapsed_ms += _persist_extracted_file_result_batch(
+        archive_metadata_service=state.archive_metadata_service,
+        archive_id=state.archive_id,
+        parsed_result_batch=state.parsed_result_batch,
+        member_hashes=state.member_hashes,
     )
-    ingest_result["_extracted_file_metadata_elapsed_ms"] = extracted_file_metadata_elapsed_ms
-    return ingest_result, nonprofit_persistence_elapsed_ms
+    state.aggregated_records.extend(ingest_result.get("records") or [])
+    state.parsed_count += int(ingest_result.get("parsed_count") or 0)
+    state.failed_count += int(ingest_result.get("failed_count") or 0)
+    state.records_processed += int(ingest_result.get("records_processed") or 0)
+    state.parsed_result_batch.clear()
 
 
-def _count_completed_futures(futures: list[Future[Any]]) -> int:
-    return sum(1 for future in futures if future.done())
+def _streaming_parse_persistence_result(state: _StreamingParsePersistenceState) -> dict[str, Any]:
+    status = "success" if state.failed_count == 0 else ("partial_success" if state.parsed_count > 0 else "failed")
+    return {
+        "status": status,
+        "records_processed": state.records_processed,
+        "parsed_count": state.parsed_count,
+        "failed_count": state.failed_count,
+        "records": state.aggregated_records,
+        "artifact_paths": None,
+        "nonprofit_persistence": None,
+    }
 
 
 def _progress_increments_for_filing(filing_record: Mapping[str, Any]) -> dict[str, int]:
