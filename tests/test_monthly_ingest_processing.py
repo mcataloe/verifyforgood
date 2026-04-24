@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+import zipfile64
+import zipfile64.zipfile as zipfile64_zipfile
 
 from verification.backend.ingest.federal.form990 import monthly_processing
 from verification.backend.ingest.federal.form990.monthly_processing import (
@@ -177,6 +179,15 @@ def _worker_env(**overrides):
 def _make_zip(*members):
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, body in members:
+            archive.writestr(name, body)
+    return stream.getvalue()
+
+
+def _make_deflate64_zip(*members):
+    zipfile64_zipfile.patch()
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, mode="w", compression=zipfile64_zipfile.ZIP_DEFLATE64) as archive:
         for name, body in members:
             archive.writestr(name, body)
     return stream.getvalue()
@@ -481,6 +492,33 @@ def test_process_form990_archive_logs_split_persistence_stage_timings(tmp_path, 
     assert stage_event["failed_count"] == 0
     assert stage_event["selected_member_count"] == 1
     assert stage_event["extracted_member_count"] == 1
+
+
+def test_process_form990_archive_supports_deflate64_zip_members(tmp_path):
+    archive_path = tmp_path / "2020_TEOS_XML_CT1.zip"
+    archive_path.write_bytes(_make_deflate64_zip(("201901029349100000_public.xml", _valid_xml())))
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "deflate64-extracted"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "deflate64-job",
+            "correlation_id": "deflate64-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2020",
+            source_kind="zip_archive",
+            source_archive_key="2020_teos_xml_ct1",
+            source_signature="sig-deflate64",
+            source_filename="2020_TEOS_XML_CT1.zip",
+        ),
+    )
+
+    assert result["status"] == "success"
+    assert result["parsed_count"] == 1
+    assert result["failed_count"] == 0
 
 
 def test_process_form990_archive_forwards_canonical_raw_filing_records(tmp_path, monkeypatch):

@@ -8,11 +8,12 @@ import os
 import tempfile
 import time
 import urllib.request
-import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
+
+import zipfile64.zipfile as zipfile
 
 from verification.backend.ingest.federal.form990.canonical import hash_local_xml_file
 from verification.backend.ingest.federal.form990.extractors.metadata import extract_metadata_fields
