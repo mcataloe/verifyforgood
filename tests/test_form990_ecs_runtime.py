@@ -37,6 +37,7 @@ def test_build_local_ingest_run_config_reads_ecs_alias_envs():
             "STRICT_MODE": "true",
             "MAX_ARCHIVES": "7",
             "WORKSPACE_PATH": "/tmp/ecs-workspace",
+            "FORM990_PERSIST_BATCH_SIZE": "250",
             "LOG_LEVEL": "ERROR",
             "LOG_STACK_TRACES": "true",
         }
@@ -45,6 +46,7 @@ def test_build_local_ingest_run_config_reads_ecs_alias_envs():
     assert config.strict is True
     assert config.limit == 7
     assert config.workspace == "/tmp/ecs-workspace"
+    assert config.persist_batch_size == 250
     assert config.log_level == "ERROR"
     assert config.log_stack_traces is True
 

@@ -6,9 +6,10 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import time
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -29,6 +30,7 @@ LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 
 DEFAULT_MAX_XML_FILE_SIZE_BYTES = 20 * 1024 * 1024
 DEFAULT_FORM990_PERSIST_BATCH_SIZE = 100
+MAX_FORM990_PERSIST_BATCH_SIZE = 1000
 
 
 class MonthlyIngestTaskInputError(ValueError):
@@ -81,6 +83,53 @@ class _ArchiveProcessingContext:
     source_url: str | None = None
 
 
+@dataclass
+class _WorkerArchiveReaderEntry:
+    archive: zipfile.ZipFile
+    members: tuple[zipfile.ZipInfo, ...]
+
+
+class _ThreadLocalArchiveReaderPool:
+    def __init__(self, *, archive_path: str):
+        self._archive_path = archive_path
+        self._local = threading.local()
+        self._lock = threading.Lock()
+        self._entries_by_thread_id: dict[int, _WorkerArchiveReaderEntry] = {}
+
+    def current(self) -> _WorkerArchiveReaderEntry:
+        entry = getattr(self._local, "entry", None)
+        if entry is not None and getattr(entry.archive, "fp", None) is not None:
+            return entry
+        archive = zipfile.ZipFile(self._archive_path, mode="r")
+        entry = _WorkerArchiveReaderEntry(
+            archive=archive,
+            members=tuple(archive.infolist()),
+        )
+        self._local.entry = entry
+        with self._lock:
+            self._entries_by_thread_id[threading.get_ident()] = entry
+        return entry
+
+    def close_all(self) -> None:
+        with self._lock:
+            entries = list(self._entries_by_thread_id.values())
+            self._entries_by_thread_id.clear()
+        for entry in entries:
+            entry.archive.close()
+
+
+@dataclass(frozen=True)
+class _LocalXmlMemberTask:
+    archive_path: str
+    extracted_workdir: str
+    member_index: int
+    member_name: str
+    archive_identity: str
+    source_object: MonthlyIngestSourceObject
+    existing_content_hash: str | None = None
+    archive_reader_pool: _ThreadLocalArchiveReaderPool | None = None
+
+
 @dataclass(frozen=True)
 class _LocalXmlParseTask:
     member: LocalExtractedXmlMember
@@ -92,9 +141,15 @@ class _LocalXmlParseTask:
 @dataclass(frozen=True)
 class _ParsedXmlMemberResult:
     member: LocalExtractedXmlMember
-    filing_record: dict[str, Any]
+    filing_record: dict[str, Any] | None = None
     relationship_records: tuple[dict[str, Any], ...] = ()
     canonical_raw_filing_record: dict[str, Any] | None = None
+    content_hash: str | None = None
+    was_selected: bool = False
+    was_skipped_unchanged: bool = False
+    worker_extract_duration_ms: int = 0
+    worker_hash_duration_ms: int = 0
+    worker_selection_duration_ms: int = 0
     worker_read_duration_ms: int = 0
     worker_parse_duration_ms: int = 0
     worker_total_duration_ms: int = 0
@@ -106,21 +161,27 @@ class _StreamingParsePersistenceState:
     nonprofit_persistence_service: Any | None
     archive_metadata_service: Any | None
     archive_id: int | None
-    member_hashes: Mapping[str, str]
     persist_batch_size: int
     aggregated_records: list[dict[str, Any]] = field(default_factory=list)
     parsed_result_batch: list[_ParsedXmlMemberResult] = field(default_factory=list)
     parsed_count: int = 0
     failed_count: int = 0
     records_processed: int = 0
+    extracted_member_count: int = 0
+    selected_member_count: int = 0
+    skipped_unchanged_member_count: int = 0
     nonprofit_persistence_elapsed_ms: int = 0
     extracted_file_metadata_elapsed_ms: int = 0
+    worker_extract_elapsed_ms: int = 0
+    worker_hash_elapsed_ms: int = 0
+    worker_selection_elapsed_ms: int = 0
     worker_read_elapsed_ms: int = 0
     worker_parse_elapsed_ms: int = 0
     worker_total_elapsed_ms: int = 0
     parse_wait_elapsed_ms: int = 0
     persist_batch_count: int = 0
     max_persist_batch_size: int = 0
+    parse_task_count: int = 0
 
 
 def run_form990_monthly_processing_task(
@@ -215,6 +276,7 @@ def run_form990_monthly_processing_task(
                 archive_record=archive_record,
                 nonprofit_persistence_service=nonprofit_persistence_service,
                 max_xml_file_size_bytes=int(source.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES") or DEFAULT_MAX_XML_FILE_SIZE_BYTES),
+                persist_batch_size=_resolve_form990_persist_batch_size(source),
             )
             if str(result.get("status") or "").strip().lower() == "failed":
                 raise RuntimeError(f"monthly ingest processing failed with {int(result.get('failed_count') or 0)} failed record(s)")
@@ -438,15 +500,8 @@ def process_form990_archive(
     if not processable_members:
         raise MonthlyIngestMalformedArchiveError("zip archive did not contain any processable XML members")
 
-    unzip_duration_seconds = 0.0
-    selection_duration_seconds = 0.0
-    hash_duration_seconds = 0.0
-    skipped_unchanged_members = 0
-    extracted_members: list[LocalExtractedXmlMember] = []
-    selected_members: list[LocalExtractedXmlMember] = []
-    member_hashes: dict[str, str] = {}
     parser_workers = max(1, int(xml_parser_workers or 1))
-    resolved_persist_batch_size = max(1, int(persist_batch_size or DEFAULT_FORM990_PERSIST_BATCH_SIZE))
+    resolved_persist_batch_size = _clamp_persist_batch_size(persist_batch_size)
     existing_extracted_files_by_name = _list_existing_extracted_files_by_name(
         archive_metadata_service=archive_metadata_service,
         archive_record=archive_record,
@@ -480,78 +535,57 @@ def process_form990_archive(
         nonprofit_persistence_service=nonprofit_persistence_service,
         archive_metadata_service=archive_metadata_service,
         archive_id=getattr(archive_record, "archive_id", None),
-        member_hashes=member_hashes,
         persist_batch_size=resolved_persist_batch_size,
     )
     parse_started_at = time.perf_counter()
     parse_futures: set[Future[_ParsedXmlMemberResult]] = set()
-    parse_tasks: list[_LocalXmlParseTask] = []
     max_pending_tasks = max(1, parser_workers * 2)
+    archive_reader_pool = _ThreadLocalArchiveReaderPool(archive_path=archive_path)
     try:
-        with ThreadPoolExecutor(max_workers=parser_workers, thread_name_prefix="form990-xml") as executor:
-            with zipfile.ZipFile(archive_path, mode="r") as archive:
+        try:
+            with ThreadPoolExecutor(max_workers=parser_workers, thread_name_prefix="form990-xml") as executor:
                 for index, member in processable_members:
-                    extract_started_at = time.perf_counter()
-                    extracted_member = _extract_zip_member_to_workdir(
-                        archive=archive,
-                        member=member,
-                        member_index=index,
-                        workdir=extracted_workdir,
-                    )
-                    unzip_duration_seconds += time.perf_counter() - extract_started_at
-                    extracted_members.append(extracted_member)
-                    selection_started_at = time.perf_counter()
-                    hash_started_at = time.perf_counter()
-                    content_hash = hash_local_xml_file(extracted_member.local_path)
-                    hash_duration_seconds += time.perf_counter() - hash_started_at
-                    member_hashes[extracted_member.member_name] = content_hash
-                    existing = existing_extracted_files_by_name.get(extracted_member.member_name)
-                    if existing is not None and str(getattr(existing, "content_hash", "") or "").strip() == content_hash:
-                        skipped_unchanged_members += 1
-                        _delete_local_xml_file(extracted_member.local_path)
-                        if selection_progress_session is not None:
-                            selection_progress_session.item_completed(
-                                {"skipped": 1},
-                                last_item=Path(extracted_member.member_name).name,
-                            )
-                        selection_duration_seconds += time.perf_counter() - selection_started_at
-                        continue
-                    selected_members.append(extracted_member)
-                    if selection_progress_session is not None:
-                        selection_progress_session.item_completed(
-                            {"selected": 1},
-                            last_item=Path(extracted_member.member_name).name,
+                    member_name = member.filename.replace("\\", "/")
+                    parse_futures.add(
+                        executor.submit(
+                            _process_local_xml_member_task,
+                            _LocalXmlMemberTask(
+                                archive_path=archive_path,
+                                extracted_workdir=extracted_workdir,
+                                member_index=index,
+                                member_name=member_name,
+                                archive_identity=context.archive_identity,
+                                source_object=source_object,
+                                existing_content_hash=str(
+                                    getattr(existing_extracted_files_by_name.get(member_name), "content_hash", "") or ""
+                                ).strip()
+                                or None,
+                                archive_reader_pool=archive_reader_pool,
+                            ),
+                            xml_error_handler,
                         )
-                    parse_task = _build_local_xml_parse_task(
-                        member=extracted_member,
-                        archive_identity=context.archive_identity,
-                        source_object=source_object,
-                        xml_content_hash=content_hash,
                     )
-                    if parse_task is None:
-                        _delete_local_xml_file(extracted_member.local_path)
-                        selection_duration_seconds += time.perf_counter() - selection_started_at
-                        continue
-                    parse_tasks.append(parse_task)
-                    parse_futures.add(executor.submit(_parse_local_xml_parse_task, parse_task, xml_error_handler))
-                    selection_duration_seconds += time.perf_counter() - selection_started_at
                     while len(parse_futures) >= max_pending_tasks:
                         _drain_completed_parse_futures(
                             parse_futures=parse_futures,
-                            progress_session=parse_progress_session,
+                            selection_progress_session=selection_progress_session,
+                            parse_progress_session=parse_progress_session,
                             state=parse_persistence_state,
                             wait_for_completion=True,
                         )
-            if parse_progress_session is not None:
-                parse_progress_session.set_total_items(len(parse_tasks))
-            while parse_futures:
-                _drain_completed_parse_futures(
-                    parse_futures=parse_futures,
-                    progress_session=parse_progress_session,
-                    state=parse_persistence_state,
-                    wait_for_completion=True,
-                )
-            _flush_streaming_parse_result_batch(parse_persistence_state)
+                while parse_futures:
+                    _drain_completed_parse_futures(
+                        parse_futures=parse_futures,
+                        selection_progress_session=selection_progress_session,
+                        parse_progress_session=parse_progress_session,
+                        state=parse_persistence_state,
+                        wait_for_completion=True,
+                    )
+        finally:
+            archive_reader_pool.close_all()
+        if parse_progress_session is not None:
+            parse_progress_session.set_total_items(parse_persistence_state.parse_task_count)
+        _flush_streaming_parse_result_batch(parse_persistence_state)
     except zipfile.BadZipFile as exc:
         raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
     finally:
@@ -559,15 +593,15 @@ def process_form990_archive(
             selection_progress_session.complete()
         if parse_progress_session is not None:
             parse_progress_session.complete()
-    unzip_elapsed_ms = int(unzip_duration_seconds * 1000)
-    selection_elapsed_ms = int(selection_duration_seconds * 1000)
-    hash_elapsed_ms = int(hash_duration_seconds * 1000)
+    unzip_elapsed_ms = parse_persistence_state.worker_extract_elapsed_ms
+    selection_elapsed_ms = parse_persistence_state.worker_selection_elapsed_ms
+    hash_elapsed_ms = parse_persistence_state.worker_hash_elapsed_ms
     _log_structured(
         "monthly_ingest.worker.extracted",
         job_id=context.job_id,
-        extracted_member_count=len(extracted_members),
-        selected_member_count=len(selected_members),
-        skipped_unchanged_member_count=skipped_unchanged_members,
+        extracted_member_count=parse_persistence_state.extracted_member_count,
+        selected_member_count=parse_persistence_state.selected_member_count,
+        skipped_unchanged_member_count=parse_persistence_state.skipped_unchanged_member_count,
         archive_checksum=checksum,
         archive_size_bytes=size,
     )
@@ -577,10 +611,10 @@ def process_form990_archive(
         level=logging.DEBUG,
         job_id=context.job_id,
         archive_path=archive_path,
-        record_count=len(parse_tasks),
-        selected_member_count=len(selected_members),
+        record_count=parse_persistence_state.parse_task_count,
+        selected_member_count=parse_persistence_state.selected_member_count,
     )
-    if parse_tasks:
+    if parse_persistence_state.parse_task_count:
         parse_elapsed_ms = _elapsed_ms(parse_started_at)
         ingest_result = _streaming_parse_persistence_result(parse_persistence_state)
         nonprofit_persistence_elapsed_ms = parse_persistence_state.nonprofit_persistence_elapsed_ms
@@ -637,11 +671,11 @@ def process_form990_archive(
         worker_total_duration_ms=parse_persistence_state.worker_total_elapsed_ms,
         worker_parallelism_ratio=worker_parallelism_ratio,
         total_duration_ms=total_elapsed_ms,
-        extracted_member_count=len(extracted_members),
-        selected_member_count=len(selected_members),
+        extracted_member_count=parse_persistence_state.extracted_member_count,
+        selected_member_count=parse_persistence_state.selected_member_count,
         parsed_count=int(ingest_result.get("parsed_count") or 0),
         failed_count=int(ingest_result.get("failed_count") or 0),
-        skipped_unchanged_member_count=skipped_unchanged_members,
+        skipped_unchanged_member_count=parse_persistence_state.skipped_unchanged_member_count,
         parse_files_per_second=parse_files_per_second,
         persist_records_per_second=persist_records_per_second,
         persist_batch_count=parse_persistence_state.persist_batch_count,
@@ -657,11 +691,11 @@ def process_form990_archive(
         "parsed_count": int(ingest_result.get("parsed_count") or 0),
         "failed_count": int(ingest_result.get("failed_count") or 0),
         "records": ingest_result.get("records") or [],
-        "skipped_unchanged_member_count": skipped_unchanged_members,
+        "skipped_unchanged_member_count": parse_persistence_state.skipped_unchanged_member_count,
         "archive_size_bytes": size,
         "archive_checksum_sha256": checksum,
-        "selected_member_count": len(selected_members),
-        "extracted_member_count": len(extracted_members),
+        "selected_member_count": parse_persistence_state.selected_member_count,
+        "extracted_member_count": parse_persistence_state.extracted_member_count,
         "artifact_paths": None,
         "completed_at": completed_at.isoformat(),
     }
@@ -705,6 +739,36 @@ def _extract_zip_member_to_workdir(
     )
 
 
+def _extract_zip_member_from_archive_path_to_workdir(
+    *,
+    archive_reader_pool: _ThreadLocalArchiveReaderPool | None,
+    archive_path: str,
+    member_index: int,
+    expected_member_name: str,
+    workdir: str,
+) -> LocalExtractedXmlMember:
+    if archive_reader_pool is None:
+        archive_reader_pool = _ThreadLocalArchiveReaderPool(archive_path=archive_path)
+    reader_entry = archive_reader_pool.current()
+    try:
+        member = reader_entry.members[member_index]
+    except IndexError as exc:
+        raise MonthlyIngestMalformedArchiveError(
+            f"zip archive member index {member_index} missing at {archive_path}"
+        ) from exc
+    member_name = member.filename.replace("\\", "/")
+    if member_name != expected_member_name:
+        raise MonthlyIngestMalformedArchiveError(
+            f"zip archive member mismatch at index {member_index}: expected {expected_member_name}, found {member_name}"
+        )
+    return _extract_zip_member_to_workdir(
+        archive=reader_entry.archive,
+        member=member,
+        member_index=member_index,
+        workdir=workdir,
+    )
+
+
 def _build_local_xml_parse_task(
     *,
     member: LocalExtractedXmlMember,
@@ -732,6 +796,71 @@ def _build_local_xml_parse_task(
             source_signature=None,
         ),
     )
+
+
+def _process_local_xml_member_task(
+    task: _LocalXmlMemberTask,
+    xml_error_handler: Callable[[str | None, Exception, str], None] | None,
+) -> _ParsedXmlMemberResult:
+    task_started_at = time.perf_counter()
+    extract_duration_ms = 0
+    hash_duration_ms = 0
+    selection_duration_ms = 0
+    extracted_member: LocalExtractedXmlMember | None = None
+    extracted_member = _extract_zip_member_from_archive_path_to_workdir(
+        archive_reader_pool=task.archive_reader_pool,
+        archive_path=task.archive_path,
+        member_index=task.member_index,
+        expected_member_name=task.member_name,
+        workdir=task.extracted_workdir,
+    )
+    extract_duration_ms = _elapsed_ms(task_started_at)
+    try:
+        hash_started_at = time.perf_counter()
+        content_hash = hash_local_xml_file(extracted_member.local_path)
+        hash_duration_ms = _elapsed_ms(hash_started_at)
+        selection_started_at = time.perf_counter()
+        if task.existing_content_hash and task.existing_content_hash == content_hash:
+            selection_duration_ms = _elapsed_ms(selection_started_at)
+            return _ParsedXmlMemberResult(
+                member=extracted_member,
+                content_hash=content_hash,
+                was_skipped_unchanged=True,
+                worker_extract_duration_ms=extract_duration_ms,
+                worker_hash_duration_ms=hash_duration_ms,
+                worker_selection_duration_ms=selection_duration_ms,
+                worker_total_duration_ms=_elapsed_ms(task_started_at),
+            )
+        parse_task = _build_local_xml_parse_task(
+            member=extracted_member,
+            archive_identity=task.archive_identity,
+            source_object=task.source_object,
+            xml_content_hash=content_hash,
+        )
+        selection_duration_ms = _elapsed_ms(selection_started_at)
+        if parse_task is None:
+            return _ParsedXmlMemberResult(
+                member=extracted_member,
+                content_hash=content_hash,
+                was_selected=True,
+                worker_extract_duration_ms=extract_duration_ms,
+                worker_hash_duration_ms=hash_duration_ms,
+                worker_selection_duration_ms=selection_duration_ms,
+                worker_total_duration_ms=_elapsed_ms(task_started_at),
+            )
+        parsed_result = _parse_local_xml_parse_task(parse_task, xml_error_handler)
+        return replace(
+            parsed_result,
+            content_hash=content_hash,
+            was_selected=True,
+            worker_extract_duration_ms=extract_duration_ms,
+            worker_hash_duration_ms=hash_duration_ms,
+            worker_selection_duration_ms=selection_duration_ms,
+            worker_total_duration_ms=_elapsed_ms(task_started_at),
+        )
+    finally:
+        if extracted_member is not None and extracted_member.local_path:
+            _delete_local_xml_file(extracted_member.local_path)
 
 
 def _parse_local_xml_parse_task(
@@ -765,6 +894,8 @@ def _parse_local_xml_parse_task(
                 filing_record=parsed_record.filing_record,
                 relationship_records=parsed_record.relationship_records,
                 canonical_raw_filing_record=parsed_record.canonical_raw_filing_record,
+                content_hash=task.xml_content_hash,
+                was_selected=True,
                 worker_read_duration_ms=read_duration_ms,
                 worker_parse_duration_ms=parse_duration_ms,
                 worker_total_duration_ms=_elapsed_ms(task_started_at),
@@ -789,24 +920,21 @@ def _parse_local_xml_parse_task(
                     parse_status=Form990ParseStatus.PARSE_ERROR,
                     parse_error=str(exc),
                 ).to_dict(),
+                content_hash=task.xml_content_hash,
+                was_selected=True,
                 worker_read_duration_ms=max(read_duration_ms, 0),
                 worker_parse_duration_ms=max(parse_duration_ms, 0),
                 worker_total_duration_ms=_elapsed_ms(task_started_at),
             )
     finally:
-        _delete_local_xml_file(task.member.local_path)
-        # _log_structured(
-        #     "form990.ingest.xml_file_deleted",
-        #     level=logging.DEBUG,
-        #     file_name=Path(task.member.local_path).name,
-        #     xml_source_reference=task.source_reference,
-        # )
+        pass
 
 
 def _drain_completed_parse_futures(
     *,
     parse_futures: set[Future[_ParsedXmlMemberResult]],
-    progress_session: Any | None,
+    selection_progress_session: Any | None,
+    parse_progress_session: Any | None,
     state: _StreamingParsePersistenceState,
     wait_for_completion: bool,
 ) -> None:
@@ -823,15 +951,30 @@ def _drain_completed_parse_futures(
     for future in completed_futures:
         parse_futures.discard(future)
         result = future.result()
-        state.parsed_result_batch.append(result)
+        state.extracted_member_count += 1
+        if result.was_selected:
+            state.selected_member_count += 1
+        if result.was_skipped_unchanged:
+            state.skipped_unchanged_member_count += 1
+        state.worker_extract_elapsed_ms += int(result.worker_extract_duration_ms or 0)
+        state.worker_hash_elapsed_ms += int(result.worker_hash_duration_ms or 0)
+        state.worker_selection_elapsed_ms += int(result.worker_selection_duration_ms or 0)
         state.worker_read_elapsed_ms += int(result.worker_read_duration_ms or 0)
         state.worker_parse_elapsed_ms += int(result.worker_parse_duration_ms or 0)
         state.worker_total_elapsed_ms += int(result.worker_total_duration_ms or 0)
-        if progress_session is not None:
-            progress_session.item_completed(
-                _progress_increments_for_filing(result.filing_record),
+        if selection_progress_session is not None:
+            selection_progress_session.item_completed(
+                _progress_increments_for_member(result),
                 last_item=Path(result.member.member_name).name,
             )
+        if result.filing_record is not None:
+            state.parse_task_count += 1
+            state.parsed_result_batch.append(result)
+            if parse_progress_session is not None:
+                parse_progress_session.item_completed(
+                    _progress_increments_for_filing(result.filing_record),
+                    last_item=Path(result.member.member_name).name,
+                )
         if len(state.parsed_result_batch) >= state.persist_batch_size:
             _flush_streaming_parse_result_batch(state)
 
@@ -860,7 +1003,6 @@ def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) 
         archive_metadata_service=state.archive_metadata_service,
         archive_id=state.archive_id,
         parsed_result_batch=state.parsed_result_batch,
-        member_hashes=state.member_hashes,
     )
     state.aggregated_records.extend(ingest_result.get("records") or [])
     state.parsed_count += int(ingest_result.get("parsed_count") or 0)
@@ -880,6 +1022,14 @@ def _streaming_parse_persistence_result(state: _StreamingParsePersistenceState) 
         "artifact_paths": None,
         "nonprofit_persistence": None,
     }
+
+
+def _progress_increments_for_member(result: _ParsedXmlMemberResult) -> dict[str, int]:
+    if result.was_skipped_unchanged:
+        return {"skipped": 1}
+    if result.was_selected:
+        return {"selected": 1}
+    return {}
 
 
 def _progress_increments_for_filing(filing_record: Mapping[str, Any]) -> dict[str, int]:
@@ -1115,13 +1265,34 @@ def _persist_extracted_file_result_batch(
     archive_metadata_service: Any | None,
     archive_id: int | None,
     parsed_result_batch: list[_ParsedXmlMemberResult],
-    member_hashes: Mapping[str, str],
 ) -> int:
     if archive_metadata_service is None or archive_id is None or not parsed_result_batch:
         return 0
     extracted_file_persistence_started_at = time.perf_counter()
     now = datetime.now(timezone.utc)
+    batch_records = [
+        {
+            "filename": result.member.member_name,
+            "content_hash": result.content_hash,
+            "parse_status": str(result.filing_record.get("parse_status") or "parsed").strip() or "parsed",
+            "error_message": _as_text(result.filing_record.get("parse_error")),
+        }
+        for result in parsed_result_batch
+        if result.filing_record is not None
+    ]
+    if not batch_records:
+        return _elapsed_ms(extracted_file_persistence_started_at)
+    batch_upsert = getattr(archive_metadata_service, "upsert_extracted_files_batch", None)
+    if callable(batch_upsert):
+        batch_upsert(
+            archive_id=archive_id,
+            records=batch_records,
+            parsed_at=now,
+        )
+        return _elapsed_ms(extracted_file_persistence_started_at)
     for result in parsed_result_batch:
+        if result.filing_record is None:
+            continue
         member = result.member
         filing = result.filing_record
         parse_status = str(filing.get("parse_status") or "parsed").strip() or "parsed"
@@ -1129,7 +1300,7 @@ def _persist_extracted_file_result_batch(
         archive_metadata_service.upsert_extracted_file(
             archive_id=archive_id,
             filename=member.member_name,
-            content_hash=member_hashes.get(member.member_name),
+            content_hash=result.content_hash,
             parse_status=parse_status,
             parsed_at=now,
             error_message=error_message,
@@ -1174,6 +1345,22 @@ def _as_text(value: Any) -> str | None:
 
 def _hash_local_xml_file(path: str) -> str:
     return hash_local_xml_file(path)
+
+
+def _resolve_form990_persist_batch_size(source_env: Mapping[str, str]) -> int:
+    raw_value = source_env.get("FORM990_PERSIST_BATCH_SIZE")
+    if raw_value is None or str(raw_value).strip() == "":
+        return DEFAULT_FORM990_PERSIST_BATCH_SIZE
+    try:
+        return _clamp_persist_batch_size(int(str(raw_value).strip()))
+    except (TypeError, ValueError):
+        return DEFAULT_FORM990_PERSIST_BATCH_SIZE
+
+
+def _clamp_persist_batch_size(value: int | None) -> int:
+    if value is None:
+        return DEFAULT_FORM990_PERSIST_BATCH_SIZE
+    return max(1, min(MAX_FORM990_PERSIST_BATCH_SIZE, int(value)))
 
 
 def _log_structured(event: str, **fields: Any) -> None:

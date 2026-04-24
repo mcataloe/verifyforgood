@@ -241,6 +241,14 @@ class SqlAlchemyNonprofitRepository:
             model = session.scalar(select(NonprofitModel).where(NonprofitModel.ein == _normalize_ein(ein)).limit(1))
             return None if model is None else _nonprofit_record(model)
 
+    def list_nonprofits_by_eins(self, eins: list[str]) -> list[NonprofitRecord]:
+        normalized_eins = sorted({_normalize_ein(ein) for ein in eins if _normalize_ein(ein)})
+        if not normalized_eins:
+            return []
+        with nonprofit_session_scope(self._session_factory) as session:
+            statement = select(NonprofitModel).where(NonprofitModel.ein.in_(normalized_eins))
+            return [_nonprofit_record(model) for model in session.scalars(statement).all()]
+
     def get_nonprofit_snapshot_by_ein(self, ein: str) -> dict[str, Any] | None:
         latest_filing = _latest_filing_subquery()
         with nonprofit_session_scope(self._session_factory) as session:
@@ -381,10 +389,13 @@ class SqlAlchemyNonprofitRepository:
             nonprofit_upsert_duration_ms = _elapsed_ms(perf_counter() - nonprofit_started_at)
 
             filing_started_at = perf_counter()
-            filing_values = [
-                _filing_values(replace(filing, nonprofit_id=nonprofit_ids[nonprofit.ein]))
-                for nonprofit, filing in normalized_pairs
-            ]
+            filing_values = _dedupe_batch_values(
+                [
+                    _filing_values(replace(filing, nonprofit_id=nonprofit_ids[nonprofit.ein]))
+                    for nonprofit, filing in normalized_pairs
+                ],
+                key_columns=["nonprofit_id", "tax_year", "form_type", "filing_date", "source_name"],
+            )
             _execute_upsert_many(
                 session,
                 NonprofitFilingModel,
@@ -400,6 +411,26 @@ class SqlAlchemyNonprofitRepository:
             nonprofit_upsert_duration_ms=nonprofit_upsert_duration_ms,
             filing_upsert_duration_ms=filing_upsert_duration_ms,
         )
+
+    def list_filings_by_identity(
+        self,
+        identities: list[tuple[int, int | None, str, str | None, str | None]],
+    ) -> list[NonprofitFilingRecord]:
+        if not identities:
+            return []
+        predicates = [
+            and_(
+                NonprofitFilingModel.nonprofit_id == nonprofit_id,
+                NonprofitFilingModel.tax_year == tax_year,
+                NonprofitFilingModel.form_type == _normalize_optional_text(form_type),
+                NonprofitFilingModel.filing_date == _parse_date(filing_date),
+                NonprofitFilingModel.source_name == _normalize_optional_text(source_name),
+            )
+            for nonprofit_id, tax_year, form_type, filing_date, source_name in identities
+        ]
+        with nonprofit_session_scope(self._session_factory) as session:
+            statement = select(NonprofitFilingModel).where(or_(*predicates))
+            return [_filing_record(model) for model in session.scalars(statement).all()]
 
     def list_filings_for_nonprofit(self, nonprofit_id: int, *, limit: int | None = None) -> list[NonprofitFilingRecord]:
         with nonprofit_session_scope(self._session_factory) as session:
@@ -542,6 +573,23 @@ class SqlAlchemyNonprofitRepository:
             )
             assert model is not None
         return _source_record(model)
+
+    def upsert_sources_batch(self, records: list[NonprofitSourceRecord]) -> int:
+        if not records:
+            return 0
+        normalized_records = [_normalized_source_record(record) for record in records]
+        with nonprofit_session_scope(self._session_factory) as session:
+            _execute_upsert_many(
+                session,
+                NonprofitSourceModel,
+                values=_dedupe_batch_values(
+                    [_source_values(record) for record in normalized_records],
+                    key_columns=["nonprofit_id", "source_id", "record_id", "retrieved_at"],
+                ),
+                conflict_columns=["nonprofit_id", "source_id", "record_id", "retrieved_at"],
+                update_columns=list(_source_update_values(normalized_records[0]).keys()),
+            )
+        return len(normalized_records)
 
     def list_sources_for_nonprofit(
         self,
@@ -804,6 +852,40 @@ class SqlAlchemyNonprofitRepository:
             )
             assert model is not None
         return _extracted_file_record(model)
+
+    def upsert_extracted_files_batch(self, records: list[Form990ExtractedFileRecord]) -> int:
+        if not records:
+            return 0
+        normalized_records = [_normalized_extracted_file_record(record) for record in records]
+        with nonprofit_session_scope(self._session_factory) as session:
+            _execute_upsert_many(
+                session,
+                Form990ExtractedFileModel,
+                values=_dedupe_batch_values(
+                    [_extracted_file_values(record) for record in normalized_records],
+                    key_columns=["archive_id", "filename"],
+                ),
+                conflict_columns=["archive_id", "filename"],
+                update_columns=list(_extracted_file_update_values(normalized_records[0]).keys()),
+            )
+        return len(normalized_records)
+
+    def upsert_raw_filings_batch(self, records: list[NonprofitRawFilingRecord]) -> int:
+        if not records:
+            return 0
+        normalized_records = [_normalized_raw_filing_record(record) for record in records]
+        with nonprofit_session_scope(self._session_factory) as session:
+            _execute_upsert_many(
+                session,
+                NonprofitRawFilingModel,
+                values=_dedupe_batch_values(
+                    [_raw_filing_values(record) for record in normalized_records],
+                    key_columns=["filing_id", "xml_content_hash"],
+                ),
+                conflict_columns=["filing_id", "xml_content_hash"],
+                update_columns=list(_raw_filing_update_values(normalized_records[0]).keys()),
+            )
+        return len(normalized_records)
 
 def _normalize_ein(ein: str) -> str:
     return "".join(ch for ch in str(ein or "") if ch.isdigit())[:9]
@@ -1501,6 +1583,18 @@ def _execute_upsert_many(
     )
     session.execute(statement)
     session.flush()
+
+
+def _dedupe_batch_values(
+    values: list[dict[str, Any]],
+    *,
+    key_columns: list[str],
+) -> list[dict[str, Any]]:
+    deduped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for value in values:
+        key = tuple(value.get(column) for column in key_columns)
+        deduped[key] = value
+    return list(deduped.values())
 
 
 def _insert_for_session(session: Session):

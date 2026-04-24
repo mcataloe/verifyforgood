@@ -373,6 +373,41 @@ def test_worker_skips_unchanged_xml_files_when_hash_matches():
     monkeypatch.undo()
 
 
+def test_worker_reads_persist_batch_size_from_env(monkeypatch):
+    archive_bytes = _make_zip(("obj-1.xml", _valid_xml()))
+    checksum = hashlib.sha256(archive_bytes).hexdigest()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "verification.backend.ingest.federal.form990.monthly_processing._download_source_archive",
+        lambda source_url: _write_temp_archive(archive_bytes, checksum),
+    )
+
+    def fake_process_form990_archive(**kwargs):
+        captured["persist_batch_size"] = kwargs.get("persist_batch_size")
+        return {
+            "status": "success",
+            "records_processed": 1,
+            "parsed_count": 1,
+            "failed_count": 0,
+            "records": [],
+            "artifact_paths": None,
+            "nonprofit_persistence": None,
+        }
+
+    monkeypatch.setattr(
+        "verification.backend.ingest.federal.form990.monthly_processing.process_form990_archive",
+        fake_process_form990_archive,
+    )
+
+    result = run_form990_monthly_processing_task(
+        env=_worker_env(FORM990_PERSIST_BATCH_SIZE="250"),
+    )
+
+    assert result["status"] == "success"
+    assert captured["persist_batch_size"] == 250
+
+
 def test_process_form990_archive_reports_selection_progress_before_parse_progress(tmp_path):
     metadata_service = FakeArchiveMetadataService()
     archive_bytes = _make_zip(
@@ -722,6 +757,54 @@ def test_process_form990_archive_streams_persistence_before_selection_finishes(t
     assert streaming_observations
     assert streaming_observations[0][0] >= 1
     assert streaming_observations[0][1] >= 1
+
+
+def test_process_form990_archive_reuses_worker_zip_handle_per_thread(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_08C.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="310000001")),
+            ("obj-2.xml", _valid_xml(ein="310000002")),
+            ("obj-3.xml", _valid_xml(ein="310000003")),
+        )
+    )
+    original_zipfile = monthly_processing.zipfile.ZipFile
+    open_count = {"count": 0}
+
+    def counting_zipfile(file, *args, **kwargs):
+        mode = kwargs.get("mode")
+        if mode is None and args:
+            mode = args[0]
+        if mode is None:
+            mode = "r"
+        if mode == "r" and str(file) == str(archive_path):
+            open_count["count"] += 1
+        return original_zipfile(file, *args, **kwargs)
+
+    monkeypatch.setattr(monthly_processing.zipfile, "ZipFile", counting_zipfile)
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "cached-zip-reader"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "cached-zip-job",
+            "correlation_id": "cached-zip-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_08c",
+            source_signature="sig-8c",
+            source_filename="2026_TEOS_XML_08C.zip",
+        ),
+        xml_parser_workers=1,
+    )
+
+    assert result["status"] == "success"
+    assert result["parsed_count"] == 3
+    assert open_count["count"] == 2
 
 
 def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):

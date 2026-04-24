@@ -126,6 +126,31 @@ class Form990ArchiveMetadataService:
         )
         return self._repository.upsert_extracted_file(record)
 
+    def upsert_extracted_files_batch(
+        self,
+        *,
+        archive_id: int,
+        records: list[dict[str, object]],
+        parsed_at: datetime | None = None,
+    ) -> int:
+        now_iso = _format_timestamp(parsed_at or datetime.now(timezone.utc))
+        batch_records = [
+            Form990ExtractedFileRecord(
+                file_id=None,
+                archive_id=archive_id,
+                filename=str(record.get("filename") or "").strip(),
+                content_hash=str(record.get("content_hash") or "").strip() or None,
+                parse_status=str(record.get("parse_status") or "").strip() or None,
+                parsed_at=now_iso,
+                error_message=str(record.get("error_message") or "").strip() or None,
+                created_at=now_iso,
+                updated_at=now_iso,
+            )
+            for record in records
+            if str(record.get("filename") or "").strip()
+        ]
+        return self._repository.upsert_extracted_files_batch(batch_records)
+
     def mark_archive_processing_completed(
         self,
         archive_id: int,

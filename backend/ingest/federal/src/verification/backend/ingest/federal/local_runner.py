@@ -15,6 +15,7 @@ from typing import Any, Mapping
 from verification.backend.ingest.federal.form990.hardening import retry_call, is_transient_network_error
 from verification.backend.ingest.federal.form990.irs_page_discovery import discover_irs_form990_sources
 from verification.backend.ingest.federal.form990.monthly_processing import (
+    DEFAULT_FORM990_PERSIST_BATCH_SIZE,
     MonthlyIngestSourceObject,
     process_form990_archive,
 )
@@ -51,6 +52,7 @@ class LocalIngestRunConfig:
     workspace: str | None = None
     limit: int | None = None
     xml_parser_workers: int = 1
+    persist_batch_size: int = DEFAULT_FORM990_PERSIST_BATCH_SIZE
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
 
@@ -167,6 +169,7 @@ def build_local_ingest_run_config(
         workspace=workspace or _env_text(source_env, "FORM990_WORKSPACE_DIR") or None,
         limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
         xml_parser_workers=_resolve_xml_parser_workers(source_env, override=xml_parser_workers),
+        persist_batch_size=_resolve_persist_batch_size(source_env),
         log_level=resolved_log_level,
         log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
@@ -229,6 +232,13 @@ def run_local_form990_ingest_config(
         component="form990.cli",
         level="INFO",
         message=f"resolved xml parser workers={config.xml_parser_workers}",
+        archive="",
+        file_name="",
+    )
+    logger.log(
+        component="form990.cli",
+        level="INFO",
+        message=f"resolved persist batch size={config.persist_batch_size}",
         archive="",
         file_name="",
     )
@@ -356,6 +366,7 @@ def run_local_form990_ingest_config(
                 ),
                 progress_reporter=progress_reporter,
                 xml_parser_workers=config.xml_parser_workers,
+                persist_batch_size=config.persist_batch_size,
             )
             logger.log(
                 component="form990.archive",
@@ -710,6 +721,13 @@ def _resolve_xml_parser_workers(source_env: Mapping[str, str], *, override: int 
         return max(1, configured)
     available_cpu = _available_cpu_count()
     return min(DEFAULT_MAX_XML_PARSER_WORKERS, max(1, available_cpu - 1))
+
+
+def _resolve_persist_batch_size(source_env: Mapping[str, str]) -> int:
+    configured = _env_optional_int(source_env, "FORM990_PERSIST_BATCH_SIZE")
+    if configured is None:
+        return DEFAULT_FORM990_PERSIST_BATCH_SIZE
+    return max(1, min(1000, configured))
 
 
 def _available_cpu_count() -> int:

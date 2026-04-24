@@ -45,10 +45,6 @@ class Form990NonprofitPersistenceService:
         persisted_at: datetime | None = None,
         progress_session: ProgressSession | None = None,
     ) -> Form990PersistenceStats:
-        written_nonprofits: set[int] = set()
-        nonprofits_upserted = 0
-        filings_upserted = 0
-        sources_upserted = 0
         skipped_records = 0
         persisted_at_iso = _format_timestamp(persisted_at or datetime.now(timezone.utc))
         raw_filing_lookup = {
@@ -56,20 +52,45 @@ class Form990NonprofitPersistenceService:
             for item in (canonical_raw_filing_records or [])
             if _canonical_raw_lookup_key(item) is not None
         }
+        prepared_entries: list[dict[str, Any]] = []
 
         for filing in filing_records:
             ein = _normalize_ein(filing.get("ein"))
             if not ein:
+                prepared_entries.append({"kind": "skipped"})
                 skipped_records += 1
-                if progress_session is not None:
-                    progress_session.item_completed({"skipped_records": 1})
                 continue
+            prepared_entries.append({"kind": "filing", "ein": ein, "filing": filing})
 
-            existing = self._repository.get_nonprofit_by_ein(ein)
-            nonprofit_id = existing.nonprofit_id if existing is not None else None
-            if nonprofit_id is None or nonprofit_id not in written_nonprofits:
+        active_entries = [entry for entry in prepared_entries if entry["kind"] == "filing"]
+        if not active_entries:
+            if progress_session is not None:
+                for entry in prepared_entries:
+                    if entry["kind"] == "skipped":
+                        progress_session.item_completed({"skipped_records": 1})
+            return Form990PersistenceStats(
+                nonprofits_upserted=0,
+                filings_upserted=0,
+                sources_upserted=0,
+                skipped_records=skipped_records,
+            )
+
+        unique_eins = list(dict.fromkeys(str(entry["ein"]) for entry in active_entries))
+        existing_nonprofits = {
+            record.ein: record
+            for record in self._repository.list_nonprofits_by_eins(unique_eins)
+        }
+        nonprofit_records_by_ein: dict[str, NonprofitRecord] = {}
+        batch_pairs: list[tuple[NonprofitRecord, NonprofitFilingRecord]] = []
+
+        for entry in active_entries:
+            filing = entry["filing"]
+            ein = str(entry["ein"])
+            existing = existing_nonprofits.get(ein)
+            nonprofit_record = nonprofit_records_by_ein.get(ein)
+            if nonprofit_record is None:
                 nonprofit_record = NonprofitRecord(
-                    nonprofit_id=nonprofit_id,
+                    nonprofit_id=existing.nonprofit_id if existing is not None else None,
                     ein=ein,
                     canonical_name=(existing.canonical_name if existing else None) or f"EIN {ein}",
                     normalized_name=(existing.normalized_name if existing else None) or f"ein {ein}",
@@ -88,47 +109,102 @@ class Form990NonprofitPersistenceService:
                     created_at=existing.created_at if existing else persisted_at_iso,
                     updated_at=persisted_at_iso,
                 )
-                persisted_nonprofit = self._repository.upsert_nonprofit(nonprofit_record)
-                nonprofit_id = persisted_nonprofit.nonprofit_id
-                if nonprofit_id is None:
-                    skipped_records += 1
-                    if progress_session is not None:
-                        progress_session.item_completed({"skipped_records": 1})
-                    continue
-                written_nonprofits.add(nonprofit_id)
-                nonprofits_upserted += 1
-            assert nonprofit_id is not None
+                nonprofit_records_by_ein[ein] = nonprofit_record
+            batch_pairs.append(
+                (
+                    nonprofit_record,
+                    _to_filing_record(existing.nonprofit_id if existing is not None else 0, filing, persisted_at_iso),
+                )
+            )
 
-            persisted_filing = self._repository.upsert_filing(_to_filing_record(nonprofit_id, filing, persisted_at_iso))
-            filings_upserted += 1
+        batch_stats = self._repository.upsert_nonprofits_and_filings_batch(batch_pairs)
+        resolved_nonprofits = {
+            record.ein: record
+            for record in self._repository.list_nonprofits_by_eins(unique_eins)
+        }
 
+        filing_identities = []
+        for entry in active_entries:
+            filing = entry["filing"]
+            nonprofit = resolved_nonprofits[str(entry["ein"])]
+            filing_identities.append(
+                _filing_identity(
+                    nonprofit_id=nonprofit.nonprofit_id,
+                    filing_record=_to_filing_record(nonprofit.nonprofit_id, filing, persisted_at_iso),
+                )
+            )
+        persisted_filings = {
+            _filing_record_identity(record): record
+            for record in self._repository.list_filings_by_identity(filing_identities)
+        }
+
+        raw_filing_batch: list[NonprofitRawFilingRecord] = []
+        source_batch: list[NonprofitSourceRecord] = []
+        for entry in active_entries:
+            filing = entry["filing"]
+            nonprofit = resolved_nonprofits[str(entry["ein"])]
+            filing_identity = _filing_identity(
+                nonprofit_id=nonprofit.nonprofit_id,
+                filing_record=_to_filing_record(nonprofit.nonprofit_id, filing, persisted_at_iso),
+            )
+            persisted_filing = persisted_filings.get(filing_identity)
+            if persisted_filing is None:
+                continue
             raw_filing_payload = raw_filing_lookup.get(_filing_lookup_key(filing))
             if raw_filing_payload is not None:
-                self._repository.upsert_raw_filing(
+                raw_filing_batch.append(
                     _to_raw_filing_record(
-                        nonprofit_id,
+                        nonprofit.nonprofit_id,
                         persisted_filing.filing_id,
                         raw_filing_payload,
                         persisted_at_iso,
                     )
                 )
-
             parse_status = str(filing.get("parse_status") or "").strip().lower()
-            if parse_status in IGNORED_PARSE_STATUSES:
-                if progress_session is not None:
+            if parse_status not in IGNORED_PARSE_STATUSES:
+                source_batch.append(_to_source_record(nonprofit.nonprofit_id, filing, persisted_at_iso))
+
+        if raw_filing_batch:
+            self._repository.upsert_raw_filings_batch(raw_filing_batch)
+        sources_upserted = self._repository.upsert_sources_batch(source_batch)
+
+        if progress_session is not None:
+            for entry in prepared_entries:
+                if entry["kind"] == "skipped":
+                    progress_session.item_completed({"skipped_records": 1})
+                    continue
+                parse_status = str(entry["filing"].get("parse_status") or "").strip().lower()
+                if parse_status in IGNORED_PARSE_STATUSES:
                     progress_session.item_completed({"filings_upserted": 1})
-                continue
-            self._repository.upsert_source(_to_source_record(nonprofit_id, filing, persisted_at_iso))
-            sources_upserted += 1
-            if progress_session is not None:
-                progress_session.item_completed({"filings_upserted": 1, "sources_upserted": 1})
+                else:
+                    progress_session.item_completed({"filings_upserted": 1, "sources_upserted": 1})
 
         return Form990PersistenceStats(
-            nonprofits_upserted=nonprofits_upserted,
-            filings_upserted=filings_upserted,
+            nonprofits_upserted=batch_stats.nonprofits_upserted,
+            filings_upserted=batch_stats.filings_upserted,
             sources_upserted=sources_upserted,
             skipped_records=skipped_records,
         )
+
+
+def _filing_identity(*, nonprofit_id: int, filing_record: NonprofitFilingRecord) -> tuple[int, int | None, str, str | None, str | None]:
+    return (
+        nonprofit_id,
+        filing_record.tax_year,
+        filing_record.form_type,
+        filing_record.filing_date,
+        filing_record.source_name,
+    )
+
+
+def _filing_record_identity(record: NonprofitFilingRecord) -> tuple[int, int | None, str, str | None, str | None]:
+    return (
+        record.nonprofit_id,
+        record.tax_year,
+        record.form_type,
+        record.filing_date,
+        record.source_name,
+    )
 
 
 def _to_filing_record(nonprofit_id: int, filing: dict[str, Any], persisted_at_iso: str) -> NonprofitFilingRecord:
