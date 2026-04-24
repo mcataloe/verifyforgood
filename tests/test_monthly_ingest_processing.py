@@ -482,12 +482,20 @@ def test_process_form990_archive_logs_split_persistence_stage_timings(tmp_path, 
     assert stage_event["total_duration_ms"] >= 0
     assert stage_event["unzip_duration_ms"] >= 0
     assert stage_event["selection_duration_ms"] >= 0
+    assert stage_event["hash_duration_ms"] >= 0
     assert stage_event["parse_duration_ms"] >= 0
     assert stage_event["nonprofit_persistence_duration_ms"] >= 0
     assert stage_event["extracted_file_metadata_duration_ms"] >= 0
     assert stage_event["persistence_duration_ms"] == (
         stage_event["nonprofit_persistence_duration_ms"] + stage_event["extracted_file_metadata_duration_ms"]
     )
+    assert stage_event["parse_wait_duration_ms"] >= 0
+    assert stage_event["worker_read_duration_ms"] >= 0
+    assert stage_event["worker_parse_duration_ms"] >= 0
+    assert stage_event["worker_total_duration_ms"] >= 0
+    assert stage_event["persist_batch_count"] == 1
+    assert stage_event["average_persist_batch_size"] == 1.0
+    assert stage_event["max_persist_batch_size"] == 1
     assert stage_event["parsed_count"] == 1
     assert stage_event["failed_count"] == 0
     assert stage_event["selected_member_count"] == 1

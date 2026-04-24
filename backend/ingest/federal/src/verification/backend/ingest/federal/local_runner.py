@@ -64,6 +64,13 @@ class Form990RunContext:
     triggered_at: str | None = None
 
 
+@dataclass(frozen=True)
+class _LocalArchiveProbePreparation:
+    archive_record: Any | None
+    should_process: bool
+    reason: str | None = None
+
+
 class _ConsoleStructuredLogger:
     _LEVELS = {
         "DEBUG": 10,
@@ -218,6 +225,13 @@ def run_local_form990_ingest_config(
         archive="",
         file_name="",
     )
+    logger.log(
+        component="form990.cli",
+        level="INFO",
+        message=f"resolved xml parser workers={config.xml_parser_workers}",
+        archive="",
+        file_name="",
+    )
 
     run_context = _resolve_form990_run_context(source_env)
     started_at = datetime.now(timezone.utc)
@@ -243,6 +257,7 @@ def run_local_form990_ingest_config(
     parsed_count = 0
     failed_record_count = 0
     filing_summaries: list[dict[str, Any]] = []
+    force_archive_reprocess = _env_bool(source_env, "FORM990_FORCE_ARCHIVE_REPROCESS", default=False)
     for artifact in zip_artifacts:
         archive_name = artifact.source_archive_key
         archive_workspace = layout.for_archive(archive_name).ensure()
@@ -256,13 +271,29 @@ def run_local_form990_ingest_config(
                 archive=archive_name,
             )
             if archive_metadata_service is not None:
-                archive_record = _prepare_archive_metadata_record(
+                archive_probe_preparation = _prepare_archive_metadata_record(
                     archive_metadata_service=archive_metadata_service,
                     artifact=artifact,
                     logger=logger,
                     archive_name=archive_name,
                     checked_at=archive_started_at,
                 )
+                archive_record = archive_probe_preparation.archive_record
+                if not archive_probe_preparation.should_process and not force_archive_reprocess:
+                    logger.log(
+                        component="form990.archive",
+                        level="INFO",
+                        message=f"archive unchanged by probe reason={archive_probe_preparation.reason}; skipping local processing",
+                        archive=archive_name,
+                    )
+                    continue
+                if not archive_probe_preparation.should_process and force_archive_reprocess:
+                    logger.log(
+                        component="form990.archive",
+                        level="INFO",
+                        message=f"archive unchanged by probe reason={archive_probe_preparation.reason}; forcing local reprocess",
+                        archive=archive_name,
+                    )
             logger.log(
                 component="form990.archive",
                 level="DEBUG",
@@ -500,7 +531,7 @@ def _prepare_archive_metadata_record(
     logger: _ConsoleStructuredLogger,
     archive_name: str,
     checked_at: datetime,
-) -> Any:
+) -> _LocalArchiveProbePreparation:
     source_url = str(getattr(artifact, "source_url", "") or "").strip()
     filename = getattr(artifact, "source_filename", None)
     if source_url.startswith(("http://", "https://")):
@@ -511,14 +542,11 @@ def _prepare_archive_metadata_record(
                 filename=filename,
                 probe=probe,
             )
-            if not outcome.should_process:
-                logger.log(
-                    component="form990.archive",
-                    level="DEBUG",
-                    message=f"archive probe marked unchanged reason={outcome.reason}; continuing local processing",
-                    archive=archive_name,
-                )
-            return outcome.archive
+            return _LocalArchiveProbePreparation(
+                archive_record=outcome.archive,
+                should_process=bool(outcome.should_process),
+                reason=str(outcome.reason or "").strip() or None,
+            )
         except Exception as exc:
             logger.log(
                 component="form990.archive",
@@ -527,10 +555,13 @@ def _prepare_archive_metadata_record(
                 archive=archive_name,
                 error=exc,
             )
-    return archive_metadata_service.ensure_archive_record(
-        source_url=source_url,
-        filename=filename,
-        checked_at=checked_at,
+    return _LocalArchiveProbePreparation(
+        archive_record=archive_metadata_service.ensure_archive_record(
+            source_url=source_url,
+            filename=filename,
+            checked_at=checked_at,
+        ),
+        should_process=True,
     )
 
 

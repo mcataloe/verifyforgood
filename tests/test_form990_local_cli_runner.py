@@ -25,6 +25,8 @@ class FakeS3:
 class FakeArchiveMetadataService:
     def __init__(self):
         self.archive = SimpleNamespace(archive_id=41, filename="archive.zip")
+        self.should_process = True
+        self.reason = "etag_changed"
         self.record_archive_probe_calls: list[dict[str, object]] = []
         self.ensure_archive_record_calls: list[dict[str, object]] = []
         self.mark_archive_processing_completed_calls: list[dict[str, object]] = []
@@ -35,7 +37,11 @@ class FakeArchiveMetadataService:
             {"source_url": source_url, "filename": filename, "probe": probe}
         )
         self.archive.filename = filename
-        return SimpleNamespace(archive=self.archive, should_process=True, reason="etag_changed")
+        return SimpleNamespace(
+            archive=self.archive,
+            should_process=self.should_process,
+            reason=self.reason,
+        )
 
     def ensure_archive_record(self, *, source_url, filename, checked_at, status="pending"):
         self.ensure_archive_record_calls.append(
@@ -236,6 +242,37 @@ def test_cli_passes_xml_parser_worker_count_to_archive_processing(tmp_path, monk
     assert captured["xml_parser_workers"] == 3
 
 
+def test_cli_logs_resolved_xml_parser_worker_count(tmp_path, monkeypatch, capsys):
+    archive_path = tmp_path / "2026_TEOS_XML_02EA.zip"
+    archive_path.write_bytes(_make_zip(("obj-1.xml", b"<Return/>")))
+
+    def fake_process_form990_archive(**kwargs):
+        return {
+            "status": "success",
+            "records_processed": 1,
+            "parsed_count": 1,
+            "failed_count": 0,
+        }
+
+    _configure_local_runner(monkeypatch)
+    monkeypatch.setattr(local_runner, "process_form990_archive", fake_process_form990_archive)
+
+    exit_code = local_runner.run_local_form990_ingest(
+        archive_url=archive_path.resolve().as_uri(),
+        single_archive=False,
+        strict=False,
+        keep_temp=False,
+        workspace=str(tmp_path / "workspace"),
+        limit=None,
+        env={"FORM990_XML_PARSER_WORKERS": "12"},
+    )
+
+    assert exit_code == 0
+    logged = capsys.readouterr().out
+    assert '"component": "form990.cli"' in logged
+    assert '"message": "resolved xml parser workers=12"' in logged
+
+
 def test_cli_records_archive_probe_and_marks_completion_for_http_sources(tmp_path, monkeypatch):
     archive_bytes = _make_zip(("obj-1.xml", b"<Return/>"))
     metadata_service = FakeArchiveMetadataService()
@@ -289,6 +326,119 @@ def test_cli_records_archive_probe_and_marks_completion_for_http_sources(tmp_pat
     assert captured["archive_record"] is metadata_service.archive
     assert len(metadata_service.mark_archive_processing_completed_calls) == 1
     assert metadata_service.mark_archive_processing_failed_calls == []
+
+
+def test_cli_skips_unchanged_archive_by_default_after_probe(tmp_path, monkeypatch, capsys):
+    metadata_service = FakeArchiveMetadataService()
+    metadata_service.should_process = False
+    metadata_service.reason = "unchanged_archive"
+
+    download_calls: list[dict[str, object]] = []
+    process_calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(local_runner, "_build_archive_metadata_service", lambda env, logger: metadata_service)
+    monkeypatch.setattr(local_runner, "build_form990_nonprofit_persistence_service", lambda env=None: None)
+    monkeypatch.setattr(
+        local_runner,
+        "_download_archive_to_path",
+        lambda **kwargs: download_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        local_runner,
+        "process_form990_archive",
+        lambda **kwargs: process_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        local_runner,
+        "probe_archive_metadata",
+        lambda source_url: SimpleNamespace(
+            source_url=source_url,
+            resolved_source_url=source_url,
+            etag='"etag-43"',
+            normalized_etag="etag-43",
+            last_modified="Thu, 24 Apr 2026 00:00:00 GMT",
+            content_length=5555,
+            response_status=200,
+            checked_at="2026-04-24T00:00:00+00:00",
+            method_used="HEAD",
+        ),
+    )
+
+    exit_code = local_runner.run_local_form990_ingest(
+        archive_url="https://example.org/2026_TEOS_XML_02H.zip",
+        single_archive=False,
+        strict=False,
+        keep_temp=False,
+        workspace=str(tmp_path / "workspace"),
+        limit=None,
+        env={},
+    )
+
+    assert exit_code == 0
+    assert len(metadata_service.record_archive_probe_calls) == 1
+    assert download_calls == []
+    assert process_calls == []
+    assert metadata_service.mark_archive_processing_completed_calls == []
+    assert metadata_service.mark_archive_processing_failed_calls == []
+    logged = capsys.readouterr().out
+    assert '"message": "archive unchanged by probe reason=unchanged_archive; skipping local processing"' in logged
+
+
+def test_cli_force_archive_reprocess_overrides_unchanged_probe(tmp_path, monkeypatch, capsys):
+    archive_bytes = _make_zip(("obj-1.xml", b"<Return/>"))
+    metadata_service = FakeArchiveMetadataService()
+    metadata_service.should_process = False
+    metadata_service.reason = "unchanged_archive"
+    process_calls: list[dict[str, object]] = []
+
+    def fake_download_archive_to_path(*, url, destination, timeout_seconds):
+        destination.write_bytes(archive_bytes)
+
+    def fake_process_form990_archive(**kwargs):
+        process_calls.append(kwargs)
+        return {
+            "status": "success",
+            "records_processed": 1,
+            "parsed_count": 1,
+            "failed_count": 0,
+        }
+
+    monkeypatch.setattr(local_runner, "_build_archive_metadata_service", lambda env, logger: metadata_service)
+    monkeypatch.setattr(local_runner, "build_form990_nonprofit_persistence_service", lambda env=None: None)
+    monkeypatch.setattr(local_runner, "_download_archive_to_path", fake_download_archive_to_path)
+    monkeypatch.setattr(local_runner, "process_form990_archive", fake_process_form990_archive)
+    monkeypatch.setattr(
+        local_runner,
+        "probe_archive_metadata",
+        lambda source_url: SimpleNamespace(
+            source_url=source_url,
+            resolved_source_url=source_url,
+            etag='"etag-44"',
+            normalized_etag="etag-44",
+            last_modified="Thu, 24 Apr 2026 00:00:00 GMT",
+            content_length=6666,
+            response_status=200,
+            checked_at="2026-04-24T00:00:00+00:00",
+            method_used="HEAD",
+        ),
+    )
+
+    exit_code = local_runner.run_local_form990_ingest(
+        archive_url="https://example.org/2026_TEOS_XML_02I.zip",
+        single_archive=False,
+        strict=False,
+        keep_temp=False,
+        workspace=str(tmp_path / "workspace"),
+        limit=None,
+        env={"FORM990_FORCE_ARCHIVE_REPROCESS": "true"},
+    )
+
+    assert exit_code == 0
+    assert len(metadata_service.record_archive_probe_calls) == 1
+    assert len(process_calls) == 1
+    assert len(metadata_service.mark_archive_processing_completed_calls) == 1
+    logged = capsys.readouterr().out
+    assert '"message": "archive unchanged by probe reason=unchanged_archive; forcing local reprocess"' in logged
 
 
 def test_cli_marks_archive_failed_when_processing_raises_after_probe(tmp_path, monkeypatch):

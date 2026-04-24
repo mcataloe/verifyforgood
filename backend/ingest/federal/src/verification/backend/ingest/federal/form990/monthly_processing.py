@@ -95,6 +95,9 @@ class _ParsedXmlMemberResult:
     filing_record: dict[str, Any]
     relationship_records: tuple[dict[str, Any], ...] = ()
     canonical_raw_filing_record: dict[str, Any] | None = None
+    worker_read_duration_ms: int = 0
+    worker_parse_duration_ms: int = 0
+    worker_total_duration_ms: int = 0
 
 
 @dataclass
@@ -112,6 +115,12 @@ class _StreamingParsePersistenceState:
     records_processed: int = 0
     nonprofit_persistence_elapsed_ms: int = 0
     extracted_file_metadata_elapsed_ms: int = 0
+    worker_read_elapsed_ms: int = 0
+    worker_parse_elapsed_ms: int = 0
+    worker_total_elapsed_ms: int = 0
+    parse_wait_elapsed_ms: int = 0
+    persist_batch_count: int = 0
+    max_persist_batch_size: int = 0
 
 
 def run_form990_monthly_processing_task(
@@ -431,6 +440,7 @@ def process_form990_archive(
 
     unzip_duration_seconds = 0.0
     selection_duration_seconds = 0.0
+    hash_duration_seconds = 0.0
     skipped_unchanged_members = 0
     extracted_members: list[LocalExtractedXmlMember] = []
     selected_members: list[LocalExtractedXmlMember] = []
@@ -491,7 +501,9 @@ def process_form990_archive(
                     unzip_duration_seconds += time.perf_counter() - extract_started_at
                     extracted_members.append(extracted_member)
                     selection_started_at = time.perf_counter()
+                    hash_started_at = time.perf_counter()
                     content_hash = hash_local_xml_file(extracted_member.local_path)
+                    hash_duration_seconds += time.perf_counter() - hash_started_at
                     member_hashes[extracted_member.member_name] = content_hash
                     existing = existing_extracted_files_by_name.get(extracted_member.member_name)
                     if existing is not None and str(getattr(existing, "content_hash", "") or "").strip() == content_hash:
@@ -549,6 +561,7 @@ def process_form990_archive(
             parse_progress_session.complete()
     unzip_elapsed_ms = int(unzip_duration_seconds * 1000)
     selection_elapsed_ms = int(selection_duration_seconds * 1000)
+    hash_elapsed_ms = int(hash_duration_seconds * 1000)
     _log_structured(
         "monthly_ingest.worker.extracted",
         job_id=context.job_id,
@@ -601,17 +614,28 @@ def process_form990_archive(
     persistence_elapsed_ms = nonprofit_persistence_elapsed_ms + extracted_file_metadata_elapsed_ms
     parse_files_per_second = _items_per_second(int(ingest_result.get("parsed_count") or 0), parse_elapsed_ms)
     persist_records_per_second = _items_per_second(int(ingest_result.get("records_processed") or 0), persistence_elapsed_ms)
+    worker_parallelism_ratio = _ratio(state=parse_persistence_state.worker_total_elapsed_ms, total=parse_elapsed_ms)
+    average_persist_batch_size = _ratio(
+        state=int(ingest_result.get("records_processed") or 0),
+        total=parse_persistence_state.persist_batch_count,
+    )
     _log_structured(
         "monthly_ingest.worker.stage_timings",
-        level=logging.DEBUG,
+        level=logging.INFO,
         job_id=context.job_id,
         archive_path=archive_path,
         unzip_duration_ms=unzip_elapsed_ms,
         selection_duration_ms=selection_elapsed_ms,
+        hash_duration_ms=hash_elapsed_ms,
         parse_duration_ms=parse_elapsed_ms,
         nonprofit_persistence_duration_ms=nonprofit_persistence_elapsed_ms,
         extracted_file_metadata_duration_ms=extracted_file_metadata_elapsed_ms,
         persistence_duration_ms=persistence_elapsed_ms,
+        parse_wait_duration_ms=parse_persistence_state.parse_wait_elapsed_ms,
+        worker_read_duration_ms=parse_persistence_state.worker_read_elapsed_ms,
+        worker_parse_duration_ms=parse_persistence_state.worker_parse_elapsed_ms,
+        worker_total_duration_ms=parse_persistence_state.worker_total_elapsed_ms,
+        worker_parallelism_ratio=worker_parallelism_ratio,
         total_duration_ms=total_elapsed_ms,
         extracted_member_count=len(extracted_members),
         selected_member_count=len(selected_members),
@@ -620,6 +644,9 @@ def process_form990_archive(
         skipped_unchanged_member_count=skipped_unchanged_members,
         parse_files_per_second=parse_files_per_second,
         persist_records_per_second=persist_records_per_second,
+        persist_batch_count=parse_persistence_state.persist_batch_count,
+        average_persist_batch_size=average_persist_batch_size,
+        max_persist_batch_size=parse_persistence_state.max_persist_batch_size,
         xml_parser_workers=parser_workers,
     )
     return {
@@ -711,6 +738,9 @@ def _parse_local_xml_parse_task(
     task: _LocalXmlParseTask,
     xml_error_handler: Callable[[str | None, Exception, str], None] | None,
 ) -> _ParsedXmlMemberResult:
+    task_started_at = time.perf_counter()
+    read_duration_ms = 0
+    parse_duration_ms = 0
     try:
         record_error_handler = (
             (lambda record, exc, status: _notify_xml_error(record=record, exc=exc, status=status, handler=xml_error_handler))
@@ -718,7 +748,10 @@ def _parse_local_xml_parse_task(
             else None
         )
         try:
+            read_started_at = time.perf_counter()
             xml_bytes = Path(task.member.local_path).read_bytes()
+            read_duration_ms = _elapsed_ms(read_started_at)
+            parse_started_at = time.perf_counter()
             parsed_record = parse_form990_record_xml(
                 task.record,
                 xml_bytes=xml_bytes,
@@ -726,13 +759,18 @@ def _parse_local_xml_parse_task(
                 xml_content_hash=task.xml_content_hash,
                 record_error_handler=record_error_handler,
             )
+            parse_duration_ms = _elapsed_ms(parse_started_at)
             return _ParsedXmlMemberResult(
                 member=task.member,
                 filing_record=parsed_record.filing_record,
                 relationship_records=parsed_record.relationship_records,
                 canonical_raw_filing_record=parsed_record.canonical_raw_filing_record,
+                worker_read_duration_ms=read_duration_ms,
+                worker_parse_duration_ms=parse_duration_ms,
+                worker_total_duration_ms=_elapsed_ms(task_started_at),
             )
         except Exception as exc:
+            parse_duration_ms = _elapsed_ms(task_started_at) - read_duration_ms
             if record_error_handler is not None:
                 record_error_handler(task.record, exc, Form990ParseStatus.PARSE_ERROR.value)
             return _ParsedXmlMemberResult(
@@ -751,6 +789,9 @@ def _parse_local_xml_parse_task(
                     parse_status=Form990ParseStatus.PARSE_ERROR,
                     parse_error=str(exc),
                 ).to_dict(),
+                worker_read_duration_ms=max(read_duration_ms, 0),
+                worker_parse_duration_ms=max(parse_duration_ms, 0),
+                worker_total_duration_ms=_elapsed_ms(task_started_at),
             )
     finally:
         _delete_local_xml_file(task.member.local_path)
@@ -772,7 +813,9 @@ def _drain_completed_parse_futures(
     if not parse_futures:
         return
     if wait_for_completion:
+        wait_started_at = time.perf_counter()
         completed_futures, _ = wait(parse_futures, return_when=FIRST_COMPLETED)
+        state.parse_wait_elapsed_ms += _elapsed_ms(wait_started_at)
     else:
         completed_futures = {future for future in parse_futures if future.done()}
         if not completed_futures:
@@ -781,6 +824,9 @@ def _drain_completed_parse_futures(
         parse_futures.discard(future)
         result = future.result()
         state.parsed_result_batch.append(result)
+        state.worker_read_elapsed_ms += int(result.worker_read_duration_ms or 0)
+        state.worker_parse_elapsed_ms += int(result.worker_parse_duration_ms or 0)
+        state.worker_total_elapsed_ms += int(result.worker_total_duration_ms or 0)
         if progress_session is not None:
             progress_session.item_completed(
                 _progress_increments_for_filing(result.filing_record),
@@ -793,6 +839,9 @@ def _drain_completed_parse_futures(
 def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) -> None:
     if not state.parsed_result_batch:
         return
+    batch_size = len(state.parsed_result_batch)
+    state.persist_batch_count += 1
+    state.max_persist_batch_size = max(state.max_persist_batch_size, batch_size)
     nonprofit_persistence_started_at = time.perf_counter()
     filing_records = [result.filing_record for result in state.parsed_result_batch]
     canonical_raw_filing_records = [
@@ -850,6 +899,12 @@ def _items_per_second(count: int, duration_ms: int) -> float | None:
     if duration_ms <= 0:
         return None
     return round(float(count) / (float(duration_ms) / 1000.0), 2)
+
+
+def _ratio(state: int, total: int) -> float | None:
+    if total <= 0:
+        return None
+    return round(float(state) / float(total), 2)
 
 
 def _load_workflow_input(source: Mapping[str, str], contract: EcsTaskRuntimeContract) -> MonthlyIngestWorkflowInput:
