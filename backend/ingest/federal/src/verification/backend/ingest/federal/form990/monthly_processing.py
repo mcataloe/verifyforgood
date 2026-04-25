@@ -57,7 +57,7 @@ class MonthlyIngestSourceObject:
 @dataclass(frozen=True)
 class LocalExtractedXmlMember:
     member_name: str
-    local_path: str
+    local_path: str | None
     content_length: int
 
 
@@ -135,6 +135,7 @@ class _LocalXmlParseTask:
     member: LocalExtractedXmlMember
     record: Form990IndexRecord
     source_reference: str
+    xml_bytes: bytes
     xml_content_hash: str | None = None
 
 
@@ -739,14 +740,28 @@ def _extract_zip_member_to_workdir(
     )
 
 
-def _extract_zip_member_from_archive_path_to_workdir(
+def _read_zip_member_bytes(
+    *,
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+) -> bytes:
+    payload = bytearray()
+    with archive.open(member, mode="r") as source_handle:
+        while True:
+            chunk = source_handle.read(64 * 1024)
+            if not chunk:
+                break
+            payload.extend(chunk)
+    return bytes(payload)
+
+
+def _read_zip_member_bytes_from_archive_path(
     *,
     archive_reader_pool: _ThreadLocalArchiveReaderPool | None,
     archive_path: str,
     member_index: int,
     expected_member_name: str,
-    workdir: str,
-) -> LocalExtractedXmlMember:
+) -> tuple[LocalExtractedXmlMember, bytes]:
     if archive_reader_pool is None:
         archive_reader_pool = _ThreadLocalArchiveReaderPool(archive_path=archive_path)
     reader_entry = archive_reader_pool.current()
@@ -761,11 +776,17 @@ def _extract_zip_member_from_archive_path_to_workdir(
         raise MonthlyIngestMalformedArchiveError(
             f"zip archive member mismatch at index {member_index}: expected {expected_member_name}, found {member_name}"
         )
-    return _extract_zip_member_to_workdir(
+    xml_bytes = _read_zip_member_bytes(
         archive=reader_entry.archive,
         member=member,
-        member_index=member_index,
-        workdir=workdir,
+    )
+    return (
+        LocalExtractedXmlMember(
+            member_name=member_name,
+            local_path=None,
+            content_length=len(xml_bytes),
+        ),
+        xml_bytes,
     )
 
 
@@ -774,6 +795,7 @@ def _build_local_xml_parse_task(
     member: LocalExtractedXmlMember,
     archive_identity: str,
     source_object: MonthlyIngestSourceObject,
+    xml_bytes: bytes,
     xml_content_hash: str | None = None,
 ) -> _LocalXmlParseTask | None:
     irs_object_id = _object_id_from_member_name(member.member_name)
@@ -783,6 +805,7 @@ def _build_local_xml_parse_task(
     return _LocalXmlParseTask(
         member=member,
         source_reference=xml_reference,
+        xml_bytes=xml_bytes,
         xml_content_hash=xml_content_hash,
         record=Form990IndexRecord(
             ein=None,
@@ -806,51 +829,39 @@ def _process_local_xml_member_task(
     extract_duration_ms = 0
     hash_duration_ms = 0
     selection_duration_ms = 0
-    extracted_member: LocalExtractedXmlMember | None = None
-    extracted_member = _extract_zip_member_from_archive_path_to_workdir(
+    extracted_member, xml_bytes = _read_zip_member_bytes_from_archive_path(
         archive_reader_pool=task.archive_reader_pool,
         archive_path=task.archive_path,
         member_index=task.member_index,
         expected_member_name=task.member_name,
-        workdir=task.extracted_workdir,
     )
     extract_duration_ms = _elapsed_ms(task_started_at)
-    try:
-        hash_started_at = time.perf_counter()
-        content_hash = hash_local_xml_file(extracted_member.local_path)
-        hash_duration_ms = _elapsed_ms(hash_started_at)
-        selection_started_at = time.perf_counter()
-        if task.existing_content_hash and task.existing_content_hash == content_hash:
-            selection_duration_ms = _elapsed_ms(selection_started_at)
-            return _ParsedXmlMemberResult(
-                member=extracted_member,
-                content_hash=content_hash,
-                was_skipped_unchanged=True,
-                worker_extract_duration_ms=extract_duration_ms,
-                worker_hash_duration_ms=hash_duration_ms,
-                worker_selection_duration_ms=selection_duration_ms,
-                worker_total_duration_ms=_elapsed_ms(task_started_at),
-            )
-        parse_task = _build_local_xml_parse_task(
-            member=extracted_member,
-            archive_identity=task.archive_identity,
-            source_object=task.source_object,
-            xml_content_hash=content_hash,
-        )
+    hash_started_at = time.perf_counter()
+    content_hash = _hash_xml_bytes(xml_bytes)
+    hash_duration_ms = _elapsed_ms(hash_started_at)
+    selection_started_at = time.perf_counter()
+    if task.existing_content_hash and task.existing_content_hash == content_hash:
         selection_duration_ms = _elapsed_ms(selection_started_at)
-        if parse_task is None:
-            return _ParsedXmlMemberResult(
-                member=extracted_member,
-                content_hash=content_hash,
-                was_selected=True,
-                worker_extract_duration_ms=extract_duration_ms,
-                worker_hash_duration_ms=hash_duration_ms,
-                worker_selection_duration_ms=selection_duration_ms,
-                worker_total_duration_ms=_elapsed_ms(task_started_at),
-            )
-        parsed_result = _parse_local_xml_parse_task(parse_task, xml_error_handler)
-        return replace(
-            parsed_result,
+        return _ParsedXmlMemberResult(
+            member=extracted_member,
+            content_hash=content_hash,
+            was_skipped_unchanged=True,
+            worker_extract_duration_ms=extract_duration_ms,
+            worker_hash_duration_ms=hash_duration_ms,
+            worker_selection_duration_ms=selection_duration_ms,
+            worker_total_duration_ms=_elapsed_ms(task_started_at),
+        )
+    parse_task = _build_local_xml_parse_task(
+        member=extracted_member,
+        archive_identity=task.archive_identity,
+        source_object=task.source_object,
+        xml_bytes=xml_bytes,
+        xml_content_hash=content_hash,
+    )
+    selection_duration_ms = _elapsed_ms(selection_started_at)
+    if parse_task is None:
+        return _ParsedXmlMemberResult(
+            member=extracted_member,
             content_hash=content_hash,
             was_selected=True,
             worker_extract_duration_ms=extract_duration_ms,
@@ -858,9 +869,16 @@ def _process_local_xml_member_task(
             worker_selection_duration_ms=selection_duration_ms,
             worker_total_duration_ms=_elapsed_ms(task_started_at),
         )
-    finally:
-        if extracted_member is not None and extracted_member.local_path:
-            _delete_local_xml_file(extracted_member.local_path)
+    parsed_result = _parse_local_xml_parse_task(parse_task, xml_error_handler)
+    return replace(
+        parsed_result,
+        content_hash=content_hash,
+        was_selected=True,
+        worker_extract_duration_ms=extract_duration_ms,
+        worker_hash_duration_ms=hash_duration_ms,
+        worker_selection_duration_ms=selection_duration_ms,
+        worker_total_duration_ms=_elapsed_ms(task_started_at),
+    )
 
 
 def _parse_local_xml_parse_task(
@@ -877,13 +895,10 @@ def _parse_local_xml_parse_task(
             else None
         )
         try:
-            read_started_at = time.perf_counter()
-            xml_bytes = Path(task.member.local_path).read_bytes()
-            read_duration_ms = _elapsed_ms(read_started_at)
             parse_started_at = time.perf_counter()
             parsed_record = parse_form990_record_xml(
                 task.record,
-                xml_bytes=xml_bytes,
+                xml_bytes=task.xml_bytes,
                 source_reference=task.source_reference,
                 xml_content_hash=task.xml_content_hash,
                 record_error_handler=record_error_handler,
@@ -1345,6 +1360,10 @@ def _as_text(value: Any) -> str | None:
 
 def _hash_local_xml_file(path: str) -> str:
     return hash_local_xml_file(path)
+
+
+def _hash_xml_bytes(xml_bytes: bytes) -> str:
+    return hashlib.sha256(xml_bytes).hexdigest()
 
 
 def _resolve_form990_persist_batch_size(source_env: Mapping[str, str]) -> int:

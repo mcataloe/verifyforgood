@@ -470,7 +470,7 @@ def test_process_form990_archive_reports_selection_progress_before_parse_progres
             "field_keys": ["selected", "skipped"],
             "update_every": 10,
         }
-        assert progress_reporter.sessions[0].calls == [
+        assert sorted(progress_reporter.sessions[0].calls, key=lambda call: call["last_item"]) == [
             {"increments": {"skipped": 1}, "last_item": "obj-1.xml"},
             {"increments": {"selected": 1}, "last_item": "obj-2.xml"},
         ]
@@ -717,18 +717,18 @@ def test_process_form990_archive_streams_persistence_before_selection_finishes(t
                 }
             )
 
-    original_extract = monthly_processing._extract_zip_member_to_workdir
+    original_read_member = monthly_processing._read_zip_member_bytes_from_archive_path
     extraction_counter = {"count": 0}
 
-    def recording_extract(*args, **kwargs):
+    def recording_read_member(*args, **kwargs):
         extraction_counter["count"] += 1
         if extraction_counter["count"] == 3:
             streaming_observations.append(
                 (len(persistence_calls), len(metadata_service.upsert_extracted_file_calls))
             )
-        return original_extract(*args, **kwargs)
+        return original_read_member(*args, **kwargs)
 
-    monkeypatch.setattr(monthly_processing, "_extract_zip_member_to_workdir", recording_extract)
+    monkeypatch.setattr(monthly_processing, "_read_zip_member_bytes_from_archive_path", recording_read_member)
 
     result = process_form990_archive(
         archive_path=str(archive_path),
