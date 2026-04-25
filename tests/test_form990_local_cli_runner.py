@@ -648,7 +648,7 @@ def test_process_form990_archive_reports_xml_failures_with_file_context_without_
         xml_error_handler=lambda file_name, exc, status: xml_errors.append((file_name, status)),
     )
 
-    assert result["status"] == "failed"
+    assert result["status"] == "partial_success"
     assert xml_errors == [("bad-object.xml", "malformed_xml")]
     assert result["artifact_paths"] is None
 

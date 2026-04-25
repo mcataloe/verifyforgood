@@ -1,10 +1,10 @@
 ﻿from __future__ import annotations
 
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 import hashlib
 import json
 import logging
 import os
+import queue
 import tempfile
 import threading
 import time
@@ -122,6 +122,17 @@ class _ThreadLocalArchiveReaderPool:
 class _LocalXmlMemberTask:
     archive_path: str
     extracted_workdir: str
+    member_index: int
+    member_name: str
+    archive_identity: str
+    source_object: MonthlyIngestSourceObject
+    existing_content_hash: str | None = None
+    archive_reader_pool: _ThreadLocalArchiveReaderPool | None = None
+
+
+@dataclass(frozen=True)
+class _QueuedXmlMemberTask:
+    archive_path: str
     member_index: int
     member_name: str
     archive_identity: str
@@ -539,57 +550,37 @@ def process_form990_archive(
         persist_batch_size=resolved_persist_batch_size,
     )
     parse_started_at = time.perf_counter()
-    parse_futures: set[Future[_ParsedXmlMemberResult]] = set()
-    max_pending_tasks = max(1, parser_workers * 2)
+    max_pending_tasks = max(1, parser_workers * 4)
     archive_reader_pool = _ThreadLocalArchiveReaderPool(archive_path=archive_path)
     try:
-        try:
-            with ThreadPoolExecutor(max_workers=parser_workers, thread_name_prefix="form990-xml") as executor:
-                for index, member in processable_members:
-                    member_name = member.filename.replace("\\", "/")
-                    parse_futures.add(
-                        executor.submit(
-                            _process_local_xml_member_task,
-                            _LocalXmlMemberTask(
-                                archive_path=archive_path,
-                                extracted_workdir=extracted_workdir,
-                                member_index=index,
-                                member_name=member_name,
-                                archive_identity=context.archive_identity,
-                                source_object=source_object,
-                                existing_content_hash=str(
-                                    getattr(existing_extracted_files_by_name.get(member_name), "content_hash", "") or ""
-                                ).strip()
-                                or None,
-                                archive_reader_pool=archive_reader_pool,
-                            ),
-                            xml_error_handler,
-                        )
-                    )
-                    while len(parse_futures) >= max_pending_tasks:
-                        _drain_completed_parse_futures(
-                            parse_futures=parse_futures,
-                            selection_progress_session=selection_progress_session,
-                            parse_progress_session=parse_progress_session,
-                            state=parse_persistence_state,
-                            wait_for_completion=True,
-                        )
-                while parse_futures:
-                    _drain_completed_parse_futures(
-                        parse_futures=parse_futures,
-                        selection_progress_session=selection_progress_session,
-                        parse_progress_session=parse_progress_session,
-                        state=parse_persistence_state,
-                        wait_for_completion=True,
-                    )
-        finally:
-            archive_reader_pool.close_all()
+        worker_states = _run_queued_xml_member_workers(
+            archive_path=archive_path,
+            archive_identity=context.archive_identity,
+            source_object=source_object,
+            processable_members=processable_members,
+            existing_extracted_files_by_name=existing_extracted_files_by_name,
+            archive_reader_pool=archive_reader_pool,
+            worker_count=parser_workers,
+            queue_maxsize=max_pending_tasks,
+            xml_error_handler=xml_error_handler,
+            selection_progress_session=selection_progress_session,
+            parse_progress_session=parse_progress_session,
+            started=started,
+            nonprofit_persistence_service=nonprofit_persistence_service,
+            archive_metadata_service=archive_metadata_service,
+            archive_id=getattr(archive_record, "archive_id", None),
+            persist_batch_size=resolved_persist_batch_size,
+        )
+        _merge_worker_parse_persistence_states(
+            target=parse_persistence_state,
+            worker_states=worker_states,
+        )
         if parse_progress_session is not None:
             parse_progress_session.set_total_items(parse_persistence_state.parse_task_count)
-        _flush_streaming_parse_result_batch(parse_persistence_state)
     except zipfile.BadZipFile as exc:
         raise MonthlyIngestMalformedArchiveError(f"bad zip archive at {archive_path}") from exc
     finally:
+        archive_reader_pool.close_all()
         if selection_progress_session is not None:
             selection_progress_session.complete()
         if parse_progress_session is not None:
@@ -945,53 +936,229 @@ def _parse_local_xml_parse_task(
         pass
 
 
-def _drain_completed_parse_futures(
+def _run_queued_xml_member_workers(
     *,
-    parse_futures: set[Future[_ParsedXmlMemberResult]],
+    archive_path: str,
+    archive_identity: str,
+    source_object: MonthlyIngestSourceObject,
+    processable_members: list[tuple[int, zipfile.ZipInfo]],
+    existing_extracted_files_by_name: Mapping[str, Any],
+    archive_reader_pool: _ThreadLocalArchiveReaderPool,
+    worker_count: int,
+    queue_maxsize: int,
+    xml_error_handler: Callable[[str | None, Exception, str], None] | None,
     selection_progress_session: Any | None,
     parse_progress_session: Any | None,
-    state: _StreamingParsePersistenceState,
-    wait_for_completion: bool,
+    started: datetime,
+    nonprofit_persistence_service: Any | None,
+    archive_metadata_service: Any | None,
+    archive_id: int | None,
+    persist_batch_size: int,
+) -> list[_StreamingParsePersistenceState]:
+    task_queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, queue_maxsize))
+    stop_sentinel = object()
+    stop_event = threading.Event()
+    progress_lock = threading.Lock()
+    result_lock = threading.Lock()
+    worker_states: list[_StreamingParsePersistenceState] = []
+    worker_errors: list[BaseException] = []
+
+    def worker_target() -> None:
+        worker_failed = False
+        state = _StreamingParsePersistenceState(
+            started=started,
+            nonprofit_persistence_service=nonprofit_persistence_service,
+            archive_metadata_service=archive_metadata_service,
+            archive_id=archive_id,
+            persist_batch_size=persist_batch_size,
+        )
+        try:
+            while True:
+                task = task_queue.get()
+                try:
+                    if task is stop_sentinel:
+                        return
+                    result = _process_queued_xml_member_task(task, xml_error_handler)
+                    _record_processed_member_result(
+                        result=result,
+                        selection_progress_session=selection_progress_session,
+                        parse_progress_session=parse_progress_session,
+                        progress_lock=progress_lock,
+                        state=state,
+                    )
+                finally:
+                    task_queue.task_done()
+        except BaseException as exc:
+            worker_failed = True
+            stop_event.set()
+            with result_lock:
+                worker_errors.append(exc)
+        finally:
+            if not worker_failed:
+                try:
+                    _flush_streaming_parse_result_batch(state)
+                except BaseException as exc:
+                    stop_event.set()
+                    with result_lock:
+                        worker_errors.append(exc)
+            with result_lock:
+                worker_states.append(state)
+
+    workers = [
+        threading.Thread(target=worker_target, name=f"form990-xml-{index + 1}", daemon=True)
+        for index in range(max(1, worker_count))
+    ]
+    for worker in workers:
+        worker.start()
+
+    try:
+        for index, member in processable_members:
+            if stop_event.is_set():
+                break
+            member_name = member.filename.replace("\\", "/")
+            existing_content_hash = (
+                str(getattr(existing_extracted_files_by_name.get(member_name), "content_hash", "") or "").strip()
+                or None
+            )
+            task = _QueuedXmlMemberTask(
+                archive_path=archive_path,
+                member_index=index,
+                member_name=member_name,
+                archive_identity=archive_identity,
+                source_object=source_object,
+                existing_content_hash=existing_content_hash,
+                archive_reader_pool=archive_reader_pool,
+            )
+            _put_worker_queue_item(
+                task_queue=task_queue,
+                item=task,
+                stop_event=stop_event,
+            )
+    finally:
+        if stop_event.is_set():
+            _drain_worker_queue(task_queue)
+        for _ in workers:
+            _put_worker_queue_item(
+                task_queue=task_queue,
+                item=stop_sentinel,
+                stop_event=None,
+            )
+        for worker in workers:
+            worker.join()
+
+    if worker_errors:
+        raise worker_errors[0]
+    return worker_states
+
+
+def _put_worker_queue_item(
+    *,
+    task_queue: queue.Queue[Any],
+    item: Any,
+    stop_event: threading.Event | None,
 ) -> None:
-    if not parse_futures:
-        return
-    if wait_for_completion:
-        wait_started_at = time.perf_counter()
-        completed_futures, _ = wait(parse_futures, return_when=FIRST_COMPLETED)
-        state.parse_wait_elapsed_ms += _elapsed_ms(wait_started_at)
-    else:
-        completed_futures = {future for future in parse_futures if future.done()}
-        if not completed_futures:
+    while True:
+        if stop_event is not None and stop_event.is_set():
             return
-    for future in completed_futures:
-        parse_futures.discard(future)
-        result = future.result()
-        state.extracted_member_count += 1
-        if result.was_selected:
-            state.selected_member_count += 1
-        if result.was_skipped_unchanged:
-            state.skipped_unchanged_member_count += 1
-        state.worker_extract_elapsed_ms += int(result.worker_extract_duration_ms or 0)
-        state.worker_hash_elapsed_ms += int(result.worker_hash_duration_ms or 0)
-        state.worker_selection_elapsed_ms += int(result.worker_selection_duration_ms or 0)
-        state.worker_read_elapsed_ms += int(result.worker_read_duration_ms or 0)
-        state.worker_parse_elapsed_ms += int(result.worker_parse_duration_ms or 0)
-        state.worker_total_elapsed_ms += int(result.worker_total_duration_ms or 0)
-        if selection_progress_session is not None:
+        try:
+            task_queue.put(item, timeout=0.1)
+            return
+        except queue.Full:
+            continue
+
+
+def _drain_worker_queue(task_queue: queue.Queue[Any]) -> None:
+    while True:
+        try:
+            task_queue.get_nowait()
+        except queue.Empty:
+            return
+        else:
+            task_queue.task_done()
+
+
+def _process_queued_xml_member_task(
+    task: _QueuedXmlMemberTask,
+    xml_error_handler: Callable[[str | None, Exception, str], None] | None,
+) -> _ParsedXmlMemberResult:
+    return _process_local_xml_member_task(
+        _LocalXmlMemberTask(
+            archive_path=task.archive_path,
+            extracted_workdir="",
+            member_index=task.member_index,
+            member_name=task.member_name,
+            archive_identity=task.archive_identity,
+            source_object=task.source_object,
+            existing_content_hash=task.existing_content_hash,
+            archive_reader_pool=task.archive_reader_pool,
+        ),
+        xml_error_handler,
+    )
+
+
+def _record_processed_member_result(
+    *,
+    result: _ParsedXmlMemberResult,
+    selection_progress_session: Any | None,
+    parse_progress_session: Any | None,
+    progress_lock: threading.Lock,
+    state: _StreamingParsePersistenceState,
+) -> None:
+    state.extracted_member_count += 1
+    if result.was_selected:
+        state.selected_member_count += 1
+    if result.was_skipped_unchanged:
+        state.skipped_unchanged_member_count += 1
+    state.worker_extract_elapsed_ms += int(result.worker_extract_duration_ms or 0)
+    state.worker_hash_elapsed_ms += int(result.worker_hash_duration_ms or 0)
+    state.worker_selection_elapsed_ms += int(result.worker_selection_duration_ms or 0)
+    state.worker_read_elapsed_ms += int(result.worker_read_duration_ms or 0)
+    state.worker_parse_elapsed_ms += int(result.worker_parse_duration_ms or 0)
+    state.worker_total_elapsed_ms += int(result.worker_total_duration_ms or 0)
+    if selection_progress_session is not None:
+        with progress_lock:
             selection_progress_session.item_completed(
                 _progress_increments_for_member(result),
                 last_item=Path(result.member.member_name).name,
             )
-        if result.filing_record is not None:
-            state.parse_task_count += 1
-            state.parsed_result_batch.append(result)
-            if parse_progress_session is not None:
+    if result.filing_record is not None:
+        state.parse_task_count += 1
+        state.parsed_result_batch.append(result)
+        if parse_progress_session is not None:
+            with progress_lock:
                 parse_progress_session.item_completed(
                     _progress_increments_for_filing(result.filing_record),
                     last_item=Path(result.member.member_name).name,
                 )
-        if len(state.parsed_result_batch) >= state.persist_batch_size:
-            _flush_streaming_parse_result_batch(state)
+    if len(state.parsed_result_batch) >= state.persist_batch_size:
+        _flush_streaming_parse_result_batch(state)
+
+
+def _merge_worker_parse_persistence_states(
+    *,
+    target: _StreamingParsePersistenceState,
+    worker_states: list[_StreamingParsePersistenceState],
+) -> None:
+    for state in worker_states:
+        target.aggregated_records.extend(state.aggregated_records)
+        target.parsed_count += state.parsed_count
+        target.failed_count += state.failed_count
+        target.records_processed += state.records_processed
+        target.extracted_member_count += state.extracted_member_count
+        target.selected_member_count += state.selected_member_count
+        target.skipped_unchanged_member_count += state.skipped_unchanged_member_count
+        target.nonprofit_persistence_elapsed_ms += state.nonprofit_persistence_elapsed_ms
+        target.extracted_file_metadata_elapsed_ms += state.extracted_file_metadata_elapsed_ms
+        target.worker_extract_elapsed_ms += state.worker_extract_elapsed_ms
+        target.worker_hash_elapsed_ms += state.worker_hash_elapsed_ms
+        target.worker_selection_elapsed_ms += state.worker_selection_elapsed_ms
+        target.worker_read_elapsed_ms += state.worker_read_elapsed_ms
+        target.worker_parse_elapsed_ms += state.worker_parse_elapsed_ms
+        target.worker_total_elapsed_ms += state.worker_total_elapsed_ms
+        target.parse_wait_elapsed_ms += state.parse_wait_elapsed_ms
+        target.persist_batch_count += state.persist_batch_count
+        target.max_persist_batch_size = max(target.max_persist_batch_size, state.max_persist_batch_size)
+        target.parse_task_count += state.parse_task_count
 
 
 def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) -> None:
@@ -1027,7 +1194,7 @@ def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) 
 
 
 def _streaming_parse_persistence_result(state: _StreamingParsePersistenceState) -> dict[str, Any]:
-    status = "success" if state.failed_count == 0 else ("partial_success" if state.parsed_count > 0 else "failed")
+    status = "success" if state.failed_count == 0 else "partial_success"
     return {
         "status": status,
         "records_processed": state.records_processed,

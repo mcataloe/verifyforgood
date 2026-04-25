@@ -12,7 +12,7 @@ same archive lifecycle assumptions that later map to ECS task containers.
 - keep archive processing deterministic and debuggable
 - avoid coupling orchestration logic to ECS-specific APIs
 - process one archive at a time inside a workspace
-- delete extracted XML files as soon as archive-scoped processing completes
+- avoid writing extracted XML files to disk in the active archive path
 - delete the ZIP file after archive processing completes
 - keep PostgreSQL persistence compatible with the current backend runtime split
 - align the default storage budget with 32 GiB ECS ephemeral storage
@@ -40,7 +40,7 @@ Meaning:
 - `archives/`
   - archive ZIP files staged for one-at-a-time processing
 - `extracted/{archive_name}/`
-  - temporary XML extraction directory for the active archive only
+  - compatibility/debug location only; the active path reads ZIP members into worker memory
 - `logs/`
   - archive-scoped debug and operational log output
 - `state/`
@@ -61,7 +61,7 @@ Canonical backend-owned module seams:
 - `download/`
   - archive acquisition into `workspace/archives/`
 - `extract/`
-  - archive expansion into `workspace/extracted/{archive_name}/`
+  - archive member discovery and bounded in-memory member reads from the workspace ZIP
 - `hashing/`
   - archive and artifact fingerprints for idempotency and integrity checks
   - deterministic XML content hashes used to skip unchanged extracted files
@@ -99,8 +99,8 @@ Current Phase 27F note:
   the monthly task runtime
 - unchanged archives can be skipped from remote `HEAD` metadata when the
   upstream source URL is available in schedule context
-- unchanged extracted XML members can be skipped from deterministic normalized
-  file hashes
+- unchanged XML members can be skipped from deterministic content hashes without
+  writing extracted XML files to disk in the active path
 - the active backend monthly runtime no longer depends on the older TEOS S3
   manifest or S3-backed raw-XML state
 

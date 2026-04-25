@@ -807,6 +807,51 @@ def test_process_form990_archive_reuses_worker_zip_handle_per_thread(tmp_path, m
     assert open_count["count"] == 2
 
 
+def test_process_form990_archive_workers_read_zip_members_not_main_thread(tmp_path, monkeypatch):
+    archive_path = tmp_path / "2026_TEOS_XML_08D.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="320000001")),
+            ("obj-2.xml", _valid_xml(ein="320000002")),
+        )
+    )
+    reader_threads: list[str] = []
+    original_read_member = monthly_processing._read_zip_member_bytes_from_archive_path
+
+    def recording_read_member(*args, **kwargs):
+        import threading
+
+        reader_threads.append(threading.current_thread().name)
+        return original_read_member(*args, **kwargs)
+
+    monkeypatch.setattr(monthly_processing, "_read_zip_member_bytes_from_archive_path", recording_read_member)
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "descriptor-queue"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "descriptor-queue-job",
+            "correlation_id": "descriptor-queue-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_08d",
+            source_signature="sig-8d",
+            source_filename="2026_TEOS_XML_08D.zip",
+        ),
+        xml_parser_workers=2,
+    )
+
+    assert result["status"] == "success"
+    assert result["parsed_count"] == 2
+    assert reader_threads
+    assert "MainThread" not in reader_threads
+    assert all(name.startswith("form990-xml-") for name in reader_threads)
+
+
 def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):
     archive_path = tmp_path / "2026_TEOS_XML_09A.zip"
     archive_path.write_bytes(
