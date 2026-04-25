@@ -370,7 +370,7 @@ class SqlAlchemyNonprofitRepository:
         perf_counter = time.perf_counter
         with nonprofit_session_scope(self._session_factory) as session:
             nonprofit_started_at = perf_counter()
-            nonprofit_values = [_nonprofit_values(record) for record in nonprofits_by_ein.values()]
+            nonprofit_values = [_nonprofit_batch_values(record) for record in nonprofits_by_ein.values()]
             _execute_upsert_many(
                 session,
                 NonprofitModel,
@@ -391,7 +391,7 @@ class SqlAlchemyNonprofitRepository:
             filing_started_at = perf_counter()
             filing_values = _dedupe_batch_values(
                 [
-                    _filing_values(replace(filing, nonprofit_id=nonprofit_ids[nonprofit.ein]))
+                    _filing_batch_values(replace(filing, nonprofit_id=nonprofit_ids[nonprofit.ein]))
                     for nonprofit, filing in normalized_pairs
                 ],
                 key_columns=["nonprofit_id", "tax_year", "form_type", "filing_date", "source_name"],
@@ -583,7 +583,7 @@ class SqlAlchemyNonprofitRepository:
                 session,
                 NonprofitSourceModel,
                 values=_dedupe_batch_values(
-                    [_source_values(record) for record in normalized_records],
+                    [_source_batch_values(record) for record in normalized_records],
                     key_columns=["nonprofit_id", "source_id", "record_id", "retrieved_at"],
                 ),
                 conflict_columns=["nonprofit_id", "source_id", "record_id", "retrieved_at"],
@@ -862,7 +862,7 @@ class SqlAlchemyNonprofitRepository:
                 session,
                 Form990ExtractedFileModel,
                 values=_dedupe_batch_values(
-                    [_extracted_file_values(record) for record in normalized_records],
+                    [_extracted_file_batch_values(record) for record in normalized_records],
                     key_columns=["archive_id", "filename"],
                 ),
                 conflict_columns=["archive_id", "filename"],
@@ -879,7 +879,7 @@ class SqlAlchemyNonprofitRepository:
                 session,
                 NonprofitRawFilingModel,
                 values=_dedupe_batch_values(
-                    [_raw_filing_values(record) for record in normalized_records],
+                    [_raw_filing_batch_values(record) for record in normalized_records],
                     key_columns=["filing_id", "xml_content_hash"],
                 ),
                 conflict_columns=["filing_id", "xml_content_hash"],
@@ -1811,6 +1811,12 @@ def _nonprofit_update_values(record: NonprofitRecord) -> dict[str, Any]:
     return values
 
 
+def _nonprofit_batch_values(record: NonprofitRecord) -> dict[str, Any]:
+    values = _nonprofit_values(record)
+    values.pop("nonprofit_id", None)
+    return values
+
+
 def _filing_values(record: NonprofitFilingRecord) -> dict[str, Any]:
     values: dict[str, Any] = {
         "nonprofit_id": record.nonprofit_id,
@@ -1841,6 +1847,12 @@ def _filing_update_values(record: NonprofitFilingRecord) -> dict[str, Any]:
     values = _filing_values(record)
     values.pop("filing_id", None)
     values.pop("created_at", None)
+    return values
+
+
+def _filing_batch_values(record: NonprofitFilingRecord) -> dict[str, Any]:
+    values = _filing_values(record)
+    values.pop("filing_id", None)
     return values
 
 
@@ -1882,6 +1894,12 @@ def _source_update_values(record: NonprofitSourceRecord) -> dict[str, Any]:
     return values
 
 
+def _source_batch_values(record: NonprofitSourceRecord) -> dict[str, Any]:
+    values = _source_values(record)
+    values.pop("nonprofit_source_id", None)
+    return values
+
+
 def _raw_filing_values(record: NonprofitRawFilingRecord) -> dict[str, Any]:
     values: dict[str, Any] = {
         "nonprofit_id": record.nonprofit_id,
@@ -1910,6 +1928,12 @@ def _raw_filing_update_values(record: NonprofitRawFilingRecord) -> dict[str, Any
     values = _raw_filing_values(record)
     values.pop("raw_filing_id", None)
     values.pop("created_at", None)
+    return values
+
+
+def _raw_filing_batch_values(record: NonprofitRawFilingRecord) -> dict[str, Any]:
+    values = _raw_filing_values(record)
+    values.pop("raw_filing_id", None)
     return values
 
 
@@ -2006,4 +2030,10 @@ def _extracted_file_update_values(record: Form990ExtractedFileRecord) -> dict[st
     values = _extracted_file_values(record)
     values.pop("file_id", None)
     values.pop("created_at", None)
+    return values
+
+
+def _extracted_file_batch_values(record: Form990ExtractedFileRecord) -> dict[str, Any]:
+    values = _extracted_file_values(record)
+    values.pop("file_id", None)
     return values

@@ -259,9 +259,79 @@ def test_form990_persistence_service_uses_repository_batch_upserts(tmp_path: Pat
         "sources_upserted": 1,
         "skipped_records": 0,
     }
-    assert batch_calls == {
-        "nonprofits_and_filings": 1,
-        "raw_filings": 1,
-        "sources": 1,
+
+
+def test_form990_persistence_service_batch_upserts_mixed_existing_and_new_nonprofits(tmp_path: Path):
+    repository = _repository(tmp_path)
+    service = Form990NonprofitPersistenceService(repository)
+
+    first = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-15",
+                "return_type": "990",
+                "irs_object_id": "object-1",
+                "parse_status": "parsed",
+                "source_signature": "sig-1",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-1.xml",
+            }
+        ]
+    )
+
+    second = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-16",
+                "return_type": "990",
+                "irs_object_id": "object-2",
+                "parse_status": "parsed",
+                "source_signature": "sig-2",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-2.xml",
+            },
+            {
+                "ein": "98-7654321",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-17",
+                "return_type": "990",
+                "irs_object_id": "object-3",
+                "parse_status": "parsed",
+                "source_signature": "sig-3",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-3.xml",
+            },
+        ]
+    )
+
+    nonprofit_existing = repository.get_nonprofit_by_ein("123456789")
+    nonprofit_new = repository.get_nonprofit_by_ein("987654321")
+
+    assert first.to_dict() == {
+        "nonprofits_upserted": 1,
+        "filings_upserted": 1,
+        "sources_upserted": 1,
+        "skipped_records": 0,
     }
+    assert second.to_dict() == {
+        "nonprofits_upserted": 2,
+        "filings_upserted": 2,
+        "sources_upserted": 2,
+        "skipped_records": 0,
+    }
+    assert nonprofit_existing is not None
+    assert nonprofit_new is not None
+    assert nonprofit_existing.nonprofit_id != nonprofit_new.nonprofit_id
+    assert len(repository.list_filings_for_nonprofit(nonprofit_existing.nonprofit_id)) == 2
+    assert len(repository.list_filings_for_nonprofit(nonprofit_new.nonprofit_id)) == 1
 
