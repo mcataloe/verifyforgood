@@ -9,6 +9,7 @@ Current active runtime behavior:
 - the main thread lists processable ZIP members and queues lightweight member descriptors only
 - XML parser workers read their assigned ZIP members into memory, hash, parse, persist, and release memory before taking the next member
 - `FORM990_PERSIST_BATCH_SIZE` is enforced inside each worker's persistence buffer
+- `FORM990_PERSIST_CONCURRENCY` caps concurrent worker database flushes so high parser worker counts do not exhaust the SQLAlchemy connection pool
 - `form990_archives` stores HTTP probe metadata plus processing lifecycle timestamps
 - `form990_extracted_files` stores per-member content hashes and parse status
 - `nonprofit_filings` stores `raw_file_reference` instead of an S3-specific key

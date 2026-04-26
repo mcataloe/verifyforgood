@@ -70,6 +70,7 @@ Canonical backend-owned module seams:
 - `persist/`
   - PostgreSQL-backed nonprofit persistence and write-facing adapters
   - PostgreSQL-backed archive metadata and extracted-file hash state
+  - bounded worker-side database flush concurrency independent from parser worker count
 - `cleanup/`
   - deterministic cleanup of extracted XML and processed ZIP files
 - `orchestration/`

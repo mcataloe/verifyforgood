@@ -16,6 +16,7 @@ from verification.backend.ingest.federal.form990.hardening import retry_call, is
 from verification.backend.ingest.federal.form990.irs_page_discovery import discover_irs_form990_sources
 from verification.backend.ingest.federal.form990.monthly_processing import (
     DEFAULT_FORM990_PERSIST_BATCH_SIZE,
+    DEFAULT_FORM990_PERSIST_CONCURRENCY,
     MonthlyIngestSourceObject,
     process_form990_archive,
 )
@@ -53,6 +54,7 @@ class LocalIngestRunConfig:
     limit: int | None = None
     xml_parser_workers: int = 1
     persist_batch_size: int = DEFAULT_FORM990_PERSIST_BATCH_SIZE
+    persist_concurrency: int = DEFAULT_FORM990_PERSIST_CONCURRENCY
     log_level: str = DEFAULT_LOG_LEVEL
     log_stack_traces: bool | None = None
 
@@ -170,6 +172,7 @@ def build_local_ingest_run_config(
         limit=_env_optional_int(source_env, "MAX_ARCHIVES") if limit is None else limit,
         xml_parser_workers=_resolve_xml_parser_workers(source_env, override=xml_parser_workers),
         persist_batch_size=_resolve_persist_batch_size(source_env),
+        persist_concurrency=_resolve_persist_concurrency(source_env),
         log_level=resolved_log_level,
         log_stack_traces=_env_optional_bool(source_env, "LOG_STACK_TRACES"),
     )
@@ -239,6 +242,13 @@ def run_local_form990_ingest_config(
         component="form990.cli",
         level="INFO",
         message=f"resolved persist batch size={config.persist_batch_size}",
+        archive="",
+        file_name="",
+    )
+    logger.log(
+        component="form990.cli",
+        level="INFO",
+        message=f"resolved persist concurrency={config.persist_concurrency}",
         archive="",
         file_name="",
     )
@@ -367,6 +377,7 @@ def run_local_form990_ingest_config(
                 progress_reporter=progress_reporter,
                 xml_parser_workers=config.xml_parser_workers,
                 persist_batch_size=config.persist_batch_size,
+                persist_concurrency=config.persist_concurrency,
             )
             logger.log(
                 component="form990.archive",
@@ -728,6 +739,13 @@ def _resolve_persist_batch_size(source_env: Mapping[str, str]) -> int:
     if configured is None:
         return DEFAULT_FORM990_PERSIST_BATCH_SIZE
     return max(1, min(1000, configured))
+
+
+def _resolve_persist_concurrency(source_env: Mapping[str, str]) -> int:
+    configured = _env_optional_int(source_env, "FORM990_PERSIST_CONCURRENCY")
+    if configured is None:
+        return DEFAULT_FORM990_PERSIST_CONCURRENCY
+    return max(1, min(16, configured))
 
 
 def _available_cpu_count() -> int:

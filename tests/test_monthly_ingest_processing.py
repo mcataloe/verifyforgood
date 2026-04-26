@@ -1,6 +1,8 @@
 ﻿import hashlib
 import io
 import json
+import threading
+import time
 import zipfile
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -850,6 +852,71 @@ def test_process_form990_archive_workers_read_zip_members_not_main_thread(tmp_pa
     assert reader_threads
     assert "MainThread" not in reader_threads
     assert all(name.startswith("form990-xml-") for name in reader_threads)
+
+
+def test_process_form990_archive_limits_worker_persistence_concurrency(tmp_path):
+    archive_path = tmp_path / "2026_TEOS_XML_08E.zip"
+    archive_path.write_bytes(
+        _make_zip(
+            ("obj-1.xml", _valid_xml(ein="330000001")),
+            ("obj-2.xml", _valid_xml(ein="330000002")),
+            ("obj-3.xml", _valid_xml(ein="330000003")),
+            ("obj-4.xml", _valid_xml(ein="330000004")),
+            ("obj-5.xml", _valid_xml(ein="330000005")),
+            ("obj-6.xml", _valid_xml(ein="330000006")),
+            ("obj-7.xml", _valid_xml(ein="330000007")),
+            ("obj-8.xml", _valid_xml(ein="330000008")),
+        )
+    )
+    lock = threading.Lock()
+    active_persistence_calls = 0
+    max_active_persistence_calls = 0
+
+    class SlowPersistenceService:
+        def persist_normalized_records(self, filing_records, *, canonical_raw_filing_records=None, persisted_at=None, progress_session=None):
+            nonlocal active_persistence_calls, max_active_persistence_calls
+            with lock:
+                active_persistence_calls += 1
+                max_active_persistence_calls = max(max_active_persistence_calls, active_persistence_calls)
+            try:
+                time.sleep(0.02)
+                return SimpleNamespace(
+                    to_dict=lambda: {
+                        "nonprofits_upserted": len(filing_records),
+                        "filings_upserted": len(filing_records),
+                        "sources_upserted": len(filing_records),
+                        "skipped_records": 0,
+                    }
+                )
+            finally:
+                with lock:
+                    active_persistence_calls -= 1
+
+    result = process_form990_archive(
+        archive_path=str(archive_path),
+        extracted_workdir=str(tmp_path / "persist-concurrency"),
+        processing_context={
+            "archive_identity": "local/archive.zip",
+            "job_id": "persist-concurrency-job",
+            "correlation_id": "persist-concurrency-corr",
+            "workflow_version": "local-cli",
+        },
+        source_object=MonthlyIngestSourceObject(
+            source_year="2026",
+            source_kind="zip_archive",
+            source_archive_key="2026_teos_xml_08e",
+            source_signature="sig-8e",
+            source_filename="2026_TEOS_XML_08E.zip",
+        ),
+        nonprofit_persistence_service=SlowPersistenceService(),
+        persist_batch_size=1,
+        persist_concurrency=2,
+        xml_parser_workers=8,
+    )
+
+    assert result["status"] == "success"
+    assert result["parsed_count"] == 8
+    assert max_active_persistence_calls <= 2
 
 
 def test_process_form990_archive_keeps_earlier_batches_when_later_batch_persistence_fails(tmp_path):

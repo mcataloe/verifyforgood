@@ -31,6 +31,8 @@ LOGGING_CONFIG = configure_runtime_logging(os.environ, logger=LOGGER)
 DEFAULT_MAX_XML_FILE_SIZE_BYTES = 20 * 1024 * 1024
 DEFAULT_FORM990_PERSIST_BATCH_SIZE = 100
 MAX_FORM990_PERSIST_BATCH_SIZE = 1000
+DEFAULT_FORM990_PERSIST_CONCURRENCY = 4
+MAX_FORM990_PERSIST_CONCURRENCY = 16
 
 
 class MonthlyIngestTaskInputError(ValueError):
@@ -174,6 +176,7 @@ class _StreamingParsePersistenceState:
     archive_metadata_service: Any | None
     archive_id: int | None
     persist_batch_size: int
+    persist_semaphore: threading.Semaphore | None = None
     aggregated_records: list[dict[str, Any]] = field(default_factory=list)
     parsed_result_batch: list[_ParsedXmlMemberResult] = field(default_factory=list)
     parsed_count: int = 0
@@ -191,6 +194,7 @@ class _StreamingParsePersistenceState:
     worker_parse_elapsed_ms: int = 0
     worker_total_elapsed_ms: int = 0
     parse_wait_elapsed_ms: int = 0
+    persist_wait_elapsed_ms: int = 0
     persist_batch_count: int = 0
     max_persist_batch_size: int = 0
     parse_task_count: int = 0
@@ -289,6 +293,7 @@ def run_form990_monthly_processing_task(
                 nonprofit_persistence_service=nonprofit_persistence_service,
                 max_xml_file_size_bytes=int(source.get("FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES") or DEFAULT_MAX_XML_FILE_SIZE_BYTES),
                 persist_batch_size=_resolve_form990_persist_batch_size(source),
+                persist_concurrency=_resolve_form990_persist_concurrency(source),
             )
             if str(result.get("status") or "").strip().lower() == "failed":
                 raise RuntimeError(f"monthly ingest processing failed with {int(result.get('failed_count') or 0)} failed record(s)")
@@ -462,6 +467,7 @@ def process_form990_archive(
     progress_reporter: ProgressReporter | None = None,
     xml_parser_workers: int = 1,
     persist_batch_size: int = DEFAULT_FORM990_PERSIST_BATCH_SIZE,
+    persist_concurrency: int | None = None,
 ) -> dict[str, Any]:
     if isinstance(processing_context, _ArchiveProcessingContext):
         context = processing_context
@@ -514,6 +520,11 @@ def process_form990_archive(
 
     parser_workers = max(1, int(xml_parser_workers or 1))
     resolved_persist_batch_size = _clamp_persist_batch_size(persist_batch_size)
+    resolved_persist_concurrency = _resolve_runtime_persist_concurrency(
+        worker_count=parser_workers,
+        persist_concurrency=persist_concurrency,
+    )
+    persist_semaphore = threading.Semaphore(resolved_persist_concurrency)
     existing_extracted_files_by_name = _list_existing_extracted_files_by_name(
         archive_metadata_service=archive_metadata_service,
         archive_record=archive_record,
@@ -548,6 +559,7 @@ def process_form990_archive(
         archive_metadata_service=archive_metadata_service,
         archive_id=getattr(archive_record, "archive_id", None),
         persist_batch_size=resolved_persist_batch_size,
+        persist_semaphore=persist_semaphore,
     )
     parse_started_at = time.perf_counter()
     max_pending_tasks = max(1, parser_workers * 4)
@@ -570,6 +582,7 @@ def process_form990_archive(
             archive_metadata_service=archive_metadata_service,
             archive_id=getattr(archive_record, "archive_id", None),
             persist_batch_size=resolved_persist_batch_size,
+            persist_semaphore=persist_semaphore,
         )
         _merge_worker_parse_persistence_states(
             target=parse_persistence_state,
@@ -658,6 +671,7 @@ def process_form990_archive(
         extracted_file_metadata_duration_ms=extracted_file_metadata_elapsed_ms,
         persistence_duration_ms=persistence_elapsed_ms,
         parse_wait_duration_ms=parse_persistence_state.parse_wait_elapsed_ms,
+        persist_wait_duration_ms=parse_persistence_state.persist_wait_elapsed_ms,
         worker_read_duration_ms=parse_persistence_state.worker_read_elapsed_ms,
         worker_parse_duration_ms=parse_persistence_state.worker_parse_elapsed_ms,
         worker_total_duration_ms=parse_persistence_state.worker_total_elapsed_ms,
@@ -674,6 +688,7 @@ def process_form990_archive(
         average_persist_batch_size=average_persist_batch_size,
         max_persist_batch_size=parse_persistence_state.max_persist_batch_size,
         xml_parser_workers=parser_workers,
+        persist_concurrency=resolved_persist_concurrency,
     )
     return {
         "status": str(ingest_result.get("status") or "failed"),
@@ -954,6 +969,7 @@ def _run_queued_xml_member_workers(
     archive_metadata_service: Any | None,
     archive_id: int | None,
     persist_batch_size: int,
+    persist_semaphore: threading.Semaphore | None,
 ) -> list[_StreamingParsePersistenceState]:
     task_queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, queue_maxsize))
     stop_sentinel = object()
@@ -971,6 +987,7 @@ def _run_queued_xml_member_workers(
             archive_metadata_service=archive_metadata_service,
             archive_id=archive_id,
             persist_batch_size=persist_batch_size,
+            persist_semaphore=persist_semaphore,
         )
         try:
             while True:
@@ -1156,6 +1173,7 @@ def _merge_worker_parse_persistence_states(
         target.worker_parse_elapsed_ms += state.worker_parse_elapsed_ms
         target.worker_total_elapsed_ms += state.worker_total_elapsed_ms
         target.parse_wait_elapsed_ms += state.parse_wait_elapsed_ms
+        target.persist_wait_elapsed_ms += state.persist_wait_elapsed_ms
         target.persist_batch_count += state.persist_batch_count
         target.max_persist_batch_size = max(target.max_persist_batch_size, state.max_persist_batch_size)
         target.parse_task_count += state.parse_task_count
@@ -1164,33 +1182,41 @@ def _merge_worker_parse_persistence_states(
 def _flush_streaming_parse_result_batch(state: _StreamingParsePersistenceState) -> None:
     if not state.parsed_result_batch:
         return
+    persist_wait_started_at = time.perf_counter()
+    if state.persist_semaphore is not None:
+        state.persist_semaphore.acquire()
+    state.persist_wait_elapsed_ms += _elapsed_ms(persist_wait_started_at)
     batch_size = len(state.parsed_result_batch)
-    state.persist_batch_count += 1
-    state.max_persist_batch_size = max(state.max_persist_batch_size, batch_size)
-    nonprofit_persistence_started_at = time.perf_counter()
-    filing_records = [result.filing_record for result in state.parsed_result_batch]
-    canonical_raw_filing_records = [
-        result.canonical_raw_filing_record
-        for result in state.parsed_result_batch
-        if result.canonical_raw_filing_record is not None
-    ]
-    ingest_result = finalize_form990_filing_records(
-        filing_records,
-        started=state.started,
-        nonprofit_persistence_service=state.nonprofit_persistence_service,
-        canonical_raw_filing_records=canonical_raw_filing_records,
-    ).to_dict()
-    state.nonprofit_persistence_elapsed_ms += _elapsed_ms(nonprofit_persistence_started_at)
-    state.extracted_file_metadata_elapsed_ms += _persist_extracted_file_result_batch(
-        archive_metadata_service=state.archive_metadata_service,
-        archive_id=state.archive_id,
-        parsed_result_batch=state.parsed_result_batch,
-    )
-    state.aggregated_records.extend(ingest_result.get("records") or [])
-    state.parsed_count += int(ingest_result.get("parsed_count") or 0)
-    state.failed_count += int(ingest_result.get("failed_count") or 0)
-    state.records_processed += int(ingest_result.get("records_processed") or 0)
-    state.parsed_result_batch.clear()
+    try:
+        state.persist_batch_count += 1
+        state.max_persist_batch_size = max(state.max_persist_batch_size, batch_size)
+        nonprofit_persistence_started_at = time.perf_counter()
+        filing_records = [result.filing_record for result in state.parsed_result_batch]
+        canonical_raw_filing_records = [
+            result.canonical_raw_filing_record
+            for result in state.parsed_result_batch
+            if result.canonical_raw_filing_record is not None
+        ]
+        ingest_result = finalize_form990_filing_records(
+            filing_records,
+            started=state.started,
+            nonprofit_persistence_service=state.nonprofit_persistence_service,
+            canonical_raw_filing_records=canonical_raw_filing_records,
+        ).to_dict()
+        state.nonprofit_persistence_elapsed_ms += _elapsed_ms(nonprofit_persistence_started_at)
+        state.extracted_file_metadata_elapsed_ms += _persist_extracted_file_result_batch(
+            archive_metadata_service=state.archive_metadata_service,
+            archive_id=state.archive_id,
+            parsed_result_batch=state.parsed_result_batch,
+        )
+        state.aggregated_records.extend(ingest_result.get("records") or [])
+        state.parsed_count += int(ingest_result.get("parsed_count") or 0)
+        state.failed_count += int(ingest_result.get("failed_count") or 0)
+        state.records_processed += int(ingest_result.get("records_processed") or 0)
+        state.parsed_result_batch.clear()
+    finally:
+        if state.persist_semaphore is not None:
+            state.persist_semaphore.release()
 
 
 def _streaming_parse_persistence_result(state: _StreamingParsePersistenceState) -> dict[str, Any]:
@@ -1549,12 +1575,40 @@ def _clamp_persist_batch_size(value: int | None) -> int:
     return max(1, min(MAX_FORM990_PERSIST_BATCH_SIZE, int(value)))
 
 
+def _resolve_form990_persist_concurrency(source_env: Mapping[str, str]) -> int | None:
+    raw_value = source_env.get("FORM990_PERSIST_CONCURRENCY")
+    if raw_value is None or str(raw_value).strip() == "":
+        return None
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        return None
+    return _clamp_persist_concurrency(value)
+
+
+def _resolve_runtime_persist_concurrency(
+    *,
+    worker_count: int,
+    persist_concurrency: int | None,
+) -> int:
+    if persist_concurrency is not None:
+        return _clamp_persist_concurrency(persist_concurrency)
+    return max(1, min(DEFAULT_FORM990_PERSIST_CONCURRENCY, int(worker_count or 1)))
+
+
+def _clamp_persist_concurrency(value: int | None) -> int:
+    if value is None:
+        return DEFAULT_FORM990_PERSIST_CONCURRENCY
+    return max(1, min(MAX_FORM990_PERSIST_CONCURRENCY, int(value)))
+
+
 def _log_structured(event: str, **fields: Any) -> None:
     log_structured(LOGGER, event, **fields)
 
 
 __all__ = [
     "DEFAULT_FORM990_PERSIST_BATCH_SIZE",
+    "DEFAULT_FORM990_PERSIST_CONCURRENCY",
     "DEFAULT_MAX_XML_FILE_SIZE_BYTES",
     "LocalExtractedXmlMember",
     "MonthlyIngestMalformedArchiveError",
