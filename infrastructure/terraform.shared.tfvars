@@ -1,4 +1,4 @@
-base_name              = "charitystatusapi"
+﻿base_name              = "charitystatusapi"
 aws_region             = "us-east-1"
 resource_name_strategy = "legacy"
 public_brand_name      = "VerifyForGood"
@@ -37,20 +37,12 @@ form990_lambda_timeout_seconds           = 900
 form990_lambda_memory_size_mb            = 3072
 form990_execution_mode                   = "inline"
 form990_chunk_size                       = 250
-form990_worker_timeout_seconds           = 300
-form990_worker_memory_size_mb            = 1024
-form990_worker_reserved_concurrency      = 5
-form990_queue_visibility_timeout_seconds = 600
-form990_queue_max_receive_count          = 3
-form990_queue_batch_size                 = 1
 
-monthly_ingest_state_machine_enabled              = false
 monthly_ingest_worker_image_tag                   = "latest"
 monthly_ingest_task_cpu                           = 2048
 monthly_ingest_task_memory                        = 8192
 monthly_ingest_task_ephemeral_storage_gib         = 100
 monthly_ingest_task_log_retention_days            = 30
-monthly_ingest_task_allowed_bucket_arns           = []
 api_ecs_enabled                                   = false
 api_ecs_image_tag                                 = "latest"
 api_ecs_container_name                            = "api"
@@ -127,7 +119,6 @@ free_trial_plan_code                   = "growth"
 free_trial_monthly_request_limit       = null
 ops_metadata_prefix                    = "ops/"
 
-refresh_lambda_enabled           = true
 refresh_mode                     = "refresh_changed"
 refresh_batch_size               = 100
 refresh_force                    = false
@@ -141,3 +132,4 @@ batch_verify_max_size   = 25
 root_domain_name        = "charitystatusapi.com"
 route53_zone_name       = "charitystatusapi.com."
 oauth_token_ttl_seconds = 3600
+

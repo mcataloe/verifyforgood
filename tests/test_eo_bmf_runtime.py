@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from charity_status_backend.ingest_task.eo_bmf_ingest import EO_BMF_FILING_FORM_TYPE, ingest_eo_bmf_csv
-from charity_status_backend.ingest_task.eo_bmf_runner import run_local_eo_bmf_ingest
-from charity_status_platform.customer_accounts import (
+from verification.backend.ingest.federal.eo_bmf_ingest import EO_BMF_FILING_FORM_TYPE, ingest_eo_bmf_csv
+from verification.backend.ingest.federal.eo_bmf_runner import run_local_eo_bmf_ingest
+from verification.backend.shared.customer_accounts import (
     CustomerAccountsBase,
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.nonprofits import (
+from verification.backend.shared.nonprofits import (
     EoBmfNonprofitPersistenceService,
     NonprofitFilingRecord,
     NonprofitRecord,
@@ -248,17 +248,7 @@ def test_postgres_query_client_filters_eo_bmf_pseudo_filings(tmp_path: Path):
             updated_at="2026-04-05T00:00:00+00:00",
         )
     )
-    client = PostgresNonprofitQueryClient(
-        repository=repository,
-        delegate_client=type(
-            "Delegate",
-            (),
-            {
-                "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
-                "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
-            },
-        )(),
-    )
+    client = PostgresNonprofitQueryClient(repository=repository)
 
     _source, filings = client.list_form990_filings("123456789", limit=10)
 
@@ -286,11 +276,11 @@ def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, 
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification.backend.ingest.federal.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification.backend.ingest.federal.eo_bmf_runner.IRS_FILES",
         ["eo1.csv"],
     )
 
@@ -302,7 +292,6 @@ def test_run_local_eo_bmf_ingest_downloads_and_cleans_workspace(tmp_path: Path, 
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -348,11 +337,11 @@ def test_run_local_eo_bmf_ingest_processes_multiple_files_with_workers(tmp_path:
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification.backend.ingest.federal.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification.backend.ingest.federal.eo_bmf_runner.IRS_FILES",
         ["eo1.csv", "eo2.csv"],
     )
 
@@ -366,7 +355,6 @@ def test_run_local_eo_bmf_ingest_processes_multiple_files_with_workers(tmp_path:
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -397,15 +385,15 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
         )
 
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner._download_file_to_path",
+        "verification.backend.ingest.federal.eo_bmf_runner._download_file_to_path",
         _fake_download,
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.IRS_FILES",
+        "verification.backend.ingest.federal.eo_bmf_runner.IRS_FILES",
         ["eo1.csv", "eo2.csv"],
     )
     monkeypatch.setattr(
-        "charity_status_backend.ingest_task.eo_bmf_runner.build_progress_reporter",
+        "verification.backend.ingest.federal.eo_bmf_runner.build_progress_reporter",
         lambda: reporter,
     )
 
@@ -419,7 +407,6 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
             "EO_BMF_DOWNLOAD_TIMEOUT_SECONDS": "300",
         },
     )
@@ -432,3 +419,6 @@ def test_run_local_eo_bmf_ingest_reports_aggregate_row_progress_with_workers(tmp
     assert sum(int(call["completed_items"]) for call in reporter.sessions[0].calls) == 4
     assert any(call["increments"] == {"invalid": 1} for call in reporter.sessions[0].calls)
     assert any(call["increments"] == {"processed": 1} for call in reporter.sessions[0].calls)
+
+
+

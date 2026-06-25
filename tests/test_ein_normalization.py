@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from infrastructure.charity_status.normalization.ein import EINValidationError, format_ein, normalize_ein
+from infrastructure.verification.backend.shared.normalization.ein import EINValidationError, format_ein, normalize_ein
 
 
 def test_normalize_ein_valid_formats():
@@ -23,3 +23,4 @@ def test_normalize_ein_invalid_characters():
 def test_normalize_ein_empty_input():
     with pytest.raises(EINValidationError, match="required"):
         normalize_ein("   ")
+

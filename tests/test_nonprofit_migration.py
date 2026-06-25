@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from charity_status_platform.nonprofits import SqlAlchemyNonprofitRepository
-from charity_status_platform.runtime import run_nonprofit_migration
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification.backend.shared.nonprofits import SqlAlchemyNonprofitRepository
+from verification.backend.shared.runtime import run_nonprofit_migration
 
 
 class _FakeQueryClient:
@@ -130,3 +130,4 @@ def test_nonprofit_migration_backfills_and_validates_postgres_rows(tmp_path: Pat
     assert sources[0].source_id == "state_registry_mock"
     assert check is not None
     assert check.final_recommendation == "approve"
+

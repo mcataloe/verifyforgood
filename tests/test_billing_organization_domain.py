@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 
-from charity_status.billing import (
+from verification.backend.shared.billing import (
     BillingCustomerBootstrapService,
     BillingEvent,
     BillingMappingError,
@@ -14,8 +14,8 @@ from charity_status.billing import (
     ControlPlaneBillingSubscriptionRepository,
     PlanCatalogMapping,
 )
-from charity_status.billing.checkout import BillingProviderError, StripeCheckoutConfig
-from charity_status.control_plane import ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, InMemoryControlPlaneStore
+from verification.backend.shared.billing.checkout import BillingProviderError, StripeCheckoutConfig
+from verification.backend.shared.control_plane import ControlPlaneService, DynamoControlPlaneStore, FakeDynamoResource, FakeDynamoTable, InMemoryControlPlaneStore
 
 
 def _provider() -> ConfiguredStripeBillingProvider:
@@ -270,3 +270,4 @@ def test_billing_customer_bootstrap_provider_failure_does_not_corrupt_local_stat
         )
 
     assert _service_with_store(store).get_customer(account["id"]) is None
+

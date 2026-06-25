@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Paper, Stack, Text, Title } from "@mantine/core";
 import { readRuntimeConfig } from "@charity-status/shared-config";
 import type { FrontendAppInfo } from "@charity-status/shared-types";
@@ -22,7 +22,6 @@ import { ApiAccessPage } from "../pages/ApiAccessPage";
 import { BillingPage } from "../pages/BillingPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { PortalOrganizationOnboardingPage } from "../pages/PortalOrganizationOnboardingPage";
-import { PortalHomePage } from "../pages/PortalHomePage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -55,6 +54,10 @@ import {
   usePortalRoute,
 } from "./portalRoutes";
 
+const PORTAL_SESSION_REVALIDATION_INTERVAL_MS = 5 * 60 * 1000;
+const PORTAL_IDLE_WARNING_MS = 55 * 60 * 1000;
+const PORTAL_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
+
 const appInfo: FrontendAppInfo = {
   audience:
     "Authenticated customers managing verification workflows and account settings.",
@@ -80,6 +83,7 @@ function PortalAppShell({
 }) {
   const currentRoute = usePortalRoute();
   const auth = usePortalAuth();
+  const currentHash = resolveCurrentPortalHash(currentRoute);
   const endpoints = portalEndpoints(runtimeConfig);
   const requestedRoute = resolvePortalRoute(peekPortalReturnTo());
   const hasPendingOrganization =
@@ -102,6 +106,53 @@ function PortalAppShell({
         : null,
     [auth.accessToken, runtimeConfig],
   );
+  const idleTimeout = usePortalIdleTimeout({
+    enabled: auth.status === "authenticated",
+    onSignOut: auth.signOut,
+  });
+
+  useEffect(() => {
+    if (auth.status !== "authenticated" || currentRoute.access !== "protected") {
+      return;
+    }
+
+    void auth.refreshSession().catch(() => {});
+  }, [auth.status, auth.refreshSession, currentHash, currentRoute.access]);
+
+  useEffect(() => {
+    if (auth.status !== "authenticated") {
+      return;
+    }
+
+    const revalidate = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      void auth.refreshSession().catch(() => {});
+    };
+
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      document.removeEventListener("visibilitychange", revalidate);
+    };
+  }, [auth.status, auth.refreshSession]);
+
+  useEffect(() => {
+    if (auth.status !== "authenticated") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") {
+        void auth.refreshSession().catch(() => {});
+      }
+    }, PORTAL_SESSION_REVALIDATION_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [auth.status, auth.refreshSession]);
 
   useEffect(() => {
     if (
@@ -109,7 +160,7 @@ function PortalAppShell({
       currentRoute.access === "protected"
     ) {
       rememberPortalReturnTo(window.location.hash || currentRoute.hash);
-      navigateToPortalRoute(signInPortalRoute.hash);
+      navigateToPortalRoute(signInPortalRoute.hash, { replace: true });
     }
   }, [auth.status, currentRoute]);
 
@@ -124,6 +175,7 @@ function PortalAppShell({
         hasPendingOrganization
           ? "#/dashboard"
           : consumePortalReturnTo(),
+        { replace: true },
       );
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
@@ -134,7 +186,7 @@ function PortalAppShell({
       hasPendingOrganization &&
       currentRoute.key !== "dashboard"
     ) {
-      navigateToPortalRoute("#/dashboard");
+      navigateToPortalRoute("#/dashboard", { replace: true });
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
@@ -144,7 +196,7 @@ function PortalAppShell({
       !hasPendingOrganization &&
       currentRoute.key === organizationOnboardingPortalRoute.key
     ) {
-      navigateToPortalRoute("#/dashboard");
+      navigateToPortalRoute("#/dashboard", { replace: true });
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
 
@@ -164,32 +216,17 @@ function PortalAppShell({
           : window.location.hash || currentRoute.hash,
       currentRoute,
     });
-    const routeAuthorization = resolveRouteAuthorization({
-      audience: authAudience,
-      currentHash:
-        typeof window === "undefined"
-          ? currentRoute.hash
-          : window.location.hash || currentRoute.hash,
-      currentRoute,
-      membershipRole: authMembershipRole,
-    });
-
-    if (!routeAuthorization.allowed) {
-      return;
-    }
-
     if (
       canonicalHash &&
       (typeof window === "undefined"
         ? currentRoute.hash
         : window.location.hash || currentRoute.hash) !== canonicalHash
     ) {
-      navigateToPortalRoute(canonicalHash);
+      navigateToPortalRoute(canonicalHash, { replace: true });
     }
   }, [
     auth.status,
     authAudience,
-    authMembershipRole,
     currentRoute,
     hasPendingOrganization,
   ]);
@@ -226,15 +263,18 @@ function PortalAppShell({
         subtitle="Sign in or create an account to continue."
         title={
           currentRoute.key === homePortalRoute.key
-            ? "Customer Portal Entry"
+            ? "Sign In to the Customer Portal"
             : currentRoute.key === registerPortalRoute.key
               ? "Create Your Customer Portal Account"
               : "Sign In to the Customer Portal"
         }
       >
-        {currentRoute.key === homePortalRoute.key ? (
+        {/*
+          Root "#/" previously rendered PortalHomePage. Keep the route in place,
+          but point it at the same sign-in component used by "#/sign-in".
           <PortalHomePage requestedRoute={requestedRoute} />
-        ) : currentRoute.key === registerPortalRoute.key ? (
+        */}
+        {currentRoute.key === registerPortalRoute.key ? (
           <PortalRegisterPage
             endpoints={endpoints}
             isBusy={auth.isBusy}
@@ -272,10 +312,6 @@ function PortalAppShell({
   }
 
   const audience = resolvePortalNavigationAudience(session.roles);
-  const currentHash =
-    typeof window === "undefined"
-      ? currentRoute.hash
-      : window.location.hash || currentRoute.hash;
   const customerUserPane =
     audience === "customer_user"
       ? resolveCustomerUserPortalPane({
@@ -302,10 +338,12 @@ function PortalAppShell({
         customerAdminPane={customerAdminPane}
         currentRoute={currentRoute}
         customerUserPane={customerUserPane}
+        idleWarningVisible={idleTimeout.warningVisible}
         endpoints={endpoints}
         isOrganizationOnboardingBusy={auth.isBusy}
         isOrganizationOnboardingOpen={isOrganizationOnboardingOpen}
         onCloseOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(false)}
+        onDismissIdleWarning={idleTimeout.dismissWarning}
         onOpenOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(true)}
         onCreateOrganization={async (request) => {
           if (!organizationClient) {
@@ -331,8 +369,10 @@ function PortalAuthorizedShell({
   currentRoute,
   customerUserPane,
   endpoints,
+  idleWarningVisible,
   isOrganizationOnboardingBusy,
   isOrganizationOnboardingOpen,
+  onDismissIdleWarning,
   onCloseOrganizationOnboarding,
   onOpenOrganizationOnboarding,
   onCreateOrganization,
@@ -345,8 +385,10 @@ function PortalAuthorizedShell({
   currentRoute: ReturnType<typeof usePortalRoute>;
   customerUserPane: ReturnType<typeof resolveCustomerUserPortalPane> | null;
   endpoints: ReturnType<typeof portalEndpoints>;
+  idleWarningVisible: boolean;
   isOrganizationOnboardingBusy: boolean;
   isOrganizationOnboardingOpen: boolean;
+  onDismissIdleWarning: () => void;
   onCloseOrganizationOnboarding: () => void;
   onOpenOrganizationOnboarding: () => void;
   onCreateOrganization: (request: PortalOrganizationCreateRequest) => Promise<void>;
@@ -370,37 +412,6 @@ function PortalAuthorizedShell({
     membershipRole,
   });
 
-  useEffect(() => {
-    if (
-      currentRoute.access === "protected" &&
-      !routeAuthorization.allowed &&
-      routeAuthorization.redirectHash &&
-      currentHash !== routeAuthorization.redirectHash
-    ) {
-      navigateToPortalRoute(routeAuthorization.redirectHash);
-    }
-  }, [
-    currentHash,
-    currentRoute.access,
-    routeAuthorization.allowed,
-    routeAuthorization.redirectHash,
-  ]);
-
-  if (!routeAuthorization.allowed) {
-    return (
-      <PortalAuthLayout
-        app={appInfo}
-        runtimeConfig={runtimeConfig}
-        subtitle="Checking access to this area."
-        title="Redirecting to an allowed area"
-      >
-        <PortalNotice title="Redirecting" tone="loading">
-          <p>Returning to the nearest allowed portal destination.</p>
-        </PortalNotice>
-      </PortalAuthLayout>
-    );
-  }
-
   return (
     <PortalLayout
       app={appInfo}
@@ -413,6 +424,40 @@ function PortalAuthorizedShell({
       runtimeConfig={runtimeConfig}
       session={session}
     >
+      {idleWarningVisible ? (
+        <PortalNotice
+          onDismiss={onDismissIdleWarning}
+          title="Session expiring soon"
+          tone="warning"
+        >
+          <p>
+            You have been inactive for a while. Activity in the portal will keep
+            your session active; otherwise you will be signed out automatically.
+          </p>
+        </PortalNotice>
+      ) : null}
+      {!routeAuthorization.allowed ? (
+        <PortalNotice
+          dismissible={false}
+          title="Access denied"
+          tone="error"
+        >
+          <p>
+            Your current role does not allow access to this portal section. If
+            your access recently changed, refresh the page or contact an
+            organization administrator.
+          </p>
+          <PortalButton
+            onClick={() => navigateToPortalRoute("#/dashboard")}
+            tone="primary"
+            type="button"
+          >
+            Go to dashboard
+          </PortalButton>
+        </PortalNotice>
+      ) : null}
+      {routeAuthorization.allowed ? (
+        <>
       {session.organization_context_status === "pending" &&
       !isOrganizationOnboardingOpen ? (
         <Paper data-testid="pending-organization-callout" p="lg" radius="xl" withBorder>
@@ -518,6 +563,84 @@ function PortalAuthorizedShell({
           onCreateOrganization={onCreateOrganization}
         />
       ) : null}
+        </>
+      ) : null}
     </PortalLayout>
   );
+}
+
+function resolveCurrentPortalHash(currentRoute: ReturnType<typeof usePortalRoute>) {
+  return typeof window === "undefined"
+    ? currentRoute.hash
+    : window.location.hash || currentRoute.hash;
+}
+
+function usePortalIdleTimeout({
+  enabled,
+  onSignOut,
+}: {
+  enabled: boolean;
+  onSignOut: () => Promise<void>;
+}) {
+  const [warningVisible, setWarningVisible] = useState(false);
+  const signOutRef = useRef(onSignOut);
+  const dismissWarning = useCallback(() => setWarningVisible(false), []);
+
+  useEffect(() => {
+    signOutRef.current = onSignOut;
+  }, [onSignOut]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setWarningVisible(false);
+      return;
+    }
+
+    let warningTimer: number | undefined;
+    let logoutTimer: number | undefined;
+
+    const clearTimers = () => {
+      if (warningTimer !== undefined) {
+        window.clearTimeout(warningTimer);
+      }
+      if (logoutTimer !== undefined) {
+        window.clearTimeout(logoutTimer);
+      }
+    };
+
+    const resetIdleTimers = () => {
+      clearTimers();
+      setWarningVisible(false);
+      warningTimer = window.setTimeout(() => {
+        setWarningVisible(true);
+      }, PORTAL_IDLE_WARNING_MS);
+      logoutTimer = window.setTimeout(() => {
+        void signOutRef.current().catch(() => {});
+      }, PORTAL_IDLE_TIMEOUT_MS);
+    };
+
+    const activityEvents = [
+      "focus",
+      "keydown",
+      "mousedown",
+      "mousemove",
+      "pointerdown",
+      "scroll",
+      "touchstart",
+    ] as const;
+
+    resetIdleTimers();
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, resetIdleTimers, { passive: true });
+    });
+
+    return () => {
+      clearTimers();
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, resetIdleTimers);
+      });
+    };
+  }, [enabled]);
+
+  return { dismissWarning, warningVisible };
 }

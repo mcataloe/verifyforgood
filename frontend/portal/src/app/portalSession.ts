@@ -118,7 +118,10 @@ export function createMockPortalSession(
 export function createPortalCompatibilitySession(
   user: PortalIdentityUser,
   organization?: PortalActiveOrganizationRecord | null,
+  options: { roles?: FrontendAccessRole[] } = {},
 ): PortalAuthenticatedSession {
+  const roles = options.roles ?? PORTAL_SESSION_COMPATIBILITY_DEFAULTS.roles;
+
   if (organization) {
     return {
       account_id: organization.account_id,
@@ -129,7 +132,7 @@ export function createPortalCompatibilitySession(
       organization_context_status: "active",
       organization_name: organization.organization_name,
       plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
-      roles: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.roles,
+      roles,
       scopes: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.scopes,
       user: {
         display_name: resolvePortalDisplayName(user),
@@ -149,7 +152,7 @@ export function createPortalCompatibilitySession(
     organization_context_status: "pending",
     organization_name: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.organization_name,
     plan: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.plan,
-    roles: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.roles,
+    roles,
     scopes: PORTAL_SESSION_COMPATIBILITY_DEFAULTS.scopes,
     user: {
       display_name: resolvePortalDisplayName(user),

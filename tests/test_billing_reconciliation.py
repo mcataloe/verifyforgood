@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from charity_status.billing.checkout import BillingConflictError, StripeCheckoutConfig
-from charity_status.billing.organization_billing import BillingService, ConfiguredStripeBillingProvider, ControlPlaneBillingCustomerRepository, ControlPlaneBillingEventRepository, ControlPlaneBillingSubscriptionRepository, PlanCatalogMapping
-from charity_status.billing.reconciliation import BillingReconciliationService
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
+from verification.backend.shared.billing.checkout import BillingConflictError, StripeCheckoutConfig
+from verification.backend.shared.billing.organization_billing import BillingService, ConfiguredStripeBillingProvider, ControlPlaneBillingCustomerRepository, ControlPlaneBillingEventRepository, ControlPlaneBillingSubscriptionRepository, PlanCatalogMapping
+from verification.backend.shared.billing.reconciliation import BillingReconciliationService
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 def _billing_service(store):
@@ -165,3 +165,4 @@ def test_billing_reconciliation_requires_persisted_stripe_identity():
         assert "Stripe customer or subscription id" in str(exc)
     else:
         assert False, "Expected reconciliation identity error"
+

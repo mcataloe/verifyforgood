@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import hmac
@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from time import time
 
-from charity_status.billing.webhooks import (
+from verification.backend.shared.billing.webhooks import (
     BillingWebhookSignatureError,
     StripeWebhookConfig,
     StripeWebhookService,
@@ -14,8 +14,8 @@ from charity_status.billing.webhooks import (
     load_stripe_webhook_config,
     verify_and_parse_stripe_event,
 )
-from charity_status.billing.trials import TrialConfig, TrialLifecycleService
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.billing.trials import TrialConfig, TrialLifecycleService
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
 
 
 class _PlanCatalogProvider:
@@ -514,3 +514,4 @@ def _sign_payload(payload: str, *, secret: str, timestamp: int | None = None) ->
     signed_payload = f"{timestamp}.{payload}".encode("utf-8")
     signature = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
     return f"t={timestamp},v1={signature}"
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import pathlib
@@ -10,15 +10,14 @@ from sqlalchemy import engine_from_config, pool
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INFRA_PATH = ROOT / "infrastructure"
-PRIVATE_PLATFORM_SRC = ROOT / "private-platform" / "src"
 
-for path in (ROOT, INFRA_PATH, PRIVATE_PLATFORM_SRC):
+for path in (ROOT, INFRA_PATH):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from charity_status.platform import resolve_postgres_sqlalchemy_url  # noqa: E402
-from charity_status_platform.customer_accounts import CustomerAccountsBase  # noqa: E402
-from charity_status_platform.nonprofits import (  # noqa: F401,E402
+from verification.backend.shared.platform import resolve_postgres_sqlalchemy_url  # noqa: E402
+from verification.backend.shared.customer_accounts import CustomerAccountsBase  # noqa: E402
+from verification.backend.shared.nonprofits import (  # noqa: F401,E402
     ComplianceCheckModel,
     NonprofitFilingModel,
     NonprofitModel,
@@ -78,3 +77,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+

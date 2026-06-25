@@ -8,17 +8,15 @@ rollback stack for the cutover window. See
 `docs/architecture/ADR-ecs-runtime-pivot.md` and
 `docs/implementation/ecs-runtime-migration-blueprint.md`.
 
-The repository name remains `CharityStatusAPI`, but customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
+Customer-facing branding is configured separately so the platform can be presented as `VerifyForGood` without renaming internal capability-oriented modules.
 
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
-- `docs/contributor-naming-rules.md` is the concise rule set for naming new internal modules, workflows, and infrastructure identifiers.
-- `docs/backend-stage1-readiness.md` summarizes the current backend split, entrypoint map, shared contract guidance, and the remaining follow-up items before frontend work expands.
-- `docs/capability-naming-abstraction.md` documents the neutral `verification_platform` namespace and the legacy compatibility mapping.
-- `docs/infrastructure-naming-normalization.md` documents the neutral infrastructure naming layer, compatibility aliases, and intentionally preserved legacy resource names.
-- `docs/monthly-ingest-architecture.md` documents the implemented monthly private-ingest architecture, runtime contracts, and cost model.
-- `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly private-ingest.
+- `docs/monthly-ingest-architecture.md` documents the implemented monthly ingest architecture, runtime contracts, and cost model.
+- `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly ingest.
+- `docs/architecture/ADR-ecs-runtime-pivot.md` records the API runtime pivot from Lambda to ECS.
+- `docs/implementation/ecs-runtime-migration-blueprint.md` captures the ECS runtime migration plan and rollout details.
 
 ## Frontend Workspace
 
@@ -58,109 +56,16 @@ Important:
 
 ## Naming Layers
 
-Three naming layers now coexist intentionally:
+Three naming layers still matter:
 
 - product / brand naming:
   - customer-facing labels such as `VerifyForGood`
   - use only where customers or external systems see the name
 - capability / domain naming:
-  - preferred internal naming such as `verification_platform`, `organization_verification`, and `monthly_ingest`
+  - preferred internal naming such as `verification.backend.platform`, `organization_verification`, and `monthly_ingest`
   - use for new modules, workflow labels, service boundaries, and internal docs
-- legacy compatibility naming:
-  - preserved names such as `CharityStatusAPI`, `charity_status`, `charitystatusapi.*`, and `charitystatusapi-*` backend resources
-  - keep only where compatibility or deployed-resource stability still requires them
-
-Contributor shortcut:
-
-- new internals should be capability-oriented
-- existing legacy names should be wrapped or documented, not spread further
-- customer-facing/public contract terms should stay stable unless a contract change is intentional
-
-## Infrastructure Naming
-
-Infrastructure resource names should be deterministic, composable, and independent from product branding. The shared naming helper lives at `infrastructure/charity_status/platform/naming.py` and builds names in this format:
-
-- `<namespace>-<platform>-<purpose>-<environment>-<region>`
-
-Defaults for the current verification platform are:
-
-- `namespace = n8x4`
-- `platform = verification`
-- `region = use1`
-
-Naming philosophy:
-
-- infrastructure names identify ownership and deployment context, not marketing identity
-- branding such as current or future product names must not be embedded in infrastructure resource names
-- purpose tokens should describe the resource role (`profiles`, `query-api`, `source-data-bucket`) rather than the brand
-- names must stay lowercase, hyphen-separated, trimmed, and safe for S3-compatible AWS resource naming
-- Terraform keeps `resource_name_strategy = "legacy"` by default so existing deployed resources are not renamed accidentally; set it to `standardized` only as part of an explicit migration plan
-- `resource_name_overrides` can pin individual physical names when migrating one resource at a time
-- grouped internal Terraform locals now use neutral capability maps for Lambda, queue, schedule, and tag naming; see `docs/infrastructure-naming-normalization.md` for the migration table and preserved exceptions
-
-Namespace token guidance:
-
-- `namespace` is the short organizational token that scopes shared infrastructure ownership
-- use `n8x4` as the default unless a deployment explicitly requires a different namespace boundary
-- keep namespace changes intentional because the token is part of every generated resource name
-
-## Brand Separation
-
-Internal runtime naming is capability-based even when customer-facing materials use a product brand.
-
-- `APP_NAME` controls neutral internal/runtime identity such as outbound user-agent strings
-- `PUBLIC_BRAND_NAME` controls customer-visible labels used in external systems such as billing metadata
-- `SUPPORT_EMAIL` controls customer-facing support contact details surfaced by the branding layer
-- `DOMAIN` controls the public product domain surfaced by the branding layer; it does not rename infrastructure resources or Route53-managed endpoints by itself
-- public routes and API payloads stay unchanged unless a separate contract change explicitly requires them
-- customer-facing docs may still use a configured public brand; internal module and runtime identifiers should stay brand-neutral
-- deployment-specific bootstrap/state files may still carry existing live names until a separate migration updates those resources deliberately
-- branding defaults now target `VerifyForGood`, but those values remain runtime configuration rather than core platform identifiers
-
-Capability-namespace guidance:
-
-- the legacy `charity_status` package remains supported for backward compatibility
-- new internal wrappers may be introduced under `verification_platform` when they describe capabilities more clearly than legacy names
-- wrapper namespaces should re-export existing implementations before any deeper code movement or rename
-- new modules should prefer capability-oriented names such as `organization_verification` or `entity_resolution`, not product or repo branding
-
-If you are naming something new:
-
-- read `docs/contributor-naming-rules.md` first
-- use `docs/capability-naming-abstraction.md` for runtime/module mapping
-- use `docs/infrastructure-naming-normalization.md` for Terraform and physical-resource exceptions
-
-## Public-Core Boundary (Phase 11A)
-
-Phase 11A introduces explicit separation boundaries so domain logic can remain canonical/open while deployment/platform wiring can be isolated.
-
-Core/domain modules (intended reusable/public surface):
-
-- `charity_status/query`, `charity_status/scoring`, `charity_status/decision`, `charity_status/evidence`, `charity_status/policy`
-- new core interfaces in `charity_status/core/`:
-  - `QueryRepository`
-  - `ProfileStoreAdapter`
-  - `EnrichmentProviderGateway`
-  - `AuthContextProvider`
-  - `QuotaMeteringHook`
-
-Platform/runtime wiring (environment/deployment concerns):
-
-- `charity_status/platform/runtime.py` builds concrete Athena and enrichment adapters from env/runtime config
-- Lambda entrypoints consume these boundaries while keeping handlers thin
-
-Contributor guidance:
-
-- Keep business rules and deterministic domain logic inside core/domain packages.
-- Keep provider/env/runtime selection in platform wiring modules.
-- Route handlers should orchestrate only; avoid source-specific or provider-specific business logic in handlers.
-- If adding auth/quotas, implement adapters behind `AuthContextProvider` and `QuotaMeteringHook` first, then inject.
-
-Adapter boundary guidance now used in mixed infrastructure-facing modules:
-
-- service modules own application rules and orchestration
-- adapter modules own AWS SDK creation, cloud-specific persistence, and provider-specific query execution
-- runtime builders such as `charity_status.platform.runtime` assemble the concrete adapters used by handlers
+- deployment naming:
+  - Terraform, AWS resources, and bootstrap state names that may remain pinned until a separate migration updates them deliberately
 
 ## Repository Topology
 
@@ -170,81 +75,22 @@ The repository now uses three operational layers:
 - `backend/`
 - `infrastructure/`
 
-Supporting package/code boundaries remain:
-
-- `public-core/`
-- `private-platform/`
-
 How these layers should be interpreted:
 
 - `frontend/` is the dedicated pnpm workspace and browser/runtime UI layer
 - `backend/` is the executable runtime host layer for the API server, worker runtimes, ingest tasks, and runtime-shared bootstrap
 - `backend/` now uses a dedicated Python workspace scaffold rooted at `backend/pyproject.toml`
-- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and temporary compatibility shims only
-- `public-core/` and `private-platform/` remain package boundaries, not replacements for `backend/`
-
-## Stage-1 Backend Readiness
-
-The repository now has first-stage backend split scaffolding in place for:
-
-- `backend/`
-- `public-core/`
-- `private-platform/`
-- `infrastructure/`
-
-The key practical rules at this point are:
-
-- keep deterministic open-safe logic in `public-core/`
-- keep customer/account/auth/billing/admin/backend orchestration in `private-platform/`
-- keep executable runtime hosts and shared runtime bootstrap in `backend/`
-- keep `infrastructure/` focused on deploy-time entrypoints, Terraform, and runtime wiring
-
-For the current live system:
-
-- `infrastructure/lambda_*.py` remains the deployed handler surface
-- `backend/api` now owns the primary FastAPI app and shared HTTP runtime dispatch for the API service
-- `backend/ingest-task` now owns the Form 990 and monthly ingest-task runtime implementations behind compatibility wrapper entrypoints
-- those handlers are planned migration sources for `backend/api`, `backend/worker`, and `backend/ingest-task`
-- backend-owned Dockerfiles now define the canonical runtime image contracts for
-  API, worker, and ingest-task execution
-- `charity_status_platform.runtime.entrypoints` is the canonical internal map of those live entrypoints
-- `charity_status_platform.runtime.backend_contracts` is the canonical private-platform compatibility root for API response-envelope and route-version helpers
-
-Testing guidance is now explicit:
-
-- `public-core/tests/` is the future home for pure public-core unit tests
-- `private-platform/tests/` is the future home for private-platform unit and boundary tests
-- root `tests/` remains the active integration and compatibility suite while runtime imports still rely on `infrastructure/`
-
-## Repo Split Scaffolding (Phase 11B)
-
-Phase 11B adds non-breaking scaffolding to make a future public/private split low risk while keeping this repository fully functional today.
-
-New top-level scaffold directories:
-
-- `public-core/` (future open-source packaging boundary)
-- `private-platform/` (future proprietary platform boundary)
-- `infra-deployment/` (future deployment-only boundary)
-
-Migration planning artifacts:
-
-- `split-plan.json`: machine-readable include/exclude mapping for split execution
-- `docs/repo-split-guide.md`: what belongs in public vs private vs infra repos
-
-Important:
-
-- No proprietary code is removed automatically in this phase.
-- Existing runtime and tests continue to use current paths.
-- Core packaging metadata is prepared in `public-core/pyproject.toml` for extraction planning.
+- `infrastructure/` is the deployment/config/wiring layer and should converge on packaging, Terraform, env files, and deploy-time shims only
+- runtime packages now live under `backend/*/src/verification/backend/...`
 
 ## AWS Data Flow
 
 1. The backend-owned EO/BMF ingest runtime downloads IRS EO CSV files (`eo1.csv`-`eo4.csv`) into a local/ECS workspace and upserts canonical nonprofit rows into PostgreSQL.
 2. The monthly Form 990 ingest worker downloads IRS ZIP archives into the workspace, parses XML members, and persists normalized filing/source metadata to PostgreSQL.
 3. Glue catalogs EO/BMF and Form 990 normalized datasets.
-4. The ECS-hosted API handles verification/scoring endpoints, while
-   `lambda_query.py` remains the deprecated rollback implementation.
-5. For `GET /v1/nonprofit/{ein}`, Lambda uses DynamoDB read-through serving:
+4. The ECS-hosted API is the only public HTTP runtime and handles all
+   verification/scoring endpoints directly through FastAPI.
+5. For `GET /v1/nonprofit/{ein}`, the ECS API uses DynamoDB read-through serving:
    - check materialized profile in DynamoDB
    - return cached profile on hit
    - on miss, run Athena/source assembly path, materialize to DynamoDB, return response
@@ -432,7 +278,7 @@ CSV reconciliation still runs after raw source persistence for catalog visibilit
 Phase 10G ZIP discovery/reconciliation extension:
 
 - source modes:
-  - `static_manifest` (default): parse the checked-in `infrastructure/charity_status/form990/Form990Links.txt` manifest
+  - `static_manifest` (default): parse the checked-in `backend/ingest/federal/src/verification/backend/ingest/federal/form990/Form990Links.txt` manifest
   - `configured`: normalize caller- or env-provided manual source catalogs/index URLs
   - `irs_page`: legacy/deprecated compatibility mode that discovers yearly links from `FORM990_IRS_DOWNLOADS_PAGE_URL`
 - static-manifest validation:
@@ -667,11 +513,11 @@ Current external source framework is explicitly scoped to U.S. nonprofits.
 
 Framework location:
 
-- `infrastructure/charity_status/enrichments/base.py`
-- `infrastructure/charity_status/enrichments/registry.py`
-- `infrastructure/charity_status/enrichments/service.py`
-- `infrastructure/charity_status/enrichments/providers/`
-- `infrastructure/charity_status/sources/`
+- `backend/shared/src/verification/backend/shared/enrichments/base.py`
+- `backend/shared/src/verification/backend/shared/enrichments/registry.py`
+- `backend/shared/src/verification/backend/shared/enrichments/service.py`
+- `backend/shared/src/verification/backend/shared/enrichments/providers/`
+- `backend/shared/src/verification/backend/shared/sources/`
 
 Included providers:
 
@@ -831,7 +677,7 @@ Typed source model components:
 
 Provider extension guidance:
 
-- implement provider logic under `charity_status/enrichments/providers/`
+- implement provider logic under `verification/enrichments/providers/`
 - expose provider capabilities via `capabilities()`
 - return normalized `source_records` alongside existing enrichment fields
 - keep provider-specific schemas out of business logic; map into normalized source records
@@ -873,7 +719,7 @@ Failure tolerance:
 
 ## State Registry Framework (Phase 11A)
 
-Phase 11A adds a dedicated state-registry framework under `charity_status/state_registry/` for future U.S. business-registry ingestion and query work.
+Phase 11A adds a dedicated state-registry framework under `verification/state_registry/` for future U.S. business-registry ingestion and query work.
 
 Package layout:
 
@@ -910,7 +756,7 @@ Canonical normalized record fields:
 
 Extension rules for new states:
 
-- add each state under its own module in `charity_status/state_registry/adapters/`
+- add each state under its own module in `verification/state_registry/adapters/`
 - keep source-specific field names and parsing logic inside that state module only
 - map all outputs into the shared `StateRegistryRecord` contract before other application layers see them
 - reuse shared normalization, matching, and traceability helpers instead of copying them into state modules
@@ -924,7 +770,7 @@ Design intent:
 
 ## Colorado State Registry Pilot (Phase 11B)
 
-Phase 11B validates the shared framework with the first real state implementation under `charity_status/state_registry/adapters/colorado/`.
+Phase 11B validates the shared framework with the first real state implementation under `verification/state_registry/adapters/colorado/`.
 
 Colorado module layout:
 
@@ -955,7 +801,7 @@ Shared lookup path:
 
 ## Kentucky State Registry Validation (Phase 11C)
 
-Phase 11C adds a second real adapter under `charity_status/state_registry/adapters/kentucky/` to validate the framework against Kentucky’s tab-delimited bulk company files.
+Phase 11C adds a second real adapter under `verification/state_registry/adapters/kentucky/` to validate the framework against Kentucky’s tab-delimited bulk company files.
 
 Kentucky module layout:
 
@@ -1007,7 +853,7 @@ Failure-isolation rules:
 
 Persistence seam:
 
-- `charity_status/state_registry/repository.py` defines the shared persistence seam
+- `verification/state_registry/repository.py` defines the shared persistence seam
 - `InMemoryStateRegistryRecordRepository` stores normalized records plus raw payload traceability metadata for tests and local wiring
 - persisted items include:
   - canonical normalized record payload
@@ -1017,7 +863,7 @@ Persistence seam:
 
 Adding new adapters to the orchestrated path:
 
-- keep the state-specific adapter isolated under `charity_status/state_registry/adapters/<state>/`
+- keep the state-specific adapter isolated under `verification/state_registry/adapters/<state>/`
 - register the adapter in a `StateRegistryAdapterRegistry`
 - wire it into `StateRegistryLookupService`
 - pass that service into `StateRegistryProvider` so the broader verification flow can consume it without taking a direct dependency on state-specific parsing code
@@ -1040,10 +886,10 @@ Phase 11E expands the shared Tier 1 state-registry pattern to:
 
 Implementation structure:
 
-- each state lives in its own isolated adapter package under `charity_status/state_registry/adapters/<state>/`
+- each state lives in its own isolated adapter package under `verification/state_registry/adapters/<state>/`
 - each package keeps transport/client logic separate from source-specific mapping
 - canonical normalization still happens only through `StateRegistryRecord`
-- shared logic was only extended where duplication had clearly emerged: `charity_status/state_registry/portal_html.py` now handles lightweight HTML-table extraction and hidden-input parsing for portal-style registries
+- shared logic was only extended where duplication had clearly emerged: `verification/state_registry/portal_html.py` now handles lightweight HTML-table extraction and hidden-input parsing for portal-style registries
 
 State-specific caveats:
 
@@ -1203,7 +1049,7 @@ Key model:
 
 - key prefix/id + secret pattern
 - secrets are stored as hashes (`secret_hash`), not plaintext
-- one-time secret display is supported by generation contracts in `charity_status/auth/service.py`
+- one-time secret display is supported by generation contracts in `verification/auth/service.py`
 - key is associated with `account_id` and `workspace_id`
 - key may include scopes/entitlements and plan assignment
 
@@ -1237,9 +1083,9 @@ Terraform/env settings:
 Local dev note:
 
 - keep `api_auth_enabled=false` for unrestricted local testing, or provide `api_key_records_json` with hashed secrets for auth-enabled testing.
-- key generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_api_key_record`.
-- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `charity_status.auth.build_oauth_client_record`.
-- OAuth token record generation contract is available via `charity_status.auth.build_oauth_token_record`.
+- key generation contract (one-time secret display + hashed-at-rest record) is available via `verification.backend.shared.auth.build_api_key_record`.
+- OAuth client generation contract (one-time secret display + hashed-at-rest record) is available via `verification.backend.shared.auth.build_oauth_client_record`.
+- OAuth token record generation contract is available via `verification.backend.shared.auth.build_oauth_token_record`.
 
 Auth coexistence behavior:
 
@@ -1257,7 +1103,7 @@ Admin control-plane authentication:
 
 ## Billing Domain Model (Phase 12B)
 
-Billing/productization modeling is now available as deterministic domain types in `charity_status/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
+Billing/productization modeling is now available as deterministic domain types in `verification/billing/`, and paid-plan enrollment now integrates with Stripe-hosted Checkout.
 
 The billing domain now also models a free-trial lifecycle for newly eligible organizations:
 
@@ -1952,8 +1798,8 @@ This demonstrates local use of domain logic without Terraform, API Gateway, or L
 ### Relational foundation and migrations
 
 The platform relational foundation now uses SQLAlchemy models under
-`private-platform/src/charity_status_platform/customer_accounts/` and Alembic
-for schema evolution.
+`backend/shared/src/verification/backend/shared/customer_accounts/` and Alembic for
+schema evolution.
 
 Backend-local developer workflow:
 
@@ -1968,11 +1814,11 @@ Example local bootstrap:
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install -r infrastructure/requirements.txt -r infrastructure/requirements-dev.txt
-python -m pip install -e .\\public-core -e .\\private-platform -e .\\backend
+python -m pip install -e .\\backend
 cp backend/.env.local.example backend/.env.local
 createdb verification_platform
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.api.entrypoint
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.customer.api.entrypoint
 ```
 
 Set one of the following before running migrations locally:
@@ -1988,14 +1834,14 @@ Set one of the following before running migrations locally:
 Common commands:
 
 ```bash
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.shared.local_dev db-current
 alembic upgrade head
 alembic revision -m "describe change"
-python -m charity_status_platform.runtime.customer_accounts_backfill --identity-table-name identity
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run
-python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity
-python -m charity_status_platform.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
+python -m verification.backend.shared.runtime.customer_accounts_backfill --identity-table-name identity
+python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity --dry-run
+python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity
+python -m verification.backend.shared.runtime.nonprofit_migration --dry-run --page-size 250 --profile-table-name profiles
 ```
 
 Phase 24D moves the customer-account identity domain to PostgreSQL when
@@ -2036,8 +1882,8 @@ enrichment-driven in this phase.
 Phase 24H adds migration wrappers with dry-run and validation reporting for
 identity and nonprofit cutover preparation:
 
-- `python -m charity_status_platform.runtime.customer_accounts_migration`
-- `python -m charity_status_platform.runtime.nonprofit_migration`
+- `python -m verification.backend.shared.runtime.customer_accounts_migration`
+- `python -m verification.backend.shared.runtime.nonprofit_migration`
 
 The detailed cutover and rollback sequence now lives in
 `docs/implementation/postgresql-cutover-runbook.md`.
@@ -2076,18 +1922,9 @@ Form 990 mode configuration additions:
 - `form990_irs_downloads_page_url`: IRS discovery page URL used only for legacy `irs_page` mode
 - `form990_zip_fetch_timeout_seconds`: ZIP download timeout
 - `form990_zip_max_xml_file_size_bytes`: ZIP extraction safety limit
-- `form990_execution_mode`: `inline` or `orchestrated`
-- `form990_chunk_size`: records per SQS chunk item
-- `form990_worker_timeout_seconds`: worker Lambda timeout
-- `form990_worker_memory_size_mb`: worker Lambda memory
-- `form990_worker_reserved_concurrency`: worker concurrency limit
-- `form990_queue_visibility_timeout_seconds`: SQS visibility timeout
-- `form990_queue_max_receive_count`: SQS retry attempts before DLQ
-- `form990_queue_batch_size`: SQS event source batch size for worker
-- `monthly_ingest_state_machine_enabled`: enable the monthly private-ingest Step Functions workflow
-- `monthly_ingest_schedule_expression`: optional EventBridge schedule for the monthly private-ingest workflow
-- `monthly_ingest_schedule_context_json`: upstream ZIP metadata for the staging Lambda, typically including `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`
-- `monthly_ingest_staging_lambda_arn`: optional external override; leave empty to use the in-repo staging Lambda resource
+- `form990_execution_mode`: execution metadata embedded into the ECS task environment
+- `monthly_ingest_schedule_expression`: optional EventBridge schedule for the monthly private-ingest ECS task
+- `monthly_ingest_schedule_context_json`: upstream ZIP metadata passed directly to the scheduled ECS task, typically including `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`
 - `monthly_ingest_worker_image_uri`: optional external worker image URI; leave empty to use the managed ECR repository plus `monthly_ingest_worker_image_tag`
 - `monthly_ingest_task_cpu`, `monthly_ingest_task_memory`, `monthly_ingest_task_ephemeral_storage_gib`: managed ECS worker sizing controls
 - `monthly_ingest_task_allowed_bucket_arns`: additional S3 buckets the managed ECS task role may access
@@ -2098,9 +1935,9 @@ cutover so the ALB-backed ECS service is now the primary ingress path.
 Phase 27C aligns the Terraform deployment model to the backend runtime
 directories:
 
-- `backend/api` -> live ECS service behind the ALB
+- `backend/customer-api` -> live ECS service behind the ALB
 - `backend/worker` -> private ECS service placeholder, disabled by default
-- `backend/ingest-task` -> ECS task-style runtime for scheduled and one-off
+- `backend/ingest/federal` -> ECS task-style runtime for scheduled and one-off
   ingest execution
 
 ECS API deployment configuration additions:
@@ -2153,23 +1990,20 @@ Current Phase 25D ingress posture:
 
 - Route53 custom-domain alias points to the API ALB
 - ECS/ALB is the primary runtime for the public API hostname
-- Lambda query packaging and API Gateway resources remain deployable only as a deprecated rollback path
-- PostgreSQL ingress allows the ECS API task security group alongside the query Lambda path when PostgreSQL is enabled
+- API Gateway and Lambda rollback infrastructure has been removed
+- PostgreSQL ingress allows the ECS API task security group when PostgreSQL is enabled
 
-Rollback guidance for the API cutover:
-
-- restore the Route53 alias to `aws_api_gateway_domain_name.api_domain`
-- redeploy the query Lambda and API Gateway stack if the ECS runtime must be backed out
-- keep the legacy stack only until ECS stability is proven; later cleanup should remove it deliberately rather than let it drift indefinitely
+The HTTP cutover is complete. ECS/ALB is now authoritative for the public API,
+and Terraform no longer models a Lambda/API Gateway fallback stack.
 
 Current CI/CD posture:
 
 - `.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline for backend
   image build, ECR publish, Terraform plan, and manual ECS rollout
 - the pipeline builds and publishes:
-  - `backend/api`
+  - `backend/customer-api`
   - `backend/worker`
-  - `backend/ingest-task`
+  - `backend/ingest/federal`
 - image versioning now defaults to immutable commit-SHA tags instead of a
   mutable `latest` rollout contract
 - Terraform remains the deploy authority; deploy jobs pass:
@@ -2180,8 +2014,8 @@ Current CI/CD posture:
   `backend-dev.hcl` plus the dev tfvars files
 - prod rollout is exposed as a manual GitLab job on tags using
   `backend-prod.hcl` plus the prod tfvars files
-- the current ingest-task compatibility contract remains:
-  `monthly_ingest_worker_image_tag` still selects the `backend/ingest-task`
+- the current federal-ingest image contract remains:
+  `monthly_ingest_worker_image_tag` still selects the `backend/ingest/federal`
   image for the monthly ECS task definition
 - CI requires standard AWS auth variables plus environment-specific secrets
   content for:
@@ -2189,8 +2023,8 @@ Current CI/CD posture:
   - `TERRAFORM_PROD_SECRETS_TFVARS`
 - the initial Terraform bootstrap still has to create the managed ECR
   repositories before CI publish jobs can push successfully
-- the canonical Dockerfiles now live under `backend/api/`, `backend/worker/`,
-  and `backend/ingest-task/`
+- the canonical Dockerfiles now live under `backend/customer-api/`, `backend/worker/`,
+  and `backend/ingest/federal/`
 
 Lambda event examples:
 
@@ -2284,20 +2118,16 @@ Phase D2 adds a refresh/materialization pipeline that updates DynamoDB only when
 
 Core modules:
 
-- `charity_status/serving/change_detection.py`
-- `charity_status/serving/compare.py`
-- `charity_status/serving/writer.py`
-- `charity_status/serving/refresh.py`
+- `verification/serving/change_detection.py`
+- `verification/serving/compare.py`
+- `verification/serving/writer.py`
+- `verification/serving/refresh.py`
 
 Refresh execution:
 
-- `lambda_refresh.py` is a thin orchestrator Lambda.
-- It rebuilds the canonical nonprofit profile for each target EIN using the same verification/scoring pipeline.
-- It materializes a new candidate item with deterministic `source_hash`.
-- It reads the current DynamoDB profile and writes only when:
-  - item is missing
-  - `source_hash` changed
-  - `model_version` changed
+- the refresh runtime is retired
+- the public refresh routes return `410`
+- no Lambda or scheduled refresh path remains in active infrastructure
   - force refresh is enabled
 - If hash and version match, the write is skipped.
 
@@ -2405,3 +2235,4 @@ Non-prod defaults remain low-cost:
 - lazy/on-demand serving stays the default
 - targeted/manual refresh modes still supported (`refresh_changed`, `backfill_missing`, explicit EIN lists)
 - no automatic non-prod eager bootstrap
+

@@ -1,6 +1,10 @@
 import { CallToAction, FeatureGrid } from "@charity-status/shared-ui";
 
-export function ProductPage() {
+export function ProductPage({
+  platformLoginUrl,
+}: {
+  platformLoginUrl: string;
+}) {
   return (
     <div className="marketing-page-stack">
       <FeatureGrid
@@ -34,7 +38,7 @@ export function ProductPage() {
 
       <CallToAction
         actions={
-          <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/login">
+          <a className="marketing-shell__cta marketing-shell__cta--secondary" href={platformLoginUrl}>
             Open portal
           </a>
         }

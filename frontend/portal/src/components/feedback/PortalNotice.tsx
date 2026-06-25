@@ -1,8 +1,10 @@
-import { Alert, Stack } from "@mantine/core";
-import type { PropsWithChildren, ReactNode } from "react";
+import { CloseButton } from "@mantine/core";
+import { useState, type PropsWithChildren, type ReactNode } from "react";
 
 interface PortalNoticeProps extends PropsWithChildren {
   action?: ReactNode;
+  dismissible?: boolean;
+  onDismiss?: () => void;
   title?: string;
   tone: "empty" | "error" | "loading" | "warning";
 }
@@ -10,28 +12,39 @@ interface PortalNoticeProps extends PropsWithChildren {
 export function PortalNotice({
   action,
   children,
+  dismissible = true,
+  onDismiss,
   title,
   tone,
 }: PortalNoticeProps) {
-  return (
-    <Alert color={resolveNoticeColor(tone)} radius="md" title={title} variant="light">
-      <Stack gap="sm">
-        <div>{children}</div>
-        {action}
-      </Stack>
-    </Alert>
-  );
-}
+  const [dismissed, setDismissed] = useState(false);
 
-function resolveNoticeColor(tone: PortalNoticeProps["tone"]) {
-  switch (tone) {
-    case "error":
-      return "red";
-    case "loading":
-      return "blue";
-    case "empty":
-    case "warning":
-    default:
-      return "teal";
+  if (dismissed) {
+    return null;
   }
+
+  return (
+    <div
+      className={`portal-notice portal-notice--${tone}`}
+      role={tone === "error" ? "alert" : "status"}
+    >
+      <div className="portal-notice__main">
+        <div className="portal-notice__content">
+          {title ? <p className="portal-notice__title">{title}</p> : null}
+          <div className="portal-notice__body">{children}</div>
+        </div>
+        {dismissible ? (
+          <CloseButton
+            aria-label={`Dismiss ${title ?? "notification"}`}
+            className="portal-notice__dismiss"
+            onClick={() => {
+              setDismissed(true);
+              onDismiss?.();
+            }}
+          />
+        ) : null}
+      </div>
+      {action ? <div className="portal-notice__action">{action}</div> : null}
+    </div>
+  );
 }

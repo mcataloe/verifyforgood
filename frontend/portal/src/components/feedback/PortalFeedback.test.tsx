@@ -53,4 +53,20 @@ describe("portal feedback components", () => {
     expect(screen.getByText("Warning notice.")).toBeTruthy();
     expect(retry).toHaveBeenCalled();
   });
+
+  it("dismisses a notice from the shared feedback template", () => {
+    render(
+      <VerifyForGoodMantineProvider defaultColorScheme="light">
+        <PortalNotice title="Heads up" tone="warning">
+          <p>Dismiss me.</p>
+        </PortalNotice>
+      </VerifyForGoodMantineProvider>,
+    );
+
+    expect(screen.getByText("Dismiss me.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss Heads up" }));
+
+    expect(screen.queryByText("Dismiss me.")).toBeNull();
+  });
 });

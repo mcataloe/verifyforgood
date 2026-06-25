@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.enrichments.service import EnrichmentService
-from charity_status.enrichments.providers.state_registry import StateRegistryProvider
-from charity_status.query.verification import VerificationInput, verify_nonprofit
-from charity_status.state_registry import (
+from verification.backend.shared.enrichments.registry import ProviderRegistry
+from verification.backend.shared.enrichments.service import EnrichmentService
+from verification.backend.shared.enrichments.providers.state_registry import StateRegistryProvider
+from verification.backend.shared.query.verification import VerificationInput, verify_nonprofit
+from verification.backend.ingest.state import (
     InMemoryStateRegistryRecordRepository,
     RawStateRegistryRecord,
     StateRegistryAdapter,
@@ -18,7 +18,7 @@ from charity_status.state_registry import (
     StateRegistrySourceType,
     build_state_registry_adapter_registry,
 )
-from charity_status.state_registry.adapters import IllinoisBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters import IllinoisBusinessRegistryAdapter
 
 
 def _client(state: str = "IL", name: str = "Example Charity"):
@@ -180,3 +180,4 @@ def test_state_registry_provider_uses_lookup_service_for_supported_state():
     assert payload["state_compliance"]["registration_status"] == "active"
     assert payload["state_compliance"]["registration_jurisdiction"] == "IL"
     assert payload["enrichment"]["providers"][0]["source"]["source_name"] == "illinois_secretary_of_state"
+

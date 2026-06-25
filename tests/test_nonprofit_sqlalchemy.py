@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,9 +6,10 @@ from pathlib import Path
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from charity_status_platform.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
-from charity_status_platform.nonprofits import (
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification.backend.shared.customer_accounts.sqlalchemy_db import customer_accounts_session_scope
+from verification.backend.shared.nonprofits import (
+    NonprofitAdvisoryDetailService,
     ComplianceCheckRecord,
     Form990ArchiveRecord,
     Form990ExtractedFileRecord,
@@ -19,15 +20,18 @@ from charity_status_platform.nonprofits import (
     PostgresNonprofitQueryClient,
     NonprofitSourceRecord,
     SqlAlchemyNonprofitRepository,
+    build_nonprofit_engine,
+    build_nonprofit_session_factory,
+    create_nonprofit_tables,
 )
-from charity_status_platform.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
+from verification.backend.shared.runtime import build_nonprofit_postgres_repository, build_nonprofit_query_client
 
 
 def _session_factory(tmp_path: Path):
     db_path = tmp_path / "nonprofits.sqlite3"
-    engine = build_customer_accounts_engine(f"sqlite+pysqlite:///{db_path}")
-    CustomerAccountsBase.metadata.create_all(engine)
-    return build_customer_accounts_session_factory(engine)
+    engine = build_nonprofit_engine(f"sqlite+pysqlite:///{db_path}")
+    create_nonprofit_tables(engine)
+    return build_nonprofit_session_factory(engine)
 
 
 def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
@@ -38,6 +42,8 @@ def test_customer_accounts_metadata_contains_nonprofit_foundation_tables():
     assert "nonprofit_raw_filings" in table_names
     assert "nonprofit_sources" in table_names
     assert "compliance_checks" in table_names
+    assert "nonprofit_detail_snapshots" in table_names
+    assert "nonprofit_advisory_artifacts" in table_names
     assert "form990_archives" in table_names
     assert "form990_extracted_files" in table_names
 
@@ -461,13 +467,14 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
             "state": "IL",
             "subsection": "03",
             "status": "active",
-            "tax_period": "202412",
+            "tax_period": None,
         }
     ]
     assert filing_rows == [
         {
             "ein": "123456789",
             "tax_year": "2024",
+            "tax_period": "202412",
             "return_type": "990",
             "filing_date": "2025-05-15",
             "amended_return": "false",
@@ -478,6 +485,86 @@ def test_nonprofit_repository_supports_snapshot_search_and_ein_queries(tmp_path:
     assert latest_check is not None
     assert latest_check.status == "pass"
     assert eins == ["123456789"]
+
+
+def test_nonprofit_repository_stores_advisory_snapshots_and_artifacts(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="12-3456789",
+            canonical_name="Advisory Org",
+            normalized_name="advisory org",
+            subsection_code="03",
+            tax_deductible=True,
+            entity_type="Public charity",
+            irs_status="active",
+            state="IL",
+            ntee_category="P20",
+            canonical_source="irs.eo_bmf",
+            source_version="2026.04",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2024,
+            tax_period="202412",
+            form_type="990",
+            filing_date="2025-05-01",
+            amended=False,
+            parse_status="parsed",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_source(
+        NonprofitSourceRecord(
+            nonprofit_source_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            source_id="candid",
+            provider_name="Candid",
+            category="compliance",
+            record_id="candid-1",
+            retrieved_at="2026-04-21T00:00:00+00:00",
+            explanation="Matched and refreshed",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+
+    service = NonprofitAdvisoryDetailService(repository=repository)
+    payload = service.get_detail("123456789")
+    snapshot = repository.get_nonprofit_detail_snapshot("123456789")
+
+    assert payload is not None
+    assert payload["organization"]["name"] == "Advisory Org"
+    assert payload["signals"]["appears_because"]
+    assert snapshot is not None
+    assert snapshot.ein == "123456789"
+    assert snapshot.payload_json["organization"]["name"] == "Advisory Org"
+
+    artifact = service.persist_advisory_artifact(
+        ein="123456789",
+        payload={
+            "organization": {"ein": "12-3456789", "name": "Advisory Org"},
+            "verification": {"irs_status": "active"},
+            "scores": {"overall": 92},
+            "score_explanation": {"model_version": "legacy-score"},
+            "final_recommendation": "approve",
+            "evidence": [{"message": "Parsed successfully."}],
+        },
+    )
+    latest_artifact = repository.get_latest_nonprofit_advisory_artifact("123456789")
+
+    assert artifact is not None
+    assert latest_artifact is not None
+    assert latest_artifact.artifact_type == "nonprofit_advisory_evaluation"
+    assert "scores" not in latest_artifact.payload_json
+    assert "final_recommendation" not in latest_artifact.payload_json
 
 
 def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
@@ -512,8 +599,8 @@ def test_nonprofits_table_enforces_unique_ein(tmp_path: Path):
 
 def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selected(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_runtime.sqlite3'}"
-    engine = build_customer_accounts_engine(sqlite_url)
-    CustomerAccountsBase.metadata.create_all(engine)
+    engine = build_nonprofit_engine(sqlite_url)
+    create_nonprofit_tables(engine)
 
     repository = build_nonprofit_postgres_repository(
         {
@@ -522,17 +609,21 @@ def test_runtime_builder_returns_nonprofit_postgres_repository_only_when_selecte
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         }
     )
-    disabled = build_nonprofit_postgres_repository({})
+    disabled = build_nonprofit_postgres_repository(
+        {
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "disabled",
+        }
+    )
 
     assert repository is not None
     assert disabled is None
 
 
-def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selected(tmp_path: Path):
+def test_runtime_builder_returns_postgres_nonprofit_query_client_when_postgres_repository_is_enabled(tmp_path: Path):
     sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_query_runtime.sqlite3'}"
-    engine = build_customer_accounts_engine(sqlite_url)
-    CustomerAccountsBase.metadata.create_all(engine)
-    repository = SqlAlchemyNonprofitRepository(build_customer_accounts_session_factory(engine))
+    engine = build_nonprofit_engine(sqlite_url)
+    create_nonprofit_tables(engine)
+    repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(engine))
     repository.upsert_nonprofit(
         NonprofitRecord(
             nonprofit_id=None,
@@ -544,24 +635,135 @@ def test_runtime_builder_returns_postgres_nonprofit_query_client_only_when_selec
         )
     )
 
-    athena_delegate = type(
-        "AthenaDelegate",
-        (),
-        {
-            "lookup_form990_enrichment": staticmethod(lambda ein: (None, None, None, None)),
-            "lookup_peer_benchmark": staticmethod(lambda group: {"count": 0, "metrics": {}}),
-        },
-    )()
     client = build_nonprofit_query_client(
-        athena_client=athena_delegate,
         env={
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": sqlite_url,
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
         },
     )
-    disabled = build_nonprofit_query_client(athena_client=athena_delegate, env={})
 
     assert isinstance(client, PostgresNonprofitQueryClient)
-    assert disabled is athena_delegate
     assert client.lookup_nonprofit("123456789")[1]["name"] == "Query Runtime Org"
+
+
+def test_postgres_query_client_builds_form990_enrichment_without_athena(tmp_path: Path):
+    repository = SqlAlchemyNonprofitRepository(_session_factory(tmp_path))
+    nonprofit = repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="12-3456789",
+            canonical_name="Form 990 Org",
+            normalized_name="form 990 org",
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+    repository.upsert_filing(
+        NonprofitFilingRecord(
+            filing_id=None,
+            nonprofit_id=nonprofit.nonprofit_id,
+            tax_year=2023,
+            tax_period="202312",
+            form_type="990",
+            filing_date="2024-02-01",
+            amended=False,
+            parse_status="parsed",
+            total_assets=400,
+            total_income=850,
+            total_revenue=1000,
+            source_name="irs.form990",
+            source_record_id="return-2023",
+            raw_payload={
+                "ein": "123456789",
+                "tax_year": "2023",
+                "filing_date": "2024-02-01",
+                "return_type": "990",
+                "amended_return": False,
+                "parse_status": "parsed",
+                "total_revenue": 1000,
+                "total_expenses": 800,
+                "program_service_expenses": 600,
+                "management_general_expenses": 100,
+                "fundraising_expenses": 50,
+                "contributions_revenue": 700,
+                "total_assets_eoy": 400,
+                "total_liabilities_eoy": 100,
+                "net_assets_eoy": 300,
+                "mission_description_present": True,
+                "program_accomplishments_present": True,
+                "leadership_disclosed": True,
+                "narrative_sections_missing": [],
+                "public_disclosure_available": True,
+                "material_diversion_reported": False,
+                "whistleblower_policy": True,
+            },
+            created_at="2026-04-21T00:00:00+00:00",
+            updated_at="2026-04-21T00:00:00+00:00",
+        )
+    )
+
+    client = PostgresNonprofitQueryClient(repository=repository)
+
+    filings, metrics, governance, quality = client.lookup_form990_enrichment("123456789")
+    peer_benchmark = client.lookup_peer_benchmark({"ntee": "B"})
+
+    assert filings is not None
+    assert filings["tax_year"] == "2023"
+    assert filings["return_type"] == "990"
+    assert metrics == {
+        "programExpenseRatio": 0.75,
+        "adminExpenseRatio": 0.125,
+        "fundraisingRatio": 0.0625,
+        "liabilitiesToAssetsRatio": 0.25,
+        "operatingMargin": 0.2,
+        "fundraisingEfficiency": 14.0,
+        "workingCapital": 300.0,
+        "monthsOfRunway": 4.5,
+    }
+    assert governance == {
+        "independent_board_majority": None,
+        "conflict_of_interest_policy": None,
+        "whistleblower_policy": True,
+        "records_retention_policy": None,
+        "contemporaneous_board_minutes": None,
+        "material_diversion_reported": False,
+        "compensation_review_process": None,
+        "public_disclosure_available": True,
+        "audited_financials_indicator": None,
+    }
+    assert quality is not None
+    assert quality["narrativeMissing"] is False
+    assert quality["scoreConfidence"] == "high"
+    assert peer_benchmark["count"] == 0
+    assert peer_benchmark["metrics"]["programExpenseRatio"]["count"] == 0
+
+
+def test_runtime_builder_prefers_dedicated_nonprofit_url_over_platform_url(tmp_path: Path):
+    nonprofit_url = f"sqlite+pysqlite:///{tmp_path / 'nonprofit_dedicated.sqlite3'}"
+    platform_url = f"sqlite+pysqlite:///{tmp_path / 'platform.sqlite3'}"
+    engine = build_nonprofit_engine(nonprofit_url)
+    create_nonprofit_tables(engine)
+    repository = SqlAlchemyNonprofitRepository(build_nonprofit_session_factory(engine))
+    repository.upsert_nonprofit(
+        NonprofitRecord(
+            nonprofit_id=None,
+            ein="123456789",
+            canonical_name="Dedicated Nonprofit DB Org",
+            normalized_name="dedicated nonprofit db org",
+            created_at="2026-03-31T00:00:00+00:00",
+            updated_at="2026-03-31T00:00:00+00:00",
+        )
+    )
+
+    client = build_nonprofit_query_client(
+        env={
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": platform_url,
+            "PLATFORM_NONPROFIT_POSTGRES_URL": nonprofit_url,
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+        },
+    )
+
+    assert client.lookup_nonprofit("123456789")[1]["name"] == "Dedicated Nonprofit DB Org"
+

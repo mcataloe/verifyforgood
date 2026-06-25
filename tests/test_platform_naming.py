@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from charity_status.platform import (
+from verification.backend.shared.platform import (
     DEFAULT_NAMESPACE,
     DEFAULT_PLATFORM,
     DEFAULT_REGION,
@@ -83,3 +83,4 @@ def test_default_constants_are_stable():
     assert DEFAULT_NAMESPACE == "n8x4"
     assert DEFAULT_PLATFORM == "verification"
     assert DEFAULT_REGION == "use1"
+

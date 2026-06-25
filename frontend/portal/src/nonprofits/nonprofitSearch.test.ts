@@ -13,68 +13,67 @@ describe("portal nonprofit search service", () => {
     expect(looksLikeEinQuery("Helping Hands")).toBe(false);
   });
 
-  it("runs exact EIN lookup and merges filing details", async () => {
+  it("runs exact EIN lookup against the advisory detail endpoint", async () => {
     const get = vi.fn(
       async (
         target: Parameters<ApiClient["get"]>[0],
         options?: Parameters<ApiClient["get"]>[1],
       ) => {
-        if (target === apiEndpoints.nonprofits.lookup) {
+        if (target === apiEndpoints.nonprofits.detail) {
           expect(options?.pathParams).toEqual({
             ein: "123456789",
           });
           return {
-            filing_summary: {
-              filing_date: "2025-05-01",
-              form_type: "990",
-              parse_status: "parsed",
-              tax_year: "2024",
-            },
-            model: {
-              source: "irs.eo_bmf",
-              version: "1.0.0",
+            filings: {
+              count: 1,
+              latest: {
+                filing_date: "2025-05-01",
+                parse_status: "parsed",
+                return_type: "990",
+                tax_period: "202412",
+                tax_year: "2024",
+              },
+              recent_990_on_file: true,
             },
             organization: {
               ein: "12-3456789",
               name: "Helping Hands Foundation",
             },
-            integration_evaluation: {
-              integrations: [
-                {
-                  attempted: false,
-                  availability_status: "tenant_disabled",
-                  integration_id: "candid",
-                  label: "Candid",
-                },
-              ],
-            },
-            queryExecutionId: "qry_123",
-            source_record: {
-              subsection: "03",
-              tax_period: "202412",
-            },
-            verification: {
+            overview: {
               entity_type: "public_charity",
               irs_status: "active",
               ntee_category: "Human services",
-              recent_990_on_file: true,
               state: "IL",
+              subsection: "03",
               tax_deductible: "yes",
             },
+            signals: {
+              appears_because: ["IRS records show a status of active."],
+              data_gaps: ["No compliance snapshot is available yet."],
+              highlights: ["A recent Form 990 period is on file."],
+              risk_indicators: [],
+            },
+            snapshot: {
+              materialized_at: "2026-04-21T20:00:00+00:00",
+              renderer_version: "advisory_copilot_detail.v1",
+              schema_version: "nonprofit_detail_snapshot.v1",
+              source_hash: "hash_123",
+            },
+            sources: [
+              {
+                category: "compliance",
+                explanation: "Matched and refreshed",
+                provider_name: "Candid",
+                retrieved_at: "2026-04-21T19:00:00+00:00",
+                source_name: "candid",
+                status: "matched",
+                valid_as_of: "2026-04-21T19:00:00+00:00",
+              },
+            ],
           };
         }
 
-        return {
-          ein: "123456789",
-          filings: [
-            {
-              filing_date: "2025-05-01",
-              form_type: "990",
-              parse_status: "parsed",
-              tax_year: "2024",
-            },
-          ],
-        };
+        throw new Error(`Unexpected endpoint ${String(target)}`);
       },
     );
     const service = createPortalNonprofitSearchService({
@@ -86,13 +85,19 @@ describe("portal nonprofit search service", () => {
     expect(detail?.name).toBe("Helping Hands Foundation");
     expect(detail?.filingTaxYear).toBe("2024");
     expect(detail?.filingsCount).toBe(1);
-    expect(detail?.modelSource).toBe("irs.eo_bmf");
-    expect(detail?.sourceAvailability).toEqual([
+    expect(detail?.modelSource).toBe("nonprofit_detail_snapshot");
+    expect(detail?.appearsBecause).toEqual([
+      "IRS records show a status of active.",
+    ]);
+    expect(detail?.sourceSummaries).toEqual([
       {
-        attempted: false,
-        integrationId: "candid",
-        label: "Candid",
-        status: "tenant_disabled",
+        category: "compliance",
+        explanation: "Matched and refreshed",
+        providerName: "Candid",
+        retrievedAt: "2026-04-21T19:00:00+00:00",
+        sourceName: "candid",
+        status: "matched",
+        validAsOf: "2026-04-21T19:00:00+00:00",
       },
     ]);
   });

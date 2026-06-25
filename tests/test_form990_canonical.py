@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from infrastructure.charity_status.form990.canonical import (
+from infrastructure.verification.backend.ingest.federal.form990.canonical import (
     canonicalize_xml_to_json,
     compute_normalized_xml_content_hash,
 )
@@ -45,3 +45,4 @@ def test_compute_normalized_xml_content_hash_ignores_newline_and_trailing_space_
     second = b"<Return>\n  <Value>123</Value>\n</Return>\n"
 
     assert compute_normalized_xml_content_hash(first) == compute_normalized_xml_content_hash(second)
+

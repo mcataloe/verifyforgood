@@ -232,8 +232,18 @@ export function rememberPortalReturnTo(hash: string) {
   storage.setItem(PORTAL_RETURN_TO_STORAGE_KEY, normalizedHash);
 }
 
-export function navigateToPortalRoute(hash: string) {
+export function navigateToPortalRoute(
+  hash: string,
+  options: { replace?: boolean } = {},
+) {
   if (window.location.hash === hash) {
+    return;
+  }
+
+  if (options.replace) {
+    const nextUrl = `${window.location.pathname}${window.location.search}${hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    window.dispatchEvent(new Event("hashchange"));
     return;
   }
 

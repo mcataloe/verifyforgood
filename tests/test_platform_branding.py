@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status.branding import default_runtime_user_agent, load_branding_config
-from charity_status.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
-from charity_status.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
-from charity_status.state_registry.adapters.colorado.client import ColoradoRegistryClient
+from verification.backend.shared.branding import default_runtime_user_agent, load_branding_config
+from verification.backend.shared.billing.checkout import HttpStripeCheckoutClient, load_stripe_checkout_config
+from verification.backend.shared.platform import DEFAULT_APP_NAME, DEFAULT_DOMAIN, DEFAULT_PUBLIC_BRAND_NAME, DEFAULT_SUPPORT_EMAIL
+from verification.backend.ingest.state.adapters.colorado.client import ColoradoRegistryClient
 
 
 def test_load_branding_config_defaults_to_capability_based_names():
@@ -83,14 +83,14 @@ def test_state_registry_clients_default_to_neutral_runtime_user_agent():
 
 def test_runtime_source_files_no_longer_embed_legacy_brand_identifier():
     files = [
-        "infrastructure/charity_status/billing/checkout.py",
-        "infrastructure/charity_status/state_registry/adapters/colorado/client.py",
-        "infrastructure/charity_status/state_registry/adapters/kentucky/client.py",
-        "infrastructure/charity_status/state_registry/adapters/nevada/client.py",
-        "infrastructure/charity_status/state_registry/adapters/new_york/client.py",
-        "infrastructure/charity_status/state_registry/adapters/ohio/client.py",
-        "infrastructure/charity_status/state_registry/adapters/south_dakota/client.py",
-        "infrastructure/charity_status/state_registry/adapters/utah/client.py",
+        "backend/shared/src/verification/backend/shared/billing/checkout.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/colorado/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/kentucky/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/nevada/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/new_york/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/ohio/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/south_dakota/client.py",
+        "backend/ingest/state/src/verification/backend/ingest/state/adapters/utah/client.py",
     ]
 
     for relative_path in files:
@@ -100,7 +100,8 @@ def test_runtime_source_files_no_longer_embed_legacy_brand_identifier():
 
 def test_infrastructure_wires_runtime_branding_configuration():
     variables_tf = Path("infrastructure/variables.tf").read_text(encoding="utf-8")
-    lambda_tf = Path("infrastructure/aws_lambda.tf").read_text(encoding="utf-8")
+    api_ecs_tf = Path("infrastructure/aws_api_ecs.tf").read_text(encoding="utf-8")
+    worker_ecs_tf = Path("infrastructure/aws_ecs.tf").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
     shared_example = Path("infrastructure/terraform.shared.tfvars.example").read_text(encoding="utf-8")
     tfvars_example = Path("infrastructure/terraform.tfvars.example").read_text(encoding="utf-8")
@@ -109,10 +110,10 @@ def test_infrastructure_wires_runtime_branding_configuration():
     assert 'variable "public_brand_name"' in variables_tf
     assert 'variable "support_email"' in variables_tf
     assert 'variable "domain"' in variables_tf
-    assert "APP_NAME" in lambda_tf
-    assert "PUBLIC_BRAND_NAME" in lambda_tf
-    assert "SUPPORT_EMAIL" in lambda_tf
-    assert "DOMAIN" in lambda_tf
+    assert "APP_NAME" in api_ecs_tf or "APP_NAME" in worker_ecs_tf
+    assert "PUBLIC_BRAND_NAME" in api_ecs_tf
+    assert "SUPPORT_EMAIL" in api_ecs_tf or "SUPPORT_EMAIL" in worker_ecs_tf
+    assert "DOMAIN" in api_ecs_tf or "DOMAIN" in worker_ecs_tf
     assert "APP_NAME=verification-platform" in readme
     assert "PUBLIC_BRAND_NAME=VerifyForGood" in readme
     assert "SUPPORT_EMAIL=support@verifyforgood.com" in readme
@@ -121,3 +122,4 @@ def test_infrastructure_wires_runtime_branding_configuration():
     assert 'root_domain_name          = "verification.example.com"' in shared_example
     assert 'base_name                 = "verification-platform"' in tfvars_example
     assert 'root_domain_name           = "verification.example.com"' in tfvars_example
+

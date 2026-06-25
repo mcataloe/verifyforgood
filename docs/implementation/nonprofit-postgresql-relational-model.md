@@ -31,6 +31,10 @@ Source-specific and provenance-heavy records live outside the canonical row:
   normalized/raw source payload fragments
 - `compliance_checks` stores snapshot-style compliance and policy-evaluation
   outputs that are useful for serving, audit, or later materialization
+- `nonprofit_detail_snapshots` stores the current EIN-scoped advisory detail
+  projection used for the fast portal detail route
+- `nonprofit_advisory_artifacts` stores versioned advisory evaluation payloads
+  without customer-facing recommendation semantics
 
 ## Table Roles
 
@@ -70,6 +74,20 @@ Source-specific and provenance-heavy records live outside the canonical row:
   compliance and verification payloads
 - JSON payloads for flags, reasons, evidence, summary, and related metadata
 
+`nonprofit_detail_snapshots`
+
+- one current advisory detail snapshot row per EIN
+- stores the rendered nonprofit-global portal detail payload plus source hash,
+  schema version, renderer version, freshness metadata, and last build status
+- supports read-through rebuild on miss or staleness
+
+`nonprofit_advisory_artifacts`
+
+- versioned advisory evaluation history keyed by nonprofit and artifact type
+- stores richer signal/evidence payloads for reuse or audit
+- intentionally excludes customer-facing score/recommendation framing from the
+  new advisory detail path
+
 ## Indexing Defaults
 
 - unique index on `nonprofits.ein`
@@ -79,6 +97,8 @@ Source-specific and provenance-heavy records live outside the canonical row:
 - composite lookup indexes for latest filing/source/check retrieval
 - PostgreSQL trigram search index on `nonprofits.normalized_name`
 - provenance uniqueness on nonprofit source lineage
+- direct EIN lookup for current detail snapshots
+- latest-artifact indexes for advisory evaluation history
 
 ## Follow-On Work
 
@@ -90,6 +110,8 @@ This schema foundation does not yet:
 - replace the DynamoDB serving cache
 - add PostgreSQL-native nonprofit search behavior beyond the normalized name
   index
+- retire score/recommendation-oriented customer-facing payloads from the legacy
+  nonprofit verification path
 
 Phase 24F adds an opt-in PostgreSQL ingest persistence path for normalized Form
 990 outputs. That path:

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -7,17 +7,17 @@ from types import SimpleNamespace
 
 from datetime import datetime, timedelta, timezone
 
-from charity_status.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
-from charity_status.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
-from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
-from charity_status.auth.models import ApiPlan, AuthenticatedPrincipal
-from charity_status.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
-from charity_status.billing.trials import TrialConfig, TrialLifecycleService
-from charity_status.billing.service import monthly_period_for
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from charity_status.platform.auth import ApiKeyAuthContextProvider
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.auth import InMemoryUsageStore, StaticApiKeyStore, build_api_key_record
+from verification.backend.shared.auth.errors import AuthenticationError, AuthorizationError, BillingAccessError, QuotaExceededError
+from verification.backend.shared.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.backend.shared.auth.models import ApiPlan, AuthenticatedPrincipal
+from verification.backend.shared.billing import DEFAULT_ENTITLEMENTS, EntitlementService, Subscription
+from verification.backend.shared.billing.trials import TrialConfig, TrialLifecycleService
+from verification.backend.shared.billing.service import monthly_period_for
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.platform.auth import ApiKeyAuthContextProvider
+from verification.backend.shared.platform.auth import ApiKeyQuotaMeteringHook
+from verification.backend.shared.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoFeatureFlagRepository,
     DynamoPlanRepository,
@@ -744,10 +744,11 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
         plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    sys.modules.pop("charity_status_backend.api.runtime", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.SERVING_DDB_ENABLED = False
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     module.athena_client = SimpleNamespace(
         lookup_nonprofit=lambda ein, subsection=None: ("qid-1", {"ein": ein, "name": "X", "state": "IL", "status": "1", "deductibility": "1", "subsection": "03", "ntee_cd": "P20", "tax_period": "202501", "filing_req_cd": "1", "asset_amt": "", "income_amt": "", "revenue_amt": ""}),
         lookup_form990_enrichment=lambda ein: ({}, {}, {}, {}),
@@ -758,9 +759,9 @@ def test_lambda_query_enforces_auth_and_quota(monkeypatch):
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: SimpleNamespace(to_dict=lambda: {"providers": [], "failures": []}))
     module.usage_store = InMemoryUsageStore()
 
-    ok = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": display_key}}, None)
+    ok = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {"x-api-key": display_key}}, None)
     assert ok["statusCode"] == 403
-    missing = module.handler({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
+    missing = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/nonprofit/{ein}", "pathParameters": {"ein": "123456789"}, "headers": {}}, None)
     assert missing["statusCode"] == 401
 
 
@@ -775,9 +776,10 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
         plan_id="free",
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    sys.modules.pop("charity_status_backend.api.runtime", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
+    module.control_plane_service = ControlPlaneService(store=InMemoryControlPlaneStore())
     event = {
         "httpMethod": "POST",
         "resource": "/v1/verify/batch",
@@ -785,7 +787,7 @@ def test_entitlement_blocks_batch_for_free(monkeypatch):
         "headers": {"x-api-key": display_key},
         "body": json.dumps({"items": [{"ein": "123456789"}]}),
     }
-    response = module.handler(event, None)
+    response = module.handle_api_event(event, None)
     assert response["statusCode"] == 403
 
 
@@ -808,3 +810,5 @@ def test_batch_metering_counts_items_for_growth_plan(monkeypatch):
     hook.on_response(context, "POST /v1/verify/batch", 200)
 
     assert sum(store._usage.values()) == 2
+
+

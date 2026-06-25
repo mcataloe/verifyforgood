@@ -33,7 +33,12 @@ describe("portal navigation config", () => {
       key: "customer-admin-search",
       label: "Search",
     });
-    expect(sections[0]?.items[1]?.children?.[2]).toMatchObject({
+    expect(sections[0]?.items[1]?.children?.[0]).toMatchObject({
+      href: "#/team?nav=customer-admin-team",
+      key: "customer-admin-team",
+      label: "Team",
+    });
+    expect(sections[0]?.items[1]?.children?.[3]).toMatchObject({
       href: "#/api-access?nav=customer-admin-api",
       key: "customer-admin-api",
       label: "API Keys",
@@ -194,12 +199,14 @@ describe("portal navigation config", () => {
       "Support",
     ]);
     expect(accountBranch?.children?.map((item) => [item.label, item.visibilityState])).toEqual([
+      ["Team", "visible"],
       ["Billing", "locked"],
       ["Usage", "locked"],
       ["API Keys", "locked"],
       ["Settings", "locked"],
     ]);
-    expect(accountBranch?.children?.every((item) => !item.href)).toBe(true);
+    expect(accountBranch?.children?.[0]?.href).toBe("#/team?nav=customer-admin-team");
+    expect(accountBranch?.children?.slice(1).every((item) => !item.href)).toBe(true);
     const supportBranch = section?.items.find(
       (item) => item.key === "customer-admin-support",
     );
@@ -245,7 +252,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Organization"],
+        items: ["Organization", "Account"],
         label: "",
       },
     ]);

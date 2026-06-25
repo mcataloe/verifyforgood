@@ -14,13 +14,6 @@ locals {
   }
   api_ecs_execution_secret_arns = distinct(values(local.api_ecs_secret_arns_resolved))
   api_ecs_container_plaintext_environment = {
-    DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
-    TABLE                                            = aws_glue_catalog_table.eo_bmf.name
-    WORKGROUP                                        = aws_athena_workgroup.eo_bmf.name
-    FORM990_FILINGS_TABLE                            = aws_glue_catalog_table.form990_metadata.name
-    FORM990_METRICS_TABLE                            = aws_glue_catalog_table.form990_metrics.name
-    FORM990_GOVERNANCE_TABLE                         = aws_glue_catalog_table.form990_governance.name
-    FORM990_QUALITY_TABLE                            = aws_glue_catalog_table.form990_quality.name
     THIRD_PARTY_INTEGRATIONS_ENABLED                 = tostring(var.third_party_integrations_enabled)
     INTEGRATION_CANDID_ENABLED                       = tostring(var.integration_candid_enabled)
     INTEGRATION_CANDID_CLIENT_ID                     = var.integration_candid_client_id
@@ -71,6 +64,17 @@ locals {
     APP_NAME                                         = var.app_name
     PUBLIC_BRAND_NAME                                = var.public_brand_name
     SUPPORT_EMAIL                                    = var.support_email
+    SUPPORT_TICKET_EMAIL_ENABLED                     = tostring(var.support_ticket_email_enabled)
+    SUPPORT_TICKET_EMAIL_PROVIDER                    = var.support_ticket_email_provider
+    SUPPORT_TICKET_EMAIL_TO                          = var.support_ticket_email_to
+    SUPPORT_TICKET_EMAIL_FROM                        = var.support_ticket_email_from
+    SUPPORT_TICKET_EMAIL_SUBJECT_PREFIX              = var.support_ticket_email_subject_prefix
+    SUPPORT_TICKET_SMTP_HOST                         = var.support_ticket_smtp_host
+    SUPPORT_TICKET_SMTP_PORT                         = tostring(var.support_ticket_smtp_port)
+    SUPPORT_TICKET_SMTP_USERNAME                     = var.support_ticket_smtp_username
+    SUPPORT_TICKET_SMTP_APP_PASSWORD                 = var.support_ticket_smtp_app_password
+    SUPPORT_TICKET_SMTP_STARTTLS                     = tostring(var.support_ticket_smtp_starttls)
+    SUPPORT_TICKET_SMTP_TIMEOUT_SECONDS              = tostring(var.support_ticket_smtp_timeout_seconds)
     DOMAIN                                           = var.domain
     ORGANIZATION_INTEGRATION_SETTINGS_JSON           = var.organization_integration_settings_json
     TENANT_INTEGRATION_SETTINGS_JSON                 = var.tenant_integration_settings_json
@@ -88,10 +92,19 @@ locals {
     PLATFORM_POSTGRES_PORT                           = tostring(var.platform_postgres_port)
     PLATFORM_POSTGRES_DATABASE                       = var.platform_postgres_database_name
     PLATFORM_POSTGRES_SSLMODE                        = var.platform_postgres_sslmode
-    PLATFORM_NONPROFIT_QUERY_BACKEND                 = var.platform_nonprofit_query_backend
-    OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
-    OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
-    FORM990_ORCHESTRATOR_FUNCTION_NAME               = aws_lambda_function.form990_orchestrator.function_name
+    PLATFORM_NONPROFIT_STORE_BACKEND                 = var.platform_nonprofit_store_backend
+    PLATFORM_NONPROFIT_POSTGRES_ENABLED              = tostring(var.platform_nonprofit_postgres_enabled)
+    PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN           = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_HOST                 = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_PORT                 = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+    PLATFORM_NONPROFIT_POSTGRES_DATABASE             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
+    FORM990_RUN_TASK_CLUSTER_ARN                     = trim(var.monthly_ingest_ecs_cluster_arn, " ") != "" ? trim(var.monthly_ingest_ecs_cluster_arn, " ") : ((var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].arn : "")
+    FORM990_RUN_TASK_DEFINITION_ARN                  = local.monthly_ingest_task_definition_arn_resolved
+    FORM990_RUN_TASK_CONTAINER_NAME                  = trim(var.monthly_ingest_container_name, " ")
+    FORM990_RUN_TASK_SUBNET_IDS                      = join(",", var.monthly_ingest_private_subnet_ids)
+    FORM990_RUN_TASK_SECURITY_GROUP_IDS              = join(",", var.monthly_ingest_task_security_group_ids)
+    FORM990_RUN_TASK_ASSIGN_PUBLIC_IP                = "false"
   }
   api_ecs_container_environment = {
     for name, value in local.api_ecs_container_plaintext_environment :
@@ -363,24 +376,25 @@ resource "aws_iam_role_policy" "api_task" {
     Statement = concat(
       [
         {
-          Sid    = "ApiTaskDataPlane"
+          Sid    = "ApiTaskRunForm990IngestTask"
           Effect = "Allow"
           Action = [
-            "s3:*",
-            "athena:*",
-            "glue:*"
-          ]
-          Resource = "*"
-        },
-        {
-          Sid    = "ApiTaskInvokeForm990Orchestrator"
-          Effect = "Allow"
-          Action = [
-            "lambda:InvokeFunction"
+            "ecs:RunTask"
           ]
           Resource = [
-            aws_lambda_function.form990_orchestrator.arn
+            local.monthly_ingest_task_definition_arn_resolved
           ]
+        },
+        {
+          Sid    = "ApiTaskPassForm990TaskRoles"
+          Effect = "Allow"
+          Action = [
+            "iam:PassRole"
+          ]
+          Resource = compact([
+            trim(local.monthly_ingest_task_execution_role_arn_resolved, " "),
+            trim(local.monthly_ingest_task_role_arn_resolved, " "),
+          ])
         },
       ],
       var.platform_postgres_enabled ? [
@@ -396,6 +410,19 @@ resource "aws_iam_role_policy" "api_task" {
           ]
         }
       ] : [],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "ApiTaskNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
       var.platform_postgres_enabled && trim(var.platform_postgres_secret_kms_key_arn, " ") != "" ? [
         {
           Sid    = "ApiTaskPostgresSecretDecrypt"
@@ -405,6 +432,18 @@ resource "aws_iam_role_policy" "api_task" {
           ]
           Resource = [
             trim(var.platform_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "ApiTaskNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
           ]
         }
       ] : [],

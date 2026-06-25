@@ -65,7 +65,7 @@ describe("PortalLayout", () => {
     expect(getSidebarBranchButton("Organization")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
   });
 
@@ -201,8 +201,11 @@ describe("PortalLayout", () => {
 
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Search\b/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
+    const accountBranch = getSidebarBranchButton("Account");
+    expect(accountBranch).toBeTruthy();
+    fireEvent.click(accountBranch as HTMLElement);
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Account\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Usage\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^API Keys\b/i })).toBeNull();
@@ -226,6 +229,7 @@ describe("PortalLayout", () => {
     expect(accountBranch).toBeTruthy();
     expect(supportBranch).toBeTruthy();
     fireEvent.click(accountBranch as HTMLElement);
+    const teamLink = screen.getByRole("link", { name: /^Team\b/i });
     const billingButton = screen.getByRole("button", { name: /^Billing\b/i });
     const usageButton = screen.getByRole("button", { name: /^Usage\b/i });
     const apiKeysButton = screen.getByRole("button", { name: /^API Keys\b/i });
@@ -234,6 +238,7 @@ describe("PortalLayout", () => {
       element.getAttribute("aria-disabled") === "true" ||
       element.getAttribute("data-disabled") !== null ||
       element.hasAttribute("disabled");
+    expect(teamLink.getAttribute("href")).toBe("#/team?nav=customer-admin-team");
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(isUnavailable(billingButton)).toBe(true);
     expect(isUnavailable(usageButton)).toBe(true);
@@ -420,6 +425,7 @@ function renderPortalLayout({
         login: vi.fn(async () => session),
         removeOrganization: vi.fn(() => session),
         register: vi.fn(async () => session),
+        refreshSession: vi.fn(async () => session),
         session,
         signOut: vi.fn(async () => {}),
         status: "authenticated",

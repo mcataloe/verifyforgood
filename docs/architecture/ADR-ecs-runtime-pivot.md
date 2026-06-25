@@ -1,5 +1,9 @@
 # ECS Runtime Pivot
 
+Historical note: this ADR captures the migration rationale from the former
+Lambda/API Gateway posture. References to `lambda_query.py` and related deploy
+artifacts below describe the pre-cutover state.
+
 ## Status
 
 accepted
@@ -41,7 +45,7 @@ The repo already contains ECS/Fargate patterns, but only for worker-style
 processing:
 
 - `infrastructure/aws_ecs.tf`
-- `backend/ingest-task/Dockerfile`
+- `backend/ingest/federal/Dockerfile`
 - Step Functions + ECS workflow documentation for monthly ingest
 
 There is currently no actual FastAPI or general ASGI application entrypoint

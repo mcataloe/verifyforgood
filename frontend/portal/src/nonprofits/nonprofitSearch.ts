@@ -4,53 +4,60 @@ import {
   type ApiClient,
 } from "@charity-status/shared-api";
 
-interface BackendNonprofitLookupResponse {
-  filing_summary?: {
-    amended?: boolean | null;
-    filing_date?: string | null;
-    form_type?: string | null;
-    parse_status?: string | null;
-    tax_year?: string | null;
+interface BackendNonprofitDetailResponse {
+  compliance?: {
+    check_type?: string | null;
+    evaluated_at?: string | null;
+    reasons?: unknown;
+    status?: string | null;
+    summary?: unknown;
   };
-  model?: {
-    source?: string | null;
-    version?: string | null;
+  filings?: {
+    count?: number | null;
+    latest?: {
+      amended_return?: boolean | null;
+      filing_date?: string | null;
+      parse_status?: string | null;
+      return_type?: string | null;
+      tax_period?: string | null;
+      tax_year?: string | number | null;
+    } | null;
+    recent_990_on_file?: boolean | null;
   };
   organization?: {
     ein?: string | null;
     name?: string | null;
   };
-  integration_evaluation?: {
-    integrations?: Array<{
-      attempted?: boolean | null;
-      availability_status?: string | null;
-      integration_id?: string | null;
-      label?: string | null;
-    }>;
-  };
-  queryExecutionId?: string | null;
-  source_record?: {
-    subsection?: string | null;
-    tax_period?: string | null;
-  };
-  verification?: {
+  overview?: {
+    canonical_source?: string | null;
     entity_type?: string | null;
     irs_status?: string | null;
     ntee_category?: string | null;
-    recent_990_on_file?: boolean | null;
+    source_version?: string | null;
     state?: string | null;
+    subsection?: string | null;
     tax_deductible?: string | boolean | null;
   };
-}
-
-interface BackendNonprofitFilingsResponse {
-  ein?: string | null;
-  filings?: Array<{
-    amended?: boolean | null;
-    filing_date?: string | null;
-    form_type?: string | null;
-    parse_status?: string | null;
-    tax_year?: string | null;
+  signals?: {
+    appears_because?: unknown;
+    data_gaps?: unknown;
+    highlights?: unknown;
+    risk_indicators?: unknown;
+  };
+  snapshot?: {
+    materialized_at?: string | null;
+    renderer_version?: string | null;
+    schema_version?: string | null;
+    source_hash?: string | null;
+  };
+  sources?: Array<{
+    category?: string | null;
+    explanation?: string | null;
+    provider_name?: string | null;
+    retrieved_at?: string | null;
+    source_name?: string | null;
+    status?: string | null;
+    valid_as_of?: string | null;
   }>;
 }
 
@@ -82,7 +89,22 @@ export interface PortalNonprofitSearchSummary {
   taxPeriod: string;
 }
 
+export interface PortalNonprofitSourceSummary {
+  category: string;
+  explanation: string;
+  providerName: string;
+  retrievedAt: string;
+  sourceName: string;
+  status: string;
+  validAsOf: string;
+}
+
 export interface PortalNonprofitDetail {
+  appearsBecause: string[];
+  complianceCheckType: string;
+  complianceCheckedAt: string;
+  complianceStatus: string;
+  dataGaps: string[];
   ein: string;
   entityType: string;
   filingDate: string;
@@ -90,6 +112,7 @@ export interface PortalNonprofitDetail {
   filingParseStatus: string;
   filingTaxYear: string;
   filingsCount: number;
+  highlights: string[];
   irsStatus: string;
   modelSource: string;
   modelVersion: string;
@@ -97,18 +120,13 @@ export interface PortalNonprofitDetail {
   nteeCategory: string;
   queryExecutionId: string;
   recent990OnFile: string;
+  riskIndicators: string[];
+  snapshotMaterializedAt: string;
+  sourceSummaries: PortalNonprofitSourceSummary[];
   state: string;
   subsection: string;
   taxDeductible: string;
   taxPeriod: string;
-  sourceAvailability: PortalNonprofitSourceAvailability[];
-}
-
-export interface PortalNonprofitSourceAvailability {
-  attempted: boolean;
-  integrationId: string;
-  label: string;
-  status: string;
 }
 
 export interface PortalNonprofitSearchPage {
@@ -135,40 +153,19 @@ export function createPortalNonprofitSearchService(
       }
 
       try {
-        const [lookupResult, filingsResult] = await Promise.allSettled([
-          apiClient.get<BackendNonprofitLookupResponse>(
-            apiEndpoints.nonprofits.lookup,
-            {
-              pathParams: {
-                ein: normalizedEin,
-              },
+        const detail = await apiClient.get<BackendNonprofitDetailResponse>(
+          apiEndpoints.nonprofits.detail,
+          {
+            pathParams: {
+              ein: normalizedEin,
             },
-          ),
-          apiClient.get<BackendNonprofitFilingsResponse>(
-            apiEndpoints.nonprofits.filings,
-            {
-              pathParams: {
-                ein: normalizedEin,
-              },
-            },
-          ),
-        ]);
-
-        if (lookupResult.status === "rejected") {
-          throw lookupResult.reason;
-        }
-
-        const filings =
-          filingsResult.status === "fulfilled"
-            ? (filingsResult.value.filings ?? [])
-            : [];
-
-        return mapLookupDetail(lookupResult.value, filings);
+          },
+        );
+        return mapDetail(detail);
       } catch (error) {
         if (error instanceof ApiRequestError && error.status === 404) {
           return null;
         }
-
         throw error;
       }
     },
@@ -209,75 +206,89 @@ export function normalizeEinQuery(query: string): string | null {
   return digitsOnly.length === 9 ? digitsOnly : null;
 }
 
-function mapLookupDetail(
-  lookup: BackendNonprofitLookupResponse,
-  filings: BackendNonprofitFilingsResponse["filings"] = [],
-): PortalNonprofitDetail {
-  const filingSummary = lookup.filing_summary ?? filings[0] ?? null;
+function mapDetail(detail: BackendNonprofitDetailResponse): PortalNonprofitDetail {
+  const overview = detail.overview ?? {};
+  const filings = detail.filings ?? {};
+  const latestFiling = filings.latest ?? {};
+  const signals = detail.signals ?? {};
+  const snapshot = detail.snapshot ?? {};
 
   return {
-    ein: normalizeText(lookup.organization?.ein, "Unavailable"),
-    entityType: normalizeText(lookup.verification?.entity_type, "Unavailable"),
-    filingDate: normalizeText(filingSummary?.filing_date, "No filing date"),
-    filingFormType: normalizeText(filingSummary?.form_type, "No filing form"),
+    appearsBecause: normalizeStringList(signals.appears_because),
+    complianceCheckType: normalizeText(
+      detail.compliance?.check_type,
+      "No compliance snapshot",
+    ),
+    complianceCheckedAt: normalizeText(
+      detail.compliance?.evaluated_at,
+      "No compliance timestamp",
+    ),
+    complianceStatus: normalizeText(
+      detail.compliance?.status,
+      "No compliance snapshot",
+    ),
+    dataGaps: normalizeStringList(signals.data_gaps),
+    ein: normalizeText(detail.organization?.ein, "Unknown EIN"),
+    entityType: normalizeText(overview.entity_type, "Unavailable"),
+    filingDate: normalizeText(latestFiling.filing_date, "No filing date"),
+    filingFormType: normalizeText(latestFiling.return_type, "No filing form"),
     filingParseStatus: normalizeText(
-      filingSummary?.parse_status,
+      latestFiling.parse_status,
       "No filing parse status",
     ),
-    filingTaxYear: normalizeText(filingSummary?.tax_year, "No filing year"),
-    filingsCount: filings.length,
-    irsStatus: normalizeText(lookup.verification?.irs_status, "Unavailable"),
-    modelSource: normalizeText(lookup.model?.source, "Unavailable"),
-    modelVersion: normalizeText(lookup.model?.version, "Unavailable"),
-    name: normalizeText(lookup.organization?.name, "Unknown organization"),
-    nteeCategory: normalizeText(
-      lookup.verification?.ntee_category,
+    filingTaxYear: normalizeText(latestFiling.tax_year, "No filing year"),
+    filingsCount:
+      typeof filings.count === "number" && Number.isFinite(filings.count)
+        ? filings.count
+        : 0,
+    highlights: normalizeStringList(signals.highlights),
+    irsStatus: normalizeText(overview.irs_status, "Unavailable"),
+    modelSource: "nonprofit_detail_snapshot",
+    modelVersion: normalizeText(
+      snapshot.renderer_version,
+      normalizeText(snapshot.schema_version, "Unavailable"),
+    ),
+    name: normalizeText(detail.organization?.name, "Unknown organization"),
+    nteeCategory: normalizeText(overview.ntee_category, "Unavailable"),
+    queryExecutionId: normalizeText(snapshot.source_hash, "Not applicable"),
+    recent990OnFile: formatOptionalBoolean(filings.recent_990_on_file, "Unknown"),
+    riskIndicators: normalizeStringList(signals.risk_indicators),
+    snapshotMaterializedAt: normalizeText(
+      snapshot.materialized_at,
       "Unavailable",
     ),
-    queryExecutionId: normalizeText(
-      lookup.queryExecutionId,
-      "No query execution id",
-    ),
-    recent990OnFile:
-      typeof lookup.verification?.recent_990_on_file === "boolean"
-        ? String(lookup.verification.recent_990_on_file)
-        : "Unknown",
-    state: normalizeText(lookup.verification?.state, "Unavailable"),
-    subsection: normalizeText(lookup.source_record?.subsection, "Unavailable"),
-    sourceAvailability: mapSourceAvailability(
-      lookup.integration_evaluation?.integrations,
-    ),
-    taxDeductible: normalizeText(
-      lookup.verification?.tax_deductible,
-      "Unavailable",
-    ),
-    taxPeriod: normalizeText(lookup.source_record?.tax_period, "Unavailable"),
+    sourceSummaries: mapSourceSummaries(detail.sources ?? []),
+    state: normalizeText(overview.state, "Unavailable"),
+    subsection: normalizeText(overview.subsection, "Unavailable"),
+    taxDeductible: normalizeText(overview.tax_deductible, "Unavailable"),
+    taxPeriod: normalizeText(latestFiling.tax_period, "No tax period"),
   };
 }
 
-function mapSourceAvailability(
-  integrations: NonNullable<
-    NonNullable<BackendNonprofitLookupResponse["integration_evaluation"]>["integrations"]
-  > = [],
-): PortalNonprofitSourceAvailability[] {
-  return integrations
-    .map((integration) => {
-      const integrationId = normalizeOptionalText(integration.integration_id);
-      if (!integrationId) {
+function mapSourceSummaries(
+  sources: NonNullable<BackendNonprofitDetailResponse["sources"]>,
+): PortalNonprofitSourceSummary[] {
+  return sources
+    .map((source) => {
+      const sourceName = normalizeOptionalText(source.source_name);
+      if (!sourceName) {
         return null;
       }
 
       return {
-        attempted: integration.attempted === true,
-        integrationId,
-        label: normalizeText(
-          integration.label,
-          humanizeIdentifier(integrationId),
+        category: normalizeText(source.category, "general"),
+        explanation: normalizeText(source.explanation, "No explanation provided"),
+        providerName: normalizeText(
+          source.provider_name,
+          humanizeIdentifier(sourceName),
         ),
-        status: normalizeText(integration.availability_status, "unknown"),
+        retrievedAt: normalizeText(source.retrieved_at, "Unknown"),
+        sourceName,
+        status: normalizeText(source.status, "unknown"),
+        validAsOf: normalizeText(source.valid_as_of, "Unknown"),
       };
     })
-    .filter((item): item is PortalNonprofitSourceAvailability => item !== null);
+    .filter((item): item is PortalNonprofitSourceSummary => item !== null);
 }
 
 function mapSearchSummary(
@@ -297,11 +308,23 @@ function mapSearchSummary(
   };
 }
 
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => normalizeOptionalText(item))
+    .filter((item): item is string => item !== null);
+}
+
 function normalizeText(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
   if (typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
     return String(value);
   }
 
@@ -312,8 +335,21 @@ function normalizeOptionalText(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
 
   return null;
+}
+
+function formatOptionalBoolean(
+  value: boolean | null | undefined,
+  fallback: string,
+): string {
+  if (typeof value !== "boolean") {
+    return fallback;
+  }
+  return value ? "true" : "false";
 }
 
 function humanizeIdentifier(value: string): string {

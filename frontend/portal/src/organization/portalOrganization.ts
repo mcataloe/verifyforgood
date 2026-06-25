@@ -220,6 +220,7 @@ export function createPortalOrganizationClient({
   runtimeConfig,
 }: CreatePortalOrganizationClientOptions): PortalOrganizationClient {
   const apiClient = createApiClient({
+    credentials: "include",
     fetchImpl,
     headersProvider: async () => ({
       Authorization: `Bearer ${accessToken}`,

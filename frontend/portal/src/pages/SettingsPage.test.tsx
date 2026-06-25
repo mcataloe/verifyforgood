@@ -10,6 +10,7 @@ import {
   PortalOrganizationContext,
   type PortalOrganizationContextValue,
 } from "../organization/usePortalOrganization";
+import { PortalSupportDeliveryMode } from "../settings/portalSupport";
 import type { PortalBudgetSettingsController } from "../settings/usePortalBudgetSettings";
 import type { PortalOrganizationProfileSettingsController } from "../settings/usePortalOrganizationProfileSettings";
 import type { PortalOrganizationDeletionController } from "../settings/usePortalOrganizationDeletion";
@@ -428,9 +429,9 @@ function renderWithOrganization(element: ReactNode) {
           workspace_id: "ws_portal_test",
         },
         issue_reporting: {
-          delivery_mode: "recorded_only",
+          delivery_mode: PortalSupportDeliveryMode.RecordedAndEmailed,
           honesty_notice:
-            "Support requests are recorded for follow-up. There is not yet a customer-visible ticket thread.",
+            "Support requests are recorded and emailed for follow-up. There is not yet a customer-visible ticket thread.",
           urgent_contact_notice:
             "Urgent issues should still go through the listed support email.",
         },
@@ -449,7 +450,7 @@ function renderWithOrganization(element: ReactNode) {
       })),
       patch: vi.fn(async () => ({})),
       post: vi.fn(async () => ({
-        delivery_mode: "recorded_only",
+        delivery_mode: PortalSupportDeliveryMode.RecordedAndEmailed,
         status: "received",
         submitted_at: "2026-03-29T14:15:00Z",
         support_email: "support@verifyforgood.com",
@@ -496,6 +497,7 @@ function renderWithOrganization(element: ReactNode) {
         login: vi.fn(async () => createMockPortalSession()),
         register: vi.fn(async () => createMockPortalSession()),
         removeOrganization: vi.fn(() => createMockPortalSession()),
+        refreshSession: vi.fn(async () => createMockPortalSession()),
         session: createMockPortalSession(),
         signOut: vi.fn(async () => {}),
         status: "authenticated",

@@ -24,6 +24,6 @@
   - `python -m pytest -q` could not run because Python is not installed/accessible in this environment.
 - Phase 3 complete:
   - Updated Terraform ingest packaging to zip from `infrastructure/build/ingest_package`.
-  - Added `infrastructure/build_ingest_package.ps1` to install dependencies and stage handler code.
+- Added backend-owned federal ingest packaging and removed the retired infrastructure packaging script.
   - `terraform -chdir=infrastructure validate` succeeded.
   - Packaging script/test execution are blocked because Python is not installed/accessible in this environment.

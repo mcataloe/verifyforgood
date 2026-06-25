@@ -1,11 +1,12 @@
 import pytest
 
-from charity_status.platform import (
-    build_postgres_sqlalchemy_url,
+from verification.backend.shared.platform import (
     PostgresRuntimeConfig,
+    build_postgres_sqlalchemy_url,
     load_platform_persistence_config,
-    resolve_postgres_sqlalchemy_url,
+    resolve_nonprofit_postgres_sqlalchemy_url,
     resolve_postgres_credentials,
+    resolve_postgres_sqlalchemy_url,
 )
 
 
@@ -13,7 +14,6 @@ def test_load_platform_persistence_config_defaults_to_postgres_only_platform_run
     config = load_platform_persistence_config({})
 
     assert config.nonprofit_store_backend == "disabled"
-    assert config.nonprofit_query_backend == "athena"
     assert config.postgres.enabled is False
 
 
@@ -26,14 +26,6 @@ def test_load_platform_persistence_config_requires_enabled_flag_when_postgres_ba
     with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
         load_platform_persistence_config({"PLATFORM_NONPROFIT_STORE_BACKEND": "postgres"})
 
-    with pytest.raises(ValueError, match="PLATFORM_POSTGRES_ENABLED"):
-        load_platform_persistence_config({"PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres"})
-
-
-def test_load_platform_persistence_config_rejects_invalid_nonprofit_query_backend():
-    with pytest.raises(ValueError, match="PLATFORM_NONPROFIT_QUERY_BACKEND"):
-        load_platform_persistence_config({"PLATFORM_NONPROFIT_QUERY_BACKEND": "redis"})
-
 
 def test_load_platform_persistence_config_accepts_secret_backed_postgres_settings():
     config = load_platform_persistence_config(
@@ -45,7 +37,6 @@ def test_load_platform_persistence_config_accepts_secret_backed_postgres_setting
             "PLATFORM_POSTGRES_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:platform-postgres",
             "PLATFORM_POSTGRES_SSLMODE": "require",
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
         }
     )
 
@@ -55,7 +46,6 @@ def test_load_platform_persistence_config_accepts_secret_backed_postgres_setting
     assert config.postgres.database == "verification_platform"
     assert config.postgres.secret_arn.endswith(":platform-postgres")
     assert config.nonprofit_store_backend == "postgres"
-    assert config.nonprofit_query_backend == "postgres"
 
 
 def test_load_platform_persistence_config_accepts_local_url_driven_postgres_settings():
@@ -64,14 +54,26 @@ def test_load_platform_persistence_config_accepts_local_url_driven_postgres_sett
             "PLATFORM_POSTGRES_ENABLED": "true",
             "PLATFORM_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform",
             "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
-            "PLATFORM_NONPROFIT_QUERY_BACKEND": "postgres",
         }
     )
 
     assert config.postgres.enabled is True
     assert config.postgres.url == "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform"
     assert config.nonprofit_store_backend == "postgres"
-    assert config.nonprofit_query_backend == "postgres"
+
+
+def test_load_platform_persistence_config_accepts_dedicated_nonprofit_postgres_settings():
+    config = load_platform_persistence_config(
+        {
+            "PLATFORM_NONPROFIT_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_nonprofit",
+            "PLATFORM_NONPROFIT_STORE_BACKEND": "postgres",
+        }
+    )
+
+    assert config.postgres.enabled is False
+    assert config.nonprofit_postgres.enabled is True
+    assert config.nonprofit_postgres.url.endswith("/verification_nonprofit")
+    assert config.nonprofit_store_backend == "postgres"
 
 
 def test_resolve_postgres_credentials_reads_secret_backed_username_and_password():
@@ -129,3 +131,15 @@ def test_resolve_postgres_sqlalchemy_url_uses_secret_when_raw_url_absent():
     )
 
     assert url.startswith("postgresql+psycopg://platform_app:super-secret@db.example.internal:5432/verification_platform")
+
+
+def test_resolve_nonprofit_postgres_sqlalchemy_url_prefers_dedicated_nonprofit_config():
+    url = resolve_nonprofit_postgres_sqlalchemy_url(
+        {
+            "PLATFORM_POSTGRES_ENABLED": "true",
+            "PLATFORM_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_platform",
+            "PLATFORM_NONPROFIT_POSTGRES_URL": "postgresql+psycopg://postgres:postgres@localhost:5432/verification_nonprofit",
+        }
+    )
+
+    assert url.endswith("/verification_nonprofit")

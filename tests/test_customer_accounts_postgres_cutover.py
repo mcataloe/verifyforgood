@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     ApiKeyRecord,
     ApiKeyStatus,
     AuditEventType,
@@ -42,9 +42,9 @@ from charity_status_platform.customer_accounts import (
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
-from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
-from charity_status_platform.runtime import (
+from verification.backend.shared.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.backend.shared.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification.backend.shared.runtime import (
     backfill_customer_accounts_from_dynamodb,
     build_customer_accounts_repositories,
 )
@@ -76,8 +76,10 @@ def _load_module_with_postgres_identity_store(monkeypatch, tmp_path: Path, *, ap
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_organization_context_service = None
@@ -109,6 +111,7 @@ def test_repository_builder_selects_postgres_with_narrow_dynamo_compatibility(tm
     assert bundle.subscriptions.__class__.__name__ == "SqlAlchemySubscriptionRepository"
     assert bundle.api_keys.__class__.__name__ == "SqlAlchemyApiKeyRepository"
     assert bundle.audits.__class__.__name__ == "SqlAlchemyAuditLogRepository"
+    assert bundle.support_tickets.__class__.__name__ == "SqlAlchemySupportTicketRepository"
     assert bundle.invitations.__class__.__name__ == "SqlAlchemyInvitationRepository"
     assert bundle.usage.__class__.__name__ == "SqlAlchemyUsageRepository"
     assert bundle.flags.__class__.__name__ == "SqlAlchemyFeatureFlagRepository"
@@ -254,7 +257,7 @@ def test_backfill_customer_accounts_from_dynamodb_copies_migrated_identity_recor
 def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypatch, tmp_path: Path):
     module, _resource, _sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
 
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -268,25 +271,30 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
     )
     register_payload = _response_body(register_response)
     access_token = register_payload["data"]["access_token"]
+    assert "Set-Cookie" in register_response["headers"]
+    assert "verifyforgood_portal_session=" in register_response["headers"]["Set-Cookie"]
 
-    create_org_response = module.handler(
+    create_org_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
             "path": "/v1/organizations",
-            "headers": {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+            "headers": {
+                "Cookie": f"verifyforgood_portal_session={access_token}",
+                "Content-Type": "application/json",
+            },
             "body": json.dumps({"name": "Verify For Good Org"}),
         },
         None,
     )
     org_payload = _response_body(create_org_response)
 
-    auth_me_response = module.handler(
+    auth_me_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/auth/me",
             "path": "/v1/auth/me",
-            "headers": {"Authorization": f"Bearer {access_token}"},
+            "headers": {"Cookie": f"verifyforgood_portal_session={access_token}"},
         },
         None,
     )
@@ -296,15 +304,35 @@ def test_postgres_identity_backend_registers_orgs_and_restores_context(monkeypat
     assert register_response["statusCode"] == 201
     assert create_org_response["statusCode"] == 201
     assert auth_me_response["statusCode"] == 200
+    assert auth_me_payload["data"]["access_token"] == access_token
     assert auth_me_payload["data"]["user"]["email"] == "person@example.com"
     assert auth_me_payload["data"]["organization_context"]["organization_id"] == org_payload["data"]["organization_id"]
     assert len(auth_me_payload["data"]["available_organizations"]) == 1
 
 
+def test_postgres_identity_backend_clears_portal_cookie_on_logout(monkeypatch, tmp_path: Path):
+    module, _resource, _sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
+
+    response = module.handle_api_event(
+        {
+            "httpMethod": "POST",
+            "resource": "/v1/auth/logout",
+            "path": "/v1/auth/logout",
+            "headers": {"Cookie": "verifyforgood_portal_session=token_test"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert "Set-Cookie" in response["headers"]
+    assert "verifyforgood_portal_session=" in response["headers"]["Set-Cookie"]
+    assert "Max-Age=0" in response["headers"]["Set-Cookie"]
+
+
 def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgres(monkeypatch, tmp_path: Path):
     module, _resource, sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path)
 
-    admin_response = module.handler(
+    admin_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -315,7 +343,7 @@ def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgr
         None,
     )
     admin_token = _response_body(admin_response)["data"]["access_token"]
-    create_org_response = module.handler(
+    create_org_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -327,7 +355,7 @@ def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgr
     )
     org_payload = _response_body(create_org_response)["data"]
 
-    invite_response = module.handler(
+    invite_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/invitations",
@@ -344,7 +372,7 @@ def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgr
     )
     invitation_payload = _response_body(invite_response)["data"]
 
-    invitee_response = module.handler(
+    invitee_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -356,7 +384,7 @@ def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgr
     )
     invitee_payload = _response_body(invitee_response)["data"]
 
-    accept_response = module.handler(
+    accept_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/invitations/accept",
@@ -384,7 +412,7 @@ def test_postgres_identity_backend_creates_invitations_and_memberships_in_postgr
 def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(monkeypatch, tmp_path: Path):
     module, _resource, _sqlite_url = _load_module_with_postgres_identity_store(monkeypatch, tmp_path, api_auth_enabled=True)
 
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -395,7 +423,7 @@ def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(mo
         None,
     )
     creator_token = _response_body(register_response)["data"]["access_token"]
-    create_org_response = module.handler(
+    create_org_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -407,7 +435,7 @@ def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(mo
     )
     org_payload = _response_body(create_org_response)["data"]
 
-    create_key_response = module.handler(
+    create_key_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/api-keys",
@@ -424,7 +452,7 @@ def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(mo
     )
     create_key_payload = _response_body(create_key_response)["data"]
 
-    auth_response = module.handler(
+    auth_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -442,3 +470,5 @@ def test_postgres_identity_backend_manages_org_api_keys_and_updates_last_used(mo
     assert auth_response["statusCode"] == 400
     assert persisted is not None
     assert persisted.last_used_at is not None
+
+

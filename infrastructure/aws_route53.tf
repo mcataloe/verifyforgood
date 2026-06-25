@@ -50,40 +50,18 @@ resource "aws_acm_certificate_validation" "cert" {
 }
 
 #############################################
-# API CUSTOM DOMAIN
-#############################################
-
-# Deprecated rollback path once api_ecs_enabled=true. The custom domain and
-# base-path mapping remain available so API Gateway + Lambda can still be
-# restored as an emergency ingress target during the ECS cutover window.
-resource "aws_api_gateway_domain_name" "api_domain" {
-  count       = local.enable_custom_domain ? 1 : 0
-  domain_name = local.computed_domain_name
-
-  certificate_arn = aws_acm_certificate_validation.cert[0].certificate_arn
-}
-
-resource "aws_api_gateway_base_path_mapping" "mapping" {
-  count = local.enable_custom_domain ? 1 : 0
-
-  api_id      = aws_api_gateway_rest_api.irs_api.id
-  stage_name  = aws_api_gateway_stage.environment.stage_name
-  domain_name = aws_api_gateway_domain_name.api_domain[0].domain_name
-}
-
-#############################################
 # ROUTE53 RECORD
 #############################################
 
 resource "aws_route53_record" "api_record" {
-  count   = local.enable_custom_domain ? 1 : 0
+  count   = local.enable_custom_domain && var.api_ecs_enabled ? 1 : 0
   zone_id = local.route53_zone_id
   name    = local.computed_domain_name
   type    = "A"
 
   alias {
-    name                   = var.api_ecs_enabled ? aws_lb.api[0].dns_name : aws_api_gateway_domain_name.api_domain[0].cloudfront_domain_name
-    zone_id                = var.api_ecs_enabled ? aws_lb.api[0].zone_id : aws_api_gateway_domain_name.api_domain[0].cloudfront_zone_id
-    evaluate_target_health = var.api_ecs_enabled
+    name                   = aws_lb.api[0].dns_name
+    zone_id                = aws_lb.api[0].zone_id
+    evaluate_target_health = true
   }
 }

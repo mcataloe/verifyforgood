@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from charity_status.auth import build_admin_key_record, build_api_key_record
-from charity_status.auth.errors import QuotaExceededError
-from charity_status.auth.oauth import authenticate_oauth_client_credentials
-from charity_status.auth.service import authenticate_api_key, enforce_quota_and_scope
-from charity_status.control_plane import (
+from verification.backend.shared.auth import build_admin_key_record, build_api_key_record
+from verification.backend.shared.auth.errors import QuotaExceededError
+from verification.backend.shared.auth.oauth import authenticate_oauth_client_credentials
+from verification.backend.shared.auth.service import authenticate_api_key, enforce_quota_and_scope
+from verification.backend.shared.control_plane import (
     Account,
     ControlPlaneService,
     DynamoControlPlaneStore,
@@ -23,10 +23,10 @@ from charity_status.control_plane import (
     ManagedSubscription,
     ManagedTrialHistory,
 )
-from charity_status.control_plane.sqlalchemy_store import ControlPlaneBase
-from charity_status.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from charity_status.enrichments.organization_settings_stores import OrganizationSettingsBase
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
+from verification.backend.shared.control_plane.sqlalchemy_store import ControlPlaneBase
+from verification.backend.shared.enrichments import DynamoOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.backend.shared.enrichments.organization_settings_stores import OrganizationSettingsBase
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine
 
 
 class _BillingSettingsResolver:
@@ -277,8 +277,8 @@ def _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path: Path):
 
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.API_AUTH_ENABLED = True
     module.OAUTH_M2M_ENABLED = str(os.environ.get("OAUTH_M2M_ENABLED", "false")).lower() == "true"
     module.API_KEY_RECORDS_JSON = str(os.environ.get("API_KEY_RECORDS_JSON", "[]"))
@@ -381,7 +381,7 @@ def test_lambda_query_uses_postgres_control_plane_runtime(monkeypatch, tmp_path:
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
     module = _load_lambda_query_with_postgres_control_plane(monkeypatch, tmp_path)
 
-    created = module.handler(
+    created = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts",
@@ -397,7 +397,7 @@ def test_lambda_query_uses_postgres_control_plane_runtime(monkeypatch, tmp_path:
 
     module.control_plane_service = None
 
-    listed = module.handler(
+    listed = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/admin/accounts",
@@ -454,7 +454,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch,
         managed_record,
     )
 
-    managed_response = module.handler(
+    managed_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -464,7 +464,7 @@ def test_managed_api_key_takes_precedence_over_bootstrap_env_record(monkeypatch,
         },
         None,
     )
-    bootstrap_response = module.handler(
+    bootstrap_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -526,3 +526,5 @@ def test_legacy_dynamo_account_without_subscription_returns_null_subscription():
     account = service.get_account("acct_legacy_no_sub")
 
     assert account["subscription"] is None
+
+

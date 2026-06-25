@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
 
-from charity_status_backend.ingest_task.hashing import sha256_xml_content_hash
-from charity_status_backend.ingest_task.metadata.archive_change_detection import should_process_archive
-from charity_status_backend.ingest_task.metadata.archive_probe import ArchiveProbeResult, normalize_etag
-from charity_status_platform.nonprofits import Form990ArchiveRecord
+from verification.backend.ingest.federal.hashing import sha256_xml_content_hash
+from verification.backend.ingest.federal.metadata.archive_change_detection import should_process_archive
+from verification.backend.ingest.federal.metadata.archive_probe import ArchiveProbeResult, normalize_etag
+from verification.backend.shared.nonprofits import Form990ArchiveRecord
 
 
 def test_normalize_etag_strips_quotes_and_weak_prefix():
@@ -58,3 +58,4 @@ def test_sha256_xml_content_hash_is_deterministic_for_bom_and_newlines(tmp_path:
 
     assert sha256_xml_content_hash(lf) == sha256_xml_content_hash(crlf)
     assert sha256_xml_content_hash(lf) != sha256_xml_content_hash(changed)
+

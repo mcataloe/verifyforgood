@@ -1,4 +1,4 @@
-locals {
+﻿locals {
   worker_ecs_managed_image_enabled = trim(var.worker_ecs_image_uri, " ") == ""
   worker_ecs_image_uri_resolved = trim(var.worker_ecs_image_uri, " ") != "" ? trim(var.worker_ecs_image_uri, " ") : (
     local.worker_ecs_managed_image_enabled ? "${aws_ecr_repository.worker[0].repository_url}:${var.worker_ecs_image_tag}" : ""
@@ -10,13 +10,6 @@ locals {
   }
   worker_ecs_execution_secret_arns = distinct(values(local.worker_ecs_secret_arns_resolved))
   worker_ecs_container_plaintext_environment = {
-    DATABASE                                         = aws_glue_catalog_database.eo_bmf.name
-    TABLE                                            = aws_glue_catalog_table.eo_bmf.name
-    WORKGROUP                                        = aws_athena_workgroup.eo_bmf.name
-    FORM990_FILINGS_TABLE                            = aws_glue_catalog_table.form990_metadata.name
-    FORM990_METRICS_TABLE                            = aws_glue_catalog_table.form990_metrics.name
-    FORM990_GOVERNANCE_TABLE                         = aws_glue_catalog_table.form990_governance.name
-    FORM990_QUALITY_TABLE                            = aws_glue_catalog_table.form990_quality.name
     THIRD_PARTY_INTEGRATIONS_ENABLED                 = tostring(var.third_party_integrations_enabled)
     INTEGRATION_CANDID_ENABLED                       = tostring(var.integration_candid_enabled)
     INTEGRATION_CANDID_CLIENT_ID                     = var.integration_candid_client_id
@@ -57,15 +50,16 @@ locals {
     SUPPORT_EMAIL                                    = var.support_email
     DOMAIN                                           = var.domain
     APP_ENV                                          = var.environment
-    REFRESH_MODE                                     = var.refresh_mode
-    REFRESH_BATCH_SIZE                               = tostring(var.refresh_batch_size)
-    FORCE_REFRESH                                    = tostring(var.refresh_force)
-    REFRESH_SOURCE_DETECTION_ENABLED                 = tostring(var.refresh_source_detection_enabled)
     BOOTSTRAP_NONPROD_OVERRIDE                       = tostring(var.bootstrap_nonprod_override)
     BOOTSTRAP_START_AFTER_EIN                        = var.bootstrap_start_after_ein
     BOOTSTRAP_MAX_BATCHES_PER_RUN                    = tostring(var.bootstrap_max_batches_per_run)
-    OPS_METADATA_BUCKET                              = aws_s3_bucket.irs_data.bucket
-    OPS_METADATA_PREFIX                              = var.ops_metadata_prefix
+    PLATFORM_NONPROFIT_STORE_BACKEND                 = var.platform_nonprofit_store_backend
+    PLATFORM_NONPROFIT_POSTGRES_ENABLED              = tostring(var.platform_nonprofit_postgres_enabled)
+    PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN           = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_HOST                 = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_PORT                 = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+    PLATFORM_NONPROFIT_POSTGRES_DATABASE             = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+    PLATFORM_NONPROFIT_POSTGRES_SSLMODE              = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
   }
   worker_ecs_container_environment = {
     for name, value in local.worker_ecs_container_plaintext_environment :
@@ -73,7 +67,7 @@ locals {
   }
 
   monthly_ingest_managed_image_enabled = trim(var.monthly_ingest_worker_image_uri, " ") == ""
-  monthly_ingest_managed_task_definition_enabled = var.monthly_ingest_state_machine_enabled && trim(var.monthly_ingest_task_definition_arn, " ") == ""
+  monthly_ingest_managed_task_definition_enabled = trim(var.monthly_ingest_task_definition_arn, " ") == ""
   monthly_ingest_task_execution_role_arn_resolved = trim(var.monthly_ingest_task_execution_role_arn, " ") != "" ? trim(var.monthly_ingest_task_execution_role_arn, " ") : (
     local.monthly_ingest_managed_task_definition_enabled ? aws_iam_role.monthly_ingest_task_execution[0].arn : ""
   )
@@ -86,8 +80,9 @@ locals {
   monthly_ingest_task_definition_arn_resolved = trim(var.monthly_ingest_task_definition_arn, " ") != "" ? trim(var.monthly_ingest_task_definition_arn, " ") : (
     local.monthly_ingest_managed_task_definition_enabled ? aws_ecs_task_definition.monthly_ingest_worker[0].arn : ""
   )
-  monthly_ingest_task_allowed_bucket_arns = distinct(concat([aws_s3_bucket.irs_data.arn], var.monthly_ingest_task_allowed_bucket_arns))
-  monthly_ingest_task_allowed_object_arns = [for arn in local.monthly_ingest_task_allowed_bucket_arns : "${arn}/*"]
+  monthly_ingest_cluster_arn_resolved = trim(var.monthly_ingest_ecs_cluster_arn, " ") != "" ? trim(var.monthly_ingest_ecs_cluster_arn, " ") : (
+    (var.api_ecs_enabled || var.worker_ecs_enabled) ? aws_ecs_cluster.api[0].arn : ""
+  )
 }
 
 resource "aws_ecr_repository" "worker" {
@@ -212,18 +207,34 @@ resource "aws_iam_role_policy" "worker_task" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "WorkerTaskDataPlane"
-        Effect = "Allow"
-        Action = [
-          "s3:*",
-          "athena:*",
-          "glue:*"
-        ]
-        Resource = "*"
-      },
-    ]
+    Statement = concat(
+      [],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "WorkerTaskNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "WorkerTaskNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+    )
   })
 }
 
@@ -312,7 +323,7 @@ resource "aws_ecr_repository" "monthly_ingest_worker" {
 resource "aws_cloudwatch_log_group" "monthly_ingest_task" {
   count = local.monthly_ingest_managed_task_definition_enabled ? 1 : 0
 
-  name              = "/aws/ecs/${local.monthly_ingest_workflow_name}"
+  name              = "/aws/ecs/${local.monthly_ingest_state_machine_name}"
   retention_in_days = var.monthly_ingest_task_log_retention_days
   tags              = local.platform_common_tags
 }
@@ -366,31 +377,41 @@ resource "aws_iam_role_policy" "monthly_ingest_task" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "MonthlyIngestBucketList"
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
-        Resource = local.monthly_ingest_task_allowed_bucket_arns
-      },
-      {
-        Sid    = "MonthlyIngestObjectReadWrite"
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = local.monthly_ingest_task_allowed_object_arns
-      }
-    ]
+    Statement = concat(
+      [],
+      var.platform_nonprofit_postgres_enabled ? [
+        {
+          Sid    = "MonthlyIngestNonprofitPostgresSecretRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_arn, " ")
+          ]
+        }
+      ] : [],
+      var.platform_nonprofit_postgres_enabled && trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ") != "" ? [
+        {
+          Sid    = "MonthlyIngestNonprofitPostgresSecretDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = [
+            trim(var.platform_nonprofit_postgres_secret_kms_key_arn, " ")
+          ]
+        }
+      ] : [],
+    )
   })
 }
 
 resource "aws_ecs_task_definition" "monthly_ingest_worker" {
   count = local.monthly_ingest_managed_task_definition_enabled ? 1 : 0
 
-  family                   = local.monthly_ingest_workflow_name
+  family                   = local.monthly_ingest_state_machine_name
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = tostring(var.monthly_ingest_task_cpu)
@@ -412,7 +433,7 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
       name      = trim(var.monthly_ingest_container_name, " ")
       image     = local.monthly_ingest_worker_image_uri_resolved
       essential = true
-      entryPoint = ["python", "-m", "charity_status_backend.ingest_task.cli"]
+      entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]
       command    = ["ecs-run"]
       environment = [
         {
@@ -422,6 +443,34 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
         {
           name  = "APP_ENV"
           value = var.environment
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_STORE_BACKEND"
+          value = var.platform_nonprofit_store_backend
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_ENABLED"
+          value = tostring(var.platform_nonprofit_postgres_enabled)
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_HOST"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_PORT"
+          value = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_DATABASE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SSLMODE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
         },
         {
           name  = "FORM990_ZIP_MAX_XML_FILE_SIZE_BYTES"
@@ -442,6 +491,10 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
         {
           name  = "LOG_LEVEL"
           value = "INFO"
+        },
+        {
+          name  = "FORM990_EXECUTION_MODE"
+          value = "scheduled"
         }
       ]
       logConfiguration = {
@@ -457,3 +510,193 @@ resource "aws_ecs_task_definition" "monthly_ingest_worker" {
 
   tags = local.platform_common_tags
 }
+
+resource "aws_ecs_task_definition" "eo_bmf_ingest_worker" {
+  count = trim(local.monthly_ingest_worker_image_uri_resolved, " ") != "" ? 1 : 0
+
+  family                   = "${local.monthly_ingest_state_machine_name}-eo-bmf"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = tostring(var.monthly_ingest_task_cpu)
+  memory                   = tostring(var.monthly_ingest_task_memory)
+  execution_role_arn       = local.monthly_ingest_task_execution_role_arn_resolved
+  task_role_arn            = local.monthly_ingest_task_role_arn_resolved
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([
+    {
+      name       = trim(var.monthly_ingest_container_name, " ")
+      image      = local.monthly_ingest_worker_image_uri_resolved
+      essential  = true
+      entryPoint = ["python", "-m", "verification.backend.ingest.federal.cli"]
+      command    = ["ecs-run-eo-bmf"]
+      environment = [
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "APP_ENV"
+          value = var.environment
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_STORE_BACKEND"
+          value = var.platform_nonprofit_store_backend
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_ENABLED"
+          value = tostring(var.platform_nonprofit_postgres_enabled)
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_secret_arn, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_HOST"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_host, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_PORT"
+          value = var.platform_nonprofit_postgres_enabled ? tostring(var.platform_nonprofit_postgres_port) : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_DATABASE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_database_name, " ") : ""
+        },
+        {
+          name  = "PLATFORM_NONPROFIT_POSTGRES_SSLMODE"
+          value = var.platform_nonprofit_postgres_enabled ? trim(var.platform_nonprofit_postgres_sslmode, " ") : ""
+        },
+        {
+          name  = "WORKSPACE_PATH"
+          value = "/tmp/charity-status/eo-bmf"
+        },
+        {
+          name  = "STRICT_MODE"
+          value = "false"
+        },
+        {
+          name  = "LOG_LEVEL"
+          value = "INFO"
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.monthly_ingest_task[0].name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+    }
+  ])
+
+  tags = local.platform_common_tags
+}
+
+resource "aws_iam_role" "ingest_schedule" {
+  count = 1
+
+  name = "${local.monthly_ingest_state_machine_role_name}-events"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "events.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "ingest_schedule" {
+  count = 1
+
+  name = "${local.monthly_ingest_state_machine_role_name}-events-policy"
+  role = aws_iam_role.ingest_schedule[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "RunScheduledIngestTasks"
+        Effect = "Allow"
+        Action = ["ecs:RunTask"]
+        Resource = compact([
+          local.monthly_ingest_task_definition_arn_resolved,
+          trim(local.monthly_ingest_worker_image_uri_resolved, " ") != "" ? aws_ecs_task_definition.eo_bmf_ingest_worker[0].arn : "",
+        ])
+      },
+      {
+        Sid    = "PassScheduledIngestTaskRoles"
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = compact([
+          trim(local.monthly_ingest_task_execution_role_arn_resolved, " "),
+          trim(local.monthly_ingest_task_role_arn_resolved, " "),
+        ])
+      },
+    ]
+  })
+}
+
+resource "aws_cloudwatch_event_rule" "daily_ingest" {
+  name                = local.scheduled_workflow_names.regulatory_data_ingestion
+  schedule_expression = "cron(0 3 * * ? *)"
+}
+
+resource "aws_cloudwatch_event_target" "daily_ingest_ecs_target" {
+  count = trim(local.monthly_ingest_cluster_arn_resolved, " ") != "" && trim(local.monthly_ingest_worker_image_uri_resolved, " ") != "" ? 1 : 0
+
+  rule      = aws_cloudwatch_event_rule.daily_ingest.name
+  target_id = "eo-bmf-ecs-ingest"
+  arn       = local.monthly_ingest_cluster_arn_resolved
+  role_arn  = aws_iam_role.ingest_schedule[0].arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_count          = 1
+    task_definition_arn = aws_ecs_task_definition.eo_bmf_ingest_worker[0].arn
+
+    network_configuration {
+      subnets          = var.monthly_ingest_private_subnet_ids
+      security_groups  = var.monthly_ingest_task_security_group_ids
+      assign_public_ip = false
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "form990_schedule" {
+  count = trim(var.form990_schedule_expression, " ") != "" ? 1 : 0
+
+  name                = local.scheduled_workflow_names.monthly_filing_ingestion
+  schedule_expression = var.form990_schedule_expression
+}
+
+resource "aws_cloudwatch_event_target" "form990_ecs_target" {
+  count = trim(var.form990_schedule_expression, " ") != "" && trim(local.monthly_ingest_cluster_arn_resolved, " ") != "" && trim(local.monthly_ingest_task_definition_arn_resolved, " ") != "" ? 1 : 0
+
+  rule      = aws_cloudwatch_event_rule.form990_schedule[0].name
+  target_id = "form990-ecs-ingest"
+  arn       = local.monthly_ingest_cluster_arn_resolved
+  role_arn  = aws_iam_role.ingest_schedule[0].arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_count          = 1
+    task_definition_arn = local.monthly_ingest_task_definition_arn_resolved
+
+    network_configuration {
+      subnets          = var.monthly_ingest_private_subnet_ids
+      security_groups  = var.monthly_ingest_task_security_group_ids
+      assign_public_ip = false
+    }
+  }
+}
+

@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from decimal import Decimal
 
-from charity_status.serving.dynamodb_store import DynamoProfileStore
+from verification.backend.shared.serving.dynamodb_store import DynamoProfileStore
 
 
 class _FakeTable:
@@ -40,3 +40,4 @@ def test_put_profile_converts_nested_floats_to_decimal():
     assert table.last_item["scores"]["overall"] == Decimal("88.5")
     assert table.last_item["scores"]["dimensions"] == [Decimal("0.25"), Decimal("0.5")]
     assert table.last_item["audit"]["thresholds"]["min"] == Decimal("1.0")
+

@@ -41,6 +41,14 @@ describe("shared api route helpers", () => {
     ).toBe("/v1/nonprofit/13-1234567");
 
     expect(
+      buildApiPath(apiEndpoints.nonprofits.detail, "v1", {
+        pathParams: {
+          ein: "13-1234567",
+        },
+      }),
+    ).toBe("/v1/nonprofits/13-1234567");
+
+    expect(
       buildApiUrl(apiEndpoints.nonprofits.sources, {
         apiBaseUrl: "https://api.verifyforgood.test/",
         apiVersion: "v1",

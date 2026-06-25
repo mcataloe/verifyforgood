@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from typing import Any
 
-from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.providers import MockProvider
-from charity_status.query import VerificationInput, verify_nonprofit
+from verification.backend.shared.enrichments import EnrichmentService, ProviderRegistry
+from verification.backend.shared.enrichments.providers import MockProvider
+from verification.backend.shared.query import VerificationInput, verify_nonprofit
 
 
 @dataclass
@@ -59,3 +59,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

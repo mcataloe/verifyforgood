@@ -16,9 +16,9 @@ def test_gitlab_ci_defines_backend_runtime_image_build_publish_and_deploy_flow()
     assert "build_backend_worker_image" in content
     assert "build_backend_ingest_task_image" in content
     assert 'docker build -f "$RUNTIME_DOCKERFILE" -t "$LOCAL_IMAGE_NAME:$RUNTIME_IMAGE_TAG" .' in content
-    assert "backend/api/Dockerfile" in content
+    assert "backend/customer-api/Dockerfile" in content
     assert "backend/worker/Dockerfile" in content
-    assert "backend/ingest-task/Dockerfile" in content
+    assert "backend/ingest/federal/Dockerfile" in content
 
     assert "publish_runtime_images_dev" in content
     assert "publish_runtime_images_prod" in content
@@ -48,11 +48,10 @@ def test_docs_describe_gitlab_pipeline_commit_sha_rollout_and_ingest_compatibili
     readme = Path("README.md").read_text(encoding="utf-8")
     infra_readme = Path("infrastructure/README.md").read_text(encoding="utf-8")
     backend_readme = Path("backend/README.md").read_text(encoding="utf-8")
-    infra_deployment_readme = Path("infra-deployment/README.md").read_text(encoding="utf-8")
 
     assert "`.gitlab-ci.yml` is now the canonical GitLab CI/CD pipeline" in readme
     assert "immutable commit-SHA tags" in readme
-    assert "`monthly_ingest_worker_image_tag` still selects the `backend/ingest-task`" in readme
+    assert "`monthly_ingest_worker_image_tag` still selects the `backend/ingest/federal`" in readme
     assert "`TERRAFORM_DEV_SECRETS_TFVARS`" in readme
     assert "`TERRAFORM_PROD_SECRETS_TFVARS`" in readme
 
@@ -64,7 +63,6 @@ def test_docs_describe_gitlab_pipeline_commit_sha_rollout_and_ingest_compatibili
     assert "CI publish" in infra_readme
 
     assert "GitLab CI now builds all three backend runtime images" in backend_readme
-    assert "`.gitlab-ci.yml`" in infra_deployment_readme
 
 
 def test_example_tfvars_stop_recommending_latest_image_tags_and_include_worker_controls():

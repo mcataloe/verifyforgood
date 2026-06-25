@@ -7,6 +7,9 @@ export const authEndpoints = {
   me: defineEndpoint("GET", "/auth/me", {
     name: "authMe",
   }),
+  logout: defineEndpoint("POST", "/auth/logout", {
+    name: "authLogout",
+  }),
   oauthToken: defineEndpoint("POST", "/oauth/token", {
     name: "oauthToken",
   }),
@@ -112,6 +115,9 @@ export const billingEndpoints = {
 } as const;
 
 export const nonprofitEndpoints = {
+  detail: defineEndpoint("GET", "/nonprofits/{ein}", {
+    name: "nonprofitDetail",
+  }),
   filings: defineEndpoint("GET", "/nonprofit/{ein}/filings", {
     name: "nonprofitFilings",
   }),

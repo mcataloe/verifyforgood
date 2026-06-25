@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import zipfile
 
-from infrastructure.charity_status.form990.zip_processing import fetch_zip_records
+from infrastructure.verification.backend.ingest.federal.form990.zip_processing import fetch_zip_records
 
 
 class _FakeResponse:
@@ -53,3 +53,4 @@ def test_fetch_zip_records_extracts_xml(monkeypatch):
     assert record.source_year == "2024"
     assert record.source_signature
     assert xml_bytes.startswith(b"<?xml")
+

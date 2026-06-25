@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 
-from charity_status.auth import InMemoryUsageStore
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status_platform.billing_usage import monthly_period_for
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.auth import InMemoryUsageStore
+from verification.backend.shared.platform.auth import ApiKeyQuotaMeteringHook
+from verification.backend.shared.billing_usage import monthly_period_for
+from verification.backend.shared.customer_accounts import (
     DynamoOrganizationRepository,
     DynamoInvitationRepository,
     DynamoUsageRepository,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification.backend.shared.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -29,8 +29,8 @@ def _load_module_with_identity_store(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_membership_service = None
@@ -42,7 +42,7 @@ def _response_body(response):
 
 
 def _register_user(module, *, email: str, password: str = "top-secret-password", full_name: str | None = None):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -63,7 +63,7 @@ def _register_user(module, *, email: str, password: str = "top-secret-password",
 
 
 def _create_organization(module, *, access_token: str, name: str = "Verify For Good Org", slug: str | None = None):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -90,7 +90,7 @@ def _current_org_headers(access_token: str, organization_id: str) -> dict[str, s
 
 
 def _invite_member(module, *, access_token: str, organization_id: str, email: str, role: str = "user"):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/invitations",
@@ -104,7 +104,7 @@ def _invite_member(module, *, access_token: str, organization_id: str, email: st
 
 
 def _accept_invitation(module, *, access_token: str, token: str):
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/invitations/accept",
@@ -125,7 +125,7 @@ def test_get_current_members_lists_bootstrap_admin(monkeypatch):
     _, creator_token, creator_user = _register_user(module, email="creator@example.com", full_name="Creator User")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -171,7 +171,7 @@ def test_get_current_invitations_lists_pending_and_accepted_records(monkeypatch)
         role="admin",
     )
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/invitations",
@@ -207,7 +207,7 @@ def test_non_admin_cannot_modify_membership_state(monkeypatch):
     )
     assert accept_response["statusCode"] == 200
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/invitations",
@@ -326,7 +326,7 @@ def test_patch_member_updates_role(monkeypatch):
     )
     assert accept_response["statusCode"] == 200
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "PATCH",
             "resource": "/v1/organizations/current/members/{memberId}",
@@ -364,7 +364,7 @@ def test_delete_member_removes_membership(monkeypatch):
     )
     assert accept_response["statusCode"] == 200
 
-    delete_response = module.handler(
+    delete_response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current/members/{memberId}",
@@ -375,7 +375,7 @@ def test_delete_member_removes_membership(monkeypatch):
         None,
     )
     delete_payload = _response_body(delete_response)
-    list_response = module.handler(
+    list_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -397,7 +397,7 @@ def test_current_organization_headers_are_required(monkeypatch):
     _, organization = _create_organization(module, access_token=creator_token)
     assert organization["organization_id"]
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -418,7 +418,7 @@ def test_current_members_requires_active_membership(monkeypatch):
     _, organization = _create_organization(module, access_token=creator_token)
     _, outsider_token, _outsider = _register_user(module, email="outsider@example.com")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -438,7 +438,7 @@ def test_current_members_rejects_cross_org_header_scope(monkeypatch):
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _, organization = _create_organization(module, access_token=creator_token)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -557,7 +557,7 @@ def test_portal_session_can_query_nonprofit_when_membership_is_active(monkeypatc
         organization_usage_tracker=module._PortalOrganizationUsageTracker(usage_service),
     )
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -584,7 +584,7 @@ def test_portal_session_nonprofit_query_requires_current_org_headers(monkeypatch
     _, creator_token, _creator = _register_user(module, email="creator@example.com")
     _create_organization(module, access_token=creator_token)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -606,7 +606,7 @@ def test_portal_session_nonprofit_query_rejects_non_member(monkeypatch):
     _, organization = _create_organization(module, access_token=creator_token)
     _, outsider_token, _outsider = _register_user(module, email="outsider@example.com")
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -620,3 +620,5 @@ def test_portal_session_nonprofit_query_rejects_non_member(monkeypatch):
 
     assert response["statusCode"] == 403
     assert payload["errors"][0]["message"] == "Active membership is required for nonprofit queries"
+
+

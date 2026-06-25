@@ -1,8 +1,8 @@
-from charity_status.enrichments.base import EnrichmentProvider, ProviderError
-from charity_status.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
-from charity_status.enrichments.providers import MockProvider
-from charity_status.enrichments.registry import ProviderRegistry
-from charity_status.enrichments.service import EnrichmentService
+﻿from verification.backend.shared.enrichments.base import EnrichmentProvider, ProviderError
+from verification.backend.shared.enrichments.models import EnrichmentProviderResult, EnrichmentStatus, now_utc_iso
+from verification.backend.shared.enrichments.providers import MockProvider
+from verification.backend.shared.enrichments.registry import ProviderRegistry
+from verification.backend.shared.enrichments.service import EnrichmentService
 
 
 class FailingProvider(EnrichmentProvider):
@@ -80,3 +80,4 @@ def test_enrichment_service_capability_discovery_and_backward_compatibility():
     assert discovered["us_only"] is True
     provider_names = [item["provider_name"] for item in discovered["provider_capabilities"]]
     assert "mock_provider" in provider_names
+

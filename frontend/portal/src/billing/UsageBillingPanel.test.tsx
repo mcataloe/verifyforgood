@@ -380,7 +380,7 @@ describe("UsageBillingPanel", () => {
       focus: "usage",
     });
 
-    expect(screen.getByRole("heading", { name: "Usage Overview" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
     expect(screen.getByText("800 / 10,000")).toBeTruthy();
     expect(screen.getByText("API requests")).toBeTruthy();
     expect(screen.getByText("Nonprofit lookups")).toBeTruthy();

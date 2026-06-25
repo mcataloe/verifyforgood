@@ -63,6 +63,7 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
     >
       {toasts.map((toast) => (
         <Paper
+          className={`portal-toast portal-toast--${toast.tone}`}
           key={toast.id}
           p="md"
           radius="md"
@@ -72,6 +73,7 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
             borderColor: resolveToastBorderColor(toast.tone),
             borderStyle: "solid",
             borderWidth: 1,
+            pointerEvents: "auto",
           }}
           withBorder
         >
@@ -83,12 +85,13 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
               justifyContent: "space-between",
             }}
           >
-            <Stack gap={2} style={{ minWidth: 0 }}>
+            <Stack className="portal-toast__content" gap={2} style={{ minWidth: 0 }}>
               <Text fw={700}>{toast.title}</Text>
               <Text size="sm">{toast.message}</Text>
             </Stack>
             <CloseButton
               aria-label="Dismiss notification"
+              className="portal-toast__dismiss"
               onClick={() => {
                 value.dismissToast(toast.id);
               }}

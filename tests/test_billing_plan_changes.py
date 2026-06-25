@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from urllib.error import URLError
 
-from charity_status.billing.checkout import BillingProviderError, StripeCheckoutConfig
-from charity_status.billing.plan_changes import BillingPlanChangeService, HttpStripePlanChangeClient, StripePriceSnapshot, StripeSubscriptionSnapshot
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
+from verification.backend.shared.billing.checkout import BillingProviderError, StripeCheckoutConfig
+from verification.backend.shared.billing.plan_changes import BillingPlanChangeService, HttpStripePlanChangeClient, StripePriceSnapshot, StripeSubscriptionSnapshot
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore, ManagedSubscription
 
 
 class _StripePlanChangeClient:
@@ -534,10 +534,11 @@ def test_http_stripe_plan_change_client_retries_transient_url_errors(monkeypatch
             raise URLError("temporary outage")
         return _Response()
 
-    monkeypatch.setattr("charity_status.billing.plan_changes.urlopen", _fake_urlopen)
+    monkeypatch.setattr("verification.backend.shared.billing.plan_changes.urlopen", _fake_urlopen)
     client = HttpStripePlanChangeClient(secret_key="sk_test_123")
 
     snapshot = client.retrieve_subscription(subscription_id="sub_test_123")
 
     assert snapshot.subscription_id == "sub_test_123"
     assert attempts["count"] == 2
+

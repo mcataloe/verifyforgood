@@ -1,8 +1,8 @@
-# Billing Subscription Integration Plan
+﻿# Billing Subscription Integration Plan
 
 ## Summary
 
-This plan defines the documentation-first guardrails for Stripe-backed subscription billing before runtime billing changes begin. The repo already contains billing scaffolding in `infrastructure/charity_status/billing/` and portal billing UI surfaces, so the implementation should extend those seams rather than create a parallel billing model.
+This plan defines the documentation-first guardrails for Stripe-backed subscription billing before runtime billing changes begin. The repo already contains billing scaffolding in `backend/shared/src/verification/backend/shared/billing/` and portal billing UI surfaces, so the implementation should extend those seams rather than create a parallel billing model.
 
 The core planning default is:
 
@@ -98,3 +98,4 @@ Phase 21D implementation decision:
 - Free-tier billing behavior remains an explicit policy decision and is not resolved in this phase.
 - Stripe webhook events, not checkout success redirects, are the source of truth for final subscription state transitions.
 - Phase 21A does not introduce billing code changes, schema migrations, endpoint additions, or Terraform updates.
+

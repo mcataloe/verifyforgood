@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from infrastructure.charity_status.form990.discovery import discover_archives, fetch_index_records
-from infrastructure.charity_status.form990.manifest import diff_manifest_entries
-from infrastructure.charity_status.form990.source_catalog import normalize_configured_sources
-from infrastructure.charity_status.form990.models import Form990IndexRecord
+from infrastructure.verification.backend.ingest.federal.form990.discovery import discover_archives, fetch_index_records
+from infrastructure.verification.backend.ingest.federal.form990.manifest import diff_manifest_entries
+from infrastructure.verification.backend.ingest.federal.form990.source_catalog import normalize_configured_sources
+from infrastructure.verification.backend.ingest.federal.form990.models import Form990IndexRecord
 
 
 class _FakeResponse:
@@ -111,3 +111,4 @@ def test_configured_source_catalog_backward_compatibility():
     assert len(sources) == 2
     assert sources[0].source_year == "2024"
     assert {item.source_kind for item in sources} == {"csv_index", "zip_archive"}
+

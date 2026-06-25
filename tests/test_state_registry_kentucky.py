@@ -1,17 +1,17 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
-from charity_status.state_registry import (
+from verification.backend.ingest.state import (
     StateRegistryAdapterRegistry,
     StateRegistryEntityStatus,
     StateRegistryLookupRequest,
     StateRegistryLookupService,
     StateRegistryStanding,
 )
-from charity_status.state_registry.adapters import KentuckyBusinessRegistryAdapter
-from charity_status.state_registry.adapters.kentucky.mapper import map_kentucky_company_record
-from charity_status.state_registry.adapters.kentucky.parser import kentucky_external_entity_id, parse_kentucky_companies_tsv
+from verification.backend.ingest.state.adapters import KentuckyBusinessRegistryAdapter
+from verification.backend.ingest.state.adapters.kentucky.mapper import map_kentucky_company_record
+from verification.backend.ingest.state.adapters.kentucky.parser import kentucky_external_entity_id, parse_kentucky_companies_tsv
 
 
 FIXTURE_DIR = Path("tests/fixtures/state_registry/kentucky")
@@ -103,3 +103,4 @@ def test_kentucky_malformed_rows_are_ignored():
     parsed = [map_kentucky_company_record(row) for row in rows]
 
     assert parsed == [None, None]
+

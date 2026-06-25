@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     DynamoInvitationRepository,
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
@@ -19,7 +19,7 @@ from charity_status_platform.customer_accounts import (
     OrganizationCreateRequest,
     OrganizationService,
 )
-from charity_status_platform.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
+from verification.backend.shared.identity_access import AuthService, BcryptPasswordHasher, HmacBearerTokenCodec, UserCreateRequest
 
 
 def _seed_bootstrapped_org(table: FakeIdentityDynamoTable, *, admin_email: str = "admin@example.com"):
@@ -196,7 +196,7 @@ def test_role_update_behavior_and_duplicate_membership_prevention():
 
 
 def test_post_membership_routes_and_accept_endpoint(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification.backend.shared.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -205,13 +205,13 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_membership_service = None
 
-    register_admin = module.handler(
+    register_admin = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -222,7 +222,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
         None,
     )
     admin_token = json.loads(register_admin["body"])["data"]["access_token"]
-    create_org = module.handler(
+    create_org = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -234,7 +234,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     )
     org_payload = json.loads(create_org["body"])["data"]
 
-    invite_response = module.handler(
+    invite_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations/current/invitations",
@@ -252,7 +252,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     invite_payload = json.loads(invite_response["body"])["data"]
     assert invite_response["statusCode"] == 201
 
-    register_invited = module.handler(
+    register_invited = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -264,7 +264,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     )
     invited_token = json.loads(register_invited["body"])["data"]["access_token"]
 
-    accept_response = module.handler(
+    accept_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/invitations/accept",
@@ -278,7 +278,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     assert accept_response["statusCode"] == 200
     assert accept_payload["membership"]["status"] == "active"
 
-    list_response = module.handler(
+    list_response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organizations/current/members",
@@ -295,7 +295,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     assert list_response["statusCode"] == 200
     assert len(list_payload["items"]) == 2
 
-    patch_response = module.handler(
+    patch_response = module.handle_api_event(
         {
             "httpMethod": "PATCH",
             "resource": "/v1/organizations/current/members/{memberId}",
@@ -314,7 +314,7 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
     assert patch_response["statusCode"] == 200
     assert json.loads(patch_response["body"])["data"]["role"] == "admin"
 
-    delete_response = module.handler(
+    delete_response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current/members/{memberId}",
@@ -329,3 +329,5 @@ def test_post_membership_routes_and_accept_endpoint(monkeypatch):
         None,
     )
     assert delete_response["statusCode"] == 200
+
+

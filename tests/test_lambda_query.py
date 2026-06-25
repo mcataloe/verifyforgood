@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 import hashlib
 import hmac
 import json
@@ -8,19 +8,19 @@ from decimal import Decimal
 from time import time
 from types import SimpleNamespace
 
-from charity_status.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
-from charity_status.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
-from charity_status.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
-from charity_status.billing.models import Subscription
-from charity_status.billing.plan_changes import BillingPlanChangeService
-from charity_status.billing.portal import BillingPortalService, PortalSessionResult
-from charity_status.control_plane import ControlPlaneService, InMemoryControlPlaneStore
-from charity_status.control_plane.models import ManagedSubscription
-from charity_status.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
-from charity_status.platform.auth import ApiKeyQuotaMeteringHook
-from charity_status.scoring import SCORING_MODEL_VERSION
-from charity_status.core.models import AuthContext
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.auth import InMemoryUsageStore, build_admin_key_record, build_api_key_record
+from verification.backend.shared.billing import DEFAULT_ENTITLEMENTS, monthly_period_for
+from verification.backend.shared.billing.checkout import BillingCheckoutService, BillingProviderError, CheckoutSessionResult, StripeCheckoutConfig
+from verification.backend.shared.billing.models import Subscription
+from verification.backend.shared.billing.plan_changes import BillingPlanChangeService
+from verification.backend.shared.billing.portal import BillingPortalService, PortalSessionResult
+from verification.backend.shared.control_plane import ControlPlaneService, InMemoryControlPlaneStore
+from verification.backend.shared.control_plane.models import ManagedSubscription
+from verification.backend.shared.enrichments import InMemoryOrganizationIntegrationSettingsStore, OrganizationIntegrationSettingsService, load_organization_integration_settings
+from verification.backend.shared.platform.auth import ApiKeyQuotaMeteringHook
+from verification.backend.shared.scoring import SCORING_MODEL_VERSION
+from verification.backend.shared.core.models import AuthContext
+from verification.backend.shared.customer_accounts import (
     AuditEventType,
     AuditLogService,
     AuditRecord,
@@ -40,13 +40,17 @@ from charity_status_platform.customer_accounts import (
     OrganizationRecord,
     OrganizationSettingsService,
     OrganizationSupportService,
+    SupportDeliveryMode,
+    SupportTicketDeliveryStatus,
+    SupportTicketEmailResult,
+    SupportTicketRecord,
     SubscriptionService,
     UsageService,
     UserRecord,
     build_customer_accounts_engine,
     build_customer_accounts_session_factory,
 )
-from charity_status_platform.nonprofits import (
+from verification.backend.shared.nonprofits import (
     NonprofitFilingRecord,
     NonprofitRecord,
     SqlAlchemyNonprofitRepository,
@@ -65,6 +69,70 @@ def _response_error_message(response):
     return _response_envelope(response)["errors"][0]["message"]
 
 
+class _InMemorySupportTicketRepository:
+    def __init__(self) -> None:
+        self.records: dict[str, SupportTicketRecord] = {}
+        self._next_id = 1
+
+    def create(self, record: SupportTicketRecord) -> SupportTicketRecord:
+        created = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "ticket_id": self._next_id,
+            }
+        )
+        self.records[created.support_request_id] = created
+        self._next_id += 1
+        return created
+
+    def mark_sent(self, support_request_id: str, *, provider_message_id: str | None, delivery_recipient: str, emailed_at: str):
+        record = self.records.get(support_request_id)
+        if record is None:
+            return None
+        updated = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "delivery_status": SupportTicketDeliveryStatus.SENT,
+                "delivery_recipient": delivery_recipient,
+                "provider_message_id": provider_message_id,
+                "emailed_at": emailed_at,
+                "delivery_error": None,
+            }
+        )
+        self.records[support_request_id] = updated
+        return updated
+
+    def mark_failed(self, support_request_id: str, *, delivery_error: str):
+        record = self.records.get(support_request_id)
+        if record is None:
+            return None
+        updated = SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "delivery_status": SupportTicketDeliveryStatus.FAILED,
+                "delivery_error": delivery_error,
+            }
+        )
+        self.records[support_request_id] = updated
+        return updated
+
+    def get_by_support_request_id(self, support_request_id: str):
+        return self.records.get(support_request_id)
+
+
+class _RecordingSupportEmailDelivery:
+    provider_name = "gmail_smtp"
+    delivery_mode = SupportDeliveryMode.RECORDED_AND_EMAILED
+    delivery_recipient = "support@example.com"
+
+    def send(self, request):
+        return SupportTicketEmailResult(
+            provider_name=self.provider_name,
+            provider_message_id="message-123",
+            delivery_recipient=self.delivery_recipient,
+        )
+
+
 def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None) -> str:
     timestamp = int(time()) if timestamp is None else timestamp
     signed_payload = f"{timestamp}.{payload}".encode("utf-8")
@@ -73,8 +141,10 @@ def _stripe_signature(payload: str, *, secret: str, timestamp: int | None = None
 
 
 def _load_module():
-    sys.modules.pop("infrastructure.lambda_query", None)
-    return importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    return importlib.import_module("verification.backend.customer.api.runtime")
 
 
 def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organization_id="org_1"):
@@ -101,8 +171,10 @@ def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organizat
 def _load_admin_module(monkeypatch):
     admin_key, admin_record = build_admin_key_record("root", secret="admin-secret")
     monkeypatch.setenv("ADMIN_KEY_RECORDS_JSON", json.dumps([admin_record.__dict__]))
-    sys.modules.pop("infrastructure.lambda_query", None)
-    return importlib.import_module("infrastructure.lambda_query"), admin_key
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    sys.modules.pop("verification.backend.customer.api", None)
+    return importlib.import_module("verification.backend.customer.api.runtime"), admin_key
 
 
 def _sample_record(name="Test Org", status="1"):
@@ -320,7 +392,7 @@ def test_invalid_ein_still_returns_400():
     _install_tenant_auth(module)
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "12-34A6789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
 
     assert result["statusCode"] == 400
     assert "invalid characters" in _response_error_message(result)
@@ -330,7 +402,7 @@ def test_options_preflight_returns_cors_headers_for_allowed_origin(monkeypatch):
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174")
     module = _load_module()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "OPTIONS",
             "resource": "/v1/auth/register",
@@ -366,7 +438,7 @@ def test_lookup_hit_path_returns_materialized_profile():
     )
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     envelope = _response_envelope(result)
     body = envelope["data"]
 
@@ -405,7 +477,7 @@ def test_lookup_hit_path_refreshes_stale_materialized_profile():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -429,7 +501,7 @@ def test_lookup_miss_then_fallback_materialize_nonprod_lazy():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -454,7 +526,7 @@ def test_post_verify_bypasses_cache_readthrough():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -473,7 +545,7 @@ def test_post_verify_accepts_policy_id_and_returns_policy_evaluation():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -493,7 +565,7 @@ def test_post_verify_accepts_weighting_profile():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -509,7 +581,7 @@ def test_response_shape_still_contains_core_fields():
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    body = _response_data(module.handler(event, None))
+    body = _response_data(module.handle_api_event(event, None))
 
     for key in [
         "organization",
@@ -547,7 +619,7 @@ def test_lookup_hit_path_with_dynamodb_decimal_values_is_serializable():
     )
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -610,7 +682,7 @@ def test_lookup_hit_path_recomputes_tenant_required_integrations(monkeypatch):
     module.quota_metering_hook = _QuotaHook()
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -669,7 +741,7 @@ def test_get_organization_integrations_returns_current_settings():
         "path": "/v1/organization/settings",
         "headers": {"Authorization": "Bearer test"},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -781,7 +853,7 @@ def test_put_organization_integrations_updates_settings():
         "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": True}}}),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -837,7 +909,7 @@ def test_put_organization_integrations_allows_billing_update_for_growth_plan():
             {"billing": {"allowOverage": False, "monthlyRequestCap": 750}}
         ),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -889,7 +961,7 @@ def test_put_organization_integrations_rejects_integration_update_for_growth_pla
         "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": True, "requiredForEvaluation": False}}}),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     message = _response_error_message(result)
 
     assert result["statusCode"] == 403
@@ -937,7 +1009,7 @@ def test_put_organization_integrations_rejects_required_disabled():
         "headers": {"Authorization": "Bearer test"},
         "body": json.dumps({"integrations": {"candid": {"enabled": False, "requiredForEvaluation": True}}}),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     message = _response_error_message(result)
 
     assert result["statusCode"] == 400
@@ -970,7 +1042,7 @@ def test_put_organization_settings_updates_profile_for_admin():
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "PUT",
             "resource": "/v1/organization/settings",
@@ -1019,7 +1091,7 @@ def test_put_organization_settings_persists_slug_update():
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "PUT",
             "resource": "/v1/organization/settings",
@@ -1051,7 +1123,7 @@ def test_get_organization_settings_requires_admin_membership():
         role="user",
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/settings",
@@ -1093,7 +1165,7 @@ def test_get_organization_usage_returns_zero_filled_summary_for_new_org():
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/usage",
@@ -1179,7 +1251,7 @@ def test_get_organization_usage_is_org_scoped_and_returns_known_totals():
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="pro")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/usage",
@@ -1210,7 +1282,7 @@ def test_get_organization_usage_requires_admin_membership():
         role="user",
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/usage",
@@ -1302,7 +1374,7 @@ def test_get_organization_activity_returns_sanitized_paginated_activity():
     module.portal_activity_service = OrganizationActivityService(audits=audits, users=users)
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    first = module.handler(
+    first = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/activity",
@@ -1325,7 +1397,7 @@ def test_get_organization_activity_returns_sanitized_paginated_activity():
     assert "token" not in first_body["items"][0]["metadata"]
     assert "query_text" not in first_body["items"][1]["metadata"]
 
-    second = module.handler(
+    second = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/activity",
@@ -1360,7 +1432,7 @@ def test_get_organization_activity_requires_admin_membership():
         role="user",
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/activity",
@@ -1379,6 +1451,7 @@ def test_get_organization_support_returns_org_scoped_context():
     identity_table = FakeIdentityDynamoTable()
     identity_resource = FakeIdentityDynamoResource(identity_table)
     organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
+    support_tickets = _InMemorySupportTicketRepository()
     organizations.create(
         OrganizationRecord(
             organization_id="org_1",
@@ -1401,10 +1474,12 @@ def test_get_organization_support_returns_org_scoped_context():
     module.portal_support_service = OrganizationSupportService(
         organizations=organizations,
         audits=DynamoAuditLogRepository(dynamodb_resource=identity_resource),
+        support_tickets=support_tickets,
+        email_delivery=_RecordingSupportEmailDelivery(),
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/support",
@@ -1421,6 +1496,7 @@ def test_get_organization_support_returns_org_scoped_context():
     assert body["account_context"]["current_plan"] == "growth"
     assert body["support_contact"]["support_email"] == "support@verifyforgood.com"
     assert body["product_links"]["api_access_hash"] == "#/api-access?nav=customer-admin-api"
+    assert body["issue_reporting"]["delivery_mode"] == "recorded_and_emailed"
 
 
 def test_post_organization_support_request_records_sanitized_receipt():
@@ -1429,6 +1505,7 @@ def test_post_organization_support_request_records_sanitized_receipt():
     identity_resource = FakeIdentityDynamoResource(identity_table)
     organizations = DynamoOrganizationRepository(dynamodb_resource=identity_resource)
     audits = DynamoAuditLogRepository(dynamodb_resource=identity_resource)
+    support_tickets = _InMemorySupportTicketRepository()
     organizations.create(
         OrganizationRecord(
             organization_id="org_1",
@@ -1442,10 +1519,12 @@ def test_post_organization_support_request_records_sanitized_receipt():
     module.portal_support_service = OrganizationSupportService(
         organizations=organizations,
         audits=audits,
+        support_tickets=support_tickets,
+        email_delivery=_RecordingSupportEmailDelivery(),
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/support-requests",
@@ -1470,7 +1549,7 @@ def test_post_organization_support_request_records_sanitized_receipt():
     assert result["statusCode"] == 201
     body = _response_data(result)
     assert body["status"] == "received"
-    assert body["delivery_mode"] == "recorded_only"
+    assert body["delivery_mode"] == "recorded_and_emailed"
     assert body["support_email"] == "support@verifyforgood.com"
 
     audit_items = audits.list_for_organization("org_1")
@@ -1484,6 +1563,9 @@ def test_post_organization_support_request_records_sanitized_receipt():
         "reviewer@example.org",
     ]
     assert "description" not in audit_items[0].metadata
+    stored = next(iter(support_tickets.records.values()))
+    assert stored.description == "The API token request is failing with a 401 response."
+    assert stored.delivery_status is SupportTicketDeliveryStatus.SENT
 
 
 def test_post_organization_support_request_rejects_invalid_payload():
@@ -1506,7 +1588,7 @@ def test_post_organization_support_request_rejects_invalid_payload():
     )
     module._resolve_organization_tenant_context = _resolve_admin_tenant_context(module, plan="growth")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/support-requests",
@@ -1536,7 +1618,7 @@ def test_get_organization_support_requires_admin_membership():
         role="user",
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/support",
@@ -1593,7 +1675,7 @@ def test_post_organization_billing_checkout_session_returns_checkout_url():
             }
         ),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -1625,7 +1707,7 @@ def test_post_organization_billing_checkout_session_requires_admin_membership():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/checkout-session",
@@ -1674,7 +1756,7 @@ def test_post_organization_billing_customer_bootstrap_creates_customer_for_admin
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/customer-bootstrap",
@@ -1722,7 +1804,7 @@ def test_post_organization_billing_customer_bootstrap_requires_admin_membership(
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/customer-bootstrap",
@@ -1794,8 +1876,8 @@ def test_post_organization_billing_customer_bootstrap_reuses_existing_customer()
         "headers": {"Authorization": "Bearer test"},
     }
 
-    first = module.handler(event, None)
-    second = module.handler(event, None)
+    first = module.handle_api_event(event, None)
+    second = module.handle_api_event(event, None)
 
     assert first["statusCode"] == 200
     assert second["statusCode"] == 200
@@ -1826,7 +1908,7 @@ def test_post_organization_billing_customer_bootstrap_returns_provider_error_wit
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/customer-bootstrap",
@@ -1869,7 +1951,7 @@ def test_post_stripe_webhook_route_processes_valid_signed_event(monkeypatch):
     )
     signature = _stripe_signature(payload, secret="whsec_test")
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/webhooks/stripe",
@@ -1908,7 +1990,7 @@ def test_post_admin_account_billing_reconcile_returns_reconciliation_payload(mon
 
     module.billing_reconciliation_service = _BillingReconciliationService()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/admin/accounts/{accountId}/billing/reconcile",
@@ -1965,7 +2047,7 @@ def test_post_organization_billing_plan_change_returns_plan_payload():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/plan-change",
@@ -2023,7 +2105,7 @@ def test_post_organization_billing_plan_change_returns_cancellation_payload():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/plan-change",
@@ -2061,7 +2143,7 @@ def test_post_organization_billing_plan_change_requires_admin_membership():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/plan-change",
@@ -2121,7 +2203,7 @@ def test_post_organization_billing_portal_session_returns_portal_url():
     module.auth_context_provider = _AuthProvider()
     module.quota_metering_hook = _QuotaHook()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/portal-session",
@@ -2173,7 +2255,7 @@ def test_get_organization_billing_subscription_returns_product_focused_summary()
         organization_id=account["id"],
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/billing/subscription",
@@ -2242,7 +2324,7 @@ def test_organization_billing_subscription_requires_admin_membership():
         role="user",
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/billing/subscription",
@@ -2284,7 +2366,7 @@ def test_get_organization_billing_subscription_includes_trial_status_and_effecti
         organization_id=account["id"],
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/billing/subscription",
@@ -2360,7 +2442,7 @@ def test_get_organization_billing_subscription_surfaces_pending_cancellation():
         organization_id=account["id"],
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/organization/billing/subscription",
@@ -2381,7 +2463,7 @@ def test_get_organization_billing_subscription_surfaces_pending_cancellation():
 def test_get_public_plan_catalog_returns_backend_driven_plan_metadata():
     module = _load_module()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/plans",
@@ -2435,7 +2517,7 @@ def test_first_authenticated_customer_request_starts_trial_before_feature_gating
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
     module.usage_store = InMemoryUsageStore()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/verify/batch",
@@ -2472,7 +2554,7 @@ def test_post_stripe_webhook_route_rejects_invalid_signature(monkeypatch):
         separators=(",", ":"),
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/webhooks/stripe",
@@ -2516,7 +2598,7 @@ def test_post_organization_billing_checkout_session_rejects_invalid_plan():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/checkout-session",
@@ -2566,7 +2648,7 @@ def test_post_organization_billing_checkout_session_returns_provider_error():
 
     module._resolve_organization_tenant_context = _resolve
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organization/billing/checkout-session",
@@ -2626,7 +2708,7 @@ def test_handler_returns_hard_stop_quota_response_when_overage_disabled():
         "pathParameters": {"ein": "123456789"},
         "headers": {},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     envelope = _response_envelope(result)
 
     assert result["statusCode"] == 429
@@ -2672,7 +2754,7 @@ def test_handler_restricts_product_access_when_payment_failed():
         "pathParameters": {"ein": "123456789"},
         "headers": {},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     envelope = _response_envelope(result)
 
     assert result["statusCode"] == 402
@@ -2718,7 +2800,7 @@ def test_batch_hard_stop_uses_batch_item_count():
         "headers": {},
         "body": json.dumps({"items": [{"ein": "123456789"}, {"ein": "987654321"}]}),
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
 
     assert result["statusCode"] == 429
     assert _response_envelope(result)["errors"][0]["code"] == "quota_exceeded_hard_stop"
@@ -2739,7 +2821,7 @@ def test_post_verify_batch_all_success():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
 
     assert result["statusCode"] == 200
@@ -2763,7 +2845,7 @@ def test_post_verify_batch_partial_invalid_input():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = _response_data(module.handler(event, None))
+    body = _response_data(module.handle_api_event(event, None))
     assert body["batch_summary"]["success"] == 2
     assert body["batch_summary"]["error"] == 1
     assert body["batch_summary"]["counts_by_error"]["invalid_ein"] == 1
@@ -2784,7 +2866,7 @@ def test_post_verify_batch_missing_ein_rows():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = _response_data(module.handler(event, None))
+    body = _response_data(module.handle_api_event(event, None))
     assert body["batch_summary"]["error"] == 1
     assert body["batch_summary"]["counts_by_error"]["missing_ein"] == 1
 
@@ -2804,7 +2886,7 @@ def test_post_verify_batch_duplicate_eins_are_processed_independently():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    body = _response_data(module.handler(event, None))
+    body = _response_data(module.handle_api_event(event, None))
     assert body["batch_summary"]["total"] == 2
     assert body["batch_summary"]["success"] == 2
     assert len(body["items"]) == 2
@@ -2821,7 +2903,7 @@ def test_post_verify_batch_enforces_size_limit():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     assert result["statusCode"] == 400
     assert "maximum of 1" in _response_error_message(result)
 
@@ -2854,7 +2936,7 @@ def test_post_verify_batch_reuses_cache_for_get_style_item():
         "pathParameters": None,
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["items"][0]["item"]["organization"]["name"] == "Cached Org"
@@ -2883,7 +2965,7 @@ def test_nonprofits_search_exactish_name():
         "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "helping hands"},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["items"][0]["name"] == "Helping Hands Foundation"
@@ -2895,13 +2977,12 @@ def test_nonprofits_search_reads_from_postgres_query_backend(monkeypatch, tmp_pa
     _seed_postgres_nonprofit(sqlite_url, name="Helping Hands Foundation")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
     module.athena_client = _mock_client(search_rows=[])
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/search",
@@ -2922,7 +3003,7 @@ def test_nonprofits_search_reads_from_postgres_query_backend(monkeypatch, tmp_pa
             "subsection": "03",
             "irs_status": "active",
             "active": True,
-            "tax_period": "202412",
+            "tax_period": None,
         }
     ]
 
@@ -2943,7 +3024,7 @@ def test_nonprofits_search_filtered_search():
         "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "state": "il", "subsection": "03", "active_only": "true", "limit": "5"},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     assert result["statusCode"] == 200
     assert captured["state"] == "IL"
     assert captured["subsection"] == "03"
@@ -2958,6 +3039,7 @@ def test_nonprofits_search_pagination_cursor():
         search_rows=[
             {"ein": "123456789", "name": "A Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
             {"ein": "223456789", "name": "B Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
+            {"ein": "323456789", "name": "C Org", "state": "IL", "subsection": "03", "status": "1", "tax_period": "202501"},
         ]
     )
     event = {
@@ -2966,7 +3048,7 @@ def test_nonprofits_search_pagination_cursor():
         "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "limit": "2"},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["pagination"]["next_cursor"] is not None
@@ -2977,13 +3059,12 @@ def test_nonprofit_filings_reads_from_postgres_query_backend(monkeypatch, tmp_pa
     _seed_postgres_nonprofit(sqlite_url, name="Filings Org")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
     module.athena_client = _mock_client(filing_rows=[])
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}/filings",
@@ -3021,7 +3102,7 @@ def test_nonprofits_search_invalid_limit_handling():
         "path": "/v1/nonprofits/search",
         "queryStringParameters": {"q": "org", "limit": "100"},
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     assert result["statusCode"] == 400
     assert "between 1 and 10" in _response_error_message(result)
 
@@ -3039,7 +3120,7 @@ def test_nonprofits_search_requires_tenant_context_before_client_access():
         "headers": {},
     }
 
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
 
     assert result["statusCode"] == 401
 
@@ -3074,7 +3155,7 @@ def test_nonprofits_search_rejects_authenticated_non_tenant_context():
         "headers": {"x-api-key": "csk_dev_001.secret"},
     }
 
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
 
     assert result["statusCode"] == 403
 
@@ -3106,7 +3187,7 @@ def test_tenant_lookup_tracks_org_usage_only_on_success():
     module.athena_client = _mock_client(record=_sample_record("Metered Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
-    ok_result = module.handler(
+    ok_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3126,7 +3207,7 @@ def test_tenant_lookup_tracks_org_usage_only_on_success():
         "nonprofit_lookup_requests": 1,
     }
 
-    bad_result = module.handler(
+    bad_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3177,7 +3258,7 @@ def test_tenant_search_and_filings_track_route_specific_usage():
     )
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None: _mock_enrichment())
 
-    search_result = module.handler(
+    search_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/search",
@@ -3186,7 +3267,7 @@ def test_tenant_search_and_filings_track_route_specific_usage():
         },
         None,
     )
-    filings_result = module.handler(
+    filings_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}/filings",
@@ -3207,6 +3288,62 @@ def test_tenant_search_and_filings_track_route_specific_usage():
         "search_requests": 1,
         "filing_lookup_requests": 1,
     }
+
+
+def test_plural_nonprofit_detail_route_returns_advisory_snapshot_payload():
+    module = _load_module()
+    _install_tenant_auth(module)
+    module.nonprofit_advisory_detail_service = SimpleNamespace(
+        get_detail=lambda ein: {
+            "organization": {"ein": "12-3456789", "name": "Advisory Route Org"},
+            "overview": {
+                "entity_type": "Public charity",
+                "irs_status": "active",
+                "state": "IL",
+                "subsection": "03",
+                "tax_deductible": True,
+            },
+            "filings": {
+                "count": 1,
+                "latest": {
+                    "return_type": "990",
+                    "tax_year": "2024",
+                    "filing_date": "2025-05-01",
+                    "parse_status": "parsed",
+                    "tax_period": "202412",
+                },
+                "recent_990_on_file": True,
+            },
+            "signals": {
+                "appears_because": ["IRS records show a status of active."],
+                "highlights": ["A recent Form 990 period is on file."],
+                "risk_indicators": [],
+                "data_gaps": [],
+            },
+            "sources": [],
+            "snapshot": {
+                "materialized_at": "2026-04-21T20:00:00+00:00",
+                "renderer_version": "advisory_copilot_detail.v1",
+            },
+        }
+    )
+
+    result = module.handle_api_event(
+        {
+            "httpMethod": "GET",
+            "resource": "/v1/nonprofits/{ein}",
+            "path": "/v1/nonprofits/123456789",
+            "pathParameters": {"ein": "123456789"},
+            "queryStringParameters": None,
+        },
+        None,
+    )
+    body = _response_data(result)
+
+    assert result["statusCode"] == 200
+    assert body["organization"]["name"] == "Advisory Route Org"
+    assert "scores" not in body
+    assert "final_recommendation" not in body
 
 
 def test_nonprofits_sources_supported_source_lookup():
@@ -3241,7 +3378,7 @@ def test_nonprofits_sources_supported_source_lookup():
         "pathParameters": {"ein": "123456789", "source_name": "state_registry_mock"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["source"]["source_name"] == "state_registry_mock"
@@ -3298,7 +3435,7 @@ def test_successful_nonprofit_routes_create_audit_events_with_sanitized_metadata
         )
     )
 
-    lookup_result = module.handler(
+    lookup_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3308,7 +3445,7 @@ def test_successful_nonprofit_routes_create_audit_events_with_sanitized_metadata
         },
         None,
     )
-    search_result = module.handler(
+    search_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/search",
@@ -3317,7 +3454,7 @@ def test_successful_nonprofit_routes_create_audit_events_with_sanitized_metadata
         },
         None,
     )
-    filings_result = module.handler(
+    filings_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}/filings",
@@ -3327,7 +3464,7 @@ def test_successful_nonprofit_routes_create_audit_events_with_sanitized_metadata
         },
         None,
     )
-    sources_result = module.handler(
+    sources_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}/sources",
@@ -3384,7 +3521,7 @@ def test_nonprofit_source_detail_audit_event_records_source_name_and_sources():
         )
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
@@ -3415,7 +3552,7 @@ def test_portal_session_nonprofit_audit_event_records_actor_user_id():
     module.athena_client = _mock_client(record=_sample_record("Portal Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3454,7 +3591,7 @@ def test_nonprofit_audit_logging_failures_are_non_blocking():
     module.athena_client = _mock_client(record=_sample_record("Audit Failure Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3475,7 +3612,7 @@ def test_nonprofit_audit_logging_skips_non_successful_responses():
     module.athena_client = _mock_client(record=_sample_record("Audit Skip Org"))
     module.enrichment_service = SimpleNamespace(enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment())
 
-    invalid_lookup_result = module.handler(
+    invalid_lookup_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3485,7 +3622,7 @@ def test_nonprofit_audit_logging_skips_non_successful_responses():
         },
         None,
     )
-    unsupported_source_result = module.handler(
+    unsupported_source_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}/sources/{source_name}",
@@ -3556,7 +3693,7 @@ def test_lookup_nonprofit_surfaces_disabled_premium_integrations_in_existing_met
         )
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3581,7 +3718,6 @@ def test_nonprofit_lookup_uses_postgres_query_backend_for_base_record(monkeypatc
     _seed_postgres_nonprofit(sqlite_url, name="Postgres Lookup Org")
     monkeypatch.setenv("PLATFORM_POSTGRES_ENABLED", "true")
     monkeypatch.setenv("PLATFORM_POSTGRES_URL", sqlite_url)
-    monkeypatch.setenv("PLATFORM_NONPROFIT_QUERY_BACKEND", "postgres")
 
     module = _load_module()
     _install_tenant_auth(module)
@@ -3590,7 +3726,7 @@ def test_nonprofit_lookup_uses_postgres_query_backend_for_base_record(monkeypatc
         enrich=lambda ein, organization_name=None, evaluation_context=None, jurisdiction_state=None: _mock_enrichment()
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofit/{ein}",
@@ -3660,7 +3796,7 @@ def test_nonprofits_sources_omit_disabled_premium_integrations_cleanly():
         )
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/nonprofits/{ein}/sources",
@@ -3689,7 +3825,7 @@ def test_nonprofits_sources_unsupported_source_name():
         "pathParameters": {"ein": "123456789", "source_name": "unknown_source"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     assert result["statusCode"] == 404
     assert "Unsupported source name" in _response_error_message(result)
 
@@ -3706,7 +3842,7 @@ def test_nonprofits_compliance_no_source_data_case():
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["compliance"]["status"] == "unavailable"
@@ -3724,7 +3860,7 @@ def test_nonprofits_sources_no_source_data_case():
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["sources"] == []
@@ -3773,7 +3909,7 @@ def test_nonprofits_compliance_summary_aggregation():
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["compliance"]["status"] == "available"
@@ -3812,7 +3948,7 @@ def test_nonprofits_federal_awards_summary_response():
         "pathParameters": {"ein": "123456789"},
         "queryStringParameters": None,
     }
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
     body = _response_data(result)
     assert result["statusCode"] == 200
     assert body["federal_awards"]["status"] == "available"
@@ -3853,7 +3989,7 @@ def test_handler_invokes_auth_and_quota_hooks():
     module.quota_metering_hook = _QuotaHook()
 
     event = {"httpMethod": "GET", "pathParameters": {"ein": "123456789"}, "queryStringParameters": None}
-    result = module.handler(event, None)
+    result = module.handle_api_event(event, None)
 
     assert result["statusCode"] == 200
     assert calls[0] == ("auth", "GET")
@@ -3869,11 +4005,10 @@ def test_ops_ingest_runs_listing_and_detail(monkeypatch):
         get_run=lambda run_type, run_id: {"ingest_run_id": run_id, "status": "partial_success"} if run_type == "ingest" else None,
         get_run_items=lambda run_type, run_id, item_name: [{"ein": "123456789"}] if (run_type, item_name) == ("ingest", "filings") else None,
     )
-    module.OPS_METADATA_BUCKET = "test-bucket"
 
     headers = {"x-admin-key": admin_key}
-    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": headers}, None)
-    detail_result = module.handler(
+    list_result = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/ops/ingest/runs", "headers": headers}, None)
+    detail_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/ingest/runs/{ingest_run_id}",
@@ -3882,7 +4017,7 @@ def test_ops_ingest_runs_listing_and_detail(monkeypatch):
         },
         None,
     )
-    filings_result = module.handler(
+    filings_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/ingest/runs/{ingest_run_id}/filings",
@@ -3904,10 +4039,9 @@ def test_ops_refresh_runs_listing_and_not_found(monkeypatch):
         get_run=lambda run_type, run_id: None,
         get_run_items=lambda run_type, run_id, item_name: None,
     )
-    module.OPS_METADATA_BUCKET = "test-bucket"
     headers = {"x-admin-key": admin_key}
-    list_result = module.handler({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": headers}, None)
-    detail_result = module.handler(
+    list_result = module.handle_api_event({"httpMethod": "GET", "resource": "/v1/ops/refresh/runs", "headers": headers}, None)
+    detail_result = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/refresh/runs/{refresh_run_id}",
@@ -3922,7 +4056,6 @@ def test_ops_refresh_runs_listing_and_not_found(monkeypatch):
 
 def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
     module, admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.profile_store = SimpleNamespace(get_profile=lambda ein: {"materialized_at": "2026-03-12T00:00:00Z", "source_hash": "abc", "model_version": SCORING_MODEL_VERSION, "environment": "dev"})
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=100: [{"ingest_run_id": "ing-1", "status": "success"}] if run_type == "ingest" else [{"refresh_run_id": "ref-1", "status": "completed"}],
@@ -3930,7 +4063,7 @@ def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
         get_run=lambda run_type, run_id: None,
     )
     headers = {"x-admin-key": admin_key}
-    ok = module.handler(
+    ok = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
@@ -3947,7 +4080,7 @@ def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
         get_run_items=lambda run_type, run_id, item_name: [],
         get_run=lambda run_type, run_id: None,
     )
-    missing = module.handler(
+    missing = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/ops/nonprofits/{ein}/pipeline-status",
@@ -3959,19 +4092,40 @@ def test_ops_pipeline_status_lookup_and_not_found(monkeypatch):
     assert missing["statusCode"] == 404
 
 
-def test_ops_form990_runs_post_queues_orchestrator(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+def test_ops_form990_runs_post_queues_ecs_task(monkeypatch):
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "arn:aws:ecs:us-east-1:123456789012:cluster/api")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "arn:aws:ecs:us-east-1:123456789012:task-definition/form990:1")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a,subnet-b")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-12345")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "configured")
+    monkeypatch.setenv(
+        "FORM990_SOURCE_CATALOG_JSON",
+        json.dumps(
+            [
+                {
+                    "source_year": "2026",
+                    "source_kind": "zip_archive",
+                    "source_url": "https://example.org/2026_TEOS_XML_01A.zip",
+                    "source_filename": "2026_TEOS_XML_01A.zip",
+                    "source_archive_key": "2026_teos_xml_01a",
+                    "source_signature": "sig-2026-01a",
+                    "page_url": "https://example.org/form990",
+                    "discovered_at": "2026-01-01T00:00:00Z",
+                }
+            ]
+        ),
+    )
     module, admin_key = _load_admin_module(monkeypatch)
     captured = {}
 
-    class _LambdaClient:
-        def invoke(self, **kwargs):
+    class _EcsClient:
+        def run_task(self, **kwargs):
             captured.update(kwargs)
-            return {"StatusCode": 202}
+            return {"tasks": [{"taskArn": "arn:aws:ecs:task/form990-1"}], "failures": []}
 
-    module.lambda_invoke_client = _LambdaClient()
+    module.ecs_run_task_client = _EcsClient()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -3982,31 +4136,38 @@ def test_ops_form990_runs_post_queues_orchestrator(monkeypatch):
     )
 
     body = _response_data(result)
-    invoke_payload = json.loads(captured["Payload"].decode("utf-8"))
+    container_override = captured["overrides"]["containerOverrides"][0]
+    env_map = {item["name"]: item["value"] for item in container_override["environment"]}
 
     assert result["statusCode"] == 202
     assert _response_envelope(result)["plan"] == "admin"
-    assert captured["FunctionName"] == "form990-orchestrator"
-    assert captured["InvocationType"] == "Event"
+    assert captured["cluster"] == "arn:aws:ecs:us-east-1:123456789012:cluster/api"
+    assert captured["taskDefinition"] == "arn:aws:ecs:us-east-1:123456789012:task-definition/form990:1"
+    assert captured["launchType"] == "FARGATE"
+    assert captured["networkConfiguration"]["awsvpcConfiguration"]["subnets"] == ["subnet-a", "subnet-b"]
+    assert captured["networkConfiguration"]["awsvpcConfiguration"]["securityGroups"] == ["sg-12345"]
+    assert container_override["command"] == ["run"]
     assert body["status"] == "queued"
     assert body["execution_mode"] == "orchestrated"
     assert body["mode"] == "incremental"
     assert body["target_years"] == ["2026"]
     assert re.fullmatch(r"\d{8}T\d{6}Z-manual-[0-9a-f]{8}", body["run_id"])
     assert body["inspection_paths"]["ingest_run"] == f"/v1/ops/ingest/runs/{body['run_id']}"
-    assert invoke_payload == {
-        "run_id": body["run_id"],
-        "execution_mode": "orchestrated",
-        "mode": "incremental",
-        "target_years": ["2026"],
-    }
+    assert env_map["FORM990_EXECUTION_MODE"] == "orchestrated"
+    assert env_map["FORM990_RUN_ID"] == body["run_id"]
+    assert env_map["FORM990_RUN_MODE"] == "incremental"
+    assert env_map["FORM990_MANUAL_TARGET_YEARS"] == json.dumps(["2026"])
+    assert json.loads(env_map["FORM990_SOURCE_CATALOG_JSON"])[0]["source_year"] == "2026"
 
 
 def test_ops_form990_runs_post_rejects_invalid_json(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "cluster")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "task")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-1")
     module, admin_key = _load_admin_module(monkeypatch)
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4021,10 +4182,13 @@ def test_ops_form990_runs_post_rejects_invalid_json(monkeypatch):
 
 
 def test_ops_form990_runs_post_rejects_invalid_mode(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "cluster")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "task")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-1")
     module, admin_key = _load_admin_module(monkeypatch)
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4039,10 +4203,13 @@ def test_ops_form990_runs_post_rejects_invalid_mode(monkeypatch):
 
 
 def test_ops_form990_runs_post_rejects_invalid_target_years(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "cluster")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "task")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-1")
     module, admin_key = _load_admin_module(monkeypatch)
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4057,10 +4224,13 @@ def test_ops_form990_runs_post_rejects_invalid_target_years(monkeypatch):
 
 
 def test_ops_form990_runs_post_rejects_unknown_fields(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "cluster")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "task")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-1")
     module, admin_key = _load_admin_module(monkeypatch)
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4074,11 +4244,14 @@ def test_ops_form990_runs_post_rejects_unknown_fields(monkeypatch):
     assert _response_error_message(result) == "Unsupported request field(s): unexpected"
 
 
-def test_ops_form990_runs_post_requires_orchestrator_configuration(monkeypatch):
-    monkeypatch.delenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", raising=False)
+def test_ops_form990_runs_post_requires_ecs_configuration(monkeypatch):
+    monkeypatch.delenv("FORM990_RUN_TASK_CLUSTER_ARN", raising=False)
+    monkeypatch.delenv("FORM990_RUN_TASK_DEFINITION_ARN", raising=False)
+    monkeypatch.delenv("FORM990_RUN_TASK_SUBNET_IDS", raising=False)
+    monkeypatch.delenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", raising=False)
     module, admin_key = _load_admin_module(monkeypatch)
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4089,20 +4262,41 @@ def test_ops_form990_runs_post_requires_orchestrator_configuration(monkeypatch):
     )
 
     assert result["statusCode"] == 503
-    assert _response_error_message(result) == "Form 990 orchestrator is not configured"
+    assert _response_error_message(result) == "Form 990 ECS task runtime is not configured"
 
 
-def test_ops_form990_runs_post_returns_500_when_invoke_fails(monkeypatch):
-    monkeypatch.setenv("FORM990_ORCHESTRATOR_FUNCTION_NAME", "form990-orchestrator")
+def test_ops_form990_runs_post_returns_500_when_run_task_fails(monkeypatch):
+    monkeypatch.setenv("FORM990_RUN_TASK_CLUSTER_ARN", "cluster")
+    monkeypatch.setenv("FORM990_RUN_TASK_DEFINITION_ARN", "task")
+    monkeypatch.setenv("FORM990_RUN_TASK_SUBNET_IDS", "subnet-a")
+    monkeypatch.setenv("FORM990_RUN_TASK_SECURITY_GROUP_IDS", "sg-1")
+    monkeypatch.setenv("FORM990_SOURCE_MODE", "configured")
+    monkeypatch.setenv(
+        "FORM990_SOURCE_CATALOG_JSON",
+        json.dumps(
+            [
+                {
+                    "source_year": "2026",
+                    "source_kind": "zip_archive",
+                    "source_url": "https://example.org/2026_TEOS_XML_01A.zip",
+                    "source_filename": "2026_TEOS_XML_01A.zip",
+                    "source_archive_key": "2026_teos_xml_01a",
+                    "source_signature": "sig-2026-01a",
+                    "page_url": "https://example.org/form990",
+                    "discovered_at": "2026-01-01T00:00:00Z",
+                }
+            ]
+        ),
+    )
     module, admin_key = _load_admin_module(monkeypatch)
 
-    class _LambdaClient:
-        def invoke(self, **kwargs):
+    class _EcsClient:
+        def run_task(self, **kwargs):
             raise RuntimeError("boom")
 
-    module.lambda_invoke_client = _LambdaClient()
+    module.ecs_run_task_client = _EcsClient()
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4118,14 +4312,13 @@ def test_ops_form990_runs_post_returns_500_when_invoke_fails(monkeypatch):
 
 def test_ops_routes_require_admin_key(monkeypatch):
     module, _admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [],
         get_run=lambda run_type, run_id: None,
         get_run_items=lambda run_type, run_id, item_name: None,
     )
 
-    result = module.handler({"httpMethod": "POST", "resource": "/v1/ops/form990/runs", "headers": {}, "body": json.dumps({})}, None)
+    result = module.handle_api_event({"httpMethod": "POST", "resource": "/v1/ops/form990/runs", "headers": {}, "body": json.dumps({})}, None)
 
     assert result["statusCode"] == 401
     assert _response_envelope(result)["plan"] == "public"
@@ -4143,14 +4336,13 @@ def test_ops_routes_reject_customer_api_key(monkeypatch):
     )
     monkeypatch.setenv("API_KEY_RECORDS_JSON", json.dumps([record.__dict__]))
     module, _admin_key = _load_admin_module(monkeypatch)
-    module.OPS_METADATA_BUCKET = "test-bucket"
     module.ops_run_store = SimpleNamespace(
         list_run_summaries=lambda run_type, limit=50: [],
         get_run=lambda run_type, run_id: None,
         get_run_items=lambda run_type, run_id, item_name: None,
     )
 
-    result = module.handler(
+    result = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/ops/form990/runs",
@@ -4161,3 +4353,5 @@ def test_ops_routes_reject_customer_api_key(monkeypatch):
     )
 
     assert result["statusCode"] == 401
+
+

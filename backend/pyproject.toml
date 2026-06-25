@@ -19,21 +19,17 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = [
-  "ingest_task",
-  "charity_status_backend.api",
-  "charity_status_backend.worker",
-  "charity_status_backend.ingest_task",
-  "charity_status_backend.ingest_task.form990",
-  "charity_status_backend.ingest_task.monthly",
-  "charity_status_backend.shared",
-]
+include-package-data = true
 
-[tool.setuptools.package-dir]
-"ingest_task" = "ingest-task/src/ingest_task"
-"charity_status_backend.api" = "api/src/charity_status_backend/api"
-"charity_status_backend.worker" = "worker/src/charity_status_backend/worker"
-"charity_status_backend.ingest_task" = "ingest-task/src/charity_status_backend/ingest_task"
-"charity_status_backend.ingest_task.form990" = "ingest-task/src/charity_status_backend/ingest_task/form990"
-"charity_status_backend.ingest_task.monthly" = "ingest-task/src/charity_status_backend/ingest_task/monthly"
-"charity_status_backend.shared" = "shared/src/charity_status_backend/shared"
+[tool.setuptools.packages.find]
+where = [
+  "customer-api/src",
+  "platform-api/src",
+  "worker/src",
+  "shared/src",
+  "ingest/federal/src",
+  "ingest/state/src",
+  "ingest/shared/src",
+]
+include = ["verification*"]
+namespaces = true

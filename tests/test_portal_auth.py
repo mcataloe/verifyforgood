@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import json
 import sys
 
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     DynamoMembershipRepository,
     DynamoOrganizationRepository,
     DynamoUserRepository,
@@ -20,7 +20,7 @@ from charity_status_platform.customer_accounts import (
 
 
 def _load_module_with_identity_store(monkeypatch):
-    import charity_status_platform.customer_accounts.dynamodb_identity as identity_module
+    import verification.backend.shared.customer_accounts.dynamodb_identity as identity_module
 
     table = FakeIdentityDynamoTable()
     resource = FakeIdentityDynamoResource(table)
@@ -29,8 +29,8 @@ def _load_module_with_identity_store(monkeypatch):
     monkeypatch.setenv("IDENTITY_TABLE_NAME", "identity")
     monkeypatch.setenv("PORTAL_AUTH_TOKEN_SECRET", "test-secret")
     monkeypatch.setattr(identity_module.boto3, "resource", lambda service_name: resource)
-    sys.modules.pop("infrastructure.lambda_query", None)
-    module = importlib.import_module("infrastructure.lambda_query")
+    sys.modules.pop("verification.backend.customer.api.runtime", None)
+    module = importlib.import_module("verification.backend.customer.api.runtime")
     module.portal_auth_service = None
     module.portal_organization_service = None
     module.portal_organization_context_service = None
@@ -44,7 +44,7 @@ def _response_body(response):
 def test_register_flow_returns_user_and_access_token(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -80,8 +80,8 @@ def test_duplicate_email_rejection_returns_400(monkeypatch):
         "body": json.dumps({"email": "person@example.com", "password": "top-secret-password"}),
     }
 
-    first = module.handler(event, None)
-    duplicate = module.handler(event, None)
+    first = module.handle_api_event(event, None)
+    duplicate = module.handle_api_event(event, None)
     payload = _response_body(duplicate)
 
     assert first["statusCode"] == 201
@@ -92,7 +92,7 @@ def test_duplicate_email_rejection_returns_400(monkeypatch):
 def test_login_validation_requires_password(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/login",
@@ -111,7 +111,7 @@ def test_login_validation_requires_password(monkeypatch):
 
 def test_invalid_password_returns_401(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -123,7 +123,7 @@ def test_invalid_password_returns_401(monkeypatch):
     )
     assert register_response["statusCode"] == 201
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/login",
@@ -142,7 +142,7 @@ def test_invalid_password_returns_401(monkeypatch):
 
 def test_auth_me_returns_current_user_and_active_organization_context(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -160,7 +160,7 @@ def test_auth_me_returns_current_user_and_active_organization_context(monkeypatc
     )
     register_payload = _response_body(register_response)
     access_token = register_payload["data"]["access_token"]
-    organization_response = module.handler(
+    organization_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -175,7 +175,7 @@ def test_auth_me_returns_current_user_and_active_organization_context(monkeypatc
     )
     organization_payload = _response_body(organization_response)
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/auth/me",
@@ -205,7 +205,7 @@ def test_auth_me_returns_current_user_and_active_organization_context(monkeypatc
 
 def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -223,7 +223,7 @@ def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
     )
     register_payload = _response_body(register_response)
     access_token = register_payload["data"]["access_token"]
-    organization_response = module.handler(
+    organization_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/organizations",
@@ -237,7 +237,7 @@ def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
         None,
     )
     organization_payload = _response_body(organization_response)
-    delete_response = module.handler(
+    delete_response = module.handle_api_event(
         {
             "httpMethod": "DELETE",
             "resource": "/v1/organizations/current",
@@ -253,7 +253,7 @@ def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
         None,
     )
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/auth/me",
@@ -272,7 +272,7 @@ def test_auth_me_excludes_soft_deleted_organizations(monkeypatch):
 
 def test_auth_me_returns_null_organization_context_without_membership(monkeypatch):
     module = _load_module_with_identity_store(monkeypatch)
-    register_response = module.handler(
+    register_response = module.handle_api_event(
         {
             "httpMethod": "POST",
             "resource": "/v1/auth/register",
@@ -291,7 +291,7 @@ def test_auth_me_returns_null_organization_context_without_membership(monkeypatc
     register_payload = _response_body(register_response)
     access_token = register_payload["data"]["access_token"]
 
-    response = module.handler(
+    response = module.handle_api_event(
         {
             "httpMethod": "GET",
             "resource": "/v1/auth/me",
@@ -489,3 +489,5 @@ def test_organization_context_service_ignores_soft_deleted_organizations():
     ).list_for_user(user_id="user_portal_person")
 
     assert resolved == []
+
+

@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from infrastructure.charity_status.form990.teos_zip_discovery import discover_teos_zip_links, parse_teos_zip_links
+from infrastructure.verification.backend.ingest.federal.form990.teos_zip_discovery import discover_teos_zip_links, parse_teos_zip_links
 
 
 def test_parse_teos_zip_links_filters_to_target_year_and_normalizes_absolute_urls():
@@ -65,3 +65,4 @@ def test_parse_teos_zip_links_rejects_invalid_target_year():
         assert "target_year must be a four-digit year" in str(exc)
     else:
         raise AssertionError("expected invalid target year to raise ValueError")
+

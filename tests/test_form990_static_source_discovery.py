@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
 
-from infrastructure.charity_status.form990.source_catalog import diff_source_catalog, select_sources_by_years
-from infrastructure.charity_status.form990.static_source_discovery import (
+from infrastructure.verification.backend.ingest.federal.form990.source_catalog import diff_source_catalog, select_sources_by_years
+from infrastructure.verification.backend.ingest.federal.form990.static_source_discovery import (
     GENERATED_NEXT_YEAR_PAGE_URL,
     STATIC_MANIFEST_PAGE_URL,
     _parse_manifest_text,
@@ -186,3 +186,4 @@ def test_generated_sources_flow_through_selection_and_diff(tmp_path: Path):
     assert len(diff["new_sources"]) == 2
     assert diff["removed_sources"] == []
     assert diff["changed_sources"] == []
+

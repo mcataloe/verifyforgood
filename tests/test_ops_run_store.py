@@ -1,4 +1,4 @@
-from charity_status.ops.run_store import InMemoryRunStore, safe_error_summary
+﻿from verification.backend.shared.ops.run_store import InMemoryRunStore, safe_error_summary
 
 
 def test_safe_error_summary_redaction():
@@ -23,3 +23,4 @@ def test_inmemory_run_store_basic_roundtrip():
     assert store.get_run_items("ingest", "ing-1", "filings") is not None
     assert store.get_run("refresh", "ref-1") is not None
     assert store.get_run_items("refresh", "ref-1", "eins") is not None
+

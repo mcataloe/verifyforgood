@@ -73,7 +73,7 @@ The staging Lambda is intentionally narrow:
 
 Current runtime ownership:
 
-- backend-owned runtime modules now live under `backend/ingest-task`
+- backend-owned runtime modules now live under `backend/ingest/federal`
 - `infrastructure/lambda_monthly_ingest_staging.py` is now a deployment-compatible shim over the backend-owned staging runtime
 - `infrastructure/monthly_ingest_worker.py` is now a deployment-compatible shim over the backend-owned ECS worker runtime
 
@@ -98,7 +98,7 @@ The ECS worker now:
 
 Runtime ownership note:
 
-- executable monthly ingest behavior now belongs to `backend/ingest-task`
+- executable monthly ingest behavior now belongs to `backend/ingest/federal`
 - Terraform and Step Functions may continue to invoke infrastructure wrapper files during the transition, but those wrappers should not accumulate runtime logic
 
 ## Why The S3 Gateway Endpoint Is Permanent
@@ -317,4 +317,4 @@ That separation supports future additions such as:
 - TODO: provision or connect the target ECS task definition, cluster, subnet, and security-group references per environment
 - TODO: connect task output artifacts to downstream dataset-specific manifests
 - TODO: add workflow-specific schedule builders if future monthly sources need stronger typed schedule_context helpers
-- TODO: add CI or release automation to build and push `backend/ingest-task/Dockerfile` images into the managed ECR repository
+- TODO: add CI or release automation to build and push `backend/ingest/federal/Dockerfile` images into the managed ECR repository

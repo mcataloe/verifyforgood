@@ -24,6 +24,7 @@ export interface FrontendRuntimeConfig {
   environment: FrontendEnvironment;
   apiBaseUrl: string;
   apiVersion: string;
+  platformBaseUrl?: string;
 }
 
 export interface ApiDeprecationMetadata {

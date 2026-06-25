@@ -47,8 +47,91 @@ function renderWithOrganization(controller: PortalNonprofitSearchController) {
   );
 }
 
+function buildController(
+  overrides: Partial<PortalNonprofitSearchController> = {},
+): PortalNonprofitSearchController {
+  return {
+    closeDetail: vi.fn(),
+    detail: null,
+    error: null,
+    hasSearched: false,
+    hasMoreResults: false,
+    isDetailOpen: false,
+    isLoading: false,
+    isLoadingMore: false,
+    lastQuery: "",
+    recentSearches: [],
+    loadMoreResults: vi.fn(async () => {}),
+    results: [],
+    runSearch: vi.fn(async () => {}),
+    searchMode: null,
+    viewResultDetail: vi.fn(async () => {}),
+    ...overrides,
+  };
+}
+
 describe("NonprofitSearchPanel", () => {
-  it("renders summary results and detail data for nonprofit search", () => {
+  it("renders a dedicated detail view with breadcrumb navigation", () => {
+    const controller = buildController({
+      detail: {
+        appearsBecause: ["IRS records show a status of active."],
+        complianceCheckType: "state_compliance",
+        complianceCheckedAt: "2026-04-21T20:00:00+00:00",
+        complianceStatus: "pass",
+        dataGaps: [],
+        ein: "12-3456789",
+        entityType: "public_charity",
+        filingDate: "2025-05-01",
+        filingFormType: "990",
+        filingParseStatus: "parsed",
+        filingTaxYear: "2024",
+        filingsCount: 1,
+        highlights: ["A recent Form 990 period is on file."],
+        irsStatus: "active",
+        modelSource: "nonprofit_detail_snapshot",
+        modelVersion: "advisory_copilot_detail.v1",
+        name: "Helping Hands Foundation",
+        nteeCategory: "Human services",
+        queryExecutionId: "hash_123",
+        recent990OnFile: "true",
+        riskIndicators: [],
+        snapshotMaterializedAt: "2026-04-21T20:00:00+00:00",
+        sourceSummaries: [
+          {
+            category: "compliance",
+            explanation: "Matched and refreshed",
+            providerName: "Candid",
+            retrievedAt: "2026-04-21T19:00:00+00:00",
+            sourceName: "candid",
+            status: "matched",
+            validAsOf: "2026-04-21T19:00:00+00:00",
+          },
+        ],
+        state: "IL",
+        subsection: "03",
+        taxDeductible: "yes",
+        taxPeriod: "202412",
+      },
+      hasSearched: true,
+      isDetailOpen: true,
+      lastQuery: "Helping Hands",
+      searchMode: "name",
+    });
+
+    renderWithOrganization(controller);
+
+    expect(
+      screen.getByRole("heading", { name: "Helping Hands Foundation" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Search results" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Search results" })).toBeNull();
+    expect(screen.getByText("Matched and refreshed")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search results" }));
+    expect(controller.closeDetail).toHaveBeenCalledOnce();
+  });
+
+  it("renders the search surface without the duplicate verification heading", () => {
     const recentSearches: PortalNonprofitSearchHistoryEntry[] = [
       {
         id: "search_1",
@@ -59,43 +142,11 @@ describe("NonprofitSearchPanel", () => {
         searchedAt: "2026-04-18T18:40:00Z",
       },
     ];
-    const controller: PortalNonprofitSearchController = {
-      detail: {
-        ein: "12-3456789",
-        entityType: "public_charity",
-        filingDate: "2025-05-01",
-        filingFormType: "990",
-        filingParseStatus: "parsed",
-        filingTaxYear: "2024",
-        filingsCount: 1,
-        irsStatus: "active",
-        modelSource: "irs.eo_bmf",
-        modelVersion: "1.0.0",
-        name: "Helping Hands Foundation",
-        nteeCategory: "Human services",
-        queryExecutionId: "qry_123",
-        recent990OnFile: "true",
-        state: "IL",
-        sourceAvailability: [
-          {
-            attempted: false,
-            integrationId: "candid",
-            label: "Candid",
-            status: "tenant_disabled",
-          },
-        ],
-        subsection: "03",
-        taxDeductible: "yes",
-        taxPeriod: "202412",
-      },
-      error: null,
-      hasSearched: true,
+    const controller = buildController({
       hasMoreResults: true,
-      isLoading: false,
-      isLoadingMore: false,
+      hasSearched: true,
       lastQuery: "Helping Hands",
       recentSearches,
-      loadMoreResults: vi.fn(async () => {}),
       results: [
         {
           active: true,
@@ -104,13 +155,11 @@ describe("NonprofitSearchPanel", () => {
           name: "Helping Hands Foundation",
           state: "IL",
           subsection: "03",
-          taxPeriod: "202412",
+          taxPeriod: "Unavailable",
         },
       ],
-      runSearch: vi.fn(async () => {}),
       searchMode: "name",
-      viewResultDetail: vi.fn(async () => {}),
-    };
+    });
 
     const { container } = renderWithOrganization(controller);
 
@@ -120,32 +169,17 @@ describe("NonprofitSearchPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search nonprofit" }));
     expect(controller.runSearch).toHaveBeenCalledWith("Helping Hands");
 
-    expect(screen.getAllByText("Helping Hands Foundation")).toHaveLength(2);
     expect(
-      screen.getByRole("heading", { name: "Helping Hands Foundation" }),
+      screen.queryByRole("heading", { name: "Nonprofit verification search" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Search results" }),
     ).toBeTruthy();
-    expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Not enabled for your organization")).toBeTruthy();
-    expect(screen.queryByText("irs.eo_bmf")).toBeNull();
-    expect(screen.queryByText("ws_portal_test")).toBeNull();
-    expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByText("Search type")).toBeNull();
-    expect(screen.queryByText("Results loaded")).toBeNull();
     expect(
       screen.getByRole("heading", { name: "Recent searches" }),
     ).toBeTruthy();
     expect(screen.getByRole("table", { name: "Recent nonprofit searches" })).toBeTruthy();
-    expect(
-      screen
-        .getByRole("heading", { name: "Search results" })
-        .compareDocumentPosition(
-          screen.getByRole("heading", { name: "Recent searches" }),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(
-      screen.getAllByTestId("section-divider").length,
-    ).toBeGreaterThanOrEqual(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
     expect(controller.loadMoreResults).toHaveBeenCalledOnce();
@@ -158,21 +192,12 @@ describe("NonprofitSearchPanel", () => {
   });
 
   it("renders loading, empty, and error states consistently", () => {
-    const controller: PortalNonprofitSearchController = {
-      detail: null,
+    const controller = buildController({
       error: "The nonprofit lookup failed. Try again.",
       hasSearched: true,
-      hasMoreResults: false,
-      isLoading: false,
-      isLoadingMore: false,
       lastQuery: "Helping Hands",
-      recentSearches: [],
-      loadMoreResults: vi.fn(async () => {}),
-      results: [],
-      runSearch: vi.fn(async () => {}),
       searchMode: "name",
-      viewResultDetail: vi.fn(async () => {}),
-    };
+    });
 
     const { container } = renderWithOrganization(controller);
 
@@ -182,21 +207,7 @@ describe("NonprofitSearchPanel", () => {
   });
 
   it("keeps the search button available and validates an empty query explicitly", () => {
-    const controller: PortalNonprofitSearchController = {
-      detail: null,
-      error: null,
-      hasSearched: false,
-      hasMoreResults: false,
-      isLoading: false,
-      isLoadingMore: false,
-      lastQuery: "",
-      recentSearches: [],
-      loadMoreResults: vi.fn(async () => {}),
-      results: [],
-      runSearch: vi.fn(async () => {}),
-      searchMode: null,
-      viewResultDetail: vi.fn(async () => {}),
-    };
+    const controller = buildController();
 
     renderWithOrganization(controller);
 

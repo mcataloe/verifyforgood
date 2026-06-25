@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
-from infrastructure.charity_status.form990.storage import (
+from infrastructure.verification.backend.ingest.federal.form990.storage import (
     checkpoint_key,
     discovery_diff_key,
     discovery_manifest_key,
@@ -27,3 +27,4 @@ def test_storage_key_generation_is_stable():
     assert filing_manifest_key("form990/normalized/manifests/", "run1", 3) == "form990/normalized/manifests/filings/run1/batch_00003.json"
     assert checkpoint_key("form990/normalized/manifests/") == "form990/normalized/manifests/checkpoint/latest.json"
     assert state_manifest_key("form990/normalized/manifests/") == "form990/normalized/manifests/state/latest_filing_manifest.json"
+

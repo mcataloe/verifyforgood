@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 
-from charity_status.api import DeprecationMetadata, build_response_context, error_response, json_response
+from verification.backend.shared.api import DeprecationMetadata, build_response_context, error_response, json_response
 
 
 def test_json_response_wraps_payload_with_standard_envelope():
@@ -108,3 +108,4 @@ def test_error_response_omits_cors_headers_for_disallowed_origin(monkeypatch):
     assert "Access-Control-Allow-Origin" not in response["headers"]
     assert "Access-Control-Allow-Headers" not in response["headers"]
     assert "Access-Control-Allow-Methods" not in response["headers"]
+

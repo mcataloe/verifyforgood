@@ -5,8 +5,11 @@ The active Form 990 archive-at-a-time ingest path now treats PostgreSQL as the d
 Current active runtime behavior:
 
 - archive ZIP files are downloaded from their HTTP source URL into the workspace
-- extracted XML files remain workspace-local and are deleted after parsing
-- the local archive path now parses each extracted XML once and overlaps unzip plus parse work through a bounded local worker pool
+- ZIP files remain workspace-local on disk while XML members are processed
+- the main thread lists processable ZIP members and queues lightweight member descriptors only
+- XML parser workers read their assigned ZIP members into memory, hash, parse, persist, and release memory before taking the next member
+- `FORM990_PERSIST_BATCH_SIZE` is enforced inside each worker's persistence buffer
+- `FORM990_PERSIST_CONCURRENCY` caps concurrent worker database flushes so high parser worker counts do not exhaust the SQLAlchemy connection pool
 - `form990_archives` stores HTTP probe metadata plus processing lifecycle timestamps
 - `form990_extracted_files` stores per-member content hashes and parse status
 - `nonprofit_filings` stores `raw_file_reference` instead of an S3-specific key
@@ -21,4 +24,4 @@ Archive lifecycle fields:
 Current posture:
 
 - the backend-owned monthly runtime no longer depends on legacy S3-backed Form 990 orchestration, reconciliation, or manifest state modules
-- Form 990 transient artifacts now stay in the workspace only; durable state lives in PostgreSQL
+- Form 990 ZIP artifacts stay in the workspace only; durable archive, extracted-file, and filing state lives in PostgreSQL

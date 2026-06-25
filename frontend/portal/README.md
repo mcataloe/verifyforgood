@@ -1,5 +1,9 @@
 # Portal App Shell
 
+This package remains the checked-in source tree under `frontend/portal/`, but
+it is the externally named platform app surface in the local container
+contract.
+
 This package is the starting point for the authenticated customer portal.
 
 ## Current structure
@@ -111,13 +115,13 @@ The portal API access area now uses the organization-scoped backend API-key life
 
 The dashboard now includes the first core product interaction for portal users:
 
-- exact EIN lookup through `GET /v1/nonprofit/{ein}`
+- exact EIN detail lookup through `GET /v1/nonprofits/{ein}`
 - name-based listing through `GET /v1/nonprofits/search`
-- filing enrichment display through `GET /v1/nonprofit/{ein}/filings`
+- filing history display through `GET /v1/nonprofit/{ein}/filings`
 
 The current implementation is intentionally data-focused:
 
-- exact EIN searches load a detailed verification result
+- exact EIN searches load an advisory nonprofit detail snapshot
 - name searches return summary results and let the user expand a selected nonprofit into the detailed view
 - loading, empty, and error states are handled in the dashboard UI
 
@@ -179,9 +183,9 @@ When choosing a layout pattern:
 
 ## Running the portal
 
-Before running the portal locally, copy `.env.example` to `.env.local` or
-`.env.development.local` in this package and point `VITE_API_BASE_URL` at the
-AWS dev API Gateway host.
+Before running the platform app locally, copy `.env.example` to `.env.local`
+or `.env.development.local` in this package and point `VITE_API_BASE_URL` at
+the customer-facing API host.
 
 With the current Terraform defaults and custom domain enabled, the dev API host
 is expected to be:
@@ -192,8 +196,9 @@ https://dev.charitystatusapi.com
 
 For local browser development, the AWS dev API must also allowlist your frontend
 origin through the Terraform `cors_allowed_origins` setting. The current dev
-defaults include `http://localhost:5173`, `http://127.0.0.1:5173`,
-`http://localhost:5174`, and `http://127.0.0.1:5174`.
+defaults include `http://localhost:3953`, `http://127.0.0.1:3953`,
+`http://localhost:5174`, `http://127.0.0.1:5174`, `http://localhost:5621`,
+and `http://127.0.0.1:5621`.
 
 The AWS dev API is expected to expose the current portal auth and onboarding
 routes, including:
@@ -219,6 +224,17 @@ pnpm run test
 pnpm run typecheck
 pnpm run build
 ```
+
+Docker container build:
+
+```powershell
+docker build -f frontend/portal/Dockerfile frontend
+```
+
+Local compose host:
+
+- `http://localhost:3953`
+- canonical hostname target `platform.verifyforgood.com`
 
 ## Extending the portal
 

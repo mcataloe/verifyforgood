@@ -105,6 +105,7 @@ describe("shared api request helpers", () => {
       jsonResponse(buildEnvelope({ ok: true })),
     );
     const client = createApiClient({
+      credentials: "include",
       fetchImpl,
       headersProvider: async () => ({
         Authorization: "Bearer test-token",
@@ -139,6 +140,7 @@ describe("shared api request helpers", () => {
     expect(headers.get("Authorization")).toBe("Bearer test-token");
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("X-Request-Origin")).toBe("portal-local");
+    expect(requestInit?.credentials).toBe("include");
   });
 
   it("normalizes envelope errors with backend metadata", async () => {

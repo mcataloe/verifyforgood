@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from urllib.error import HTTPError
 
-from infrastructure.charity_status.form990.teos_zip_probe import probe_teos_zip_metadata, should_download_teos_zip
+from infrastructure.verification.backend.ingest.federal.form990.teos_zip_probe import probe_teos_zip_metadata, should_download_teos_zip
 
 
 @dataclass(frozen=True)
@@ -142,3 +142,4 @@ def test_should_download_teos_zip_skips_unchanged_remote_zip():
 
     assert decision.should_download is False
     assert decision.reason == "unchanged_remote_zip"
+

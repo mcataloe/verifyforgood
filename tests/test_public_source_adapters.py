@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
-from charity_status.enrichments import EnrichmentService, ProviderRegistry
-from charity_status.enrichments.external_signals import extract_external_signals
-from charity_status.enrichments.providers import OFACMockProvider, StateBusinessMockProvider, StateRegistryMockProvider, USAspendingMockProvider
-from charity_status.policy import evaluate_policy
-from charity_status.query.verification import VerificationInput, verify_nonprofit
+from verification.backend.shared.enrichments import EnrichmentService, ProviderRegistry
+from verification.backend.shared.enrichments.external_signals import extract_external_signals
+from verification.backend.shared.enrichments.providers import OFACMockProvider, StateBusinessMockProvider, StateRegistryMockProvider, USAspendingMockProvider
+from verification.backend.shared.policy import evaluate_policy
+from verification.backend.shared.query.verification import VerificationInput, verify_nonprofit
 
 
 def _client(name: str = "US Org"):
@@ -78,3 +78,4 @@ def test_public_source_evidence_and_policy_integration():
     assert sanctions_factor["value"] is True
     policy_eval = evaluate_policy(payload, "strict_deny")
     assert policy_eval["final_recommendation"] == "deny"
+

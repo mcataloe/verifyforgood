@@ -26,6 +26,72 @@ variable "support_email" {
   default     = "support@verifyforgood.com"
 }
 
+variable "support_ticket_email_enabled" {
+  description = "Enable support ticket email delivery from the backend support intake flow."
+  type        = bool
+  default     = false
+}
+
+variable "support_ticket_email_provider" {
+  description = "Outbound provider identifier for support ticket delivery."
+  type        = string
+  default     = "gmail_smtp"
+}
+
+variable "support_ticket_email_to" {
+  description = "Destination inbox for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_email_from" {
+  description = "Sender address for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_email_subject_prefix" {
+  description = "Subject prefix used for outbound support ticket emails."
+  type        = string
+  default     = "[Verification Support]"
+}
+
+variable "support_ticket_smtp_host" {
+  description = "SMTP host for support ticket email delivery."
+  type        = string
+  default     = "smtp.gmail.com"
+}
+
+variable "support_ticket_smtp_port" {
+  description = "SMTP port for support ticket email delivery."
+  type        = number
+  default     = 587
+}
+
+variable "support_ticket_smtp_username" {
+  description = "SMTP username for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_smtp_app_password" {
+  description = "SMTP app password for support ticket email delivery."
+  type        = string
+  default     = ""
+}
+
+variable "support_ticket_smtp_starttls" {
+  description = "Whether the support ticket SMTP client should negotiate STARTTLS."
+  type        = bool
+  default     = true
+}
+
+variable "support_ticket_smtp_timeout_seconds" {
+  description = "Timeout in seconds for support ticket SMTP operations."
+  type        = number
+  default     = 15
+}
+
 variable "domain" {
   description = "Customer-facing product domain used by the branding layer. This does not manage Route53 or API custom-domain infrastructure."
   type        = string
@@ -239,12 +305,6 @@ variable "form990_chunk_size" {
   description = "Chunk size for orchestrated Form 990 work items."
   type        = number
   default     = 250
-}
-
-variable "monthly_ingest_state_machine_enabled" {
-  description = "Enable the Step Functions monthly private-ingest orchestration workflow."
-  type        = bool
-  default     = false
 }
 
 variable "monthly_ingest_schedule_expression" {
@@ -651,15 +711,72 @@ variable "platform_postgres_sslmode" {
   default     = "require"
 }
 
-variable "platform_nonprofit_query_backend" {
-  description = "Read backend for nonprofit lookup, search, and filings query paths."
+variable "platform_nonprofit_store_backend" {
+  description = "Write backend for nonprofit ingest, Form 990 persistence, and archive metadata state."
   type        = string
-  default     = "athena"
+  default     = "disabled"
 
   validation {
-    condition     = contains(["athena", "postgres"], var.platform_nonprofit_query_backend)
-    error_message = "platform_nonprofit_query_backend must be either athena or postgres."
+    condition     = contains(["disabled", "postgres"], var.platform_nonprofit_store_backend)
+    error_message = "platform_nonprofit_store_backend must be either disabled or postgres."
   }
+}
+
+variable "platform_nonprofit_postgres_enabled" {
+  description = "Wire an external dedicated nonprofit PostgreSQL endpoint for nonprofit and Form 990 runtime data."
+  type        = bool
+  default     = false
+}
+
+variable "platform_nonprofit_postgres_host" {
+  description = "Hostname for the dedicated nonprofit PostgreSQL endpoint when platform_nonprofit_postgres_enabled=true."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_host, " ") != ""
+    error_message = "platform_nonprofit_postgres_host must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_port" {
+  description = "TCP port for the dedicated nonprofit PostgreSQL endpoint."
+  type        = number
+  default     = 5432
+}
+
+variable "platform_nonprofit_postgres_database_name" {
+  description = "Database name for the dedicated nonprofit PostgreSQL endpoint."
+  type        = string
+  default     = "verification_nonprofit"
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_database_name, " ") != ""
+    error_message = "platform_nonprofit_postgres_database_name must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_secret_arn" {
+  description = "Secrets Manager secret ARN containing dedicated nonprofit PostgreSQL username/password JSON."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.platform_nonprofit_postgres_enabled || trim(var.platform_nonprofit_postgres_secret_arn, " ") != ""
+    error_message = "platform_nonprofit_postgres_secret_arn must be set when platform_nonprofit_postgres_enabled=true."
+  }
+}
+
+variable "platform_nonprofit_postgres_secret_kms_key_arn" {
+  description = "Optional KMS key ARN used to decrypt the dedicated nonprofit PostgreSQL secret."
+  type        = string
+  default     = ""
+}
+
+variable "platform_nonprofit_postgres_sslmode" {
+  description = "SSL mode advertised to runtime consumers of the dedicated nonprofit PostgreSQL configuration."
+  type        = string
+  default     = "require"
 }
 
 variable "monthly_ingest_private_subnet_ids" {
@@ -752,42 +869,6 @@ variable "monthly_ingest_task_log_retention_days" {
   default     = 30
 }
 
-variable "monthly_ingest_task_allowed_bucket_arns" {
-  description = "Additional S3 bucket ARNs the managed monthly private-ingest ECS task role may access for source or destination objects."
-  type        = list(string)
-  default     = []
-}
-
-variable "monthly_ingest_staging_lambda_arn" {
-  description = "Optional external staging Lambda ARN invoked before ECS processing when skip_staging=false. Empty lets Terraform create and wire the in-repo staging Lambda."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_source_bucket" {
-  description = "Optional source bucket passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_source_key" {
-  description = "Optional pre-staged source key passed by the monthly private-ingest EventBridge schedule. When empty and skip_staging=false, the schedule uses an internal placeholder until the staging Lambda returns the real key."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_destination_bucket" {
-  description = "Optional destination bucket passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
-variable "monthly_ingest_schedule_destination_prefix" {
-  description = "Optional destination prefix passed by the monthly private-ingest EventBridge schedule."
-  type        = string
-  default     = ""
-}
-
 variable "monthly_ingest_schedule_job_id" {
   description = "Optional job identifier used by the monthly private-ingest EventBridge schedule input."
   type        = string
@@ -798,12 +879,6 @@ variable "monthly_ingest_schedule_correlation_id" {
   description = "Optional correlation identifier used by the monthly private-ingest EventBridge schedule input. Empty falls back to monthly_ingest_schedule_job_id."
   type        = string
   default     = ""
-}
-
-variable "monthly_ingest_schedule_skip_staging" {
-  description = "Whether the EventBridge schedule should bypass the staging Lambda and assume the source key already exists in S3."
-  type        = bool
-  default     = false
 }
 
 variable "monthly_ingest_schedule_context_json" {
@@ -842,58 +917,10 @@ variable "monthly_ingest_retry_backoff_rate" {
   default     = 2
 }
 
-variable "monthly_ingest_staging_lambda_timeout_seconds" {
-  description = "Timeout in seconds for the staging Lambda Step Functions task."
-  type        = number
-  default     = 900
-}
-
 variable "monthly_ingest_ecs_task_timeout_seconds" {
   description = "Timeout in seconds for the ECS RunTask.sync step."
   type        = number
   default     = 14400
-}
-
-variable "monthly_ingest_state_machine_timeout_seconds" {
-  description = "Overall timeout in seconds for the monthly private-ingest Step Functions state machine."
-  type        = number
-  default     = 21600
-}
-
-variable "form990_worker_timeout_seconds" {
-  description = "Timeout for Form 990 worker Lambda."
-  type        = number
-  default     = 300
-}
-
-variable "form990_worker_memory_size_mb" {
-  description = "Memory size in MB for Form 990 worker Lambda."
-  type        = number
-  default     = 1024
-}
-
-variable "form990_worker_reserved_concurrency" {
-  description = "Reserved concurrency for Form 990 worker Lambda. Set 0 for unreserved."
-  type        = number
-  default     = 5
-}
-
-variable "form990_queue_visibility_timeout_seconds" {
-  description = "Visibility timeout for Form 990 SQS work queue."
-  type        = number
-  default     = 600
-}
-
-variable "form990_queue_max_receive_count" {
-  description = "Maximum receives before Form 990 work items move to DLQ."
-  type        = number
-  default     = 3
-}
-
-variable "form990_queue_batch_size" {
-  description = "SQS event source batch size for Form 990 worker."
-  type        = number
-  default     = 1
 }
 
 variable "athena_workgroup_name" {
@@ -1018,12 +1045,6 @@ variable "enrichment_timeout_seconds" {
   description = "Timeout in seconds for enrichment provider calls."
   type        = number
   default     = 5
-}
-
-variable "refresh_lambda_enabled" {
-  description = "Enable the materialization refresh Lambda."
-  type        = bool
-  default     = true
 }
 
 variable "refresh_mode" {

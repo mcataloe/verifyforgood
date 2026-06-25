@@ -1,4 +1,4 @@
-from charity_status.enrichments import (
+﻿from verification.backend.shared.enrichments import (
     InMemoryOrganizationIntegrationSettingsStore,
     OrganizationIntegrationSettingsService,
     OrganizationIntegrationSettingsValidationError,
@@ -94,3 +94,4 @@ def test_organization_integration_settings_reuses_existing_defaults_for_partial_
 
     assert updated.integration_settings.setting_for("candid").enabled is True
     assert updated.integration_settings.setting_for("charity_navigator").required_for_evaluation is True
+

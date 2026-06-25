@@ -1,7 +1,7 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from infrastructure.charity_status.form990.parser import parse_xml
-from infrastructure.charity_status.form990.relationships import extract_relationship_edges
+from infrastructure.verification.backend.ingest.federal.form990.parser import parse_xml
+from infrastructure.verification.backend.ingest.federal.form990.relationships import extract_relationship_edges
 
 
 def _xml_with_people() -> bytes:
@@ -59,3 +59,4 @@ def test_relationship_duplicate_edge_suppression():
     # officer + board + nonprofit->state
     assert len(edges) == 3
     assert len({(e["edge_type"], e["source_id"], e["target_id"], e.get("role")) for e in edges}) == 3
+

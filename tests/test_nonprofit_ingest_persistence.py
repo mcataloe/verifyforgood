@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pathlib
 from pathlib import Path
 
-from infrastructure.charity_status.form990.index import parse_index_records
-from infrastructure.charity_status.form990.ingest import ingest_form990_records
+from verification.backend.ingest.federal.form990.index import parse_index_records
+from verification.backend.ingest.federal.form990.ingest import ingest_form990_records
 
-from charity_status_platform.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
-from charity_status_platform.nonprofits import Form990NonprofitPersistenceService, SqlAlchemyNonprofitRepository
+from verification.backend.shared.customer_accounts import CustomerAccountsBase, build_customer_accounts_engine, build_customer_accounts_session_factory
+from verification.backend.shared.nonprofits import Form990NonprofitPersistenceService, SqlAlchemyNonprofitRepository
 
 
 def _repository(tmp_path: Path) -> SqlAlchemyNonprofitRepository:
@@ -167,3 +167,171 @@ def test_form990_persistence_service_reports_progress_after_service_level_upsert
         {"filings_upserted": 1},
         {"skipped_records": 1},
     ]
+
+
+def test_form990_persistence_service_uses_repository_batch_upserts(tmp_path: Path):
+    repository = _repository(tmp_path)
+    service = Form990NonprofitPersistenceService(repository)
+    batch_calls: dict[str, int] = {
+        "nonprofits_and_filings": 0,
+        "raw_filings": 0,
+        "sources": 0,
+    }
+
+    original_batch = repository.upsert_nonprofits_and_filings_batch
+    original_raw_batch = repository.upsert_raw_filings_batch
+    original_sources_batch = repository.upsert_sources_batch
+
+    def fail_legacy(*args, **kwargs):
+        raise AssertionError("legacy row-by-row repository path should not be used")
+
+    def record_batch(records):
+        batch_calls["nonprofits_and_filings"] += 1
+        return original_batch(records)
+
+    def record_raw_batch(records):
+        batch_calls["raw_filings"] += 1
+        return original_raw_batch(records)
+
+    def record_sources_batch(records):
+        batch_calls["sources"] += 1
+        return original_sources_batch(records)
+
+    repository.get_nonprofit_by_ein = fail_legacy
+    repository.upsert_nonprofit = fail_legacy
+    repository.upsert_filing = fail_legacy
+    repository.upsert_raw_filing = fail_legacy
+    repository.upsert_source = fail_legacy
+    repository.upsert_nonprofits_and_filings_batch = record_batch
+    repository.upsert_raw_filings_batch = record_raw_batch
+    repository.upsert_sources_batch = record_sources_batch
+
+    stats = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-15",
+                "return_type": "990",
+                "irs_object_id": "object-1",
+                "parse_status": "parsed",
+                "source_signature": "sig-1",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-1.xml",
+            },
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-16",
+                "return_type": "990",
+                "irs_object_id": "object-2",
+                "parse_status": "malformed_xml",
+                "source_signature": "sig-2",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-2.xml",
+            },
+        ],
+        canonical_raw_filing_records=[
+            {
+                "tax_year": "2024",
+                "form_type": "990",
+                "filing_date": "2025-05-15",
+                "source_name": "irs.form990",
+                "source_record_id": "object-1",
+                "source_signature": "sig-1",
+                "xml_content_hash": "hash-1",
+                "xml_artifact_reference": "workspace://raw/object-1.xml",
+                "parse_status": "parsed",
+                "parser_version": "parser-v1",
+                "canonicalization_version": "canon-v1",
+                "raw_filing_json": {"Return": {}},
+            }
+        ],
+    )
+
+    assert stats.to_dict() == {
+        "nonprofits_upserted": 1,
+        "filings_upserted": 2,
+        "sources_upserted": 1,
+        "skipped_records": 0,
+    }
+
+
+def test_form990_persistence_service_batch_upserts_mixed_existing_and_new_nonprofits(tmp_path: Path):
+    repository = _repository(tmp_path)
+    service = Form990NonprofitPersistenceService(repository)
+
+    first = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-15",
+                "return_type": "990",
+                "irs_object_id": "object-1",
+                "parse_status": "parsed",
+                "source_signature": "sig-1",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-1.xml",
+            }
+        ]
+    )
+
+    second = service.persist_normalized_records(
+        [
+            {
+                "ein": "12-3456789",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-16",
+                "return_type": "990",
+                "irs_object_id": "object-2",
+                "parse_status": "parsed",
+                "source_signature": "sig-2",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-2.xml",
+            },
+            {
+                "ein": "98-7654321",
+                "tax_year": "2024",
+                "tax_period_end": "2024-12-31",
+                "filing_date": "2025-05-17",
+                "return_type": "990",
+                "irs_object_id": "object-3",
+                "parse_status": "parsed",
+                "source_signature": "sig-3",
+                "source_archive": "2024_TEOS_XML_01A",
+                "source_year": "2024",
+                "raw_file_reference": "workspace://raw/object-3.xml",
+            },
+        ]
+    )
+
+    nonprofit_existing = repository.get_nonprofit_by_ein("123456789")
+    nonprofit_new = repository.get_nonprofit_by_ein("987654321")
+
+    assert first.to_dict() == {
+        "nonprofits_upserted": 1,
+        "filings_upserted": 1,
+        "sources_upserted": 1,
+        "skipped_records": 0,
+    }
+    assert second.to_dict() == {
+        "nonprofits_upserted": 2,
+        "filings_upserted": 2,
+        "sources_upserted": 2,
+        "skipped_records": 0,
+    }
+    assert nonprofit_existing is not None
+    assert nonprofit_new is not None
+    assert nonprofit_existing.nonprofit_id != nonprofit_new.nonprofit_id
+    assert len(repository.list_filings_for_nonprofit(nonprofit_existing.nonprofit_id)) == 2
+    assert len(repository.list_filings_for_nonprofit(nonprofit_new.nonprofit_id)) == 1
+

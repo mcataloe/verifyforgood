@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from charity_status.sources import (
+from verification.backend.shared.sources import (
     NormalizedSourceRecord,
     ProviderCapability,
     SourceAttribution,
@@ -64,3 +64,4 @@ def test_provider_capability_discovery_registration():
     discovered = catalog.get_capability("state_registry_mock")
     assert discovered is not None
     assert discovered.source_ids == ["state_registry.compliance"]
+

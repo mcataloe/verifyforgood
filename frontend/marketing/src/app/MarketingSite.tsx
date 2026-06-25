@@ -21,6 +21,9 @@ const appInfo: FrontendAppInfo = {
 
 export function MarketingSite() {
   const runtimeConfig = readRuntimeConfig(import.meta.env);
+  const platformLoginUrl = runtimeConfig.platformBaseUrl
+    ? `${runtimeConfig.platformBaseUrl}/#/sign-in`
+    : "#/login";
   const currentRoute = useMarketingRoute();
   const endpoints = marketingEndpoints(runtimeConfig);
 
@@ -32,9 +35,15 @@ export function MarketingSite() {
       runtimeConfig={runtimeConfig}
     >
       {currentRoute.key === "home" ? (
-        <HomePage endpoints={endpoints} runtimeConfig={runtimeConfig} />
+        <HomePage
+          endpoints={endpoints}
+          platformLoginUrl={platformLoginUrl}
+          runtimeConfig={runtimeConfig}
+        />
       ) : null}
-      {currentRoute.key === "product" ? <ProductPage /> : null}
+      {currentRoute.key === "product" ? (
+        <ProductPage platformLoginUrl={platformLoginUrl} />
+      ) : null}
       {currentRoute.key === "pricing" ? (
         <PricingPage runtimeConfig={runtimeConfig} />
       ) : null}
@@ -43,7 +52,9 @@ export function MarketingSite() {
         <DevelopersPage endpoints={endpoints} runtimeConfig={runtimeConfig} />
       ) : null}
       {currentRoute.key === "contact" ? <ContactPage /> : null}
-      {currentRoute.key === "login" ? <LoginPage /> : null}
+      {currentRoute.key === "login" ? (
+        <LoginPage platformLoginUrl={platformLoginUrl} />
+      ) : null}
     </MarketingLayout>
   );
 }

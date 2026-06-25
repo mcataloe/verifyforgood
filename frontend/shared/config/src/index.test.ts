@@ -23,11 +23,13 @@ describe("shared runtime config helpers", () => {
         MODE: "test",
         VITE_API_BASE_URL: "https://api.verifyforgood.test/",
         VITE_API_VERSION: "/v1/",
+        VITE_PLATFORM_BASE_URL: "https://platform.verifyforgood.test/",
       }),
     ).toEqual({
       environment: "test",
       apiBaseUrl: "https://api.verifyforgood.test",
       apiVersion: "v1",
+      platformBaseUrl: "https://platform.verifyforgood.test",
     });
   });
 });

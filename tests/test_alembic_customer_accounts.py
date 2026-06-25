@@ -1,11 +1,28 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 import re
+import sys
 
-from alembic import command
-from alembic.config import Config
+import pytest
 from sqlalchemy import create_engine, inspect
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FILTERED_SYS_PATH = [
+    entry for entry in sys.path if Path(entry or ".").resolve() != ROOT
+]
+ORIGINAL_SYS_PATH = sys.path[:]
+sys.modules.pop("alembic", None)
+try:
+    sys.path[:] = FILTERED_SYS_PATH
+    command = importlib.import_module("alembic.command")
+    Config = importlib.import_module("alembic.config").Config
+except ModuleNotFoundError:
+    pytest.skip("Alembic package is not installed in this environment.", allow_module_level=True)
+finally:
+    sys.path[:] = ORIGINAL_SYS_PATH
 
 
 def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_tables(tmp_path: Path):
@@ -32,6 +49,7 @@ def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_table
     assert "billing_status" in subscription_columns
     assert "organization_api_keys" in table_names
     assert "organization_audit_logs" in table_names
+    assert "organization_support_tickets" in table_names
     assert "nonprofits" in table_names
     assert "nonprofit_filings" in table_names
     assert "nonprofit_raw_filings" in table_names

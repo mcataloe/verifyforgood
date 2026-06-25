@@ -1,7 +1,7 @@
-# Form 990 Local-first Workspace Architecture
+﻿# Form 990 Local-first Workspace Architecture
 
 This document defines the local-first runtime model for Form 990 ingestion in
-`backend/ingest-task`.
+`backend/ingest/federal`.
 
 The goal is to keep runtime behavior executable on a developer machine with the
 same archive lifecycle assumptions that later map to ECS task containers.
@@ -12,7 +12,7 @@ same archive lifecycle assumptions that later map to ECS task containers.
 - keep archive processing deterministic and debuggable
 - avoid coupling orchestration logic to ECS-specific APIs
 - process one archive at a time inside a workspace
-- delete extracted XML files as soon as archive-scoped processing completes
+- avoid writing extracted XML files to disk in the active archive path
 - delete the ZIP file after archive processing completes
 - keep PostgreSQL persistence compatible with the current backend runtime split
 - align the default storage budget with 32 GiB ECS ephemeral storage
@@ -40,14 +40,14 @@ Meaning:
 - `archives/`
   - archive ZIP files staged for one-at-a-time processing
 - `extracted/{archive_name}/`
-  - temporary XML extraction directory for the active archive only
+  - compatibility/debug location only; the active path reads ZIP members into worker memory
 - `logs/`
   - archive-scoped debug and operational log output
 - `state/`
   - archive-scoped processing markers, manifests, and resumable local state
 
 The backend-owned helper for this contract lives in
-`charity_status_backend.ingest_task.orchestration.workspace`.
+`verification.backend.ingest.federal.orchestration.workspace`.
 
 ## Runtime Module Map
 
@@ -61,15 +61,16 @@ Canonical backend-owned module seams:
 - `download/`
   - archive acquisition into `workspace/archives/`
 - `extract/`
-  - archive expansion into `workspace/extracted/{archive_name}/`
+  - archive member discovery and bounded in-memory member reads from the workspace ZIP
 - `hashing/`
   - archive and artifact fingerprints for idempotency and integrity checks
   - deterministic XML content hashes used to skip unchanged extracted files
 - `parse/`
-  - XML parsing seams layered over reusable `charity_status.form990` logic
+  - XML parsing seams layered over reusable `verification.backend.ingest.federal.form990` logic
 - `persist/`
   - PostgreSQL-backed nonprofit persistence and write-facing adapters
   - PostgreSQL-backed archive metadata and extracted-file hash state
+  - bounded worker-side database flush concurrency independent from parser worker count
 - `cleanup/`
   - deterministic cleanup of extracted XML and processed ZIP files
 - `orchestration/`
@@ -86,9 +87,9 @@ relocation.
 
 Current live logic now routes through:
 
-- `backend/ingest-task/src/charity_status_backend/ingest_task/monthly/worker.py`
-- `backend/ingest-task/src/charity_status_backend/ingest_task/persistence.py`
-- `infrastructure/charity_status/form990/`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/monthly/worker.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/persistence.py`
+- `backend/ingest/federal/src/verification/backend/ingest/federal/form990/`
 
 New runtime work should keep moving responsibilities into the workspace-oriented
 seams instead of reintroducing Lambda/S3-era runtime hosts.
@@ -99,8 +100,8 @@ Current Phase 27F note:
   the monthly task runtime
 - unchanged archives can be skipped from remote `HEAD` metadata when the
   upstream source URL is available in schedule context
-- unchanged extracted XML members can be skipped from deterministic normalized
-  file hashes
+- unchanged XML members can be skipped from deterministic content hashes without
+  writing extracted XML files to disk in the active path
 - the active backend monthly runtime no longer depends on the older TEOS S3
   manifest or S3-backed raw-XML state
 
@@ -112,7 +113,7 @@ Local development:
 - local runs use the same `archives/`, `extracted/`, `logs/`, and `state/`
   structure
 - VS Code or direct CLI debugging should target
-  `python -m charity_status_backend.ingest_task.entrypoint`
+  `python -m verification.backend.ingest.federal.cli run`
 
 Container and ECS mapping:
 
@@ -121,3 +122,4 @@ Container and ECS mapping:
 - that budget matches the intended 32 GiB ECS ephemeral storage envelope
 - ECS-specific task orchestration should inject the workspace root, not change
   the internal archive lifecycle
+

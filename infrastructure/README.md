@@ -1,9 +1,9 @@
-# Infrastructure Directory Boundary
+﻿# Infrastructure Directory Boundary
 
 Current role:
 
 - this directory still contains both deployment assets and active Python runtime code
-- Terraform, env files, Lambda entrypoints, and the current `charity_status` implementation all still live here today
+- Terraform, env files, Lambda entrypoints, and the current `verification` implementation all still live here today
 - Terraform resource names are centralized in `main.tf` locals and can opt into the standardized `<namespace>-<platform>-<purpose>-<environment>-<region>` pattern without forcing immediate renames of deployed infrastructure
 
 Target role:
@@ -37,8 +37,6 @@ Migration note:
 - this boundary is documented now so later refactors can move code out incrementally without breaking current deployment assumptions
 - `backend/` now provides the first-class Python runtime workspace layer; `infrastructure/` should keep packaging or deploy-time references pointed there as extraction phases proceed
 - naming is decoupled from product branding so infrastructure identity does not have to change when customer-facing names do
-- use `docs/contributor-naming-rules.md` for the short naming rules shared across runtime and infrastructure work
-- the current normalization rules, compatibility aliases, and legacy exceptions are documented in `docs/infrastructure-naming-normalization.md`
 - the monthly private-ingest architecture and operations docs live in `docs/monthly-ingest-architecture.md` and `docs/monthly-ingest-runbook.md`
 
 ## PostgreSQL Foundation
@@ -75,6 +73,14 @@ Runtime env wiring added for the query Lambda:
 - `PLATFORM_POSTGRES_PORT`
 - `PLATFORM_POSTGRES_DATABASE`
 - `PLATFORM_POSTGRES_SSLMODE`
+- `PLATFORM_NONPROFIT_STORE_BACKEND` for nonprofit ingest and Form 990 writes
+- optional dedicated nonprofit data-plane overrides:
+  - `PLATFORM_NONPROFIT_POSTGRES_ENABLED`
+  - `PLATFORM_NONPROFIT_POSTGRES_SECRET_ARN`
+  - `PLATFORM_NONPROFIT_POSTGRES_HOST`
+  - `PLATFORM_NONPROFIT_POSTGRES_PORT`
+  - `PLATFORM_NONPROFIT_POSTGRES_DATABASE`
+  - `PLATFORM_NONPROFIT_POSTGRES_SSLMODE`
 - `PLATFORM_NONPROFIT_QUERY_BACKEND` for nonprofit lookup/search/filings reads
 
 For local backend development, prefer the backend-owned workflow instead of the
@@ -82,14 +88,18 @@ deployed secret-backed wiring:
 
 - copy `backend/.env.local.example` to `backend/.env.local`
 - set `PLATFORM_POSTGRES_URL` to a direct local PostgreSQL endpoint
-- run `python -m charity_status_backend.shared.local_dev db-upgrade`
-- run `python -m charity_status_backend.api.entrypoint`
+- set `PLATFORM_NONPROFIT_POSTGRES_URL` only when nonprofit and Form 990 data should live on a separate database
+- run `python -m verification.backend.shared.local_dev db-upgrade`
+- run `python -m verification.backend.shared.local_dev db-upgrade-nonprofit` when a separate nonprofit database is configured
+- use `python -m verification.backend.shared.local_dev db-reset-nonprofit` for a destructive nonprofit-only dev reset
+- use `python -m verification.backend.shared.local_dev db-cutover-nonprofit` to destructively copy nonprofit/Form 990 rows out of the shared platform database during cutover
+- run `python -m verification.backend.customer.api.entrypoint`
 
 PostgreSQL-only rollout order:
 
 1. run `alembic upgrade head`
-2. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
-3. run `python -m charity_status_platform.runtime.customer_accounts_migration --identity-table-name identity`
+2. run `python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity --dry-run`
+3. run `python -m verification.backend.shared.runtime.customer_accounts_migration --identity-table-name identity`
 4. deploy with PostgreSQL runtime env wiring only
 5. recreate or reseed any dev-only data that previously lived in DynamoDB
 
@@ -98,12 +108,12 @@ PostgreSQL-only rollout order:
 The Terraform stack now maps the backend runtime directories onto explicit ECS
 deployment roles:
 
-- `backend/api`
+- `backend/customer-api`
   - live ALB-backed ECS Fargate service
 - `backend/worker`
   - provisionable ECS Fargate service slot for the future general worker
     runtime; disabled by default until runtime extraction lands
-- `backend/ingest-task`
+- `backend/ingest/federal`
   - ECS task-style runtime used by scheduled and one-off ingest execution
 
 Phase 25C/25D added the live API service cutover. Phase 27C extends that
@@ -129,8 +139,8 @@ Current deployment posture:
 - PostgreSQL ingress includes the ECS API task security group when
   `platform_postgres_enabled=true`; the worker task security group is also
   allowed when the worker service is enabled
-- container ownership now lives under `backend/api/Dockerfile` and
-  `backend/ingest-task/Dockerfile`; infrastructure consumes image URIs and ECS
+- container ownership now lives under `backend/customer-api/Dockerfile` and
+  `backend/ingest/federal/Dockerfile`; infrastructure consumes image URIs and ECS
   task definitions rather than owning the runtime Dockerfiles
 
 Required environment inputs when `api_ecs_enabled=true`:
@@ -168,14 +178,16 @@ Worker service inputs when `worker_ecs_enabled=true`:
 Worker placeholder note:
 
 - the worker ECS service is intentionally provisionable before the runtime is
-  fully migrated out of `infrastructure.lambda_refresh`
+  assigned to a future non-refresh background workload
 - defaulting `worker_ecs_desired_count` to `0` keeps the deployment slot
   explicit without pretending the service is production-ready
 
 GitLab CI/CD rollout baseline:
 
-- `.gitlab-ci.yml` builds `backend/api`, `backend/worker`, and
-  `backend/ingest-task`
+- `.gitlab-ci.yml` builds `backend/customer-api`, `backend/worker`, and
+  `backend/ingest/federal`
+- the old `infra-deployment/` scaffold boundary has been absorbed into this
+  infrastructure layer
 - runtime images publish to the managed ECR repositories exposed by Terraform
   outputs
 - image versioning should use immutable commit-SHA tags, not `latest`
@@ -194,7 +206,7 @@ GitLab CI/CD rollout baseline:
   - `terraform-prod.tfvars`
   - CI-provided `terraform-prod.secrets.tfvars` content
 - `monthly_ingest_worker_image_tag` remains the current deploy-time Terraform
-  variable for the `backend/ingest-task` image so the existing task definition
+  variable for the `backend/ingest/federal` image so the existing task definition
   contract stays backward compatible
 
 Required CI variables:
@@ -220,10 +232,11 @@ Rollback note:
 
 Container build guidance:
 
-- `backend/api/Dockerfile` is the canonical API image contract
+- `backend/customer-api/Dockerfile` is the canonical API image contract
 - `backend/worker/Dockerfile` is the canonical worker-service image contract,
   even while the runtime remains scaffold-only
-- `backend/ingest-task/Dockerfile` is the canonical ECS task image contract for
+- `backend/ingest/federal/Dockerfile` is the canonical ECS task image contract for
   monthly and Form 990 task execution
 - scheduled and one-off ingest execution should keep using ECS tasks, not the
   general worker service
+

@@ -51,7 +51,7 @@
 #   - .docker_build_template
 #   - .deployable_default_branch
 #   variables:
-#     RUNTIME_DOCKERFILE: backend/api/Dockerfile
+#     RUNTIME_DOCKERFILE: backend/customer-api/Dockerfile
 #     LOCAL_IMAGE_NAME: backend-api
 #     IMAGE_ARTIFACT_PATH: build/ci/backend-api-image.tar
 
@@ -69,7 +69,7 @@
 #   - .docker_build_template
 #   - .deployable_default_branch
 #   variables:
-#     RUNTIME_DOCKERFILE: backend/ingest-task/Dockerfile
+#     RUNTIME_DOCKERFILE: backend/ingest/federal/Dockerfile
 #     LOCAL_IMAGE_NAME: backend-ingest-task
 #     IMAGE_ARTIFACT_PATH: build/ci/backend-ingest-task-image.tar
 
@@ -78,7 +78,7 @@
 #   - .docker_build_template
 #   - .deployable_tags
 #   variables:
-#     RUNTIME_DOCKERFILE: backend/api/Dockerfile
+#     RUNTIME_DOCKERFILE: backend/customer-api/Dockerfile
 #     LOCAL_IMAGE_NAME: backend-api
 #     IMAGE_ARTIFACT_PATH: build/ci/backend-api-image.tar
 
@@ -96,7 +96,7 @@
 #   - .docker_build_template
 #   - .deployable_tags
 #   variables:
-#     RUNTIME_DOCKERFILE: backend/ingest-task/Dockerfile
+#     RUNTIME_DOCKERFILE: backend/ingest/federal/Dockerfile
 #     LOCAL_IMAGE_NAME: backend-ingest-task
 #     IMAGE_ARTIFACT_PATH: build/ci/backend-ingest-task-image.tar
 

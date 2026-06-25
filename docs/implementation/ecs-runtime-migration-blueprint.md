@@ -1,4 +1,8 @@
-# ECS Runtime Migration Blueprint
+﻿# ECS Runtime Migration Blueprint
+
+Historical note: this blueprint is retained for migration history. The active
+runtime cutover is complete, so Lambda/API Gateway references below are
+archival and no longer describe the deployed stack.
 
 ## Summary
 
@@ -88,7 +92,7 @@ The repo already has ECS/Fargate conventions through the monthly ingest worker:
 - ECS task definition pattern
 - CloudWatch log-group pattern
 - task execution/task role split
-- backend-owned runtime Dockerfiles for API and ingest-task packaging
+- backend-owned runtime Dockerfiles for API and federal-ingest packaging
 - a backend-owned worker-service image contract under `backend/worker/`
 
 The API ECS implementation should extend those conventions rather than invent a
@@ -163,13 +167,12 @@ traffic without turning every health probe into a full dependency sweep.
 
 Current posture after Phase 26C:
 
-- `backend/api` owns the FastAPI app, route registration, and shared API runtime dispatch
+- `backend/customer-api` owns the FastAPI app, route registration, and shared API runtime dispatch
 - `infrastructure.lambda_query` remains as a thin rollback adapter and compatibility import path
-- `charity_status_platform.runtime.api_compat` remains only as a compatibility import root for the backend-owned app
 
 ### Phase 25C: Containerize the API
 
-- add an API Dockerfile under `backend/api/`
+- add an API Dockerfile under `backend/customer-api/`
 - add container startup and local run instructions
 - preserve the current runtime env-var contract
 
@@ -198,10 +201,10 @@ Keep these paths separate for now:
 
 Current runtime-to-deployment map after Phase 27C:
 
-- `backend/api` -> live ECS Fargate service behind the ALB
+- `backend/customer-api` -> live ECS Fargate service behind the ALB
 - `backend/worker` -> provisionable ECS Fargate service slot, disabled by
   default until the refresh runtime extraction lands
-- `backend/ingest-task` -> ECS task-style runtime used by schedules and one-off
+- `backend/ingest/federal` -> ECS task-style runtime used by schedules and one-off
   ingest execution
 
 Webhook routes are different: because they are part of the HTTP ingress surface,
@@ -237,3 +240,4 @@ Follow-on implementation should explicitly cover:
 - Terraform validation for ALB/ECS/Route53 changes
 - a smaller retained Lambda adapter suite during the transition
 - longer-term shift toward HTTP/ASGI client tests as the primary runtime tests
+

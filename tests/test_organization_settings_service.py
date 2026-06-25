@@ -1,10 +1,10 @@
-from charity_status.enrichments import (
+﻿from verification.backend.shared.enrichments import (
     InMemoryOrganizationIntegrationSettingsStore,
     OrganizationIntegrationSettingsService,
     OrganizationIntegrationSettingsValidationError,
     load_organization_integration_settings,
 )
-from charity_status_platform.customer_accounts import (
+from verification.backend.shared.customer_accounts import (
     AuditEventType,
     AuditLogService,
     DynamoAuditLogRepository,
@@ -165,3 +165,4 @@ def test_update_organization_settings_records_sanitized_audit_event():
     assert "support@orgone.example" not in str(by_type[AuditEventType.ORGANIZATION_SETTINGS_UPDATE].metadata)
     assert by_type[AuditEventType.BILLING_OVERAGE_ENABLED].metadata["previous_allow_overage"] is False
     assert by_type[AuditEventType.BILLING_OVERAGE_ENABLED].metadata["new_allow_overage"] is True
+

@@ -1,17 +1,17 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND_INGEST_SRC = ROOT / "backend" / "ingest-task" / "src"
+BACKEND_INGEST_SRC = ROOT / "backend" / "ingest" / "federal" / "src"
 
 if str(BACKEND_INGEST_SRC) not in sys.path:
     sys.path.insert(0, str(BACKEND_INGEST_SRC))
 
-from charity_status_backend.ingest_task.hashing import sha256_digest_file
-from charity_status_backend.ingest_task.orchestration.workspace import (
+from verification.backend.ingest.federal.hashing import sha256_digest_file
+from verification.backend.ingest.federal.orchestration.workspace import (
     DEFAULT_FORM990_WORKSPACE_MAX_BYTES,
     build_workspace_layout,
     resolve_workspace_root,
@@ -68,3 +68,4 @@ def test_hashing_helper_returns_stable_sha256(tmp_path):
     payload.write_bytes(b"abc123")
 
     assert sha256_digest_file(payload) == sha256_digest_file(payload)
+

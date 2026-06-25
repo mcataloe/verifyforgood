@@ -1,4 +1,4 @@
-# Monthly Ingest Runbook
+﻿# Monthly Ingest Runbook
 
 ## Purpose
 
@@ -36,8 +36,8 @@ The staging Lambda is responsible only for:
 
 Ownership note:
 
-- the staging runtime implementation now lives under `backend/ingest-task`
-- the infrastructure Lambda handler path is a compatibility wrapper only
+- the staging runtime implementation now lives under `backend/ingest/federal`
+- deployment wiring should invoke backend-owned runtime modules directly
 
 The staging Lambda does not:
 
@@ -48,8 +48,8 @@ The staging Lambda does not:
 
 Ownership note:
 
-- executable staging and task runtime ownership now lives under `backend/ingest-task/src/charity_status_backend/ingest_task/`
-- `infrastructure/lambda_monthly_ingest_staging.py` and `infrastructure/monthly_ingest_worker.py` remain temporary compatibility adapters for deployment wiring
+- executable staging and task runtime ownership now lives under `backend/ingest/federal/src/verification/backend/ingest/federal/`
+- deployment wiring should stay aligned to the backend-owned runtime package tree
 
 ## ECS Worker Runtime Contract
 
@@ -71,11 +71,10 @@ It also uses:
 
 Ownership note:
 
-- the ECS worker implementation now lives under `backend/ingest-task`
-- the `infrastructure/monthly_ingest_worker.py` file remains only as a compatibility entrypoint for deployment wiring
+- the ECS worker implementation now lives under `backend/ingest/federal`
 - the managed ECS task now uses the backend-owned `ecs-run` parity command so
   task execution shares the same archive-at-a-time orchestration path as local
-  `python -m ingest_task.cli run`
+  `python -m verification.backend.ingest.federal.cli run`
 - on the parity path, IRS ZIP downloads and extracted XML stay inside the
   task workspace and are not uploaded to S3 as runtime artifacts
 
@@ -87,6 +86,8 @@ ECS parity env aliases supported by the runtime:
 - `LOG_LEVEL` -> runtime logging level
 - `DATABASE_URL` -> `PLATFORM_POSTGRES_URL` when a direct URL-style Postgres
   configuration is provided externally
+- `DATABASE_URL` -> `PLATFORM_NONPROFIT_POSTGRES_URL` when a dedicated
+  nonprofit database is used and the native nonprofit URL is absent
 
 Expected source object:
 
@@ -151,16 +152,17 @@ This repository now defines the workflow, but the following deployment-specific 
 - task security group ids
 - ECS cluster ARN
 
-Terraform can now manage the task definition, task roles, staging Lambda, and worker log group automatically when the external ARN overrides are left empty.
-
-The staging Lambda no longer has to be supplied externally. Terraform creates it automatically when `monthly_ingest_state_machine_enabled=true` and `monthly_ingest_staging_lambda_arn` is empty. Set `monthly_ingest_staging_lambda_arn` only when you want to point the workflow at a separately managed Lambda.
+Terraform now manages the ECS task definition, task roles, EventBridge target,
+and worker log group directly when the external ARN overrides are left empty.
+The ingest task downloads and stages source artifacts itself; there is no
+separate staging Lambda.
 
 ## Schedule Notes
 
 - The EventBridge schedule is optional and disabled unless `monthly_ingest_schedule_expression`, `monthly_ingest_schedule_source_bucket`, `monthly_ingest_schedule_destination_bucket`, and `monthly_ingest_schedule_destination_prefix` are set.
 - Scheduled executions pass a static workflow input payload with an added `schedule_context.trigger = "eventbridge"` marker.
-- When `monthly_ingest_schedule_skip_staging=false`, Terraform automatically provides a placeholder `source_key` and the staging Lambda replaces it with the real staged object location.
 - `monthly_ingest_schedule_context_json` is the preferred place to supply upstream ZIP metadata such as `source_url`, `source_year`, `source_archive_key`, `source_filename`, and `source_timestamp`.
+- Scheduled runs target ECS directly; there is no Step Functions or Lambda staging hop.
 - The schedule does not create persistent interface endpoints; those remain per-execution only.
 
 ## Operator Guidance
@@ -211,5 +213,6 @@ Troubleshooting sequence:
 ## Remaining Follow-Up
 
 - connect expected job artifacts (`manifest.json`, `artifacts.json`, `summary.json`) to downstream dataset-specific processing
-- add image build/push automation for the backend-owned `backend/ingest-task/Dockerfile`
+- add image build/push automation for the backend-owned `backend/ingest/federal/Dockerfile`
 - decide whether later phases should emit a customer-safe summary record outside Step Functions execution history
+
