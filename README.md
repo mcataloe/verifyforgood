@@ -13,6 +13,7 @@ Customer-facing branding is configured separately so the platform can be present
 Customer-facing overview:
 
 - `CUSTOMER_README.md` summarizes the customer API surface, subscription tiers, and tenant setup expectations.
+- `docs/architecture/evidence-review-contract.md` documents the canonical evidence-first review contract.
 - `docs/monthly-ingest-architecture.md` documents the implemented monthly ingest architecture, runtime contracts, and cost model.
 - `docs/monthly-ingest-runbook.md` documents the implemented Step Functions phases, cleanup behavior, and deployment prerequisites for monthly ingest.
 - `docs/architecture/ADR-ecs-runtime-pivot.md` records the API runtime pivot from Lambda to ECS.
@@ -31,11 +32,11 @@ See `frontend/README.md` for the dependency rules and current workspace layout.
 
 Frontend workspace commands now live under that nested workspace root:
 
-- `npm run format:check`
-- `npm run lint`
-- `npm run test`
-- `npm run typecheck`
-- `npm run build`
+- `pnpm run format:check`
+- `pnpm run lint`
+- `pnpm run test`
+- `pnpm run typecheck`
+- `pnpm run build`
 
 Important:
 
@@ -1697,15 +1698,15 @@ Response shape:
 
 ## Policy Engine (Phase 6B)
 
-Phase 6B adds a deterministic, config-driven customer policy layer for CSR workflows without replacing core nonprofit scoring or decisioning.
+Phase 6B added a deterministic, config-driven customer policy layer for CSR workflows without replacing core nonprofit scoring or decisioning. This approval-style policy output is now legacy compatibility behavior; the canonical customer-facing review contract is the top-level `review` object documented in `docs/architecture/evidence-review-contract.md`.
 
 Policy behavior:
 
-- uses a global default policy when no `policy_id` is provided
-- optionally applies named policies via `POST /v1/verify` request body
+- uses a global compatibility default policy when no `policy_id` is provided
+- optionally applies named customer-owned policies via `POST /v1/verify` request body
 - evaluates deterministic conditions against assembled verification payload
 - keeps `decision` unchanged and adds `policy_evaluation` separately
-- exposes `final_recommendation` (policy-aware recommendation)
+- exposes `final_recommendation` as a compatibility recommendation field
 
 Supported condition types include:
 
@@ -1726,6 +1727,21 @@ Response additions:
 - `policy_evaluation.overrides_decision`
 - `policy_evaluation.final_recommendation`
 - top-level `final_recommendation` (mirrors policy evaluation outcome)
+
+## Evidence Review Contract
+
+Lookup, verify, cached-profile, and advisory detail responses may include a top-level `review` envelope.
+
+Canonical review behavior:
+
+- `review.contract_version` is `1.0`
+- `review.evidence_review.status` uses evidence conditions such as `complete`, `incomplete`, `stale`, `conflicting`, `source_unavailable`, and `review_required`
+- evidence review status is based on source checks and issues, not legacy scores, eligibility, decisions, or recommendations
+- `review.requirements_evaluation` is emitted only for customer-owned requirement evaluation
+- `review.customer_decision` is currently `null`; customer decision persistence is a future workflow
+- plan entitlements may hide premium legacy fields, but visible requirements results retain minimum explanatory evidence
+
+The portal should treat IRS active status as a source fact, not as a platform-level verified decision.
 
 ## Score Weighting Profiles (Phase 8B)
 

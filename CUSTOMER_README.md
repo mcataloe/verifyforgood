@@ -58,6 +58,29 @@ Customers with an existing Stripe billing profile can open the Stripe-hosted cus
 
 Customers can retrieve a product-focused billing summary through `GET /v1/organization/billing/subscription`.
 
+## Evidence Review
+
+Nonprofit lookup and verification responses may include a top-level `review`
+object. This is the canonical evidence-first customer contract.
+
+`review` reports:
+
+- source checks and evidence conditions
+- source coverage and review issues
+- optional customer-owned requirements evaluation
+- `customer_decision: null` until a customer decision workflow is implemented
+
+The API does not treat active IRS status as a VerifyForGood approval decision.
+Active IRS status is returned as a source fact. Legacy score, decision,
+`policy_evaluation`, and `final_recommendation` fields may still appear for
+compatibility, but new customer workflows should prefer `review`.
+
+Customer-owned requirements results may be `requirements_met`,
+`requirements_not_met`, `unresolved`, or `unable_to_evaluate`. These results
+describe whether customer-authored requirements are supported by referenced
+evidence; they are not VerifyForGood funding, grant, legal, or compliance
+decisions.
+
 ## Branding and Support
 
 Customer-visible branding defaults to:
@@ -296,5 +319,6 @@ When a tenant is created through the admin control plane, both organization name
 
 - The API is currently focused on U.S. nonprofits.
 - Deterministic verification and scoring are implemented today.
+- Evidence review is the canonical customer-facing review contract; legacy scoring and policy recommendation fields are compatibility outputs during transition.
 - Some premium integrations and billing/payment workflows are scaffolded and may still be rollout-dependent.
 - Feature availability is enforced by plan entitlements in the platform layer.

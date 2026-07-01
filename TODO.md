@@ -1123,6 +1123,49 @@ customer-visible routes and persisted compatibility shapes.
 Keep internal matching/ranking support implementation-only unless a future
 customer-facing use is explicitly approved.
 
+## TODO-ARCH-103
+
+### Title
+
+Complete evidence-review contract rollout and legacy recommendation retirement.
+
+### Type
+
+decision-required
+
+### Rationale
+
+The `review` envelope is now the canonical customer-facing evidence-first
+contract, but legacy score, decision, policy, and final-recommendation fields
+remain in compatibility responses. Additional product, legal, and rollout
+decisions are needed before removing or hiding those older fields from customer
+surfaces.
+
+Open follow-ups:
+
+- define versioning and removal timing for legacy `scores`, `decision`,
+  `policy_evaluation`, and `final_recommendation` fields
+- design customer policy authoring, adoption, effective dating, and audit
+  workflows
+- design customer decision persistence and decision-history audit behavior
+- complete legal and source-term review for displayed provider facts,
+  limitations, and no-clearance language
+- plan rollout communications, monitoring, and rollback criteria
+- define advanced entity-resolution behavior for ambiguous names, aliases,
+  EIN/name conflicts, and potential matches
+
+### Migration Triggers
+
+- first customer-authored requirements policy beyond compatibility templates
+- decision to persist customer review decisions
+- public deprecation schedule for legacy recommendation fields
+- legal/source-term approval for broader provider fact display
+
+### Constraint
+
+Keep `review` additive and versioned until customers have a migration path away
+from legacy recommendation fields.
+
 ## TODO-ARCH-104
 
 ### Title

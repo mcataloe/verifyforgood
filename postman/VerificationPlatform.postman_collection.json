@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "8d76ca6d-37e5-4d3e-b7d5-8e38b3c73e62",
     "name": "VerificationPlatform",
-    "description": "Runnable Postman collection for verification platform endpoints grouped by Customer/Public, Admin, and Ops.",
+    "description": "Runnable Postman collection for verification platform endpoints grouped by Customer/Public, Admin, and Ops. Customer nonprofit lookup and verify responses may include the canonical review envelope alongside legacy compatibility scoring, decision, policy_evaluation, and final_recommendation fields.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -87,7 +87,7 @@
                 "type": "text"
               }
             ],
-            "description": "Legacy alias lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Legacy alias lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein. Responses may include review.contract_version=1.0 with evidence_review source checks; IRS active status is a source fact, not a VerifyForGood approval decision.",
             "url": "{{baseUrl}}/v1/nonprofit/{{ein}}"
           }
         },
@@ -102,7 +102,7 @@
                 "type": "text"
               }
             ],
-            "description": "Pluralized lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Pluralized lookup endpoint. Auth: x-api-key. Variables: baseUrl, ein. Responses may include review.contract_version=1.0 with evidence_review source checks; IRS active status is a source fact, not a VerifyForGood approval decision.",
             "url": "{{baseUrl}}/v1/nonprofits/{{ein}}"
           }
         },
@@ -141,7 +141,7 @@
               "mode": "raw",
               "raw": "{\n  \"ein\": \"{{ein}}\",\n  \"name\": \"Example Charity\",\n  \"policy_id\": \"default_policy\",\n  \"weighting_profile\": \"default\"\n}"
             },
-            "description": "Legacy alias verify endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Legacy alias verify endpoint. Auth: x-api-key. Variables: baseUrl, ein. policy_id names a customer-owned or compatibility template policy. Responses preserve legacy policy_evaluation/final_recommendation and may include canonical review with customer_decision null.",
             "url": "{{baseUrl}}/v1/verify"
           }
         },
@@ -165,7 +165,7 @@
               "mode": "raw",
               "raw": "{\n  \"ein\": \"{{ein}}\",\n  \"name\": \"Example Charity\",\n  \"policy_id\": \"default_policy\",\n  \"weighting_profile\": \"default\"\n}"
             },
-            "description": "Pluralized verify endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Pluralized verify endpoint. Auth: x-api-key. Variables: baseUrl, ein. policy_id names a customer-owned or compatibility template policy. Responses preserve legacy policy_evaluation/final_recommendation and may include canonical review with customer_decision null.",
             "url": "{{baseUrl}}/v1/nonprofits/verify"
           }
         },
@@ -189,7 +189,7 @@
               "mode": "raw",
               "raw": "{\n  \"items\": [\n    {\n      \"ein\": \"{{ein}}\",\n      \"name\": \"Example Charity\"\n    },\n    {\n      \"ein\": \"987654321\",\n      \"name\": \"Second Charity\"\n    }\n  ]\n}"
             },
-            "description": "Batch verification endpoint. Auth: x-api-key. Variables: baseUrl, ein.",
+            "description": "Batch verification endpoint. Auth: x-api-key. Variables: baseUrl, ein. Each successful item may include the canonical review envelope alongside legacy compatibility fields.",
             "url": "{{baseUrl}}/v1/verify/batch"
           }
         },

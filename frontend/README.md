@@ -97,6 +97,13 @@ Billing interactions follow the same boundary discipline inside the portal:
 - those actions must talk to backend billing endpoints, not to Stripe SDK helpers in the browser
 - vendor-specific details such as checkout session creation or billing-portal redirects stay behind backend-owned endpoints and feature-local adapters
 
+Nonprofit review interactions follow the evidence-first backend contract:
+
+- portal search summaries should show source facts such as `IRS status: Active`, not infer a platform `verified` result
+- portal detail views should render evidence review and customer requirements only when the backend returns a `review` envelope
+- shared status badges may describe evidence conditions such as complete, stale, conflicting, unavailable, or review required
+- customer decisions should remain absent or "Not recorded" until the backend returns a customer-owned decision workflow
+
 See `shared/README.md` for the package boundaries inside `frontend/shared/`.
 
 ## Commands
