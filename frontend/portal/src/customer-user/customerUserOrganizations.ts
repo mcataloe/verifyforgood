@@ -1,4 +1,7 @@
-import { normalizeEinQuery, type PortalNonprofitDetail } from "../nonprofits/nonprofitSearch";
+import {
+  normalizeEinQuery,
+  type PortalNonprofitDetail,
+} from "../nonprofits/nonprofitSearch";
 
 export interface CustomerUserOrganizationRecord {
   address: string;
@@ -86,13 +89,15 @@ export function getCustomerUserOrganizationDetail(
   ein: string,
 ): PortalNonprofitDetail | null {
   return (
-    customerUserOrganizationRecords.find((record) => record.ein === ein)?.detail ??
-    null
+    customerUserOrganizationRecords.find((record) => record.ein === ein)
+      ?.detail ?? null
   );
 }
 
 function normalizeText(value: string | undefined) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 const customerUserOrganizationRecords: CustomerUserOrganizationRecord[] = [
@@ -176,7 +181,9 @@ function createRecord(input: {
     name: input.name,
     zip: input.zip,
     detail: {
-      appearsBecause: ["Matched a placeholder customer-user organization record."],
+      appearsBecause: [
+        "Matched a placeholder customer-user organization record.",
+      ],
       complianceCheckType: "No compliance snapshot",
       complianceCheckedAt: "Unavailable",
       complianceStatus: "No compliance snapshot",
@@ -188,7 +195,9 @@ function createRecord(input: {
       filingParseStatus: "Parsed",
       filingTaxYear: input.filingTaxYear,
       filingsCount: 6,
-      highlights: ["Recent filing details are available in this placeholder record."],
+      highlights: [
+        "Recent filing details are available in this placeholder record.",
+      ],
       irsStatus: input.irsStatus,
       modelSource: "customer_user_placeholder_search",
       modelVersion: "2026-03-23",
@@ -197,6 +206,7 @@ function createRecord(input: {
       queryExecutionId: `mock_${input.ein.replaceAll("-", "")}`,
       recent990OnFile: "true",
       riskIndicators: [],
+      review: null,
       snapshotMaterializedAt: "2026-03-23T00:00:00+00:00",
       sourceSummaries: [],
       state,

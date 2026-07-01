@@ -1,8 +1,22 @@
 import { Badge } from "@mantine/core";
 import { useComputedColorScheme } from "@mantine/core";
-import { verifyForGoodTokens, type VerifyForGoodThemeMode } from "../theme/tokens";
+import {
+  verifyForGoodTokens,
+  type VerifyForGoodThemeMode,
+} from "../theme/tokens";
 
-export type StatusBadgeStatus = "verified" | "pending" | "flagged" | "inactive";
+export type StatusBadgeStatus =
+  | "complete"
+  | "conflicting"
+  | "flagged"
+  | "inactive"
+  | "incomplete"
+  | "not_recorded"
+  | "pending"
+  | "review_required"
+  | "source_unavailable"
+  | "stale"
+  | "verified";
 
 type StatusBadgeProps = {
   label?: string;
@@ -10,10 +24,17 @@ type StatusBadgeProps = {
 };
 
 const STATUS_BADGE_LABELS: Record<StatusBadgeStatus, string> = {
-  verified: "Verified",
-  pending: "Pending",
-  flagged: "Flagged",
+  complete: "Evidence complete",
+  conflicting: "Conflicting evidence",
+  flagged: "Review required",
   inactive: "Inactive",
+  incomplete: "Evidence incomplete",
+  not_recorded: "Not recorded",
+  pending: "Pending review",
+  review_required: "Review required",
+  source_unavailable: "Source unavailable",
+  stale: "Stale evidence",
+  verified: "Evidence complete",
 };
 
 /**
@@ -21,18 +42,24 @@ const STATUS_BADGE_LABELS: Record<StatusBadgeStatus, string> = {
  *
  * Example:
  * ```tsx
- * <StatusBadge status="verified" />
+ * <StatusBadge status="complete" />
  * <StatusBadge status="flagged" label="Needs review" />
  * ```
  */
 export function StatusBadge({ label, status }: StatusBadgeProps) {
   const colorScheme = useComputedColorScheme("light") as VerifyForGoodThemeMode;
   const palette =
-    status === "verified"
+    status === "complete" || status === "verified"
       ? verifyForGoodTokens.color.palette.success
-      : status === "pending"
+      : status === "pending" ||
+          status === "incomplete" ||
+          status === "stale" ||
+          status === "not_recorded"
         ? verifyForGoodTokens.color.palette.warning
-        : status === "flagged"
+        : status === "flagged" ||
+            status === "review_required" ||
+            status === "conflicting" ||
+            status === "source_unavailable"
           ? verifyForGoodTokens.color.palette.danger
           : verifyForGoodTokens.color.palette.neutral;
 

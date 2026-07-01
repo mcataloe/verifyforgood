@@ -39,7 +39,7 @@ export function CorePrimitivesExamples() {
           description="Recent nonprofit checks and current workflow state."
         >
           <Stack gap="sm">
-            <StatusBadge status="verified" />
+            <StatusBadge status="complete" />
             <StatusBadge status="pending" />
             <StatusBadge status="flagged" />
             <StatusBadge status="inactive" />
@@ -68,8 +68,8 @@ export function CorePrimitivesExamples() {
         />
 
         <Text c="dimmed" fz="sm">
-          These examples are intended to be copied into future story files or app
-          surfaces as the design system expands.
+          These examples are intended to be copied into future story files or
+          app surfaces as the design system expands.
         </Text>
       </SectionContainer>
     </Stack>

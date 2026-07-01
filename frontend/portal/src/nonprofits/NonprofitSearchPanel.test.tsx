@@ -94,6 +94,7 @@ describe("NonprofitSearchPanel", () => {
         nteeCategory: "Human services",
         queryExecutionId: "hash_123",
         recent990OnFile: "true",
+        review: null,
         riskIndicators: [],
         snapshotMaterializedAt: "2026-04-21T20:00:00+00:00",
         sourceSummaries: [
@@ -124,7 +125,9 @@ describe("NonprofitSearchPanel", () => {
       screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Search results" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Search results" })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Search results" }),
+    ).toBeNull();
     expect(screen.getByText("Matched and refreshed")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Search results" }));
@@ -175,10 +178,14 @@ describe("NonprofitSearchPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Search results" }),
     ).toBeTruthy();
+    expect(screen.getByText("IRS status: active")).toBeTruthy();
+    expect(screen.queryByText("Verified")).toBeNull();
     expect(
       screen.getByRole("heading", { name: "Recent searches" }),
     ).toBeTruthy();
-    expect(screen.getByRole("table", { name: "Recent nonprofit searches" })).toBeTruthy();
+    expect(
+      screen.getByRole("table", { name: "Recent nonprofit searches" }),
+    ).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Load more results" }));
@@ -202,7 +209,9 @@ describe("NonprofitSearchPanel", () => {
     const { container } = renderWithOrganization(controller);
 
     expect(screen.getByText("Nonprofit lookup unavailable")).toBeTruthy();
-    expect(screen.getAllByTestId("detail-page-layout").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByTestId("detail-page-layout").length,
+    ).toBeGreaterThanOrEqual(1);
     expect(container.querySelector(".portal-page-grid")).toBeNull();
   });
 

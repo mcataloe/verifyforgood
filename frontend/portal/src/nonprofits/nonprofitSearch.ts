@@ -28,6 +28,7 @@ interface BackendNonprofitDetailResponse {
     ein?: string | null;
     name?: string | null;
   };
+  review?: BackendReviewEnvelope | null;
   overview?: {
     canonical_source?: string | null;
     entity_type?: string | null;
@@ -59,6 +60,66 @@ interface BackendNonprofitDetailResponse {
     status?: string | null;
     valid_as_of?: string | null;
   }>;
+}
+
+interface BackendReviewEnvelope {
+  contract_version?: string | null;
+  customer_decision?: unknown;
+  evidence_review?: {
+    checks?: BackendReviewCheck[];
+    issues?: BackendReviewIssue[];
+    source_coverage?: {
+      completed?: string[] | null;
+      not_checked?: string[] | null;
+      required?: string[] | null;
+      unavailable?: string[] | null;
+    } | null;
+    status?: string | null;
+  } | null;
+  requirements_evaluation?: BackendRequirementsEvaluation | null;
+}
+
+interface BackendReviewCheck {
+  authoritative_for_policy?: boolean | null;
+  category?: string | null;
+  check_id?: string | null;
+  freshness_status?: string | null;
+  label?: string | null;
+  limitations?: unknown;
+  match_confidence?: string | number | null;
+  observed_value?: unknown;
+  retrieved_at?: string | null;
+  source_references?: Array<{
+    provider_name?: string | null;
+    retrieved_at?: string | null;
+    source_name?: string | null;
+    valid_as_of?: string | null;
+  }> | null;
+  status?: string | null;
+  valid_as_of?: string | null;
+}
+
+interface BackendReviewIssue {
+  code?: string | null;
+  message?: string | null;
+  related_check_ids?: string[] | null;
+  severity?: string | null;
+}
+
+interface BackendRequirementsEvaluation {
+  adoption_status?: string | null;
+  policy_effective_at?: string | null;
+  policy_id?: string | null;
+  policy_owner?: string | null;
+  policy_version?: string | null;
+  requirements?: Array<{
+    description?: string | null;
+    evidence_check_ids?: string[] | null;
+    explanation?: string | null;
+    requirement_id?: string | null;
+    result?: string | null;
+  }> | null;
+  result?: string | null;
 }
 
 interface BackendNonprofitSearchResponse {
@@ -120,6 +181,7 @@ export interface PortalNonprofitDetail {
   nteeCategory: string;
   queryExecutionId: string;
   recent990OnFile: string;
+  review: PortalReviewEnvelope | null;
   riskIndicators: string[];
   snapshotMaterializedAt: string;
   sourceSummaries: PortalNonprofitSourceSummary[];
@@ -127,6 +189,70 @@ export interface PortalNonprofitDetail {
   subsection: string;
   taxDeductible: string;
   taxPeriod: string;
+}
+
+export interface PortalReviewEnvelope {
+  contractVersion: string;
+  customerDecision: string | null;
+  evidenceReview: {
+    checks: PortalReviewCheck[];
+    issues: PortalReviewIssue[];
+    sourceCoverage: {
+      completed: string[];
+      notChecked: string[];
+      required: string[];
+      unavailable: string[];
+    };
+    status: string;
+  };
+  requirementsEvaluation: PortalRequirementsEvaluation | null;
+}
+
+export interface PortalReviewCheck {
+  authoritativeForPolicy: boolean;
+  category: string;
+  checkId: string;
+  freshnessStatus: string;
+  label: string;
+  limitations: string[];
+  matchConfidence: string;
+  observedValue: string;
+  retrievedAt: string;
+  sourceReferences: PortalReviewSourceReference[];
+  status: string;
+  validAsOf: string;
+}
+
+export interface PortalReviewSourceReference {
+  providerName: string;
+  retrievedAt: string;
+  sourceName: string;
+  validAsOf: string;
+}
+
+export interface PortalReviewIssue {
+  code: string;
+  message: string;
+  relatedCheckIds: string[];
+  severity: string;
+}
+
+export interface PortalRequirementsEvaluation {
+  adoptionStatus: string;
+  policyEffectiveAt: string;
+  policyId: string;
+  policyOwner: string;
+  policyVersion: string;
+  requirements: PortalRequirementResult[];
+  result: string;
+}
+
+export interface PortalRequirementResult {
+  description: string;
+  evidenceCheckIds: string[];
+  explanation: string;
+  requirementId: string;
+  result: string;
 }
 
 export interface PortalNonprofitSearchPage {
@@ -206,7 +332,9 @@ export function normalizeEinQuery(query: string): string | null {
   return digitsOnly.length === 9 ? digitsOnly : null;
 }
 
-function mapDetail(detail: BackendNonprofitDetailResponse): PortalNonprofitDetail {
+function mapDetail(
+  detail: BackendNonprofitDetailResponse,
+): PortalNonprofitDetail {
   const overview = detail.overview ?? {};
   const filings = detail.filings ?? {};
   const latestFiling = filings.latest ?? {};
@@ -251,7 +379,11 @@ function mapDetail(detail: BackendNonprofitDetailResponse): PortalNonprofitDetai
     name: normalizeText(detail.organization?.name, "Unknown organization"),
     nteeCategory: normalizeText(overview.ntee_category, "Unavailable"),
     queryExecutionId: normalizeText(snapshot.source_hash, "Not applicable"),
-    recent990OnFile: formatOptionalBoolean(filings.recent_990_on_file, "Unknown"),
+    recent990OnFile: formatOptionalBoolean(
+      filings.recent_990_on_file,
+      "Unknown",
+    ),
+    review: mapReview(detail.review),
     riskIndicators: normalizeStringList(signals.risk_indicators),
     snapshotMaterializedAt: normalizeText(
       snapshot.materialized_at,
@@ -262,6 +394,99 @@ function mapDetail(detail: BackendNonprofitDetailResponse): PortalNonprofitDetai
     subsection: normalizeText(overview.subsection, "Unavailable"),
     taxDeductible: normalizeText(overview.tax_deductible, "Unavailable"),
     taxPeriod: normalizeText(latestFiling.tax_period, "No tax period"),
+  };
+}
+
+function mapReview(
+  review: BackendReviewEnvelope | null | undefined,
+): PortalReviewEnvelope | null {
+  if (!review?.evidence_review) {
+    return null;
+  }
+  const coverage = review.evidence_review.source_coverage ?? {};
+  return {
+    contractVersion: normalizeText(review.contract_version, "1.0"),
+    customerDecision: normalizeOptionalText(review.customer_decision),
+    evidenceReview: {
+      checks: (review.evidence_review.checks ?? []).map(mapReviewCheck),
+      issues: (review.evidence_review.issues ?? []).map(mapReviewIssue),
+      sourceCoverage: {
+        completed: normalizeStringList(coverage.completed),
+        notChecked: normalizeStringList(coverage.not_checked),
+        required: normalizeStringList(coverage.required),
+        unavailable: normalizeStringList(coverage.unavailable),
+      },
+      status: normalizeText(review.evidence_review.status, "not_recorded"),
+    },
+    requirementsEvaluation: mapRequirementsEvaluation(
+      review.requirements_evaluation,
+    ),
+  };
+}
+
+function mapReviewCheck(check: BackendReviewCheck): PortalReviewCheck {
+  return {
+    authoritativeForPolicy: check.authoritative_for_policy === true,
+    category: normalizeText(check.category, "general"),
+    checkId: normalizeText(check.check_id, "unknown_check"),
+    freshnessStatus: normalizeText(check.freshness_status, "unknown"),
+    label: normalizeText(check.label, "Evidence check"),
+    limitations: normalizeStringList(check.limitations),
+    matchConfidence: normalizeText(check.match_confidence, "Not applicable"),
+    observedValue: formatObservedValue(check.observed_value),
+    retrievedAt: normalizeText(check.retrieved_at, "Unknown"),
+    sourceReferences: (check.source_references ?? []).map((source) => ({
+      providerName: normalizeText(source.provider_name, "Unknown provider"),
+      retrievedAt: normalizeText(source.retrieved_at, "Unknown"),
+      sourceName: normalizeText(source.source_name, "unknown_source"),
+      validAsOf: normalizeText(source.valid_as_of, "Unknown"),
+    })),
+    status: normalizeText(check.status, "unknown"),
+    validAsOf: normalizeText(check.valid_as_of, "Unknown"),
+  };
+}
+
+function mapReviewIssue(issue: BackendReviewIssue): PortalReviewIssue {
+  return {
+    code: normalizeText(issue.code, "unknown_issue"),
+    message: normalizeText(issue.message, "Review issue recorded."),
+    relatedCheckIds: normalizeStringList(issue.related_check_ids),
+    severity: normalizeText(issue.severity, "medium"),
+  };
+}
+
+function mapRequirementsEvaluation(
+  evaluation: BackendRequirementsEvaluation | null | undefined,
+): PortalRequirementsEvaluation | null {
+  if (!evaluation) {
+    return null;
+  }
+  return {
+    adoptionStatus: normalizeText(evaluation.adoption_status, "not_recorded"),
+    policyEffectiveAt: normalizeText(
+      evaluation.policy_effective_at,
+      "Not recorded",
+    ),
+    policyId: normalizeText(evaluation.policy_id, "Unknown policy"),
+    policyOwner: normalizeText(evaluation.policy_owner, "customer"),
+    policyVersion: normalizeText(evaluation.policy_version, "Unknown version"),
+    requirements: (evaluation.requirements ?? []).map((requirement) => ({
+      description: normalizeText(
+        requirement.description,
+        "Customer requirement",
+      ),
+      evidenceCheckIds: normalizeStringList(requirement.evidence_check_ids),
+      explanation: normalizeText(
+        requirement.explanation,
+        "No explanation recorded.",
+      ),
+      requirementId: normalizeText(
+        requirement.requirement_id,
+        "unknown_requirement",
+      ),
+      result: normalizeText(requirement.result, "unresolved"),
+    })),
+    result: normalizeText(evaluation.result, "unresolved"),
   };
 }
 
@@ -277,7 +502,10 @@ function mapSourceSummaries(
 
       return {
         category: normalizeText(source.category, "general"),
-        explanation: normalizeText(source.explanation, "No explanation provided"),
+        explanation: normalizeText(
+          source.explanation,
+          "No explanation provided",
+        ),
         providerName: normalizeText(
           source.provider_name,
           humanizeIdentifier(sourceName),
@@ -350,6 +578,21 @@ function formatOptionalBoolean(
     return fallback;
   }
   return value ? "true" : "false";
+}
+
+function formatObservedValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "Not recorded";
+  }
+  if (Array.isArray(value)) {
+    return value.length
+      ? value.map(formatObservedValue).join(", ")
+      : "None returned";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }
 
 function humanizeIdentifier(value: string): string {

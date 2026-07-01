@@ -5,7 +5,6 @@ import {
   ErrorState,
   LoadingSkeleton,
   Panel,
-  StatusBadge,
   type DataTableColumn,
   type DataTableFilterDefinition,
 } from "@charity-status/shared-ui";
@@ -17,10 +16,7 @@ import {
 } from "../components/shell";
 import { PortalNotice } from "../components/feedback";
 import { PortalActionGroup } from "../components/PortalPrimitives";
-import {
-  PortalNonprofitDetailView,
-  summaryStatus,
-} from "./PortalNonprofitDetailView";
+import { PortalNonprofitDetailView } from "./PortalNonprofitDetailView";
 import {
   usePortalNonprofitSearch,
   type PortalNonprofitSearchHistoryEntry,
@@ -55,58 +51,60 @@ const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
     sortValue: (row) => row.state,
   },
   {
-    key: "status",
-    header: "Status",
-    render: (row) => <StatusBadge status={summaryStatus(row)} />,
-    sortValue: (row) => summaryStatus(row),
+    key: "irs-status",
+    header: "IRS status",
+    render: (row) => `IRS status: ${row.irsStatus}`,
+    sortValue: (row) => row.irsStatus,
     sortable: true,
   },
 ];
 
-const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] = [
-  {
-    key: "status",
-    label: "Status",
-    options: [
-      { label: "Verified", value: "verified" },
-      { label: "Pending", value: "pending" },
-      { label: "Flagged", value: "flagged" },
-      { label: "Inactive", value: "inactive" },
-    ],
-    getValue: (row) => summaryStatus(row),
-  },
-];
+const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
+  [
+    {
+      key: "irs-status",
+      label: "IRS status",
+      options: [
+        { label: "Active", value: "active" },
+        { label: "Inactive", value: "inactive" },
+        { label: "Unavailable", value: "unavailable" },
+      ],
+      getValue: (row) => row.irsStatus.toLowerCase(),
+    },
+  ];
 
-const recentSearchColumns: DataTableColumn<PortalNonprofitSearchHistoryEntry>[] = [
-  {
-    key: "query",
-    header: "Query",
-    sortable: true,
-    render: (row) => row.query,
-    sortValue: (row) => row.query,
-  },
-  {
-    key: "search-mode",
-    header: "Search method",
-    sortable: true,
-    render: (row) => (row.searchMode === "ein" ? "EIN lookup" : "Name search"),
-    sortValue: (row) => row.searchMode,
-  },
-  {
-    key: "outcome",
-    header: "Outcome",
-    sortable: true,
-    render: (row) => describeRecentSearchOutcome(row),
-    sortValue: (row) => describeRecentSearchOutcome(row),
-  },
-  {
-    key: "searched-at",
-    header: "Searched",
-    sortable: true,
-    render: (row) => formatSearchTimestamp(row.searchedAt),
-    sortValue: (row) => row.searchedAt,
-  },
-];
+const recentSearchColumns: DataTableColumn<PortalNonprofitSearchHistoryEntry>[] =
+  [
+    {
+      key: "query",
+      header: "Query",
+      sortable: true,
+      render: (row) => row.query,
+      sortValue: (row) => row.query,
+    },
+    {
+      key: "search-mode",
+      header: "Search method",
+      sortable: true,
+      render: (row) =>
+        row.searchMode === "ein" ? "EIN lookup" : "Name search",
+      sortValue: (row) => row.searchMode,
+    },
+    {
+      key: "outcome",
+      header: "Outcome",
+      sortable: true,
+      render: (row) => describeRecentSearchOutcome(row),
+      sortValue: (row) => describeRecentSearchOutcome(row),
+    },
+    {
+      key: "searched-at",
+      header: "Searched",
+      sortable: true,
+      render: (row) => formatSearchTimestamp(row.searchedAt),
+      sortValue: (row) => row.searchedAt,
+    },
+  ];
 
 export function NonprofitSearchPanel({
   controller,
@@ -136,7 +134,9 @@ export function NonprofitSearchPanel({
           ]
         : []),
     ];
-  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [validationMessage, setValidationMessage] = useState<string | null>(
+    null,
+  );
 
   const runSearchForQuery = (nextQuery: string) => {
     const trimmedQuery = nextQuery.trim();
@@ -191,7 +191,11 @@ export function NonprofitSearchPanel({
             ) : null}
 
             <PortalActionGroup>
-              <Button disabled={search.isLoading} loading={search.isLoading} type="submit">
+              <Button
+                disabled={search.isLoading}
+                loading={search.isLoading}
+                type="submit"
+              >
                 {search.isLoading ? "Searching..." : "Search nonprofit"}
               </Button>
             </PortalActionGroup>

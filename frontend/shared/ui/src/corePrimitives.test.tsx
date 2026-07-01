@@ -88,8 +88,8 @@ describe("core ui primitives", () => {
     expect(
       screen.getByText("mock_123456789_this_is_a_long_identifier_for_wrapping"),
     ).toBeTruthy();
-    expect(screen.getByText("Pending")).toBeTruthy();
-    expect(screen.getByText("Verified")).toBeTruthy();
+    expect(screen.getByText("Pending review")).toBeTruthy();
+    expect(screen.getByText("Evidence complete")).toBeTruthy();
     expect(document.querySelector(".vf-detail-field-list")).toBeTruthy();
     expect(document.querySelector(".vf-detail-stack")).toBeTruthy();
   });

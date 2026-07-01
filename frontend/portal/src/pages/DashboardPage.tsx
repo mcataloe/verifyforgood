@@ -59,15 +59,16 @@ const dashboardMetrics: DashboardMetric[] = [
     tone: "primary",
   },
   {
-    title: "Verified organizations",
+    title: "Evidence-complete reviews",
     value: "942",
-    detail: "73% of reviewed organizations cleared verification.",
+    detail:
+      "73% of reviewed records have all required evidence checks recorded.",
     tone: "success",
   },
   {
-    title: "Flagged organizations",
+    title: "Review-required records",
     value: "38",
-    detail: "Requires analyst follow-up across high-risk records.",
+    detail: "Requires analyst follow-up for unresolved evidence conditions.",
     tone: "warning",
   },
   {
@@ -90,7 +91,7 @@ const recentVerifications: VerificationRow[] = [
     organization: "American National Red Cross",
     type: "Profile refresh",
     requestedAt: "Mar 22, 2026",
-    status: "verified",
+    status: "complete",
   },
   {
     organization: "Feeding America",
@@ -102,7 +103,7 @@ const recentVerifications: VerificationRow[] = [
     organization: "Community Housing Partners",
     type: "Risk review",
     requestedAt: "Mar 21, 2026",
-    status: "flagged",
+    status: "review_required",
   },
   {
     organization: "Regional Literacy Fund",
@@ -113,9 +114,9 @@ const recentVerifications: VerificationRow[] = [
 ];
 const dashboardAlerts: DashboardAlert[] = [
   {
-    title: "Flag queue above target",
+    title: "Review queue above target",
     detail: "Seven records have exceeded the 24-hour review SLA.",
-    status: "flagged",
+    status: "review_required",
   },
   {
     title: "Nightly sync pending approval",
@@ -125,7 +126,7 @@ const dashboardAlerts: DashboardAlert[] = [
   {
     title: "Monitoring baseline confirmed",
     detail: "Automated checks resumed for the top 50 tracked organizations.",
-    status: "verified",
+    status: "complete",
   },
 ];
 const recentVerificationColumns: DataTableColumn<VerificationRow>[] = [
@@ -185,11 +186,7 @@ const alertItemStyle: CSSProperties = {
   padding: spacing.sm,
 };
 
-export function DashboardPage({
-  pane,
-  runtimeConfig,
-  session,
-}: DashboardPageProps) {
+export function DashboardPage({ pane, session }: DashboardPageProps) {
   const showHomePageHeader =
     session.organization_membership?.role !== "admin" ||
     session.organization_membership?.status !== "active";
@@ -226,7 +223,11 @@ export function DashboardPage({
           description={`Track verification activity, usage, and current priorities for ${session.organization_name}.`}
         />
 
-        <SimpleGrid cols={{ base: 1, sm: 2, xl: 4 }} data-testid="dashboard-metrics-grid" spacing="md">
+        <SimpleGrid
+          cols={{ base: 1, sm: 2, xl: 4 }}
+          data-testid="dashboard-metrics-grid"
+          spacing="md"
+        >
           {dashboardMetrics.map((metric) => (
             <MetricCard key={metric.title} metric={metric} />
           ))}
@@ -238,7 +239,11 @@ export function DashboardPage({
           data-testid="dashboard-content-layout"
           spacing="md"
         >
-          <Stack className="portal-dashboard__main" data-testid="dashboard-main-column" gap="md">
+          <Stack
+            className="portal-dashboard__main"
+            data-testid="dashboard-main-column"
+            gap="md"
+          >
             <SectionContainer
               title="Recent Verifications"
               description="Recent verification requests across your organization."
@@ -256,7 +261,11 @@ export function DashboardPage({
             </SectionContainer>
           </Stack>
 
-          <Stack className="portal-dashboard__sidebar" data-testid="dashboard-sidebar-column" gap="md">
+          <Stack
+            className="portal-dashboard__sidebar"
+            data-testid="dashboard-sidebar-column"
+            gap="md"
+          >
             <SectionContainer
               title="Verification Trend"
               description="Monthly verification volume."

@@ -10,14 +10,11 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import {
-  DetailPageLayout,
-  SectionBlock,
-} from "../components/shell";
+import { DetailPageLayout, SectionBlock } from "../components/shell";
 import { PortalButton } from "../components/PortalPrimitives";
 import type {
   PortalNonprofitDetail,
-  PortalNonprofitSearchSummary,
+  PortalReviewCheck,
   PortalNonprofitSourceSummary,
 } from "./nonprofitSearch";
 import type { StatusBadgeStatus } from "@charity-status/shared-ui";
@@ -57,9 +54,20 @@ export function PortalNonprofitDetailView({
           <Group align="center" gap="sm" justify="space-between" wrap="wrap">
             <Group align="center" gap="sm" wrap="wrap">
               <Title order={1}>{detail.name}</Title>
-              <StatusBadge status={detailStatus(detail)} />
+              <StatusBadge
+                label={`Evidence review: ${formatReviewStatus(
+                  detail.review?.evidenceReview.status ?? "not_recorded",
+                )}`}
+                status={reviewBadgeStatus(
+                  detail.review?.evidenceReview.status ?? "not_recorded",
+                )}
+              />
             </Group>
-            <PortalButton onClick={() => undefined} tone="secondary" type="button">
+            <PortalButton
+              onClick={() => undefined}
+              tone="secondary"
+              type="button"
+            >
               Queue review
             </PortalButton>
           </Group>
@@ -88,7 +96,7 @@ export function PortalNonprofitDetailView({
               title="Highlights"
             />
             <SignalList
-              emptyText="No immediate risk indicators are recorded."
+              emptyText="No risk indicators are recorded from available source facts."
               items={detail.riskIndicators}
               title="Risk indicators"
             />
@@ -105,8 +113,14 @@ export function PortalNonprofitDetailView({
         <SectionBlock title="Filings">
           <DetailFieldList items={buildFilingsItems(detail)} />
         </SectionBlock>
-        <SectionBlock title="Data sources">
+        <SectionBlock title="Sources">
           <PortalNonprofitSourceSection detail={detail} />
+        </SectionBlock>
+        <SectionBlock title="Evidence review">
+          <PortalEvidenceReviewSection detail={detail} />
+        </SectionBlock>
+        <SectionBlock title="Customer requirements">
+          <PortalRequirementsSection detail={detail} />
         </SectionBlock>
         <SectionBlock title="Compliance">
           <DetailFieldList items={buildComplianceItems(detail)} />
@@ -127,7 +141,14 @@ export function PortalNonprofitEmbeddedDetail({
       <Stack gap="md">
         <Group align="center" gap="sm" wrap="wrap">
           <Title order={3}>{detail.name}</Title>
-          <StatusBadge status={detailStatus(detail)} />
+          <StatusBadge
+            label={`Evidence review: ${formatReviewStatus(
+              detail.review?.evidenceReview.status ?? "not_recorded",
+            )}`}
+            status={reviewBadgeStatus(
+              detail.review?.evidenceReview.status ?? "not_recorded",
+            )}
+          />
         </Group>
         <Text c="dimmed" fw={600}>
           EIN {detail.ein}
@@ -144,8 +165,14 @@ export function PortalNonprofitEmbeddedDetail({
         <SectionBlock title="Filings">
           <DetailFieldList items={buildFilingsItems(detail)} />
         </SectionBlock>
-        <SectionBlock title="Data sources">
+        <SectionBlock title="Sources">
           <PortalNonprofitSourceSection detail={detail} />
+        </SectionBlock>
+        <SectionBlock title="Evidence review">
+          <PortalEvidenceReviewSection detail={detail} />
+        </SectionBlock>
+        <SectionBlock title="Customer requirements">
+          <PortalRequirementsSection detail={detail} />
         </SectionBlock>
         <SectionBlock title="Compliance">
           <DetailFieldList items={buildComplianceItems(detail)} />
@@ -218,6 +245,16 @@ function buildSummaryItems(detail: PortalNonprofitDetail) {
       detail: detail.filingDate,
     },
     {
+      key: "evidence-review",
+      label: "Evidence review",
+      value: formatReviewStatus(
+        detail.review?.evidenceReview.status ?? "not_recorded",
+      ),
+      detail: detail.review
+        ? `Contract ${detail.review.contractVersion}`
+        : "Review contract not returned",
+    },
+    {
       key: "classification",
       label: "Classification",
       value: detail.nteeCategory,
@@ -230,6 +267,186 @@ function buildSummaryItems(detail: PortalNonprofitDetail) {
       detail: detail.modelVersion,
     },
   ];
+}
+
+function PortalEvidenceReviewSection({
+  detail,
+}: {
+  detail: PortalNonprofitDetail;
+}) {
+  const review = detail.review?.evidenceReview;
+  if (!review) {
+    return (
+      <Text c="dimmed">
+        Evidence review was not returned for this nonprofit response.
+      </Text>
+    );
+  }
+
+  return (
+    <Stack gap="md">
+      <DetailFieldList
+        items={[
+          {
+            key: "status",
+            label: "Evidence review",
+            value: formatReviewStatus(review.status),
+          },
+          {
+            key: "required",
+            label: "Required checks",
+            value: String(review.sourceCoverage.required.length),
+            detail: `${review.sourceCoverage.completed.length} completed`,
+          },
+          {
+            key: "unavailable",
+            label: "Unavailable checks",
+            value: String(review.sourceCoverage.unavailable.length),
+          },
+          {
+            key: "not-checked",
+            label: "Not checked",
+            value: String(review.sourceCoverage.notChecked.length),
+          },
+          {
+            key: "customer-decision",
+            label: "Customer decision",
+            value: detail.review?.customerDecision ?? "Not recorded",
+          },
+        ]}
+      />
+      <ReviewIssueList detail={detail} />
+      <ReviewCheckTable checks={review.checks} />
+    </Stack>
+  );
+}
+
+function PortalRequirementsSection({
+  detail,
+}: {
+  detail: PortalNonprofitDetail;
+}) {
+  const evaluation = detail.review?.requirementsEvaluation;
+  if (!evaluation) {
+    return (
+      <Stack gap="xs">
+        <Text c="dimmed">
+          No customer-owned requirements policy is recorded for this review.
+        </Text>
+        <Text c="dimmed">Customer decision: Not recorded</Text>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap="md">
+      <DetailFieldList
+        items={[
+          {
+            key: "policy",
+            label: "Customer policy",
+            value: evaluation.policyId,
+            detail: `Version ${evaluation.policyVersion}`,
+          },
+          {
+            key: "owner",
+            label: "Policy owner",
+            value: evaluation.policyOwner,
+            detail: evaluation.adoptionStatus,
+          },
+          {
+            key: "result",
+            label: "Requirements result",
+            value: formatReviewStatus(evaluation.result),
+          },
+          {
+            key: "decision",
+            label: "Customer decision",
+            value: detail.review?.customerDecision ?? "Not recorded",
+          },
+        ]}
+      />
+      <List spacing="xs">
+        {evaluation.requirements.map((requirement) => (
+          <List.Item key={requirement.requirementId}>
+            <Text fw={600}>
+              {requirement.description}:{" "}
+              {formatReviewStatus(requirement.result)}
+            </Text>
+            <Text c="dimmed" fz="sm">
+              {requirement.explanation}
+            </Text>
+          </List.Item>
+        ))}
+      </List>
+    </Stack>
+  );
+}
+
+function ReviewIssueList({ detail }: { detail: PortalNonprofitDetail }) {
+  const issues = detail.review?.evidenceReview.issues ?? [];
+  if (!issues.length) {
+    return <Text c="dimmed">No evidence-review issues are recorded.</Text>;
+  }
+
+  return (
+    <List spacing="xs">
+      {issues.map((issue) => (
+        <List.Item key={issue.code}>
+          <Text fw={600}>{formatReviewStatus(issue.severity)}</Text>
+          <Text>{issue.message}</Text>
+        </List.Item>
+      ))}
+    </List>
+  );
+}
+
+function ReviewCheckTable({ checks }: { checks: PortalReviewCheck[] }) {
+  if (!checks.length) {
+    return <Text c="dimmed">No evidence checks are recorded.</Text>;
+  }
+
+  return (
+    <Table highlightOnHover withColumnBorders withTableBorder>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Check</Table.Th>
+          <Table.Th>Status</Table.Th>
+          <Table.Th>Source</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
+        {checks.map((check) => (
+          <Table.Tr key={check.checkId}>
+            <Table.Td>
+              <Stack gap={2}>
+                <Text fw={500}>{check.label}</Text>
+                <Text c="dimmed" fz="sm">
+                  {check.category}
+                </Text>
+              </Stack>
+            </Table.Td>
+            <Table.Td>
+              <Stack gap={2}>
+                <Text>{formatReviewStatus(check.status)}</Text>
+                <Text c="dimmed" fz="sm">
+                  Observed: {check.observedValue}
+                </Text>
+              </Stack>
+            </Table.Td>
+            <Table.Td>
+              <Stack gap={2}>
+                <Text>{formatCheckSources(check)}</Text>
+                <Text c="dimmed" fz="sm">
+                  Retrieved: {check.retrievedAt}
+                </Text>
+              </Stack>
+            </Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  );
 }
 
 function buildOverviewItems(detail: PortalNonprofitDetail) {
@@ -357,39 +574,32 @@ function formatSourceStatus(source: PortalNonprofitSourceSummary) {
   return source.status.replaceAll("_", " ");
 }
 
-export function summaryStatus(
-  row: PortalNonprofitSearchSummary,
-): StatusBadgeStatus {
+function reviewBadgeStatus(status: string): StatusBadgeStatus {
+  const normalized = status.toLowerCase();
   if (
-    row.active === false ||
-    row.irsStatus.toLowerCase().includes("inactive")
+    normalized === "complete" ||
+    normalized === "incomplete" ||
+    normalized === "stale" ||
+    normalized === "conflicting" ||
+    normalized === "review_required" ||
+    normalized === "source_unavailable"
   ) {
-    return "inactive";
+    return normalized;
   }
-
-  if (row.active === true || row.irsStatus.toLowerCase().includes("active")) {
-    return "verified";
-  }
-
-  return "pending";
+  return "not_recorded";
 }
 
-export function detailStatus(detail: PortalNonprofitDetail): StatusBadgeStatus {
-  if (detail.irsStatus.toLowerCase().includes("inactive")) {
-    return "inactive";
-  }
+function formatReviewStatus(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
-  if (
-    detail.riskIndicators.length > 0 ||
-    detail.filingParseStatus.toLowerCase() !== "parsed" ||
-    detail.recent990OnFile.toLowerCase() !== "true"
-  ) {
-    return "flagged";
+function formatCheckSources(check: PortalReviewCheck) {
+  if (!check.sourceReferences.length) {
+    return "Unknown source";
   }
-
-  if (detail.irsStatus.toLowerCase().includes("active")) {
-    return "verified";
-  }
-
-  return "pending";
+  return check.sourceReferences
+    .map((source) => source.providerName || source.sourceName)
+    .join(", ");
 }

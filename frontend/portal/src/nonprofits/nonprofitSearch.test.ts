@@ -39,6 +39,34 @@ describe("portal nonprofit search service", () => {
               ein: "12-3456789",
               name: "Helping Hands Foundation",
             },
+            review: {
+              contract_version: "1.0",
+              customer_decision: null,
+              evidence_review: {
+                status: "complete",
+                checks: [
+                  {
+                    authoritative_for_policy: true,
+                    category: "federal_tax_status",
+                    check_id: "irs_status",
+                    freshness_status: "unknown",
+                    label: "IRS exempt organization status",
+                    limitations: [],
+                    observed_value: "active",
+                    source_references: [{ source_name: "irs.eo_bmf" }],
+                    status: "confirmed",
+                  },
+                ],
+                issues: [],
+                source_coverage: {
+                  completed: ["irs_status"],
+                  not_checked: [],
+                  required: ["irs_status"],
+                  unavailable: [],
+                },
+              },
+              requirements_evaluation: null,
+            },
             overview: {
               entity_type: "public_charity",
               irs_status: "active",
@@ -86,6 +114,8 @@ describe("portal nonprofit search service", () => {
     expect(detail?.filingTaxYear).toBe("2024");
     expect(detail?.filingsCount).toBe(1);
     expect(detail?.modelSource).toBe("nonprofit_detail_snapshot");
+    expect(detail?.review?.evidenceReview.status).toBe("complete");
+    expect(detail?.review?.customerDecision).toBeNull();
     expect(detail?.appearsBecause).toEqual([
       "IRS records show a status of active.",
     ]);
