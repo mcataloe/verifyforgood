@@ -1,5 +1,5 @@
-﻿from infrastructure.verification.backend.shared.decision.engine import build_decision
-from infrastructure.verification.backend.shared.scoring import SCORING_MODEL_VERSION
+﻿from verification.backend.shared.decision.engine import build_decision
+from verification.backend.shared.scoring import SCORING_MODEL_VERSION
 
 
 def _base_inputs():

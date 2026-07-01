@@ -9,6 +9,7 @@ from verification.backend.shared.enrichments.external_signals import extract_ext
 from verification.backend.shared.evidence import build_evidence
 from verification.backend.shared.normalization import compare_names
 from verification.backend.shared.policy import evaluate_policy
+from verification.backend.shared.review import build_review
 from verification.backend.shared.scoring import assign_peer_group, calculate_v1_scores
 from verification.backend.shared.compliance_data.interpretation import interpret_jurisdiction_compliance
 from verification.backend.shared.organization_verification.organization_lookup import map_organization_record
@@ -157,6 +158,7 @@ def apply_verification_overlay(
     )
     payload["policy_evaluation"] = evaluate_policy(payload, policy_id)
     payload["final_recommendation"] = payload["policy_evaluation"]["final_recommendation"]
+    payload["review"] = build_review(payload, customer_policy_id=policy_id)
     return payload
 
 

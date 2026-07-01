@@ -144,7 +144,28 @@ def _load_module():
     sys.modules.pop("verification.backend.customer.api.runtime", None)
     sys.modules.pop("verification.backend.customer.api.runtime", None)
     sys.modules.pop("verification.backend.customer.api", None)
-    return importlib.import_module("verification.backend.customer.api.runtime")
+    module = importlib.import_module("verification.backend.customer.api.runtime")
+    module.organization_integration_settings_store = None
+    module.organization_integration_settings_service = OrganizationIntegrationSettingsService(
+        fallback_resolver=module._get_tenant_integration_settings_resolver(),
+        store=None,
+    )
+
+    real_get_nonprofit_query_client = module._get_nonprofit_query_client
+
+    def _get_test_nonprofit_query_client():
+        postgres_url = str(module.os.environ.get("PLATFORM_POSTGRES_URL") or "")
+        if module._env_bool("PLATFORM_POSTGRES_ENABLED") and postgres_url.startswith("sqlite"):
+            return real_get_nonprofit_query_client()
+        if module.athena_client is not None:
+            module.nonprofit_query_client = module.athena_client
+            return module.athena_client
+        return real_get_nonprofit_query_client()
+
+    module.nonprofit_query_client = None
+    module.nonprofit_service = None
+    module._get_nonprofit_query_client = _get_test_nonprofit_query_client
+    return module
 
 
 def _resolve_admin_tenant_context(module, *, plan="pro", role="admin", organization_id="org_1"):

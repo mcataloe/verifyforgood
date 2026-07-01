@@ -27,6 +27,7 @@ class MaterializedProfile:
     evidence: dict[str, Any] | None = None
     policy_evaluation: dict[str, Any] | None = None
     final_recommendation: str | None = None
+    review: dict[str, Any] | None = None
     state_compliance: dict[str, Any] | None = None
     external_signals: dict[str, Any] | None = None
 
@@ -63,6 +64,8 @@ class MaterializedProfile:
             item["policy_evaluation"] = self.policy_evaluation
         if self.final_recommendation is not None:
             item["final_recommendation"] = self.final_recommendation
+        if self.review is not None:
+            item["review"] = self.review
         if self.state_compliance is not None:
             item["state_compliance"] = self.state_compliance
         if self.external_signals is not None:

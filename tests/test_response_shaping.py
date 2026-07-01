@@ -97,7 +97,13 @@ def _load_module(monkeypatch, *, plan_code: str):
         )
     )
     module.athena_client = _query_stub()
+    module.nonprofit_query_client = module.athena_client
     module.enrichment_service = SimpleNamespace(enrich=lambda **kwargs: _enrichment_stub())
+    module.organization_integration_settings_store = None
+    module.organization_integration_settings_service = module.OrganizationIntegrationSettingsService(
+        fallback_resolver=module._get_tenant_integration_settings_resolver(),
+        store=None,
+    )
     module.usage_store = InMemoryUsageStore()
     return module, api_key
 
@@ -126,9 +132,12 @@ def test_free_plan_shapes_nonprofit_lookup_with_upgrade_hints(monkeypatch):
     payload = _data(response)
 
     assert response["statusCode"] == 200
+    assert "review" in payload
+    assert payload["review"]["evidence_review"]["checks"]
     assert "scores" not in payload
     assert "score_explanation" not in payload
     assert "state_compliance" not in payload
+    assert "scores" not in str(payload["review"])
     assert payload["upgrade_hints"]["risk_flags"] == "available_on_growth"
     assert payload["upgrade_hints"]["financial_trends"] == "available_on_growth"
 
@@ -164,6 +173,7 @@ def test_advisory_detail_route_returns_signal_based_payload(monkeypatch):
 
     assert response["statusCode"] == 200
     assert payload["organization"]["name"] == "Signal Org"
+    assert payload["review"]["contract_version"] == "1.0"
     assert "scores" not in payload
     assert "final_recommendation" not in payload
     assert "upgrade_hints" not in payload

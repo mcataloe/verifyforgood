@@ -94,6 +94,7 @@ from verification.backend.ingest.federal.form990.static_source_discovery import 
 from verification.backend.shared.normalization import EINValidationError, normalize_ein
 from verification.backend.shared.policy import evaluate_policy
 from verification.backend.shared.query import VerificationInput, apply_evaluation_overlay, get_nonprofit_filings, search_nonprofit_summaries, verify_nonprofit
+from verification.backend.shared.review import ensure_review
 from verification.backend.shared.query.ops_views import (
     get_ingest_run,
     get_ingest_run_filings,
@@ -2213,6 +2214,8 @@ def handle_api_event(event, context=None):
             status_code = 200 if payload is not None else 404
             if payload is None:
                 payload = {"message": "Nonprofit detail not found"}
+            elif status_code == 200:
+                ensure_review(payload)
             _record_nonprofit_access_audit_event(
                 event=event,
                 route_key=route_key,
@@ -2235,6 +2238,7 @@ def handle_api_event(event, context=None):
                         evaluation_context=evaluation_context,
                         ein=normalized_ein,
                     )
+                ensure_review(cached, customer_policy_id=verification_input.policy_id)
                 shaped = _shape_payload_for_response(cached, auth_context)
                 _record_nonprofit_access_audit_event(
                     event=event,
@@ -2268,6 +2272,7 @@ def handle_api_event(event, context=None):
                 evaluation_context=evaluation_context,
             )
         if status_code == 200 and method == "GET" and not evaluation_context.has_non_default_integrations():
+            ensure_review(payload, customer_policy_id=verification_input.policy_id)
             _materialize_profile(normalized_ein, payload)
             _persist_advisory_artifact(normalized_ein, payload)
         _record_nonprofit_access_audit_event(
@@ -3674,6 +3679,7 @@ def _verify_single_item(
                     evaluation_context=context,
                     ein=normalized_ein,
                 )
+            ensure_review(cached, customer_policy_id=policy_id)
             return cached
 
     verification_input = VerificationInput(
@@ -3692,6 +3698,7 @@ def _verify_single_item(
         raise ValueError(payload.get("message") or "Verification failed")
     payload["state_compliance"] = extract_state_compliance(payload.get("enrichment"))
     payload["external_signals"] = extract_external_signals(payload.get("enrichment"))
+    ensure_review(payload, customer_policy_id=policy_id)
     return payload
 
 
@@ -3741,6 +3748,7 @@ def _load_cached_profile(ein: str) -> dict | None:
         "evidence": item.get("evidence"),
         "policy_evaluation": item.get("policy_evaluation"),
         "final_recommendation": item.get("final_recommendation") or item.get("decision", {}).get("status"),
+        "review": item.get("review"),
         "state_compliance": item.get("state_compliance"),
         "external_signals": item.get("external_signals"),
         "integration_evaluation": item.get("integration_evaluation"),

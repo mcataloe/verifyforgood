@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from verification.backend.shared.normalization import recent_990_on_file
+from verification.backend.shared.review import build_review
 
 from .sqlalchemy_repository import (
     NonprofitAdvisoryArtifactRecord,
@@ -146,6 +147,8 @@ def _snapshot_is_fresh(
         return False
     if snapshot.renderer_version != DETAIL_SNAPSHOT_RENDERER_VERSION:
         return False
+    if "review" not in dict(snapshot.payload_json):
+        return False
     expires_at = _parse_iso_timestamp(snapshot.expires_at)
     if expires_at is not None and expires_at <= datetime.now(timezone.utc):
         return False
@@ -164,7 +167,7 @@ def _build_detail_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     risk_indicators = _build_risk_indicators(nonprofit, latest_filing, filings, compliance)
     data_gaps = _build_data_gaps(nonprofit, latest_filing, filings, sources, compliance)
 
-    return {
+    payload = {
         "organization": {
             "ein": nonprofit["ein"],
             "name": nonprofit["name"],
@@ -193,6 +196,8 @@ def _build_detail_payload(inputs: dict[str, Any]) -> dict[str, Any]:
             "data_gaps": data_gaps,
         },
     }
+    payload["review"] = build_review(payload)
+    return payload
 
 
 def _build_appears_because(
@@ -328,6 +333,7 @@ def _sanitize_verification_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "evidence": evidence,
         "enrichment": enrichment,
         "integration_evaluation": integration_evaluation,
+        "review": payload.get("review"),
         "state_compliance": state_compliance,
         "external_signals": external_signals,
         "captured_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
