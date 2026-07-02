@@ -20,10 +20,14 @@ import {
   usePortalNonprofitSearch,
   type PortalNonprofitSearchController,
 } from "./usePortalNonprofitSearch";
-import type { PortalNonprofitSearchSummary } from "./nonprofitSearch";
+import {
+  normalizeEinQuery,
+  type PortalNonprofitSearchSummary,
+} from "./nonprofitSearch";
 
 interface NonprofitSearchPanelProps {
   controller?: PortalNonprofitSearchController;
+  onOpenDetail?: (ein: string) => void;
 }
 
 const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
@@ -50,7 +54,7 @@ const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
   },
   {
     key: "status",
-    header: "Status",
+    header: "Source status",
     render: (row) => <StatusBadge status={summaryStatus(row)} />,
     sortValue: (row) => summaryStatus(row),
     sortable: true,
@@ -60,12 +64,12 @@ const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
 const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] = [
   {
     key: "status",
-    label: "Status",
+    label: "Source status",
     options: [
-      { label: "Verified", value: "verified" },
-      { label: "Pending", value: "pending" },
-      { label: "Flagged", value: "flagged" },
-      { label: "Inactive", value: "inactive" },
+      { label: "Active source record", value: "verified" },
+      { label: "Status unavailable", value: "pending" },
+      { label: "Evidence needs review", value: "flagged" },
+      { label: "Inactive source record", value: "inactive" },
     ],
     getValue: (row) => summaryStatus(row),
   },
@@ -73,6 +77,7 @@ const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
 
 export function NonprofitSearchPanel({
   controller,
+  onOpenDetail,
 }: NonprofitSearchPanelProps) {
   const organization = usePortalOrganization();
   const defaultController = usePortalNonprofitSearch();
@@ -82,34 +87,29 @@ export function NonprofitSearchPanel({
     new Set(search.results.map((row) => row.state).filter(Boolean)),
   )
     .sort((left, right) => left.localeCompare(right))
-    .map((value) => ({
-      label: value,
-      value,
-    }));
-  const filterDefinitions: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] =
-    [
-      ...resultFilters,
-      ...(stateFilters.length
-        ? [
-            {
-              key: "state",
-              label: "State",
-              options: stateFilters,
-              getValue: (row: PortalNonprofitSearchSummary) => row.state,
-            },
-          ]
-        : []),
-    ];
+    .map((value) => ({ label: value, value }));
+  const filterDefinitions: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] = [
+    ...resultFilters,
+    ...(stateFilters.length
+      ? [
+          {
+            key: "state",
+            label: "State",
+            options: stateFilters,
+            getValue: (row: PortalNonprofitSearchSummary) => row.state,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <Grid className="portal-page-grid">
       <Panel
-        title="Nonprofit verification search"
-        subtitle="Search by EIN for an exact lookup or by organization name for a tenant-aware nonprofit review flow."
+        title="Search nonprofit records"
+        subtitle="Use a nine-digit EIN for an exact profile or an organization name to review candidates."
       >
         <p>
-          This is the portal&apos;s core product interaction. Requests run
-          through the organization-scoped portal API client for{" "}
+          Searches use the current organization scope for{" "}
           <strong>{organization.activeOrganization.organization_name}</strong>.
         </p>
 
@@ -117,96 +117,73 @@ export function NonprofitSearchPanel({
           className="portal-form"
           onSubmit={(event) => {
             event.preventDefault();
+            const normalizedEin = normalizeEinQuery(query);
+            if (normalizedEin && onOpenDetail) {
+              onOpenDetail(normalizedEin);
+              return;
+            }
             void search.runSearch(query);
           }}
         >
           <label className="portal-form__field">
-            <span>Search query</span>
+            <span>Organization name or EIN</span>
             <input
-              aria-label="Search query"
+              aria-label="Organization name or EIN"
               className="portal-form__input"
               name="query"
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="12-3456789 or Helping Hands Foundation"
               type="text"
               value={query}
             />
           </label>
-
           <div className="portal-form__actions">
             <button
               className="portal-shell__action portal-shell__action--primary"
               disabled={search.isLoading || !query.trim()}
               type="submit"
             >
-              {search.isLoading ? "Searching..." : "Search nonprofit"}
+              {search.isLoading ? "Searching..." : "Search organizations"}
             </button>
           </div>
         </form>
-
-        <dl className="portal-shell__details">
-          <div>
-            <dt>Search mode</dt>
-            <dd>{search.searchMode ?? "Not run yet"}</dd>
-          </div>
-          <div>
-            <dt>Last query</dt>
-            <dd>{search.lastQuery || "None"}</dd>
-          </div>
-          <div>
-            <dt>Workspace</dt>
-            <dd>{organization.activeOrganization.workspace_id}</dd>
-          </div>
-          <div>
-            <dt>Loaded results</dt>
-            <dd>{String(search.results.length)}</dd>
-          </div>
-        </dl>
       </Panel>
 
       {search.error ? (
-        <ErrorState
-          description={search.error}
-          title="Nonprofit lookup unavailable"
-        />
+        <ErrorState description={search.error} title="Search unavailable" />
       ) : null}
-
       {search.isLoading ? (
         <LoadingSkeleton
-          description="Waiting on the backend nonprofit endpoints."
-          title="Loading nonprofit results"
+          description="Waiting for nonprofit source records."
+          title="Loading results"
           variant="table"
         />
       ) : null}
-
       {search.hasSearched &&
       !search.isLoading &&
       !search.error &&
       search.searchMode === "ein" &&
       !search.detail ? (
         <EmptyState
-          description="Try another EIN or switch to a name-based search if you are still narrowing the candidate organization."
-          title="No nonprofit found"
+          description="Check the EIN or search by organization name."
+          title="No nonprofit record found"
         />
       ) : null}
-
       {search.hasSearched &&
       !search.isLoading &&
       !search.error &&
       search.searchMode === "name" &&
       search.results.length === 0 ? (
         <EmptyState
-          description="Try broadening the organization name or run an exact EIN lookup for a more deterministic result."
-          title="No nonprofit matches"
+          description="Broaden the organization name or use an exact EIN."
+          title="No matching records"
         />
       ) : null}
 
       {search.results.length > 0 ? (
         <Panel
           title="Search results"
-          subtitle="Refine the result set and open an entity detail view from the shared review layout."
+          subtitle="Open a result on its own shareable organization route."
         >
           <DataTable
             columns={[
@@ -218,11 +195,12 @@ export function NonprofitSearchPanel({
                   <button
                     className="portal-shell__action"
                     onClick={() => {
-                      void search.viewResultDetail(row.ein);
+                      if (onOpenDetail) onOpenDetail(row.ein);
+                      else void search.viewResultDetail(row.ein);
                     }}
                     type="button"
                   >
-                    View details
+                    Open profile
                   </button>
                 ),
               },
@@ -237,14 +215,11 @@ export function NonprofitSearchPanel({
           {search.hasMoreResults ? (
             <Group justify="space-between" mt="md" wrap="wrap">
               <Text c="dimmed" fz="sm">
-                More backend search results are available for this organization
-                query.
+                More matching source records are available.
               </Text>
               <Button
                 loading={search.isLoadingMore}
-                onClick={() => {
-                  void search.loadMoreResults();
-                }}
+                onClick={() => void search.loadMoreResults()}
                 variant="light"
               >
                 Load more results
@@ -254,7 +229,7 @@ export function NonprofitSearchPanel({
         </Panel>
       ) : null}
 
-      {search.detail ? (
+      {!onOpenDetail && search.detail ? (
         <PortalNonprofitDetailView detail={search.detail} />
       ) : null}
     </Grid>
