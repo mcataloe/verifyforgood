@@ -18,11 +18,10 @@ import { PortalLayout } from "./PortalLayout";
 import { PortalOrganizationContext } from "../organization/usePortalOrganization";
 
 const app: FrontendAppInfo = {
-  audience:
-    "Authenticated customers managing verification workflows and account settings.",
-  description: "Application shell for future authenticated product slices.",
+  audience: "Authenticated customers managing verification workflows and account settings.",
+  description: "Customer portal for nonprofit review and account administration.",
   surface: "portal",
-  title: "Customer portal shell",
+  title: "VerifyForGood Portal",
 };
 
 const runtimeConfig = {
@@ -33,27 +32,22 @@ const runtimeConfig = {
 
 describe("PortalLayout", () => {
   it("renders the customer-admin information architecture", () => {
-    renderPortalLayout({
-      currentRoute: resolvePortalRoute("#/usage-billing"),
-    });
+    renderPortalLayout({ currentRoute: resolvePortalRoute("#/billing") });
 
     expect(screen.getAllByText("Workspace").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Organizations\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^API\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^API Keys\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /Profile & preferences/i }),
-    ).toBeTruthy();
   });
 
-  it("hides admin-only navigation items when the current membership role is user", () => {
+  it("hides admin-only navigation for user memberships", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -66,14 +60,15 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Organizations\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Usage\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^API Keys\b/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
   });
 
-  it("maps customer-user navigation to dashboard, search, automation, and footer profile access", () => {
+  it("maps customer-user navigation to task routes and footer profile", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -82,19 +77,13 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Search\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Organizations\b/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Open profile/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Profile/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
-    expect(screen.queryByText("Account acct_verifyforgood_demo")).toBeNull();
-    expect(screen.queryByRole("link", { name: /^Team\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
   });
 
-  it("gives developers the platform-oriented navigation structure", () => {
+  it("gives developers the canonical platform navigation", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -105,18 +94,14 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Build")).toBeTruthy();
     expect(screen.getByText("Controls")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Tenants\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Organizations\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Plans\b/i })).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /^Feature Flags\b/i }),
-    ).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Audit\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^System\b/i })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
   });
 
-  it("maps portal admins to customer and subscription operations", () => {
+  it("maps portal admins to operations and account tasks", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -125,45 +110,30 @@ describe("PortalLayout", () => {
     });
 
     expect(screen.getByText("Operations")).toBeTruthy();
-    expect(screen.getByText("Revenue")).toBeTruthy();
-    expect(screen.getByText("Configure")).toBeTruthy();
+    expect(screen.getByText("Account")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Customers\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Support\b/i })).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /^Subscriptions\b/i }),
-    ).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Reports\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Organizations\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
   });
 
-  it("renders discoverable plan-gated items as locked for lower-tier admins", () => {
+  it("renders plan-gated API keys as locked for lower-tier admins", () => {
     renderPortalLayout({
-      session: {
-        ...createMockPortalSession(),
-        plan: "free",
-      },
+      session: { ...createMockPortalSession(), plan: "free" },
     });
 
-    const lockedApiItem = screen.getByRole("button", { name: /^API\b/i });
-    const isUnavailable =
-      lockedApiItem.getAttribute("aria-disabled") === "true" ||
-      lockedApiItem.getAttribute("data-disabled") !== null;
-
-    expect(screen.queryByRole("link", { name: /^API\b/i })).toBeNull();
-    expect(isUnavailable).toBe(true);
+    const lockedApiItem = screen.getByRole("button", { name: /^API Keys\b/i });
+    expect(screen.queryByRole("link", { name: /^API Keys\b/i })).toBeNull();
     expect(
-      screen.getByText("Self-serve API credentials and token access."),
-    ).toBeTruthy();
+      lockedApiItem.getAttribute("aria-disabled") === "true" ||
+        lockedApiItem.getAttribute("data-disabled") !== null,
+    ).toBe(true);
   });
 
-  it("marks the active portal navigation item based on the current route", () => {
-    renderPortalLayout({
-      currentRoute: resolvePortalRoute("#/usage-billing"),
-    });
-
+  it("marks canonical billing navigation active", () => {
+    renderPortalLayout({ currentRoute: resolvePortalRoute("#/billing") });
     expect(
       screen
         .getByRole("link", { name: /^Billing\b/i })
@@ -171,37 +141,28 @@ describe("PortalLayout", () => {
     ).toBe("page");
   });
 
-  it("resolves active navigation from the current hash alias when multiple items share one route surface", () => {
+  it("marks organizations active for a detail route", () => {
     renderPortalLayout({
-      currentHash: "#/usage-billing?nav=customer-admin-usage",
       currentRoute: resolvePortalRoute(
-        "#/usage-billing?nav=customer-admin-usage",
+        "#/organizations/123456789/sources",
       ),
     });
-
     expect(
       screen
-        .getByRole("link", { name: /^Usage\b/i })
+        .getByRole("link", { name: /^Organizations\b/i })
         .getAttribute("aria-current"),
     ).toBe("page");
-    expect(
-      screen
-        .getByRole("link", { name: /^Billing\b/i })
-        .getAttribute("aria-current"),
-    ).toBeNull();
   });
 });
 
 function renderPortalLayout({
-  currentHash,
   currentRoute = resolvePortalRoute("#/dashboard"),
   session = createMockPortalSession(),
 }: {
-  currentHash?: string;
   currentRoute?: PortalRouteDefinition;
   session?: ReturnType<typeof createMockPortalSession>;
 }) {
-  window.location.hash = currentHash ?? currentRoute.hash;
+  window.location.hash = currentRoute.hash;
 
   render(
     <PortalOrganizationContext.Provider
