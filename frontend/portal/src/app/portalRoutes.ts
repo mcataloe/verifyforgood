@@ -1,13 +1,34 @@
 import { useEffect, useState } from "react";
+import {
+  dashboardPortalRoute,
+  legacyPortalAliases,
+  organizationOnboardingPortalRoute,
+  organizationsPortalRoute,
+  portalProtectedRoutes,
+  portalPublicRoutes,
+} from "./portalRouteCatalog";
+
+export type OrganizationDetailSection =
+  | "overview"
+  | "filings"
+  | "compliance"
+  | "sources"
+  | "activity";
 
 export type PortalProtectedRouteKey =
   | "onboarding-organization"
   | "dashboard"
-  | "workspace"
-  | "api-access"
-  | "usage-billing"
-  | "settings";
-
+  | "organizations"
+  | "organization-detail"
+  | "team"
+  | "automation-general"
+  | "automation-api-key"
+  | "automation-oauth"
+  | "billing"
+  | "usage"
+  | "settings-profile"
+  | "settings-organization"
+  | "not-found";
 export type PortalPublicRouteKey = "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
@@ -17,194 +38,143 @@ export interface PortalRouteDefinition {
   description: string;
   hash: string;
   label: string;
+  params?: { ein?: string };
+  section?: OrganizationDetailSection;
 }
 
-const PORTAL_RETURN_TO_STORAGE_KEY = "verifyforgood.portal.return-to";
-
-export const portalPublicRoutes: PortalRouteDefinition[] = [
-  {
-    access: "public",
-    key: "sign-in",
-    label: "Sign In",
-    hash: "#/sign-in",
-    description:
-      "Public auth boundary for the portal shell while production identity integration remains deferred.",
-  },
-  {
-    access: "public",
-    key: "register",
-    label: "Register",
-    hash: "#/register",
-    description:
-      "Public registration boundary for creating a new portal account before onboarding is complete.",
-  },
-];
-
-export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
-  access: "protected",
-  key: "onboarding-organization",
-  label: "Create Organization",
-  hash: "#/onboarding/organization",
-  description:
-    "Protected onboarding route for creating the first organization context.",
-};
-
-export const portalProtectedRoutes: PortalRouteDefinition[] = [
+export {
+  dashboardPortalRoute,
   organizationOnboardingPortalRoute,
-  {
-    access: "protected",
-    key: "dashboard",
-    label: "Dashboard",
-    hash: "#/dashboard",
-    description:
-      "High-level authenticated entry point for future product signals and recent activity.",
-  },
-  {
-    access: "protected",
-    key: "workspace",
-    label: "Workspace",
-    hash: "#/workspace",
-    description:
-      "Organization and workspace context for account, tenant, and membership-aware slices.",
-  },
-  {
-    access: "protected",
-    key: "api-access",
-    label: "API Access",
-    hash: "#/api-access",
-    description:
-      "Credential, token, and API-usage entry point without assuming self-serve issuance yet.",
-  },
-  {
-    access: "protected",
-    key: "usage-billing",
-    label: "Usage & Billing",
-    hash: "#/usage-billing",
-    description:
-      "Subscription, backend-managed billing actions, and usage-aware billing workflows.",
-  },
-  {
-    access: "protected",
-    key: "settings",
-    label: "Settings",
-    hash: "#/settings",
-    description:
-      "Organization-level settings and future integrations configuration.",
-  },
-];
-
-export const portalRoutes: PortalRouteDefinition[] = [
-  ...portalPublicRoutes,
-  ...portalProtectedRoutes,
-];
-
+  organizationsPortalRoute,
+  portalProtectedRoutes,
+  portalPublicRoutes,
+};
+export const portalRoutes = [...portalPublicRoutes, ...portalProtectedRoutes];
 export const signInPortalRoute = portalPublicRoutes[0];
 export const registerPortalRoute = portalPublicRoutes[1];
-export const defaultProtectedPortalRoute = portalProtectedRoutes[0];
+export const defaultProtectedPortalRoute = dashboardPortalRoute;
 
-export function resolvePortalRoute(hash: string): PortalRouteDefinition {
-  const candidate = getPortalHashPath(hash) || defaultProtectedPortalRoute.hash;
-  const resolved =
-    portalRoutes.find((route) => route.hash === candidate) ??
-    defaultProtectedPortalRoute;
+const returnToKey = "verifyforgood.portal.return-to";
+const organizationPattern =
+  /^#\/organizations\/(\d{9})(?:\/(overview|filings|compliance|sources|activity))?$/;
 
-  // Return a fresh object so hash-only query changes like ?nav=... still
-  // trigger React state updates even when the base route key stays the same.
-  return { ...resolved };
+export function buildOrganizationPortalHash(
+  ein: string,
+  section: OrganizationDetailSection = "overview",
+) {
+  const normalizedEin = String(ein || "").replaceAll(/\D/g, "");
+  return normalizedEin.length === 9
+    ? `#/organizations/${normalizedEin}/${section}`
+    : organizationsPortalRoute.hash;
 }
 
-export function usePortalRoute(): PortalRouteDefinition {
-  const [route, setRoute] = useState<PortalRouteDefinition>(() =>
-    resolvePortalRoute(window.location.hash),
-  );
+export function resolvePortalRoute(hash: string): PortalRouteDefinition {
+  const candidate = String(hash || "").trim();
+  if (!candidate) return { ...defaultProtectedPortalRoute };
+
+  const canonical = legacyPortalAliases[candidate] ?? candidate;
+  const path = getPortalHashPath(canonical);
+  const staticRoute = portalRoutes.find((route) => route.hash === path);
+  if (staticRoute) return { ...staticRoute };
+
+  const match = path.match(organizationPattern);
+  if (match) {
+    const ein = match[1];
+    const section = (match[2] || "overview") as OrganizationDetailSection;
+    return {
+      access: "protected",
+      key: "organization-detail",
+      label: sectionLabel(section),
+      description: "Inspect source-backed nonprofit details.",
+      hash: buildOrganizationPortalHash(ein, section),
+      params: { ein },
+      section,
+    };
+  }
+
+  return {
+    access: "protected",
+    key: "not-found",
+    label: "Page Not Found",
+    description: "The requested portal destination does not exist.",
+    hash: path,
+  };
+}
+
+export function usePortalRoute() {
+  const [route, setRoute] = useState(() => resolvePortalRoute(window.location.hash));
 
   useEffect(() => {
-    if (!window.location.hash) {
-      window.location.hash = defaultProtectedPortalRoute.hash;
-    }
-
-    const handleHashChange = () => {
-      setRoute(resolvePortalRoute(window.location.hash));
+    const applyRoute = () => {
+      const currentHash = window.location.hash;
+      const resolved = resolvePortalRoute(currentHash);
+      setRoute(resolved);
+      if (!currentHash || (resolved.key !== "not-found" && currentHash !== resolved.hash)) {
+        window.history.replaceState(null, "", resolved.hash);
+      }
     };
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    applyRoute();
+    window.addEventListener("hashchange", applyRoute);
+    return () => window.removeEventListener("hashchange", applyRoute);
   }, []);
 
   return route;
 }
 
-export function consumePortalReturnTo(): string {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return defaultProtectedPortalRoute.hash;
-  }
-
-  const rememberedRoute = normalizePortalHash(
-    storage.getItem(PORTAL_RETURN_TO_STORAGE_KEY) || "",
-  );
-  storage.removeItem(PORTAL_RETURN_TO_STORAGE_KEY);
-  return rememberedRoute || defaultProtectedPortalRoute.hash;
+export function consumePortalReturnTo() {
+  const storage = portalSessionStorage();
+  if (!storage) return defaultProtectedPortalRoute.hash;
+  const remembered = normalizePortalHash(storage.getItem(returnToKey) || "");
+  storage.removeItem(returnToKey);
+  return remembered || defaultProtectedPortalRoute.hash;
 }
 
-export function peekPortalReturnTo(): string {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return defaultProtectedPortalRoute.hash;
-  }
-
-  return (
-    normalizePortalHash(storage.getItem(PORTAL_RETURN_TO_STORAGE_KEY) || "") ||
-    defaultProtectedPortalRoute.hash
-  );
+export function peekPortalReturnTo() {
+  const storage = portalSessionStorage();
+  return storage
+    ? normalizePortalHash(storage.getItem(returnToKey) || "") ||
+        defaultProtectedPortalRoute.hash
+    : defaultProtectedPortalRoute.hash;
 }
 
 export function rememberPortalReturnTo(hash: string) {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return;
-  }
-
-  const normalizedHash = normalizePortalHash(hash);
+  const storage = portalSessionStorage();
+  const normalized = normalizePortalHash(hash);
   if (
-    !normalizedHash ||
-    portalPublicRoutes.some((route) => route.hash === getPortalHashPath(normalizedHash))
+    storage &&
+    normalized &&
+    !portalPublicRoutes.some((route) => route.hash === normalized)
   ) {
-    return;
+    storage.setItem(returnToKey, normalized);
   }
-
-  storage.setItem(PORTAL_RETURN_TO_STORAGE_KEY, normalizedHash);
 }
 
 export function navigateToPortalRoute(hash: string) {
-  if (window.location.hash === hash) {
-    return;
-  }
-
-  window.location.hash = hash;
+  const resolved = resolvePortalRoute(hash);
+  const destination = resolved.key === "not-found" ? hash : resolved.hash;
+  if (window.location.hash !== destination) window.location.hash = destination;
 }
 
-export function getPortalHashPath(hash: string): string {
-  const candidate = String(hash || "").trim();
-  const [routeHash] = candidate.split("?");
-  return routeHash || "";
+export function getPortalHashPath(hash: string) {
+  return String(hash || "").trim().split("?")[0] || "";
 }
 
-function normalizePortalHash(hash: string): string {
-  const candidate = String(hash || "").trim();
-  const routeHash = getPortalHashPath(candidate);
-
-  if (!routeHash || !portalRoutes.some((route) => route.hash === routeHash)) {
-    return "";
-  }
-
-  return candidate;
+function normalizePortalHash(hash: string) {
+  const resolved = resolvePortalRoute(hash);
+  return resolved.key === "not-found" ? "" : resolved.hash;
 }
 
-function resolvePortalSessionStorage(): Storage | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
+function sectionLabel(section: OrganizationDetailSection) {
+  const labels: Record<OrganizationDetailSection, string> = {
+    overview: "Organization Overview",
+    filings: "Organization Filings",
+    compliance: "Organization Compliance Evidence",
+    sources: "Organization Sources",
+    activity: "Organization Activity",
+  };
+  return labels[section];
+}
 
-  return window.sessionStorage;
+function portalSessionStorage() {
+  return typeof window === "undefined" ? null : window.sessionStorage;
 }
