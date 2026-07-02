@@ -34,7 +34,7 @@ export function OrganizationDetailPage({
         <LoadingSkeleton
           description="Loading the selected nonprofit record and filing context."
           title="Loading organization profile"
-          variant="detail"
+          variant="card"
         />
       ) : null}
       {search.error ? (
