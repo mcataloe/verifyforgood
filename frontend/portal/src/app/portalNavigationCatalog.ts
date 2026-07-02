@@ -3,7 +3,9 @@ import type { VerifyForGoodNavigationSection } from "@charity-status/shared-ui";
 import type { PortalNavigationAudience } from "./portalNavigation";
 import type { PortalPageKey, PortalRouteDefinition } from "./portalRoutes";
 
-type RouteMap = Map<PortalRouteDefinition["page"], PortalRouteDefinition>;
+type RouteMap = {
+  get(page: PortalPageKey): PortalRouteDefinition | undefined;
+};
 
 function item(
   routes: RouteMap,
