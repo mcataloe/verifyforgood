@@ -18,7 +18,6 @@ export type PortalNavigationAudience =
   | "portal_admin"
   | "customer_admin"
   | "customer_user";
-
 export type CustomerUserPortalPane =
   | "dashboard"
   | "search-ein"
@@ -27,7 +26,6 @@ export type CustomerUserPortalPane =
   | "automation-api"
   | "automation-oauth"
   | "profile";
-
 export type CustomerAdminPortalPane =
   | "home"
   | "team"
@@ -41,7 +39,7 @@ export function buildPortalNavigationSections(
   audience: PortalNavigationAudience,
 ): VerifyForGoodNavigationSection[] {
   return buildAudienceNavigationSections(
-    new Map(routes.map((route) => [route.key, route] as const)),
+    new Map(routes.map((route) => [route.page, route] as const)),
     audience,
   );
 }
@@ -87,7 +85,7 @@ export function resolveCustomerUserPortalPane(params: {
   currentHash: string;
   currentRoute: PortalRouteDefinition;
 }): CustomerUserPortalPane {
-  switch (params.currentRoute.key) {
+  switch (params.currentRoute.page) {
     case "organizations":
     case "organization-detail":
       return "search-ein";
@@ -108,7 +106,7 @@ export function resolveCustomerAdminPortalPane(params: {
   currentHash: string;
   currentRoute: PortalRouteDefinition;
 }): CustomerAdminPortalPane {
-  switch (params.currentRoute.key) {
+  switch (params.currentRoute.page) {
     case "team":
       return "team";
     case "billing":
@@ -131,11 +129,11 @@ export function resolvePortalProfileNavigationTarget(params: {
   audience: PortalNavigationAudience;
   routes: readonly PortalRouteDefinition[];
 }): { href: string; label: string } | undefined {
-  const routeKey =
+  const page =
     params.audience === "customer_user"
       ? "settings-profile"
       : "settings-organization";
-  const route = params.routes.find((candidate) => candidate.key === routeKey);
+  const route = params.routes.find((candidate) => candidate.page === page);
   return route ? { href: route.hash, label: route.label } : undefined;
 }
 
@@ -150,7 +148,7 @@ export function resolveActivePortalNavigationKey(params: {
   );
   if (exact) return exact.key;
 
-  if (params.currentRoute.key === "organization-detail") {
+  if (params.currentRoute.page === "organization-detail") {
     const organizationItem = findNavigationItem(
       params.navigationSections,
       (item) =>
@@ -161,8 +159,7 @@ export function resolveActivePortalNavigationKey(params: {
     );
     if (organizationItem) return organizationItem.key;
   }
-
-  return params.currentRoute.key;
+  return params.currentRoute.page;
 }
 
 function findNavigationItem(
