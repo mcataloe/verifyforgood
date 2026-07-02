@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildOrganizationPortalHash,
   consumePortalReturnTo,
   defaultProtectedPortalRoute,
   organizationOnboardingPortalRoute,
@@ -10,55 +11,72 @@ import {
 } from "./portalRoutes";
 
 describe("portal route resolution", () => {
-  it("preserves canonical protected hashes", () => {
+  it("resolves canonical task routes", () => {
     expect(resolvePortalRoute("#/dashboard")).toMatchObject({
       hash: "#/dashboard",
       key: "dashboard",
+      page: "dashboard",
     });
-    expect(resolvePortalRoute("#/usage-billing")).toMatchObject({
-      hash: "#/usage-billing",
+    expect(resolvePortalRoute("#/billing")).toMatchObject({
+      hash: "#/billing",
       key: "usage-billing",
+      page: "billing",
     });
-    expect(resolvePortalRoute("#/onboarding/organization")).toMatchObject({
-      hash: "#/onboarding/organization",
-      key: "onboarding-organization",
+    expect(resolvePortalRoute("#/organizations")).toMatchObject({
+      hash: "#/organizations",
+      key: "workspace",
+      page: "organizations",
     });
   });
 
-  it("ignores query parameters when resolving routes", () => {
-    expect(resolvePortalRoute("#/usage-billing?tab=invoices")).toMatchObject({
-      hash: "#/usage-billing",
-      key: "usage-billing",
+  it("resolves shareable organization detail sections", () => {
+    expect(resolvePortalRoute("#/organizations/123456789/sources")).toMatchObject({
+      hash: "#/organizations/123456789/sources",
+      key: "workspace",
+      page: "organization-detail",
+      params: { ein: "123456789" },
+      section: "sources",
     });
-  });
-
-  it("falls back to the default protected route for unknown or empty hashes", () => {
-    expect(resolvePortalRoute("")).toStrictEqual(defaultProtectedPortalRoute);
-    expect(resolvePortalRoute("#/missing")).toStrictEqual(
-      defaultProtectedPortalRoute,
+    expect(buildOrganizationPortalHash("12-3456789", "filings")).toBe(
+      "#/organizations/123456789/filings",
     );
   });
 
-  it("continues resolving the public sign-in boundary directly", () => {
+  it("normalizes legacy route aliases", () => {
+    expect(
+      resolvePortalRoute("#/usage-billing?nav=customer-admin-usage"),
+    ).toMatchObject({ hash: "#/usage", page: "usage" });
+    expect(
+      resolvePortalRoute("#/workspace?nav=customer-admin-team"),
+    ).toMatchObject({ hash: "#/team", page: "team" });
+    expect(resolvePortalRoute("#/api-access")).toMatchObject({
+      hash: "#/automation",
+      page: "automation-general",
+    });
+  });
+
+  it("returns an honest not-found route for unknown hashes", () => {
+    expect(resolvePortalRoute("#/missing")).toMatchObject({
+      hash: "#/missing",
+      page: "not-found",
+    });
+    expect(resolvePortalRoute("")).toStrictEqual(defaultProtectedPortalRoute);
+  });
+
+  it("continues resolving public routes directly", () => {
     expect(resolvePortalRoute("#/sign-in")).toStrictEqual(signInPortalRoute);
     expect(resolvePortalRoute("#/register")).toStrictEqual(registerPortalRoute);
   });
 
-  it("preserves navigation query aliases in remembered return routes", () => {
+  it("stores canonical return routes instead of query aliases", () => {
     window.sessionStorage.clear();
-
     rememberPortalReturnTo("#/usage-billing?nav=customer-admin-usage");
-
-    expect(consumePortalReturnTo()).toBe(
-      "#/usage-billing?nav=customer-admin-usage",
-    );
+    expect(consumePortalReturnTo()).toBe("#/usage");
   });
 
   it("keeps onboarding routes as protected return targets", () => {
     window.sessionStorage.clear();
-
     rememberPortalReturnTo(organizationOnboardingPortalRoute.hash);
-
     expect(consumePortalReturnTo()).toBe(
       organizationOnboardingPortalRoute.hash,
     );
@@ -66,9 +84,7 @@ describe("portal route resolution", () => {
 
   it("does not store public auth routes as protected return targets", () => {
     window.sessionStorage.clear();
-
     rememberPortalReturnTo("#/register");
-
     expect(consumePortalReturnTo()).toBe(defaultProtectedPortalRoute.hash);
   });
 });
