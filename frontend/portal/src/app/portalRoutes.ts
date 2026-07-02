@@ -84,7 +84,12 @@ export function buildOrganizationPortalHash(
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
   const candidate = String(hash || "").trim();
   if (!candidate) return { ...defaultProtectedPortalRoute };
-  const canonical = legacyPortalAliases[candidate] ?? candidate;
+
+  const candidatePath = getPortalHashPath(candidate);
+  const canonical =
+    legacyPortalAliases[candidate] ??
+    legacyPortalAliases[candidatePath] ??
+    candidate;
   const path = getPortalHashPath(canonical);
   const staticRoute = portalRoutes.find((route) => route.hash === path);
   if (staticRoute) return { ...staticRoute };
