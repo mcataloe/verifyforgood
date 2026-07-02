@@ -14,8 +14,7 @@ export type OrganizationDetailSection =
   | "compliance"
   | "sources"
   | "activity";
-
-export type PortalProtectedRouteKey =
+export type PortalPageKey =
   | "onboarding-organization"
   | "dashboard"
   | "organizations"
@@ -28,13 +27,23 @@ export type PortalProtectedRouteKey =
   | "usage"
   | "settings-profile"
   | "settings-organization"
-  | "not-found";
+  | "not-found"
+  | "register"
+  | "sign-in";
+export type PortalProtectedRouteKey =
+  | "onboarding-organization"
+  | "dashboard"
+  | "workspace"
+  | "api-access"
+  | "usage-billing"
+  | "settings";
 export type PortalPublicRouteKey = "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
 export interface PortalRouteDefinition {
   access: "protected" | "public";
   key: PortalRouteKey;
+  page: PortalPageKey;
   description: string;
   hash: string;
   label: string;
@@ -71,7 +80,6 @@ export function buildOrganizationPortalHash(
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
   const candidate = String(hash || "").trim();
   if (!candidate) return { ...defaultProtectedPortalRoute };
-
   const canonical = legacyPortalAliases[candidate] ?? candidate;
   const path = getPortalHashPath(canonical);
   const staticRoute = portalRoutes.find((route) => route.hash === path);
@@ -83,7 +91,8 @@ export function resolvePortalRoute(hash: string): PortalRouteDefinition {
     const section = (match[2] || "overview") as OrganizationDetailSection;
     return {
       access: "protected",
-      key: "organization-detail",
+      key: "workspace",
+      page: "organization-detail",
       label: sectionLabel(section),
       description: "Inspect source-backed nonprofit details.",
       hash: buildOrganizationPortalHash(ein, section),
@@ -94,7 +103,8 @@ export function resolvePortalRoute(hash: string): PortalRouteDefinition {
 
   return {
     access: "protected",
-    key: "not-found",
+    key: "dashboard",
+    page: "not-found",
     label: "Page Not Found",
     description: "The requested portal destination does not exist.",
     hash: path,
@@ -103,13 +113,12 @@ export function resolvePortalRoute(hash: string): PortalRouteDefinition {
 
 export function usePortalRoute() {
   const [route, setRoute] = useState(() => resolvePortalRoute(window.location.hash));
-
   useEffect(() => {
     const applyRoute = () => {
       const currentHash = window.location.hash;
       const resolved = resolvePortalRoute(currentHash);
       setRoute(resolved);
-      if (!currentHash || (resolved.key !== "not-found" && currentHash !== resolved.hash)) {
+      if (!currentHash || (resolved.page !== "not-found" && currentHash !== resolved.hash)) {
         window.history.replaceState(null, "", resolved.hash);
       }
     };
@@ -117,7 +126,6 @@ export function usePortalRoute() {
     window.addEventListener("hashchange", applyRoute);
     return () => window.removeEventListener("hashchange", applyRoute);
   }, []);
-
   return route;
 }
 
@@ -151,7 +159,7 @@ export function rememberPortalReturnTo(hash: string) {
 
 export function navigateToPortalRoute(hash: string) {
   const resolved = resolvePortalRoute(hash);
-  const destination = resolved.key === "not-found" ? hash : resolved.hash;
+  const destination = resolved.page === "not-found" ? hash : resolved.hash;
   if (window.location.hash !== destination) window.location.hash = destination;
 }
 
@@ -161,7 +169,7 @@ export function getPortalHashPath(hash: string) {
 
 function normalizePortalHash(hash: string) {
   const resolved = resolvePortalRoute(hash);
-  return resolved.key === "not-found" ? "" : resolved.hash;
+  return resolved.page === "not-found" ? "" : resolved.hash;
 }
 
 function sectionLabel(section: OrganizationDetailSection) {
