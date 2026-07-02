@@ -7,9 +7,9 @@ import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { ApiAccessPage } from "./ApiAccessPage";
 import { BillingPage } from "./BillingPage";
-import { DashboardPage } from "./DashboardPage";
 import { OrganizationDetailPage } from "./OrganizationDetailPage";
 import { OrganizationsPage } from "./OrganizationsPage";
+import { PortalDashboardPage } from "./PortalDashboardPage";
 import { PortalNotFoundPage } from "./PortalNotFoundPage";
 import { SettingsPage } from "./SettingsPage";
 import { TeamPage } from "./TeamPage";
@@ -30,8 +30,8 @@ export function RouteContentPage({
   switch (currentRoute.page) {
     case "dashboard":
       return (
-        <DashboardPage
-          pane={audience === "customer_admin" ? "home" : null}
+        <PortalDashboardPage
+          audience={audience}
           runtimeConfig={runtimeConfig}
           session={session}
         />
