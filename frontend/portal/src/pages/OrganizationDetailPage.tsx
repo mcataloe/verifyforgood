@@ -1,5 +1,5 @@
 import { EmptyState, ErrorState, LoadingSkeleton } from "@charity-status/shared-ui";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   buildOrganizationPortalHash,
   navigateToPortalRoute,
@@ -18,10 +18,14 @@ export function OrganizationDetailPage({
 }) {
   const search = usePortalNonprofitSearch();
   const loadDetail = search.viewResultDetail;
+  const [requestedEin, setRequestedEin] = useState<string | null>(null);
 
   useEffect(() => {
+    setRequestedEin(ein);
     void loadDetail(ein);
   }, [ein, loadDetail]);
+
+  const isInitialLoad = requestedEin !== ein && !search.error && !search.detail;
 
   return (
     <div className="portal-dashboard">
@@ -30,7 +34,7 @@ export function OrganizationDetailPage({
         <span aria-hidden="true"> / </span>
         <span aria-current="page">EIN {ein}</span>
       </nav>
-      {search.isLoading ? (
+      {search.isLoading || isInitialLoad ? (
         <LoadingSkeleton
           description="Loading the selected nonprofit record and filing context."
           title="Loading organization profile"
@@ -52,7 +56,7 @@ export function OrganizationDetailPage({
           }}
         />
       ) : null}
-      {!search.isLoading && !search.error && !search.detail ? (
+      {!search.isLoading && !isInitialLoad && !search.error && !search.detail ? (
         <EmptyState
           description="Return to organization search and confirm the EIN."
           title="No organization profile found"
