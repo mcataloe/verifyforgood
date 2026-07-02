@@ -12,29 +12,28 @@ import {
 import { portalProtectedRoutes, resolvePortalRoute } from "./portalRoutes";
 
 describe("portal navigation config", () => {
-  it("builds customer-admin sections from canonical protected route hashes", () => {
+  it("builds customer-admin links from canonical page hashes", () => {
     const sections = buildPortalNavigationSections(
       portalProtectedRoutes,
       "customer_admin",
     );
-
     expect(sections.map((section) => section.key)).toEqual([
       "workspace",
       "account",
     ]);
-    expect(sections[0]?.items[0]).toMatchObject({
-      href: "#/dashboard?nav=customer-admin-home",
-      key: "customer-admin-home",
-      label: "Home",
+    expect(sections[0]?.items[1]).toMatchObject({
+      href: "#/organizations",
+      key: "customer-admin-organizations",
+      label: "Organizations",
     });
     expect(sections[1]?.items[2]).toMatchObject({
-      href: "#/api-access?nav=customer-admin-api",
+      href: "#/automation/api-keys",
       key: "customer-admin-api",
-      label: "API",
+      label: "API Keys",
     });
   });
 
-  it("chooses one navigation audience per session instead of merging role menus", () => {
+  it("chooses one navigation audience per session", () => {
     expect(
       resolvePortalNavigationAudience([
         FRONTEND_ACCESS_ROLE.developer,
@@ -52,21 +51,18 @@ describe("portal navigation config", () => {
     ).toBe("customer_user");
   });
 
-  it("keeps customer-user navigation focused on the current home/search surface", () => {
+  it("keeps customer-user navigation task focused", () => {
     expect(
       summarizeSections({
         plan: "growth",
         roles: [FRONTEND_ACCESS_ROLE.customerUser],
       }),
     ).toEqual([
-      {
-        items: ["Dashboard", "Search", "Automation"],
-        label: "",
-      },
+      { items: ["Dashboard", "Organizations", "Automation"], label: "" },
     ]);
   });
 
-  it("maps customer admins to the workspace and account information architecture", () => {
+  it("maps customer admins to workspace and account tasks", () => {
     expect(
       summarizeSections({
         membershipRole: "admin",
@@ -75,17 +71,17 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Team"],
+        items: ["Home", "Organizations", "Team"],
         label: "Workspace",
       },
       {
-        items: ["Billing", "Usage", "API", "Settings"],
+        items: ["Billing", "Usage", "API Keys", "Settings"],
         label: "Account",
       },
     ]);
   });
 
-  it("maps portal admins to the operations and subscriptions information architecture", () => {
+  it("maps portal admins to operations and account tasks", () => {
     expect(
       summarizeSections({
         plan: "growth",
@@ -93,108 +89,84 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Dashboard", "Customers", "Support"],
+        items: ["Dashboard", "Organizations", "Team"],
         label: "Operations",
       },
-      {
-        items: ["Subscriptions", "Reports"],
-        label: "Revenue",
-      },
-      {
-        items: ["Settings"],
-        label: "Configure",
-      },
+      { items: ["Billing", "Usage", "Settings"], label: "Account" },
     ]);
   });
 
-  it("maps developers to the platform-oriented information architecture", () => {
+  it("maps developers to platform tasks", () => {
     expect(
       summarizeSections({
         plan: "growth",
         roles: [FRONTEND_ACCESS_ROLE.developer],
       }),
     ).toEqual([
-      {
-        items: ["Overview", "Tenants", "Plans"],
-        label: "Build",
-      },
-      {
-        items: ["Feature Flags", "Audit", "System"],
-        label: "Controls",
-      },
+      { items: ["Overview", "Organizations", "Plans"], label: "Build" },
+      { items: ["Usage", "System", "Settings"], label: "Controls" },
     ]);
   });
 
-  it("keeps sparse role outputs stable without empty placeholder sections", () => {
+  it("keeps nested automation destinations canonical", () => {
     const sections = resolvePortalNavigation({
       plan: "growth",
       roles: [FRONTEND_ACCESS_ROLE.customerUser],
       routes: portalProtectedRoutes,
     });
-
     expect(sections).toHaveLength(1);
-    expect(sections[0]?.label).toBe("");
-    expect(sections[0]?.items[1]?.children?.map((item) => item.label)).toEqual([
-      "By EIN",
-      "By Address",
-    ]);
-    expect(sections[0]?.items[2]?.children?.map((item) => item.label)).toEqual([
-      "General",
-      "API Key",
-      "OAuth",
+    expect(sections[0]?.items[2]?.children?.map((item) => item.href)).toEqual([
+      "#/automation",
+      "#/automation/api-keys",
+      "#/automation/oauth",
     ]);
   });
 
-  it("keeps discoverable plan-gated API access locked for lower-tier customer admins", () => {
+  it("keeps plan-gated API access locked for lower-tier admins", () => {
     const sections = resolvePortalNavigation({
       membershipRole: "admin",
       plan: "free",
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
     });
-    const accountSection = sections.find(
-      (section) => section.key === "account",
-    );
+    const accountSection = sections.find((section) => section.key === "account");
     const apiItem = accountSection?.items.find(
       (item) => item.key === "customer-admin-api",
     );
-
-    expect(accountSection?.label).toBe("Account");
     expect(apiItem).toMatchObject({
       key: "customer-admin-api",
-      label: "API",
+      label: "API Keys",
       visibilityState: "locked",
     });
     expect(apiItem?.href).toBeUndefined();
   });
 
-  it("resolves the active navigation item from the current hash alias before falling back to the base route", () => {
+  it("resolves active canonical and organization-detail navigation", () => {
     const sections = resolvePortalNavigation({
       membershipRole: "admin",
       plan: "growth",
       roles: [FRONTEND_ACCESS_ROLE.customerAdmin],
       routes: portalProtectedRoutes,
     });
-
     expect(
       resolveActivePortalNavigationKey({
-        currentHash: "#/usage-billing?nav=customer-admin-usage",
-        currentRoute: resolvePortalRoute(
-          "#/usage-billing?nav=customer-admin-usage",
-        ),
+        currentHash: "#/usage",
+        currentRoute: resolvePortalRoute("#/usage"),
         navigationSections: sections,
       }),
     ).toBe("customer-admin-usage");
     expect(
       resolveActivePortalNavigationKey({
-        currentHash: "#/usage-billing",
-        currentRoute: resolvePortalRoute("#/usage-billing"),
+        currentHash: "#/organizations/123456789/sources",
+        currentRoute: resolvePortalRoute(
+          "#/organizations/123456789/sources",
+        ),
         navigationSections: sections,
       }),
-    ).toBe("customer-admin-billing");
+    ).toBe("customer-admin-organizations");
   });
 
-  it("removes admin-only customer navigation items when the membership role is user", () => {
+  it("removes admin-only customer navigation for user memberships", () => {
     expect(
       summarizeSections({
         membershipRole: "user",
@@ -203,7 +175,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Team"],
+        items: ["Home", "Organizations", "Team"],
         label: "Workspace",
       },
     ]);
