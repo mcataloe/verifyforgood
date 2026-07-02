@@ -1,5 +1,39 @@
 import { useEffect, useState } from "react";
+import {
+  dashboardPortalRoute,
+  legacyPortalAliases,
+  organizationOnboardingPortalRoute,
+  organizationsPortalRoute,
+  portalProtectedRoutes,
+  portalPublicRoutes,
+} from "./portalRouteCatalog";
 
+export type OrganizationDetailSection =
+  | "overview"
+  | "filings"
+  | "compliance"
+  | "sources"
+  | "activity";
+export type PortalPageKey =
+  | "onboarding-organization"
+  | "dashboard"
+  | "organizations"
+  | "organization-detail"
+  | "team"
+  | "automation-general"
+  | "automation-api-key"
+  | "automation-oauth"
+  | "billing"
+  | "usage"
+  | "settings-profile"
+  | "settings-organization"
+  | "not-found"
+  | "register"
+  | "sign-in"
+  | "workspace"
+  | "api-access"
+  | "usage-billing"
+  | "settings";
 export type PortalProtectedRouteKey =
   | "onboarding-organization"
   | "dashboard"
@@ -12,265 +46,166 @@ export type PortalProtectedRouteKey =
   | "api-access"
   | "usage-billing"
   | "settings";
-
-export type PortalPublicRouteKey = "home" | "register" | "sign-in";
+export type PortalPublicRouteKey = "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
 export interface PortalRouteDefinition {
   access: "protected" | "public";
   key: PortalRouteKey;
+  page?: PortalPageKey;
   description: string;
   hash: string;
   label: string;
+  params?: { ein?: string };
+  section?: OrganizationDetailSection;
 }
 
-const PORTAL_RETURN_TO_STORAGE_KEY = "verifyforgood.portal.return-to";
-
-export const portalPublicRoutes: PortalRouteDefinition[] = [
-  {
-    access: "public",
-    key: "home",
-    label: "Portal Home",
-    hash: "#/",
-    description:
-      "Portal home and sign-in entry point.",
-  },
-  {
-    access: "public",
-    key: "sign-in",
-    label: "Sign In",
-    hash: "#/sign-in",
-    description:
-      "Sign in to your account.",
-  },
-  {
-    access: "public",
-    key: "register",
-    label: "Register",
-    hash: "#/register",
-    description:
-      "Create a new account.",
-  },
-];
-
-export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
-  access: "protected",
-  key: "onboarding-organization",
-  label: "Create Organization",
-  hash: "#/onboarding/organization",
-  description:
-    "Create your organization after signing in.",
-};
-
-export const portalProtectedRoutes: PortalRouteDefinition[] = [
+export {
+  dashboardPortalRoute,
   organizationOnboardingPortalRoute,
-  {
-    access: "protected",
-    key: "dashboard",
-    label: "Dashboard",
-    hash: "#/dashboard",
-    description:
-      "Overview of organization activity and priorities.",
-  },
-  {
-    access: "protected",
-    key: "search",
-    label: "Search",
-    hash: "#/search",
-    description:
-      "Search and review nonprofit organizations.",
-  },
-  {
-    access: "protected",
-    key: "team",
-    label: "Team",
-    hash: "#/team",
-    description:
-      "Manage team access and review organization details.",
-  },
-  {
-    access: "protected",
-    key: "support",
-    label: "Support",
-    hash: "#/support",
-    description:
-      "Contact support and report issues for your organization.",
-  },
-  {
-    access: "protected",
-    key: "billing",
-    label: "Billing",
-    hash: "#/billing",
-    description:
-      "Review billing, plan details, and subscription status.",
-  },
-  {
-    access: "protected",
-    key: "usage",
-    label: "Usage",
-    hash: "#/usage",
-    description:
-      "Track usage, limits, and budget visibility.",
-  },
-  {
-    access: "protected",
-    key: "workspace",
-    label: "Workspace",
-    hash: "#/workspace",
-    description:
-      "Legacy workspace route.",
-  },
-  {
-    access: "protected",
-    key: "api-access",
-    label: "API Access",
-    hash: "#/api-access",
-    description:
-      "Manage API keys and related access settings.",
-  },
-  {
-    access: "protected",
-    key: "usage-billing",
-    label: "Usage & Billing",
-    hash: "#/usage-billing",
-    description:
-      "Legacy billing and usage route.",
-  },
-  {
-    access: "protected",
-    key: "settings",
-    label: "Settings",
-    hash: "#/settings",
-    description:
-      "Update organization settings and preferences.",
-  },
-];
+  organizationsPortalRoute,
+  portalProtectedRoutes,
+  portalPublicRoutes,
+};
+export const portalRoutes = [...portalPublicRoutes, ...portalProtectedRoutes];
+export const signInPortalRoute = portalPublicRoutes[0];
+export const registerPortalRoute = portalPublicRoutes[1];
+export const defaultProtectedPortalRoute = dashboardPortalRoute;
 
-export const portalRoutes: PortalRouteDefinition[] = [
-  ...portalPublicRoutes,
-  ...portalProtectedRoutes,
-];
+const returnToKey = "verifyforgood.portal.return-to";
+const organizationPattern =
+  /^#\/organizations\/(\d{9})(?:\/(overview|filings|compliance|sources|activity))?$/;
 
-export const homePortalRoute = portalPublicRoutes[0];
-export const signInPortalRoute = portalPublicRoutes[1];
-export const registerPortalRoute = portalPublicRoutes[2];
-export const defaultProtectedPortalRoute =
-  portalProtectedRoutes.find((route) => route.key === "dashboard") ??
-  portalProtectedRoutes[0];
-export const defaultPortalRoute = homePortalRoute;
+export function buildOrganizationPortalHash(
+  ein: string,
+  section: OrganizationDetailSection = "overview",
+) {
+  const normalizedEin = String(ein || "").replaceAll(/\D/g, "");
+  return normalizedEin.length === 9
+    ? `#/organizations/${normalizedEin}/${section}`
+    : organizationsPortalRoute.hash;
+}
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
-  const candidate = getPortalHashPath(hash) || defaultPortalRoute.hash;
-  const resolved =
-    portalRoutes.find((route) => route.hash === candidate) ?? defaultPortalRoute;
+  const candidate = String(hash || "").trim();
+  if (!candidate) return { ...defaultProtectedPortalRoute };
 
-  // Return a fresh object so hash-only query changes like ?nav=... still
-  // trigger React state updates even when the base route key stays the same.
-  return { ...resolved };
+  const candidatePath = getPortalHashPath(candidate);
+  const canonical =
+    legacyPortalAliases[candidate] ??
+    legacyPortalAliases[candidatePath] ??
+    candidate;
+  const path = getPortalHashPath(canonical);
+  const staticRoute = portalRoutes.find((route) => route.hash === path);
+  if (staticRoute) return { ...staticRoute };
+
+  const match = path.match(organizationPattern);
+  if (match) {
+    const ein = match[1];
+    const section = (match[2] || "overview") as OrganizationDetailSection;
+    return {
+      access: "protected",
+      key: "workspace",
+      page: "organization-detail",
+      label: sectionLabel(section),
+      description: "Inspect source-backed nonprofit details.",
+      hash: buildOrganizationPortalHash(ein, section),
+      params: { ein },
+      section,
+    };
+  }
+
+  return {
+    access: "protected",
+    key: "dashboard",
+    page: "not-found",
+    label: "Page Not Found",
+    description: "The requested portal destination does not exist.",
+    hash: path,
+  };
 }
 
-export function usePortalRoute(): PortalRouteDefinition {
-  const [route, setRoute] = useState<PortalRouteDefinition>(() =>
+export function usePortalRoute() {
+  const [route, setRoute] = useState(() =>
     resolvePortalRoute(window.location.hash),
   );
-
   useEffect(() => {
-    if (!window.location.hash) {
-      window.location.hash = defaultPortalRoute.hash;
-    }
-
-    const handleHashChange = () => {
-      setRoute(resolvePortalRoute(window.location.hash));
+    const applyRoute = () => {
+      const currentHash = window.location.hash;
+      const resolved = resolvePortalRoute(currentHash);
+      setRoute(resolved);
+      if (
+        !currentHash ||
+        (resolved.page !== "not-found" && currentHash !== resolved.hash)
+      ) {
+        window.history.replaceState(null, "", resolved.hash);
+      }
     };
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    applyRoute();
+    window.addEventListener("hashchange", applyRoute);
+    return () => window.removeEventListener("hashchange", applyRoute);
   }, []);
-
   return route;
 }
 
-export function consumePortalReturnTo(): string {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return defaultProtectedPortalRoute.hash;
-  }
-
-  const rememberedRoute = normalizePortalHash(
-    storage.getItem(PORTAL_RETURN_TO_STORAGE_KEY) || "",
-  );
-  storage.removeItem(PORTAL_RETURN_TO_STORAGE_KEY);
-  return rememberedRoute || defaultProtectedPortalRoute.hash;
+export function consumePortalReturnTo() {
+  const storage = portalSessionStorage();
+  if (!storage) return defaultProtectedPortalRoute.hash;
+  const remembered = normalizePortalHash(storage.getItem(returnToKey) || "");
+  storage.removeItem(returnToKey);
+  return remembered || defaultProtectedPortalRoute.hash;
 }
 
-export function peekPortalReturnTo(): string {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return defaultProtectedPortalRoute.hash;
-  }
-
-  return (
-    normalizePortalHash(storage.getItem(PORTAL_RETURN_TO_STORAGE_KEY) || "") ||
-    defaultProtectedPortalRoute.hash
-  );
+export function peekPortalReturnTo() {
+  const storage = portalSessionStorage();
+  return storage
+    ? normalizePortalHash(storage.getItem(returnToKey) || "") ||
+        defaultProtectedPortalRoute.hash
+    : defaultProtectedPortalRoute.hash;
 }
 
 export function rememberPortalReturnTo(hash: string) {
-  const storage = resolvePortalSessionStorage();
-  if (!storage) {
-    return;
-  }
-
-  const normalizedHash = normalizePortalHash(hash);
+  const storage = portalSessionStorage();
+  const normalized = normalizePortalHash(hash);
   if (
-    !normalizedHash ||
-    portalPublicRoutes.some((route) => route.hash === getPortalHashPath(normalizedHash))
+    storage &&
+    normalized &&
+    !portalPublicRoutes.some((route) => route.hash === normalized)
   ) {
-    return;
+    storage.setItem(returnToKey, normalized);
   }
-
-  storage.setItem(PORTAL_RETURN_TO_STORAGE_KEY, normalizedHash);
 }
 
-export function navigateToPortalRoute(
-  hash: string,
-  options: { replace?: boolean } = {},
-) {
-  if (window.location.hash === hash) {
-    return;
-  }
-
-  if (options.replace) {
-    const nextUrl = `${window.location.pathname}${window.location.search}${hash}`;
-    window.history.replaceState(window.history.state, "", nextUrl);
-    window.dispatchEvent(new Event("hashchange"));
-    return;
-  }
-
-  window.location.hash = hash;
+export function navigateToPortalRoute(hash: string) {
+  const resolved = resolvePortalRoute(hash);
+  const destination = resolved.page === "not-found" ? hash : resolved.hash;
+  if (window.location.hash !== destination) window.location.hash = destination;
 }
 
-export function getPortalHashPath(hash: string): string {
-  const candidate = String(hash || "").trim();
-  const [routeHash] = candidate.split("?");
-  return routeHash || "";
+export function getPortalHashPath(hash: string) {
+  return (
+    String(hash || "")
+      .trim()
+      .split("?")[0] || ""
+  );
 }
 
-function normalizePortalHash(hash: string): string {
-  const candidate = String(hash || "").trim();
-  const routeHash = getPortalHashPath(candidate);
-
-  if (!routeHash || !portalRoutes.some((route) => route.hash === routeHash)) {
-    return "";
-  }
-
-  return candidate;
+function normalizePortalHash(hash: string) {
+  const resolved = resolvePortalRoute(hash);
+  return resolved.page === "not-found" ? "" : resolved.hash;
 }
 
-function resolvePortalSessionStorage(): Storage | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
+function sectionLabel(section: OrganizationDetailSection) {
+  const labels: Record<OrganizationDetailSection, string> = {
+    overview: "Organization Overview",
+    filings: "Organization Filings",
+    compliance: "Organization Compliance Evidence",
+    sources: "Organization Sources",
+    activity: "Organization Activity",
+  };
+  return labels[section];
+}
 
-  return window.sessionStorage;
+function portalSessionStorage() {
+  return typeof window === "undefined" ? null : window.sessionStorage;
 }

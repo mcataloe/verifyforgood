@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildOrganizationPortalHash,
   consumePortalReturnTo,
   defaultPortalRoute,
   defaultProtectedPortalRoute,
@@ -13,75 +14,74 @@ import {
 } from "./portalRoutes";
 
 describe("portal route resolution", () => {
-  it("resolves the public portal home directly", () => {
-    expect(resolvePortalRoute("#/")).toStrictEqual(homePortalRoute);
-  });
-
-  it("preserves canonical protected hashes", () => {
+  it("resolves canonical task routes", () => {
     expect(resolvePortalRoute("#/dashboard")).toMatchObject({
       hash: "#/dashboard",
       key: "dashboard",
-    });
-    expect(resolvePortalRoute("#/search")).toMatchObject({
-      hash: "#/search",
-      key: "search",
-    });
-    expect(resolvePortalRoute("#/team")).toMatchObject({
-      hash: "#/team",
-      key: "team",
-    });
-    expect(resolvePortalRoute("#/support")).toMatchObject({
-      hash: "#/support",
-      key: "support",
+      page: "dashboard",
     });
     expect(resolvePortalRoute("#/billing")).toMatchObject({
       hash: "#/billing",
-      key: "billing",
-    });
-    expect(resolvePortalRoute("#/usage")).toMatchObject({
-      hash: "#/usage",
-      key: "usage",
-    });
-    expect(resolvePortalRoute("#/usage-billing")).toMatchObject({
-      hash: "#/usage-billing",
       key: "usage-billing",
+      page: "billing",
     });
-    expect(resolvePortalRoute("#/onboarding/organization")).toMatchObject({
-      hash: "#/onboarding/organization",
-      key: "onboarding-organization",
-    });
-  });
-
-  it("ignores query parameters when resolving routes", () => {
-    expect(resolvePortalRoute("#/usage?tab=invoices")).toMatchObject({
-      hash: "#/usage",
-      key: "usage",
+    expect(resolvePortalRoute("#/organizations")).toMatchObject({
+      hash: "#/organizations",
+      key: "workspace",
+      page: "organizations",
     });
   });
 
-  it("falls back to the default public route for unknown or empty hashes", () => {
-    expect(resolvePortalRoute("")).toStrictEqual(defaultPortalRoute);
-    expect(resolvePortalRoute("#/missing")).toStrictEqual(defaultPortalRoute);
+  it("resolves shareable organization detail sections", () => {
+    expect(
+      resolvePortalRoute("#/organizations/123456789/sources"),
+    ).toMatchObject({
+      hash: "#/organizations/123456789/sources",
+      key: "workspace",
+      page: "organization-detail",
+      params: { ein: "123456789" },
+      section: "sources",
+    });
+    expect(buildOrganizationPortalHash("12-3456789", "filings")).toBe(
+      "#/organizations/123456789/filings",
+    );
   });
 
-  it("continues resolving the public sign-in boundary directly", () => {
+  it("normalizes legacy route aliases", () => {
+    expect(
+      resolvePortalRoute("#/usage-billing?nav=customer-admin-usage"),
+    ).toMatchObject({ hash: "#/usage", page: "usage" });
+    expect(
+      resolvePortalRoute("#/workspace?nav=customer-admin-team"),
+    ).toMatchObject({ hash: "#/team", page: "team" });
+    expect(resolvePortalRoute("#/api-access")).toMatchObject({
+      hash: "#/automation",
+      page: "automation-general",
+    });
+  });
+
+  it("returns an honest not-found route for unknown hashes", () => {
+    expect(resolvePortalRoute("#/missing")).toMatchObject({
+      hash: "#/missing",
+      page: "not-found",
+    });
+    expect(resolvePortalRoute("")).toStrictEqual(defaultProtectedPortalRoute);
+  });
+
+  it("continues resolving public routes directly", () => {
     expect(resolvePortalRoute("#/sign-in")).toStrictEqual(signInPortalRoute);
     expect(resolvePortalRoute("#/register")).toStrictEqual(registerPortalRoute);
   });
 
-  it("preserves navigation query aliases in remembered return routes", () => {
+  it("stores canonical return routes instead of query aliases", () => {
     window.sessionStorage.clear();
-
-    rememberPortalReturnTo("#/usage?nav=customer-admin-usage");
-
-    expect(consumePortalReturnTo()).toBe("#/usage?nav=customer-admin-usage");
+    rememberPortalReturnTo("#/usage-billing?nav=customer-admin-usage");
+    expect(consumePortalReturnTo()).toBe("#/usage");
   });
 
   it("keeps onboarding routes as protected return targets", () => {
     window.sessionStorage.clear();
-
     rememberPortalReturnTo(organizationOnboardingPortalRoute.hash);
-
     expect(consumePortalReturnTo()).toBe(
       organizationOnboardingPortalRoute.hash,
     );
@@ -89,10 +89,7 @@ describe("portal route resolution", () => {
 
   it("does not store public auth routes as protected return targets", () => {
     window.sessionStorage.clear();
-
     rememberPortalReturnTo("#/register");
-    rememberPortalReturnTo("#/");
-
     expect(consumePortalReturnTo()).toBe(defaultProtectedPortalRoute.hash);
   });
 

@@ -8,9 +8,6 @@ import { PortalAuthLayout } from "../components/PortalAuthLayout";
 import { PortalButton, PortalHint } from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
 import { PortalLayout } from "../components/PortalLayout";
-import { CustomerUserAutomationPage } from "../customer-user/CustomerUserAutomationPage";
-import { CustomerUserProfilePage } from "../customer-user/CustomerUserProfilePage";
-import { CustomerUserSearchPage } from "../customer-user/CustomerUserSearchPage";
 import { PortalOrganizationProvider } from "../organization/PortalOrganizationProvider";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import {
@@ -18,27 +15,15 @@ import {
   createPortalOrganizationClient,
   type PortalOrganizationCreateRequest,
 } from "../organization/portalOrganization";
-import { ApiAccessPage } from "../pages/ApiAccessPage";
-import { BillingPage } from "../pages/BillingPage";
-import { DashboardPage } from "../pages/DashboardPage";
 import { PortalOrganizationOnboardingPage } from "../pages/PortalOrganizationOnboardingPage";
 import { PortalRegisterPage } from "../pages/PortalRegisterPage";
+import { RouteContentPage } from "../pages/RouteContentPage";
 import { PortalSignInPage } from "../pages/PortalSignInPage";
-import { SettingsPage } from "../pages/SettingsPage";
-import { SupportPage } from "../pages/SupportPage";
-import { TeamPage } from "../pages/TeamPage";
-import { UsagePage } from "../pages/UsagePage";
-import { WorkspacePage } from "../pages/WorkspacePage";
 import {
   resolveMembershipRoleFromContext,
   resolveRouteAuthorization,
 } from "./portalAuthorization";
-import {
-  resolveCustomerAdminPortalPane,
-  resolveCanonicalCustomerAdminHash,
-  resolveCustomerUserPortalPane,
-  resolvePortalNavigationAudience,
-} from "./portalNavigation";
+import { resolvePortalNavigationAudience } from "./portalNavigation";
 import { portalEndpoints } from "./portalEndpoints";
 import {
   consumePortalReturnTo,
@@ -52,6 +37,7 @@ import {
   resolvePortalRoute,
   signInPortalRoute,
   usePortalRoute,
+  type PortalRouteDefinition,
 } from "./portalRoutes";
 
 const PORTAL_SESSION_REVALIDATION_INTERVAL_MS = 5 * 60 * 1000;
@@ -62,8 +48,8 @@ const appInfo: FrontendAppInfo = {
   audience:
     "Authenticated customers managing verification workflows and account settings.",
   description:
-    "Manage verification activity, billing, API access, and organization settings.",
-  title: "Customer portal",
+    "Customer portal for nonprofit review, organization administration, integrations, usage, and billing.",
+  title: "VerifyForGood Portal",
   surface: "portal",
 };
 
@@ -112,7 +98,10 @@ function PortalAppShell({
   });
 
   useEffect(() => {
-    if (auth.status !== "authenticated" || currentRoute.access !== "protected") {
+    if (
+      auth.status !== "authenticated" ||
+      currentRoute.access !== "protected"
+    ) {
       return;
     }
 
@@ -172,9 +161,7 @@ function PortalAppShell({
         currentRoute.key === registerPortalRoute.key)
     ) {
       navigateToPortalRoute(
-        hasPendingOrganization
-          ? "#/dashboard"
-          : consumePortalReturnTo(),
+        hasPendingOrganization ? "#/dashboard" : consumePortalReturnTo(),
         { replace: true },
       );
     }
@@ -224,12 +211,7 @@ function PortalAppShell({
     ) {
       navigateToPortalRoute(canonicalHash, { replace: true });
     }
-  }, [
-    auth.status,
-    authAudience,
-    currentRoute,
-    hasPendingOrganization,
-  ]);
+  }, [auth.status, authAudience, currentRoute, hasPendingOrganization]);
 
   useEffect(() => {
     if (auth.status === "authenticated" && hasPendingOrganization) {
@@ -242,7 +224,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Checking your account access."
+        subtitle="Checking whether a portal session already exists."
         title="Checking portal access"
       >
         <PortalNotice title="Loading" tone="loading">
@@ -260,7 +242,7 @@ function PortalAppShell({
           currentRoute.key === signInPortalRoute.key ? "wide" : "narrow"
         }
         runtimeConfig={runtimeConfig}
-        subtitle="Sign in or create an account to continue."
+        subtitle="Sign in or create an account to open protected portal routes."
         title={
           currentRoute.key === homePortalRoute.key
             ? "Sign In to the Customer Portal"
@@ -298,7 +280,7 @@ function PortalAppShell({
       <PortalAuthLayout
         app={appInfo}
         runtimeConfig={runtimeConfig}
-        subtitle="Taking you back to your account."
+        subtitle="An authenticated session exists."
         title="Redirecting into the portal"
       >
         <Text c="dimmed">Restoring access to {requestedRoute.label}.</Text>
@@ -307,25 +289,33 @@ function PortalAppShell({
   }
 
   const session = auth.session;
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
-  const audience = resolvePortalNavigationAudience(session.roles);
-  const customerUserPane =
-    audience === "customer_user"
-      ? resolveCustomerUserPortalPane({
-          currentHash,
-          currentRoute,
-        })
-      : null;
-  const customerAdminPane =
-    audience === "customer_admin"
-      ? resolveCustomerAdminPortalPane({
-          currentHash,
-          currentRoute,
-        })
-      : null;
+  if (hasPendingOrganization) {
+    return (
+      <PortalAuthLayout
+        app={appInfo}
+        runtimeConfig={runtimeConfig}
+        subtitle="Create the first organization context before the portal opens."
+        title="Create your first organization"
+      >
+        <PortalOrganizationOnboardingPage
+          endpoints={endpoints}
+          isBusy={auth.isBusy}
+          onCreateOrganization={async (request) => {
+            if (!organizationClient)
+              throw new Error("Authentication is required");
+            const created =
+              await organizationClient.createOrganization(request);
+            auth.applyOrganization(
+              createPortalActiveOrganizationRecord(created),
+            );
+            navigateToPortalRoute("#/dashboard");
+          }}
+        />
+      </PortalAuthLayout>
+    );
+  }
 
   return (
     <PortalOrganizationProvider
@@ -334,40 +324,18 @@ function PortalAppShell({
       session={session}
     >
       <PortalAuthorizedShell
-        appInfo={appInfo}
-        customerAdminPane={customerAdminPane}
         currentRoute={currentRoute}
-        customerUserPane={customerUserPane}
-        idleWarningVisible={idleTimeout.warningVisible}
         endpoints={endpoints}
-        isOrganizationOnboardingBusy={auth.isBusy}
-        isOrganizationOnboardingOpen={isOrganizationOnboardingOpen}
-        onCloseOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(false)}
-        onDismissIdleWarning={idleTimeout.dismissWarning}
-        onOpenOrganizationOnboarding={() => setIsOrganizationOnboardingOpen(true)}
-        onCreateOrganization={async (request) => {
-          if (!organizationClient) {
-            throw new Error("Authentication is required");
-          }
-
-          const created = await organizationClient.createOrganization(request);
-          auth.applyOrganization(createPortalActiveOrganizationRecord(created));
-          setIsOrganizationOnboardingOpen(false);
-          navigateToPortalRoute("#/dashboard");
-        }}
+        onSignOut={auth.signOut}
         runtimeConfig={runtimeConfig}
         session={session}
-        onSignOut={auth.signOut}
       />
     </PortalOrganizationProvider>
   );
 }
 
 function PortalAuthorizedShell({
-  appInfo,
-  customerAdminPane,
   currentRoute,
-  customerUserPane,
   endpoints,
   idleWarningVisible,
   isOrganizationOnboardingBusy,
@@ -380,10 +348,7 @@ function PortalAuthorizedShell({
   runtimeConfig,
   session,
 }: {
-  appInfo: FrontendAppInfo;
-  customerAdminPane: ReturnType<typeof resolveCustomerAdminPortalPane> | null;
-  currentRoute: ReturnType<typeof usePortalRoute>;
-  customerUserPane: ReturnType<typeof resolveCustomerUserPortalPane> | null;
+  currentRoute: PortalRouteDefinition;
   endpoints: ReturnType<typeof portalEndpoints>;
   idleWarningVisible: boolean;
   isOrganizationOnboardingBusy: boolean;
@@ -391,26 +356,61 @@ function PortalAuthorizedShell({
   onDismissIdleWarning: () => void;
   onCloseOrganizationOnboarding: () => void;
   onOpenOrganizationOnboarding: () => void;
-  onCreateOrganization: (request: PortalOrganizationCreateRequest) => Promise<void>;
+  onCreateOrganization: (
+    request: PortalOrganizationCreateRequest,
+  ) => Promise<void>;
   onSignOut: () => Promise<void>;
   runtimeConfig: ReturnType<typeof readRuntimeConfig>;
   session: NonNullable<ReturnType<typeof usePortalAuth>["session"]>;
 }) {
   const organization = usePortalOrganization();
   const audience = resolvePortalNavigationAudience(session.roles);
-  const currentHash =
-    typeof window === "undefined"
-      ? currentRoute.hash
-      : window.location.hash || currentRoute.hash;
   const membershipRole = resolveMembershipRoleFromContext(
     organization.currentMembership ?? session.organization_membership,
   );
   const routeAuthorization = resolveRouteAuthorization({
     audience,
-    currentHash,
+    currentHash: currentRoute.hash,
     currentRoute,
     membershipRole,
   });
+
+  useEffect(() => {
+    if (
+      currentRoute.access === "protected" &&
+      !routeAuthorization.allowed &&
+      routeAuthorization.redirectHash &&
+      currentRoute.hash !== routeAuthorization.redirectHash
+    ) {
+      navigateToPortalRoute(routeAuthorization.redirectHash);
+    }
+  }, [currentRoute, routeAuthorization]);
+
+  useEffect(() => {
+    document.title = `${currentRoute.label} | VerifyForGood`;
+    window.requestAnimationFrame(() => {
+      const heading = document.querySelector<HTMLElement>("main h1, main h2");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    });
+  }, [currentRoute.hash, currentRoute.label]);
+
+  if (!routeAuthorization.allowed) {
+    return (
+      <PortalAuthLayout
+        app={appInfo}
+        runtimeConfig={runtimeConfig}
+        subtitle="Checking whether the current organization role allows this route."
+        title="Redirecting to an allowed area"
+      >
+        <PortalNotice title="Redirecting" tone="loading">
+          <p>Returning to the nearest allowed portal destination.</p>
+        </PortalNotice>
+      </PortalAuthLayout>
+    );
+  }
 
   return (
     <PortalLayout
@@ -424,152 +424,20 @@ function PortalAuthorizedShell({
       runtimeConfig={runtimeConfig}
       session={session}
     >
-      {idleWarningVisible ? (
-        <PortalNotice
-          onDismiss={onDismissIdleWarning}
-          title="Session expiring soon"
-          tone="warning"
-        >
-          <p>
-            You have been inactive for a while. Activity in the portal will keep
-            your session active; otherwise you will be signed out automatically.
-          </p>
-        </PortalNotice>
-      ) : null}
-      {!routeAuthorization.allowed ? (
-        <PortalNotice
-          dismissible={false}
-          title="Access denied"
-          tone="error"
-        >
-          <p>
-            Your current role does not allow access to this portal section. If
-            your access recently changed, refresh the page or contact an
-            organization administrator.
-          </p>
-          <PortalButton
-            onClick={() => navigateToPortalRoute("#/dashboard")}
-            tone="primary"
-            type="button"
-          >
-            Go to dashboard
-          </PortalButton>
-        </PortalNotice>
-      ) : null}
-      {routeAuthorization.allowed ? (
-        <>
-      {session.organization_context_status === "pending" &&
-      !isOrganizationOnboardingOpen ? (
-        <Paper data-testid="pending-organization-callout" p="lg" radius="xl" withBorder>
-          <Stack gap="md">
-            <Title order={2}>Create Your Organization to Continue</Title>
-            <PortalHint>
-              Finish creating your organization to unlock billing, team access,
-              and verification tools.
-            </PortalHint>
-            <div>
-              <PortalButton onClick={onOpenOrganizationOnboarding} tone="primary" type="button">
-                Create Organization
-              </PortalButton>
-            </div>
-          </Stack>
-        </Paper>
-      ) : null}
-      {currentRoute.key === "dashboard" ? (
-        <DashboardPage
-          pane={customerAdminPane}
-          runtimeConfig={runtimeConfig}
-          session={session}
-        />
-      ) : null}
-      {currentRoute.key === "workspace" ? (
-        audience === "customer_user" &&
-        (customerUserPane === "search-ein" ||
-          customerUserPane === "search-address") ? (
-          <CustomerUserSearchPage pane={customerUserPane} />
-        ) : (
-          <WorkspacePage
-            endpoints={endpoints}
-            session={session}
-          />
-        )
-      ) : null}
-      {currentRoute.key === "search" ? (
-        <WorkspacePage
-          endpoints={endpoints}
-          session={session}
-        />
-      ) : null}
-      {currentRoute.key === "team" ? (
-        <TeamPage session={session} />
-      ) : null}
-      {currentRoute.key === "support" ? (
-        <SupportPage pane={customerAdminPane} />
-      ) : null}
-      {currentRoute.key === "api-access" ? (
-        audience === "customer_user" && customerUserPane ? (
-          <CustomerUserAutomationPage
-            pane={
-              customerUserPane === "automation-api"
-                ? "automation-api"
-                : customerUserPane === "automation-oauth"
-                  ? "automation-oauth"
-                  : "automation-general"
-            }
-            session={session}
-          />
-        ) : (
-          <ApiAccessPage pane={customerAdminPane} />
-        )
-      ) : null}
-      {currentRoute.key === "usage-billing" ? (
-        <BillingPage
-          endpoints={endpoints}
-          session={session}
-        />
-      ) : null}
-      {currentRoute.key === "billing" ? (
-        <BillingPage
-          endpoints={endpoints}
-          session={session}
-        />
-      ) : null}
-      {currentRoute.key === "usage" ? (
-        <UsagePage
-          endpoints={endpoints}
-          session={session}
-        />
-      ) : null}
-      {currentRoute.key === "settings" ? (
-        (audience === "customer_user" && customerUserPane === "profile") ||
-        (audience === "customer_admin" && customerAdminPane === "profile") ? (
-          <CustomerUserProfilePage
-            environment={runtimeConfig.environment}
-            session={session}
-          />
-        ) : (
-          <SettingsPage
-            endpoints={endpoints}
-            pane={customerAdminPane}
-            session={session}
-          />
-        )
-      ) : null}
-      {isOrganizationOnboardingOpen ? (
-        <PortalOrganizationOnboardingPage
-          endpoints={endpoints}
-          isBusy={isOrganizationOnboardingBusy}
-          onClose={onCloseOrganizationOnboarding}
-          onCreateOrganization={onCreateOrganization}
-        />
-      ) : null}
-        </>
-      ) : null}
+      <RouteContentPage
+        audience={audience}
+        currentRoute={currentRoute}
+        endpoints={endpoints}
+        runtimeConfig={runtimeConfig}
+        session={session}
+      />
     </PortalLayout>
   );
 }
 
-function resolveCurrentPortalHash(currentRoute: ReturnType<typeof usePortalRoute>) {
+function resolveCurrentPortalHash(
+  currentRoute: ReturnType<typeof usePortalRoute>,
+) {
   return typeof window === "undefined"
     ? currentRoute.hash
     : window.location.hash || currentRoute.hash;
