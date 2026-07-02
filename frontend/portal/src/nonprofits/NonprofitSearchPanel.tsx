@@ -54,7 +54,7 @@ const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
   },
   {
     key: "status",
-    header: "Source status",
+    header: "Status",
     render: (row) => <StatusBadge status={summaryStatus(row)} />,
     sortValue: (row) => summaryStatus(row),
     sortable: true,
@@ -64,12 +64,12 @@ const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
 const resultFilters: DataTableFilterDefinition<PortalNonprofitSearchSummary>[] = [
   {
     key: "status",
-    label: "Source status",
+    label: "Status",
     options: [
-      { label: "Active source record", value: "verified" },
-      { label: "Status unavailable", value: "pending" },
-      { label: "Evidence needs review", value: "flagged" },
-      { label: "Inactive source record", value: "inactive" },
+      { label: "Verified", value: "verified" },
+      { label: "Pending", value: "pending" },
+      { label: "Flagged", value: "flagged" },
+      { label: "Inactive", value: "inactive" },
     ],
     getValue: (row) => summaryStatus(row),
   },
@@ -112,7 +112,6 @@ export function NonprofitSearchPanel({
           Searches use the current organization scope for{" "}
           <strong>{organization.activeOrganization.organization_name}</strong>.
         </p>
-
         <form
           className="portal-form"
           onSubmit={(event) => {
