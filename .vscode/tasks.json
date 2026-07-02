@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Frontend: dev portal",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$ProgressPreference = 'SilentlyContinue'; try { Invoke-WebRequest -Uri 'http://localhost:3953/' -UseBasicParsing -TimeoutSec 2 | Out-Null; Write-Host 'VITE ready: http://localhost:3953/'; Wait-Event } catch { pnpm run dev:portal }"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "(Local:\\s+http://localhost:3953/|VITE ready: http://localhost:3953/)"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

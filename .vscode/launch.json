@@ -6,10 +6,12 @@
   "configurations": [
     {
       "name": "Frontend Portal",
-      "type": "pwa-chrome",
+      "type": "chrome",
       "request": "launch",
+      "preLaunchTask": "Frontend: dev portal",
       "url": "http://localhost:3953",
-      "webRoot": "${workspaceFolder}/frontend/portal/src"
+      "webRoot": "${workspaceFolder}/frontend/portal/src",
+      "sourceMaps": true
     },
     {
       "name": "Backend API",
