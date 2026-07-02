@@ -1,26 +1,20 @@
 import type { PlanCode } from "@charity-status/shared-types";
 import type { VerifyForGoodNavigationSection } from "@charity-status/shared-ui";
 import type { PortalNavigationAudience } from "./portalNavigation";
-import type {
-  PortalProtectedRouteKey,
-  PortalRouteDefinition,
-} from "./portalRoutes";
+import type { PortalPageKey, PortalRouteDefinition } from "./portalRoutes";
 
-type RouteMap = Map<PortalRouteDefinition["key"], PortalRouteDefinition>;
+type RouteMap = Map<PortalRouteDefinition["page"], PortalRouteDefinition>;
 
 function item(
   routes: RouteMap,
-  routeKey: PortalProtectedRouteKey,
+  page: PortalPageKey,
   key: string,
   label: string,
-  options?: {
-    allowedPlans?: readonly PlanCode[];
-    helpText?: string;
-  },
+  options?: { allowedPlans?: readonly PlanCode[]; helpText?: string },
 ) {
-  const route = routes.get(routeKey);
+  const route = routes.get(page);
   if (!route || route.access !== "protected") {
-    throw new Error(`Missing protected portal route for navigation key "${routeKey}".`);
+    throw new Error(`Missing protected portal page "${page}".`);
   }
   return {
     key,
@@ -86,12 +80,7 @@ export function buildAudienceNavigationSections(
           key: "account",
           label: "Account",
           items: [
-            item(
-              routes,
-              "billing",
-              "portal-admin-subscriptions",
-              "Billing",
-            ),
+            item(routes, "billing", "portal-admin-subscriptions", "Billing"),
             item(routes, "usage", "portal-admin-reports", "Usage"),
             item(
               routes,
