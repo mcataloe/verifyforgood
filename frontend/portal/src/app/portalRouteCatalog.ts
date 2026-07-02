@@ -1,0 +1,96 @@
+import type { PortalRouteDefinition } from "./portalRoutes";
+
+export const portalPublicRoutes: PortalRouteDefinition[] = [
+  { access: "public", key: "sign-in", label: "Sign In", hash: "#/sign-in", description: "Sign in to the customer portal." },
+  { access: "public", key: "register", label: "Register", hash: "#/register", description: "Create a customer portal account." },
+];
+
+export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "onboarding-organization", label: "Create Organization", hash: "#/onboarding/organization", description: "Create the first organization context.",
+};
+
+export const dashboardPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "dashboard", label: "Dashboard", hash: "#/dashboard", description: "Review recent activity and next actions.",
+};
+
+export const organizationsPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "organizations", label: "Organizations", hash: "#/organizations", description: "Search nonprofit records and open source-backed profiles.",
+};
+
+export const teamPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "team", label: "Team", hash: "#/team", description: "Manage organization membership and workspace access.",
+};
+
+export const automationGeneralPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "automation-general", label: "Automation", hash: "#/automation", description: "Review automation behavior and integration access.",
+};
+
+export const automationApiKeyPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "automation-api-key", label: "API Keys", hash: "#/automation/api-keys", description: "Manage organization API keys.",
+};
+
+export const automationOauthPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "automation-oauth", label: "OAuth", hash: "#/automation/oauth", description: "Review OAuth client access.",
+};
+
+export const billingPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "billing", label: "Billing", hash: "#/billing", description: "Review subscription and billing state.",
+};
+
+export const usagePortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "usage", label: "Usage", hash: "#/usage", description: "Review request usage and plan limits.",
+};
+
+export const settingsProfilePortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "settings-profile", label: "Profile", hash: "#/settings/profile", description: "Manage profile and appearance preferences.",
+};
+
+export const settingsOrganizationPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "settings-organization", label: "Organization Settings", hash: "#/settings/organization", description: "Manage organization settings and integration defaults.",
+};
+
+export const portalProtectedRoutes: PortalRouteDefinition[] = [
+  organizationOnboardingPortalRoute,
+  dashboardPortalRoute,
+  organizationsPortalRoute,
+  teamPortalRoute,
+  automationGeneralPortalRoute,
+  automationApiKeyPortalRoute,
+  automationOauthPortalRoute,
+  billingPortalRoute,
+  usagePortalRoute,
+  settingsProfilePortalRoute,
+  settingsOrganizationPortalRoute,
+];
+
+export const legacyPortalAliases: Record<string, string> = {
+  "#/dashboard?nav=customer-admin-home": "#/dashboard",
+  "#/dashboard?nav=customer-user-dashboard": "#/dashboard",
+  "#/dashboard?nav=developer-overview": "#/dashboard",
+  "#/dashboard?nav=portal-admin-dashboard": "#/dashboard",
+  "#/workspace": "#/organizations",
+  "#/workspace?nav=customer-user-search-ein": "#/organizations",
+  "#/workspace?nav=customer-user-search-address": "#/organizations",
+  "#/workspace?nav=developer-tenants": "#/organizations",
+  "#/workspace?nav=portal-admin-customers": "#/organizations",
+  "#/workspace?nav=customer-admin-team": "#/team",
+  "#/workspace?nav=portal-admin-support": "#/team",
+  "#/api-access": "#/automation",
+  "#/api-access?nav=customer-user-automation-general": "#/automation",
+  "#/api-access?nav=customer-user-automation-api": "#/automation/api-keys",
+  "#/api-access?nav=customer-admin-api": "#/automation/api-keys",
+  "#/api-access?nav=developer-system": "#/automation/api-keys",
+  "#/api-access?nav=customer-user-automation-oauth": "#/automation/oauth",
+  "#/usage-billing": "#/billing",
+  "#/usage-billing?nav=customer-admin-billing": "#/billing",
+  "#/usage-billing?nav=developer-plans": "#/billing",
+  "#/usage-billing?nav=portal-admin-subscriptions": "#/billing",
+  "#/usage-billing?nav=customer-admin-usage": "#/usage",
+  "#/usage-billing?nav=portal-admin-reports": "#/usage",
+  "#/settings": "#/settings/profile",
+  "#/settings?nav=customer-user-profile": "#/settings/profile",
+  "#/settings?nav=customer-admin-settings": "#/settings/organization",
+  "#/settings?nav=developer-feature-flags": "#/settings/organization",
+  "#/settings?nav=developer-audit": "#/settings/organization",
+  "#/settings?nav=portal-admin-settings": "#/settings/organization",
+};
