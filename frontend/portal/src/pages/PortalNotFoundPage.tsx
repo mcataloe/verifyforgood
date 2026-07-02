@@ -10,8 +10,11 @@ export function PortalNotFoundPage() {
       title="Page not found"
     >
       <EmptyState
-        actionHref={organizationsPortalRoute.hash}
-        actionLabel="Open organizations"
+        action={
+          <a className="portal-shell__action" href={organizationsPortalRoute.hash}>
+            Open organizations
+          </a>
+        }
         description="Use the portal navigation or return to organization search."
         title="This route is unavailable"
       />
