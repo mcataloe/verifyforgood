@@ -22,42 +22,44 @@ export type EntityDetailSummaryItem = {
   label: string;
   value: ReactNode;
 };
-
 export type EntityDetailTab = {
   content: ReactNode;
   key: string;
   label: string;
 };
-
 type EntityDetailLayoutProps = {
   actions?: ReactNode;
+  activeTabKey?: string;
   description?: ReactNode;
   ein: string;
   identifierLabel?: string;
   name: string;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
+  onTabChange?: (key: string) => void;
   status: StatusBadgeStatus;
   summaryItems: EntityDetailSummaryItem[];
   tabs: EntityDetailTab[];
 };
 
-/**
- * Shared entity-review layout for nonprofit and organization detail surfaces.
- */
 export function EntityDetailLayout({
   actions,
+  activeTabKey,
   description,
   ein,
   identifierLabel = "EIN",
   name,
   onPrimaryAction,
+  onTabChange,
   primaryActionLabel = "Request refresh",
   status,
   summaryItems,
   tabs,
 }: EntityDetailLayoutProps) {
   const { semantic } = useVerifyForGoodSemanticColors();
+  const tabState = activeTabKey
+    ? { value: activeTabKey }
+    : { defaultValue: tabs[0]?.key };
 
   return (
     <Stack gap="lg">
@@ -107,9 +109,12 @@ export function EntityDetailLayout({
 
       <Tabs
         color="primary"
-        defaultValue={tabs[0]?.key}
         keepMounted={false}
+        onChange={(value) => {
+          if (value) onTabChange?.(value);
+        }}
         variant="outline"
+        {...tabState}
       >
         <Tabs.List aria-label="Entity detail sections">
           {tabs.map((tab) => (
@@ -118,7 +123,6 @@ export function EntityDetailLayout({
             </Tabs.Tab>
           ))}
         </Tabs.List>
-
         {tabs.map((tab) => (
           <Tabs.Panel key={tab.key} pt="md" value={tab.key}>
             <Box
