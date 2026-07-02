@@ -29,7 +29,11 @@ export type PortalPageKey =
   | "settings-organization"
   | "not-found"
   | "register"
-  | "sign-in";
+  | "sign-in"
+  | "workspace"
+  | "api-access"
+  | "usage-billing"
+  | "settings";
 export type PortalProtectedRouteKey =
   | "onboarding-organization"
   | "dashboard"
@@ -43,7 +47,7 @@ export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 export interface PortalRouteDefinition {
   access: "protected" | "public";
   key: PortalRouteKey;
-  page: PortalPageKey;
+  page?: PortalPageKey;
   description: string;
   hash: string;
   label: string;
