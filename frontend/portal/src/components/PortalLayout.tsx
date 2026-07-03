@@ -1,26 +1,25 @@
-import {
-  SidebarProfileSection,
-  VerifyForGoodAppShell,
-} from "@charity-status/shared-ui";
+import { VerifyForGoodAppShell } from "@charity-status/shared-ui";
+import { Group } from "@mantine/core";
 import type {
   FrontendAppInfo,
   FrontendRuntimeConfig,
 } from "@charity-status/shared-types";
 import type { PropsWithChildren } from "react";
 import {
-  resolveCustomerAdminPortalPane,
-  resolveCustomerUserPortalPane,
   resolveActivePortalNavigationKey,
   resolvePortalProfileNavigationTarget,
   resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
 import { resolveMembershipRoleFromContext } from "../app/portalAuthorization";
+import { billingPortalRoute } from "../app/portalRouteCatalog";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalAuth } from "../auth/usePortalAuth";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { PortalOrganizationSwitcher } from "./PortalOrganizationSwitcher";
+import { PortalUserMenu } from "./PortalUserMenu";
+import { portalHelpMenuItems } from "./portalHelpMenuItems";
 
 interface PortalLayoutProps extends PropsWithChildren {
   app: FrontendAppInfo;
@@ -68,52 +67,36 @@ export function PortalLayout({
     audience,
     routes,
   });
-  const customerAdminPane =
-    audience === "customer_admin"
-      ? resolveCustomerAdminPortalPane({ currentHash, currentRoute })
-      : null;
-  const isProfileActive =
-    audience === "customer_user"
-      ? resolveCustomerUserPortalPane({ currentHash, currentRoute }) ===
-        "profile"
-      : audience === "customer_admin"
-        ? customerAdminPane === "profile"
-        : currentRoute.key === "settings";
 
   return (
     <VerifyForGoodAppShell
       activeNavigationKey={activeNavigationKey}
       appName={app.title}
       headerActions={
-        <PortalOrganizationSwitcher
-          activeOrganizationId={organization.activeOrganization.organization_id}
-          activeOrganizationName={organization.activeOrganization.organization_name}
-          availableOrganizations={auth.availableOrganizations}
-          onCreateOrganization={onOpenOrganizationOnboarding}
-          onSelectOrganization={(nextOrganization) => {
-            auth.applyOrganization(nextOrganization);
-          }}
-        />
+        <Group gap="sm" wrap="nowrap">
+          <PortalOrganizationSwitcher
+            activeOrganizationId={organization.activeOrganization.organization_id}
+            activeOrganizationName={organization.activeOrganization.organization_name}
+            availableOrganizations={auth.availableOrganizations}
+            onCreateOrganization={onOpenOrganizationOnboarding}
+            onSelectOrganization={(nextOrganization) => {
+              auth.applyOrganization(nextOrganization);
+            }}
+          />
+          <PortalUserMenu
+            editProfileHref={profileNavigationTarget?.href}
+            email={session.user.email}
+            onSignOut={() => {
+              void onSignOut();
+            }}
+            primaryLabel={session.user.display_name}
+          />
+        </Group>
       }
       navigationSections={navigationSections}
+      sidebarHelpItems={portalHelpMenuItems}
       sidebarNavigationAriaLabel="Portal navigation"
-      sidebarFooter={
-        <SidebarProfileSection
-          active={isProfileActive}
-          actionAriaLabel="Log out of the portal"
-          actionLabel="Log out"
-          actionOnClick={() => {
-            void onSignOut();
-          }}
-          ariaLabel={
-            profileNavigationTarget
-              ? `${profileNavigationTarget.label} for ${session.user.display_name}`
-              : undefined
-          }
-          href={profileNavigationTarget?.href}
-          primaryLabel={session.user.display_name}
-        />
-      }
+      sidebarUpgradeHref={billingPortalRoute.hash}
       showHeader
       showSidebarHeader={false}
       subtitle={app.description}

@@ -43,7 +43,9 @@ describe("SupportPage", () => {
       />,
     );
 
-    expect(screen.getAllByRole("heading", { name: "Report An Issue" })).toHaveLength(1);
+    expect(
+      screen.queryByRole("heading", { name: "Report An Issue" }),
+    ).toBeNull();
     expect(
       screen.getByRole("option", { name: "Recommendation" }),
     ).toBeTruthy();
@@ -52,7 +54,7 @@ describe("SupportPage", () => {
     ).toBeNull();
   });
 
-  it("validates support requests before submission", () => {
+  it("validates support requests before submission, only after a field is left", () => {
     const submit = vi.fn(async () => {});
     const supportController = createSupportController({ submit });
 
@@ -75,6 +77,12 @@ describe("SupportPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "short" },
     });
+
+    expect(
+      screen.queryByText("Subject must be at least 3 characters."),
+    ).toBeNull();
+
+    fireEvent.blur(screen.getByLabelText("Subject"));
 
     expect(
       screen.getByText("Subject must be at least 3 characters."),

@@ -23,6 +23,7 @@ export function OrganizationProfileSettingsPanel({
     controller.settings.contactEmail,
   );
   const [slug, setSlug] = useState(controller.settings.slug ?? "");
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     setDisplayName(controller.settings.displayName);
@@ -57,6 +58,7 @@ export function OrganizationProfileSettingsPanel({
       <TextInput
         id="organization-display-name"
         label="Display name"
+        onBlur={() => setTouched(true)}
         onChange={(event) => {
           controller.clearNotice();
           setDisplayName(event.target.value);
@@ -68,6 +70,7 @@ export function OrganizationProfileSettingsPanel({
       <TextInput
         id="organization-slug"
         label="Slug"
+        onBlur={() => setTouched(true)}
         onChange={(event) => {
           controller.clearNotice();
           setSlug(normalizeSlugCandidate(event.target.value));
@@ -79,6 +82,7 @@ export function OrganizationProfileSettingsPanel({
       <TextInput
         id="organization-contact-email"
         label="Contact email"
+        onBlur={() => setTouched(true)}
         onChange={(event) => {
           controller.clearNotice();
           setContactEmail(event.target.value);
@@ -94,7 +98,7 @@ export function OrganizationProfileSettingsPanel({
         administrative notices. Leave the contact email blank to clear it.
       </PortalHint>
 
-      {validationMessage ? (
+      {touched && validationMessage ? (
         <PortalNotice tone="error">
           <p>{validationMessage}</p>
         </PortalNotice>

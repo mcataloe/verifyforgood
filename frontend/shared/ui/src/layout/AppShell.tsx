@@ -3,16 +3,20 @@ import {
   AppShell as MantineAppShell,
   Box,
   Group,
+  Menu,
   ScrollArea,
+  Stack,
   Text,
   Title,
+  UnstyledButton,
 } from "@mantine/core";
 import {
+  IconHelpCircle,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
+  IconRocket,
 } from "@tabler/icons-react";
 import { useState, type PropsWithChildren, type ReactNode } from "react";
-import { SidebarProfileSection } from "../components/SidebarProfileSection";
 import type {
   VerifyForGoodNavigationItem,
   VerifyForGoodNavigationSection,
@@ -66,6 +70,12 @@ export const verifyForGoodAppShellNavigationSections: VerifyForGoodNavigationSec
     },
   ];
 
+export type VerifyForGoodAppShellSidebarHelpItem = {
+  href: string;
+  key: string;
+  label: string;
+};
+
 export type VerifyForGoodAppShellProps = PropsWithChildren<{
   activeNavigationKey?: string;
   appName?: string;
@@ -75,6 +85,8 @@ export type VerifyForGoodAppShellProps = PropsWithChildren<{
   navigationSections?: readonly VerifyForGoodAppShellNavSection[];
   onNavigationChange?: (item: VerifyForGoodAppShellNavItem) => void;
   sidebarFooter?: ReactNode;
+  sidebarHelpItems?: readonly VerifyForGoodAppShellSidebarHelpItem[];
+  sidebarUpgradeHref?: string;
   showHeader?: boolean;
   showSidebarHeader?: boolean;
   sidebarNavigationAriaLabel?: string;
@@ -96,6 +108,8 @@ export function VerifyForGoodAppShell({
   navigationSections,
   onNavigationChange,
   sidebarFooter,
+  sidebarHelpItems,
+  sidebarUpgradeHref,
   showHeader = true,
   showSidebarHeader = true,
   sidebarNavigationAriaLabel = "Application navigation",
@@ -169,27 +183,21 @@ export function VerifyForGoodAppShell({
                   />
                 )}
               </ActionIcon>
-              <ActionIcon
-                visibleFrom="md"
-                aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                onClick={() => setDesktopCollapsed((current) => !current)}
-                size="sm"
-                variant="subtle"
-              >
-                {desktopCollapsed ? (
+              {desktopCollapsed ? (
+                <ActionIcon
+                  visibleFrom="md"
+                  aria-label="Expand sidebar"
+                  onClick={() => setDesktopCollapsed(false)}
+                  size="sm"
+                  variant="subtle"
+                >
                   <IconLayoutSidebarLeftExpand
                     aria-hidden="true"
                     size={18}
                     stroke={1.8}
                   />
-                ) : (
-                  <IconLayoutSidebarLeftCollapse
-                    aria-hidden="true"
-                    size={18}
-                    stroke={1.8}
-                  />
-                )}
-              </ActionIcon>
+                </ActionIcon>
+              ) : null}
               <Box>
                 <Text c="dimmed" fw={500} fz="xs" tt="uppercase">
                   Application Shell
@@ -280,14 +288,13 @@ export function VerifyForGoodAppShell({
           data-testid="vf-app-shell-sidebar-footer"
         >
           <Box className="vf-app-shell-sidebar__footer-inner">
-            {sidebarFooter ?? (
-              <SidebarProfileSection
-                actionLabel="Log out"
-                eyebrow="Application"
-                primaryLabel={appName}
-                secondaryLabel="Shared application shell"
-              />
-            )}
+            {sidebarFooter}
+            <AppShellSidebarUtilityNav
+              collapsed={desktopCollapsed}
+              helpItems={sidebarHelpItems}
+              onToggleCollapsed={() => setDesktopCollapsed((current) => !current)}
+              upgradeHref={sidebarUpgradeHref}
+            />
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
@@ -307,6 +314,86 @@ export function VerifyForGoodAppShell({
         </Box>
       </MantineAppShell.Main>
     </MantineAppShell>
+  );
+}
+
+function AppShellSidebarUtilityNav({
+  collapsed,
+  helpItems,
+  onToggleCollapsed,
+  upgradeHref,
+}: {
+  collapsed: boolean;
+  helpItems?: readonly VerifyForGoodAppShellSidebarHelpItem[];
+  onToggleCollapsed: () => void;
+  upgradeHref?: string;
+}) {
+  const [helpOpened, setHelpOpened] = useState(false);
+
+  return (
+    <Stack className="vf-sidebar-utility" gap={2} visibleFrom="md">
+      {upgradeHref ? (
+        <UnstyledButton
+          className="vf-sidebar-utility__item"
+          component="a"
+          href={upgradeHref}
+        >
+          <Group gap="sm" wrap="nowrap">
+            <IconRocket aria-hidden="true" size={16} stroke={1.8} />
+            <Text fz="sm">Upgrade subscription</Text>
+          </Group>
+        </UnstyledButton>
+      ) : null}
+
+      {helpItems && helpItems.length > 0 ? (
+        <Menu
+          keepMounted
+          onChange={setHelpOpened}
+          opened={helpOpened}
+          position="top-start"
+          shadow="md"
+          width={260}
+        >
+          <Menu.Target>
+            <UnstyledButton
+              aria-expanded={helpOpened}
+              className="vf-sidebar-utility__item"
+            >
+              <Group gap="sm" wrap="nowrap">
+                <IconHelpCircle aria-hidden="true" size={16} stroke={1.8} />
+                <Text fz="sm">Help</Text>
+              </Group>
+            </UnstyledButton>
+          </Menu.Target>
+          <Menu.Dropdown>
+            {helpItems.map((item) => (
+              <Menu.Item
+                component="a"
+                data-testid={`vf-sidebar-help-item-${item.key}`}
+                href={item.href}
+                key={item.key}
+              >
+                {item.label}
+              </Menu.Item>
+            ))}
+          </Menu.Dropdown>
+        </Menu>
+      ) : null}
+
+      <UnstyledButton
+        className="vf-sidebar-utility__item"
+        onClick={onToggleCollapsed}
+      >
+        <Group gap="sm" wrap="nowrap">
+          {collapsed ? (
+            <IconLayoutSidebarLeftExpand aria-hidden="true" size={16} stroke={1.8} />
+          ) : (
+            <IconLayoutSidebarLeftCollapse aria-hidden="true" size={16} stroke={1.8} />
+          )}
+          <Text fz="sm">{collapsed ? "Expand sidebar" : "Collapse sidebar"}</Text>
+        </Group>
+      </UnstyledButton>
+    </Stack>
   );
 }
 

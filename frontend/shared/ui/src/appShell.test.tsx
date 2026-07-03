@@ -100,14 +100,42 @@ describe("VerifyForGoodAppShell", () => {
     expect(screen.getAllByText("Shared Shell").length).toBeGreaterThan(0);
   });
 
-  it("renders the default footer profile block without sidebar theme controls", () => {
+  it("always renders a collapse sidebar control in the footer", () => {
     renderAppShell({
       sidebarFooter: undefined,
     });
 
-    expect(screen.getByText("Shared application shell")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Collapse sidebar" }),
+    ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Auto" })).toBeNull();
+  });
+
+  it("toggles between collapse and expand sidebar controls", () => {
+    renderAppShell({});
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(
+      screen.getAllByRole("button", { name: "Expand sidebar" }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders an upgrade subscription link and help flyout when provided", () => {
+    renderAppShell({
+      sidebarHelpItems: [
+        { key: "help", label: "Help", href: "#/help" },
+        { key: "support", label: "Support", href: "#/support" },
+      ],
+      sidebarUpgradeHref: "#/billing",
+    });
+
+    expect(screen.getByRole("link", { name: /Upgrade subscription/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Help$/i }));
+
+    expect(screen.getByTestId("vf-sidebar-help-item-help")).toBeTruthy();
+    expect(screen.getByTestId("vf-sidebar-help-item-support")).toBeTruthy();
   });
 
   it("renders grouped navigation sections without forcing nested items open", () => {

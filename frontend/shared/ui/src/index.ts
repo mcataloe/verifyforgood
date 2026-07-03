@@ -65,6 +65,7 @@ export {
   type VerifyForGoodAppShellNavItem,
   type VerifyForGoodAppShellNavSection,
   type VerifyForGoodAppShellProps,
+  type VerifyForGoodAppShellSidebarHelpItem,
 } from "./layout/AppShell";
 export {
   EntityDetailLayout,

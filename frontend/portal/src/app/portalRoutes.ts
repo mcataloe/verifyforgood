@@ -30,6 +30,9 @@ export type PortalPageKey =
   | "usage"
   | "settings-profile"
   | "settings-organization"
+  | "help"
+  | "help-documentation"
+  | "compare-plans"
   | "not-found"
   | "register"
   | "sign-in"
@@ -48,7 +51,8 @@ export type PortalProtectedRouteKey =
   | "workspace"
   | "api-access"
   | "usage-billing"
-  | "settings";
+  | "settings"
+  | "help";
 export type PortalPublicRouteKey = "home" | "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 

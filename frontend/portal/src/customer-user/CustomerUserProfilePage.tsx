@@ -40,6 +40,7 @@ export function CustomerUserProfilePage({
   const [email, setEmail] = useState(savedPersonalInfo.email);
   const [pronouns, setPronouns] = useState(savedPersonalInfo.pronouns);
   const [personalInfoNotice, setPersonalInfoNotice] = useState<string | null>(null);
+  const [personalInfoTouched, setPersonalInfoTouched] = useState(false);
   const [avatarDraft, setAvatarDraft] = useState<File | null>(null);
   const [savedAvatar, setSavedAvatar] = useState<StoredAvatar | null>(() =>
     loadStoredAvatar(session.user.subject_id),
@@ -79,6 +80,7 @@ export function CustomerUserProfilePage({
           <TextInput
             aria-label="First Name"
             label="First Name"
+            onBlur={() => setPersonalInfoTouched(true)}
             onChange={(event) => {
               setPersonalInfoNotice(null);
               setFirstName(event.target.value);
@@ -89,6 +91,7 @@ export function CustomerUserProfilePage({
           <TextInput
             aria-label="Last Name"
             label="Last Name"
+            onBlur={() => setPersonalInfoTouched(true)}
             onChange={(event) => {
               setPersonalInfoNotice(null);
               setLastName(event.target.value);
@@ -99,6 +102,7 @@ export function CustomerUserProfilePage({
           <TextInput
             aria-label="Email"
             label="Email"
+            onBlur={() => setPersonalInfoTouched(true)}
             onChange={(event) => {
               setPersonalInfoNotice(null);
               setEmail(event.target.value);
@@ -124,7 +128,7 @@ export function CustomerUserProfilePage({
             value={pronouns}
           />
 
-          {personalInfoValidationMessage ? (
+          {personalInfoTouched && personalInfoValidationMessage ? (
             <PortalNotice tone="error">
               <p>{personalInfoValidationMessage}</p>
             </PortalNotice>

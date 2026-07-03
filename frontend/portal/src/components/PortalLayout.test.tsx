@@ -54,11 +54,12 @@ describe("PortalLayout", () => {
       screen.getByRole("link", { name: /^Contact Support\b/i }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Report An Issue\b/i }),
+      screen.getByRole("link", { name: /^Feedback\b/i }),
     ).toBeTruthy();
 
+    fireEvent.click(screen.getByRole("button", { name: /account menu/i }));
     expect(screen.getByText("Alex Operator")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
+    expect(screen.getByTestId("portal-user-menu-sign-out")).toBeTruthy();
   });
 
   it("hides admin-only navigation for user memberships", () => {
@@ -84,7 +85,7 @@ describe("PortalLayout", () => {
     expect(screen.queryByRole("link", { name: /^Settings\b/i })).toBeNull();
   });
 
-  it("maps customer-user navigation to task routes and footer profile", () => {
+  it("maps customer-user navigation to task routes and account menu", () => {
     renderPortalLayout({
       session: {
         ...createMockPortalSession(),
@@ -97,8 +98,10 @@ describe("PortalLayout", () => {
       screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Profile/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Log out/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.getByTestId("portal-user-menu-edit-profile")).toBeTruthy();
+    expect(screen.getByTestId("portal-user-menu-sign-out")).toBeTruthy();
   });
 
   it("gives developers the canonical platform navigation", () => {

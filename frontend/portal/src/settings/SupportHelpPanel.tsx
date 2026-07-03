@@ -1,7 +1,10 @@
 import { useState } from "react";
 import {
   Button,
+  FileInput,
+  Grid,
   NativeSelect,
+  Pill,
   Stack,
   TagsInput,
   TextInput,
@@ -18,6 +21,9 @@ import {
   PortalNotice,
 } from "../components/feedback";
 import type { PortalSupportController } from "./usePortalSupport";
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS_TOTAL_BYTES = 30 * 1024 * 1024;
 
 interface SupportHelpPanelProps {
   controller: PortalSupportController;
@@ -46,6 +52,11 @@ export function SupportHelpPanel({
   const [description, setDescription] = useState("");
   const [watchers, setWatchers] = useState<string[]>([]);
   const [watcherMessage, setWatcherMessage] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentMessage, setAttachmentMessage] = useState<string | null>(
+    null,
+  );
 
   const validationMessage = getValidationMessage({
     category,
@@ -145,44 +156,53 @@ export function SupportHelpPanel({
 
       {(pane ?? "report") === "report" ? (
         <Stack gap="md">
-          <NativeSelect
-            data={supportCategories.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            description="Use Recommendation for constructive feedback or feature suggestions."
-            id="support-category"
-            label="Category"
-            onChange={(value) => {
-              controller.clearReceipt();
-              setCategory(
-                (value.currentTarget.value ||
-                  "other") as (typeof supportCategories)[number]["value"],
-              );
-            }}
-            value={category}
-          />
+          <Grid gutter="md">
+            <Grid.Col span={4}>
+              <NativeSelect
+                data={supportCategories.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                }))}
+                description="Use Recommendation for constructive feedback or feature suggestions."
+                id="support-category"
+                label="Category"
+                onBlur={() => setTouched(true)}
+                onChange={(value) => {
+                  controller.clearReceipt();
+                  setCategory(
+                    (value.currentTarget.value ||
+                      "other") as (typeof supportCategories)[number]["value"],
+                  );
+                }}
+                value={category}
+              />
+            </Grid.Col>
 
-          <TagsInput
-            clearable
-            data={[]}
-            description={`Replies go to ${submitterEmail ?? "the signed-in account"} by default. Add other email addresses here to keep them copied on follow-up.`}
-            label="Watchers"
-            onChange={(values) => {
-              controller.clearReceipt();
-              setWatchers(values);
-              const invalidWatcher = values.find((value) => !isValidEmail(value));
-              setWatcherMessage(
-                invalidWatcher ? "Watchers must be valid email addresses." : null,
-              );
-            }}
-            placeholder="Add email and press Enter"
-            value={watchers}
-          />
+            <Grid.Col span={8}>
+              <TagsInput
+                clearable
+                data={[]}
+                description={`Replies go to ${submitterEmail ?? "the signed-in account"} by default. Add other email addresses here to keep them copied on follow-up.`}
+                label="Watchers"
+                onBlur={() => setTouched(true)}
+                onChange={(values) => {
+                  controller.clearReceipt();
+                  setWatchers(values);
+                  const invalidWatcher = values.find((value) => !isValidEmail(value));
+                  setWatcherMessage(
+                    invalidWatcher ? "Watchers must be valid email addresses." : null,
+                  );
+                }}
+                placeholder="Add email and press Enter"
+                value={watchers}
+              />
+            </Grid.Col>
+          </Grid>
 
           <TextInput
             id="support-subject"
             label="Subject"
+            onBlur={() => setTouched(true)}
             onChange={(event) => {
               controller.clearReceipt();
               setSubject(event.target.value);
@@ -196,6 +216,7 @@ export function SupportHelpPanel({
             id="support-description"
             label="Description"
             minRows={5}
+            onBlur={() => setTouched(true)}
             onChange={(event) => {
               controller.clearReceipt();
               setDescription(event.target.value);
@@ -204,7 +225,47 @@ export function SupportHelpPanel({
             value={description}
           />
 
-          {validationMessage ? (
+          <Stack gap="xs">
+            <FileInput
+              accept="image/*,video/*"
+              clearable
+              description="Up to 5 images or short videos, 30 MB total."
+              label="Attachments"
+              multiple
+              onChange={(files) => {
+                const nextFiles = files ?? [];
+                setAttachmentMessage(getAttachmentMessage(nextFiles));
+                setAttachments(nextFiles);
+              }}
+              placeholder="Add files"
+              value={attachments}
+            />
+            {attachments.length > 0 ? (
+              <PortalActionGroup>
+                {attachments.map((file, index) => (
+                  <Pill
+                    key={`${file.name}_${file.lastModified}_${index}`}
+                    withRemoveButton
+                    removeButtonProps={{ "aria-label": `Remove ${file.name}` }}
+                    onRemove={() => {
+                      const nextFiles = attachments.filter((_, i) => i !== index);
+                      setAttachmentMessage(getAttachmentMessage(nextFiles));
+                      setAttachments(nextFiles);
+                    }}
+                  >
+                    {file.name}
+                  </Pill>
+                ))}
+              </PortalActionGroup>
+            ) : null}
+            {attachmentMessage ? (
+              <PortalNotice tone="error">
+                <p>{attachmentMessage}</p>
+              </PortalNotice>
+            ) : null}
+          </Stack>
+
+          {touched && validationMessage ? (
             <div className="portal-support-help-panel__notice">
               <PortalNotice tone="error">
                 <p>{validationMessage}</p>
@@ -234,9 +295,14 @@ export function SupportHelpPanel({
 
           <PortalActionGroup>
             <Button
-              disabled={controller.isSubmitting || validationMessage !== null}
+              disabled={
+                controller.isSubmitting ||
+                validationMessage !== null ||
+                attachmentMessage !== null
+              }
               loading={controller.isSubmitting}
               onClick={() => {
+                setTouched(true);
                 const cleanedWatchers = watchers
                   .map((value) => value.trim().toLowerCase())
                   .filter(Boolean);
@@ -267,6 +333,9 @@ export function SupportHelpPanel({
                     setDescription("");
                     setWatchers([]);
                     setWatcherMessage(null);
+                    setAttachments([]);
+                    setAttachmentMessage(null);
+                    setTouched(false);
                   })
                   .catch(() => {});
               }}
@@ -314,4 +383,18 @@ function formatDateTime(value: string) {
 
 function isValidEmail(value: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
+}
+
+function getAttachmentMessage(files: File[]): string | null {
+  if (files.length > MAX_ATTACHMENTS) {
+    return `You can attach up to ${MAX_ATTACHMENTS} files.`;
+  }
+  if (files.some((file) => !/^(image|video)\//.test(file.type))) {
+    return "Attachments must be images or videos.";
+  }
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  if (totalBytes > MAX_ATTACHMENTS_TOTAL_BYTES) {
+    return "Attachments must total 30 MB or less.";
+  }
+  return null;
 }

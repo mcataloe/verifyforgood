@@ -25,7 +25,7 @@ export const supportContactPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "support", page: "support-contact", label: "Contact Support", hash: "#/support", description: "Contact support and review helpful product links.",
 };
 export const supportReportIssuePortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "support", page: "support-report-issue", label: "Report An Issue", hash: "#/support/report-issue", description: "Send support requests and product recommendations.",
+  access: "protected", key: "support", page: "support-report-issue", label: "Feedback", hash: "#/support/report-issue", description: "Send support requests and product recommendations.",
 };
 export const automationGeneralPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "api-access", page: "automation-general", label: "Automation", hash: "#/automation", description: "Review automation behavior and integration access.",
@@ -48,6 +48,15 @@ export const settingsProfilePortalRoute: PortalRouteDefinition = {
 export const settingsOrganizationPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "settings", page: "settings-organization", label: "Organization Settings", hash: "#/settings/organization", description: "Manage organization settings and integration defaults.",
 };
+export const helpPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "help", page: "help", label: "Help", hash: "#/help", description: "Get help using the VerifyForGood portal.",
+};
+export const helpDocumentationPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "help", page: "help-documentation", label: "Documentation", hash: "#/help/documentation", description: "Read product documentation.",
+};
+export const comparePlansPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "usage-billing", page: "compare-plans", label: "Compare Plans", hash: "#/billing/compare-plans", description: "Compare plan features, cost, and API limits.",
+};
 
 export const portalProtectedRoutes: PortalRouteDefinition[] = [
   organizationOnboardingPortalRoute,
@@ -64,6 +73,9 @@ export const portalProtectedRoutes: PortalRouteDefinition[] = [
   usagePortalRoute,
   settingsProfilePortalRoute,
   settingsOrganizationPortalRoute,
+  helpPortalRoute,
+  helpDocumentationPortalRoute,
+  comparePlansPortalRoute,
 ];
 
 export const legacyPortalAliases: Record<string, string> = {

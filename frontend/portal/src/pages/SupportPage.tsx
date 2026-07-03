@@ -32,11 +32,9 @@ export function SupportPage({
         subtitle={
           supportPane === "contact"
             ? "Reach the support team and review helpful product links."
-            : "Send an issue report or recommendation to the support team."
+            : undefined
         }
-        title={
-          supportPane === "contact" ? "Contact Support" : "Report An Issue"
-        }
+        title={supportPane === "contact" ? "Contact Support" : undefined}
       >
         <SupportHelpPanel controller={support} pane={supportPane} />
       </Panel>

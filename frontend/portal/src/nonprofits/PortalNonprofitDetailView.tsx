@@ -5,6 +5,7 @@ import {
   StatusBadge,
 } from "@charity-status/shared-ui";
 import type { OrganizationDetailSection } from "../app/portalRoutes";
+import { usePortalToast } from "../components/feedback";
 import { PortalButton } from "../components/PortalPrimitives";
 import type { PortalNonprofitDetail } from "./nonprofitSearch";
 import {
@@ -29,6 +30,8 @@ export function PortalNonprofitDetailView({
   onBackToSearch,
   onSectionChange,
 }: PortalNonprofitDetailViewProps) {
+  const { showToast } = usePortalToast();
+
   return (
     <EntityDetailLayout
       actions={
@@ -49,7 +52,14 @@ export function PortalNonprofitDetailView({
       description="Shared organization detail layout for trust-forward entity review."
       ein={detail.ein}
       name={detail.name}
-      onPrimaryAction={() => undefined}
+      onPrimaryAction={() => {
+        showToast({
+          message:
+            "Queuing an entity review isn't wired up yet — this is coming soon.",
+          title: "Not available yet",
+          tone: "warning",
+        });
+      }}
       onTabChange={(key) => onSectionChange?.(key as OrganizationDetailSection)}
       primaryActionLabel="Queue review"
       status={detailStatus(detail)}

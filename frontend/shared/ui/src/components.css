@@ -165,7 +165,27 @@
 }
 
 .vf-app-shell-sidebar__footer-inner {
-  display: block;
+  display: grid;
+  gap: var(--vf-space-2);
+}
+
+.vf-sidebar-utility {
+  width: 100%;
+}
+
+.vf-sidebar-utility__item {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--vf-radius-sm);
+  color: var(--vf-theme-muted);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.vf-sidebar-utility__item:hover {
+  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 92%, transparent);
+  color: var(--vf-theme-text);
 }
 
 .vf-theme-mode-control__label {

@@ -7,10 +7,12 @@ import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { ApiAccessPage } from "./ApiAccessPage";
 import { BillingPage } from "./BillingPage";
+import { ComparePlansPage } from "./ComparePlansPage";
 import { OrganizationDetailPage } from "./OrganizationDetailPage";
 import { NonprofitSearchPage } from "./NonprofitSearchPage";
 import { PortalDashboardPage } from "./PortalDashboardPage";
 import { PortalNotFoundPage } from "./PortalNotFoundPage";
+import { PortalPlaceholderPage } from "./PortalPlaceholderPage";
 import { SettingsPage } from "./SettingsPage";
 import { SupportPage } from "./SupportPage";
 import { TeamPage } from "./TeamPage";
@@ -86,6 +88,22 @@ export function RouteContentPage({
       );
     case "settings-organization":
       return <SettingsPage endpoints={endpoints} pane="settings" session={session} />;
+    case "compare-plans":
+      return <ComparePlansPage />;
+    case "help":
+      return (
+        <PortalPlaceholderPage
+          description="Get help using the VerifyForGood portal."
+          title="Help"
+        />
+      );
+    case "help-documentation":
+      return (
+        <PortalPlaceholderPage
+          description="Read product documentation."
+          title="Documentation"
+        />
+      );
     default:
       return <PortalNotFoundPage />;
   }
