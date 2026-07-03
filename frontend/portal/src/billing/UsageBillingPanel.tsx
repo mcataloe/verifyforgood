@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel, PricingPlanGrid } from "@charity-status/shared-ui";
-import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Button, Group, Paper, Stack, Tabs, Text, Title } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import {
@@ -15,7 +15,6 @@ import {
   PortalMetricCard,
   PortalMetricGrid,
 } from "../components/PortalPrimitives";
-import { StackedDetailSections } from "../components/shell";
 import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
@@ -171,6 +170,10 @@ export function UsageBillingPanel({
       : visibilityOnly
         ? "Review your current plan, billing dates, limits, and enabled features."
         : "Review your plan, billing cycle, and any pending changes.";
+  const thirdTabLabel = visibilityOnly ? "Included Limits" : "Manage Plans";
+  const fourthTabLabel = visibilityOnly
+    ? "Enabled Capabilities"
+    : "Billing Tools";
   const subscriptionSummary = (
     <SubscriptionSummaryCard currentPlan={currentPlan} snapshot={snapshot} />
   );
@@ -207,16 +210,14 @@ export function UsageBillingPanel({
   }
   if (!isAdmin) {
     usageSectionNotices.push({
-      body:
-        "Only organization admins can make billing changes. Billing details are still visible here.",
+      body: "Only organization admins can make billing changes. Billing details are still visible here.",
       id: "billing-admin-visibility",
       tone: "warning",
     });
   }
   if (focus === "usage" && resolveUsageMetrics(snapshot).length === 0) {
     usageSectionNotices.push({
-      body:
-        "No tracked usage has been recorded for this organization in the current period yet.",
+      body: "No tracked usage has been recorded for this organization in the current period yet.",
       id: "usage-metrics-empty",
       tone: "empty",
     });
@@ -226,195 +227,217 @@ export function UsageBillingPanel({
   );
 
   return (
-    <StackedDetailSections
-      sectionWrapper={({ section }) => <section>{section}</section>}
-    >
-      <Panel
-        title={focus === "usage" ? undefined : subscriptionPanelTitle}
-        subtitle={focus === "usage" ? undefined : subscriptionPanelSubtitle}
-      >
-        <PortalNoticeList
-          notices={visibleUsageSectionNotices}
-          onDismiss={(id) => {
-            setDismissedUsageNoticeIds((current) =>
-              current.includes(id) ? current : [...current, id],
-            );
-          }}
-        />
-        <TrialOnboardingPanel plans={pricingPlans.plans} snapshot={snapshot} />
-        {focus === "usage" ? usageSummary : subscriptionSummary}
-      </Panel>
+    <Tabs color="primary" defaultValue="overview" variant="outline">
+      <Tabs.List aria-label="Billing sections">
+        <Tabs.Tab value="overview">{subscriptionPanelTitle}</Tabs.Tab>
+        <Tabs.Tab value="details">Subscription Details</Tabs.Tab>
+        <Tabs.Tab value="plan">{thirdTabLabel}</Tabs.Tab>
+        <Tabs.Tab value="capabilities">{fourthTabLabel}</Tabs.Tab>
+      </Tabs.List>
 
-      <Panel
-        title="Subscription Details"
-        subtitle="Review plan details, billing dates, and scheduled changes."
-      >
-        <PortalDetailList
-          columns={2}
-          items={[
-            {
-              key: "current-plan",
-              label: "Current plan",
-              value: snapshot.planDisplayName ?? toTitleCase(snapshot.plan),
-            },
-            {
-              key: "effective-plan",
-              label: "Effective access plan",
-              value:
-                snapshot.effectiveAccessPlanDisplayName ??
-                toTitleCase(snapshot.effectiveAccessPlan),
-            },
-            {
-              key: "subscription-status",
-              label: "Subscription status",
-              value: toTitleCase(snapshot.subscriptionStatus ?? snapshot.billingStatus),
-            },
-            {
-              key: "billing-status",
-              label: "Billing status",
-              value: toTitleCase(snapshot.billingStatus),
-            },
-            {
-              key: "period-start",
-              label: "Current period start",
-              value: formatBillingDate(snapshot.billingCycleStart),
-            },
-            {
-              key: "period-end",
-              label: "Current period end",
-              value: formatBillingDate(
-                snapshot.billingCycleEnd ?? snapshot.renewalDate,
-              ),
-            },
-            {
-              key: "pending-plan",
-              label: "Pending plan",
-              value: snapshot.pendingDowngradePlan
-                ? toTitleCase(snapshot.pendingDowngradePlan)
-                : "None",
-            },
-            {
-              key: "pending-effective-at",
-              label: "Pending change effective at",
-              value: formatBillingDate(snapshot.pendingDowngradeEffectiveAt),
-            },
-            {
-              key: "pending-change-type",
-              label: "Pending change type",
-              value: pendingSummary.typeLabel,
-            },
-            {
-              key: "trial-status",
-              label: "Trial status",
-              value: snapshot.trialStatus ? toTitleCase(snapshot.trialStatus) : "None",
-            },
-            {
-              key: "trial-ends-at",
-              label: "Trial ends at",
-              value:
-                snapshot.trialEndsAt === null
-                  ? "Not applicable"
-                  : formatBillingDate(snapshot.trialEndsAt),
-            },
-          ]}
-        />
-      </Panel>
-
-      {visibilityOnly ? (
+      <Tabs.Panel pt="md" value="overview">
         <Panel
-          title="Included Limits"
-          subtitle="These limits apply to your current plan."
+          title={focus === "usage" ? undefined : subscriptionPanelTitle}
+          subtitle={focus === "usage" ? undefined : subscriptionPanelSubtitle}
         >
-          <PortalMetricGrid>
-            <UsageSummaryCard
-              label="Monthly requests"
-              value={(
-                snapshot.includedLimits?.monthlyRequests ??
-                snapshot.usage.limit
-              ).toLocaleString()}
-            />
-            <UsageSummaryCard
-              label="Requests per minute"
-              value={(
-                snapshot.includedLimits?.requestsPerMinute ?? 0
-              ).toLocaleString()}
-            />
-            <UsageSummaryCard
-              label="Batch items"
-              value={(snapshot.includedLimits?.batchItems ?? 0).toLocaleString()}
-            />
-          </PortalMetricGrid>
+          <PortalNoticeList
+            notices={visibleUsageSectionNotices}
+            onDismiss={(id) => {
+              setDismissedUsageNoticeIds((current) =>
+                current.includes(id) ? current : [...current, id],
+              );
+            }}
+          />
+          <TrialOnboardingPanel
+            plans={pricingPlans.plans}
+            snapshot={snapshot}
+          />
+          {focus === "usage" ? usageSummary : subscriptionSummary}
         </Panel>
-      ) : (
-        <Panel
-          title="Manage Plans"
-          subtitle="Compare plans and choose the next billing action."
-        >
-          <PricingPlanGrid items={planItems} />
-        </Panel>
-      )}
+      </Tabs.Panel>
 
-      {visibilityOnly ? (
+      <Tabs.Panel pt="md" value="details">
         <Panel
-          title="Enabled Capabilities"
-          subtitle="Features available with your current plan."
+          title="Subscription Details"
+          subtitle="Review plan details, billing dates, and scheduled changes."
         >
-          <CapabilityVisibilityPanel snapshot={snapshot} />
+          <PortalDetailList
+            columns={2}
+            items={[
+              {
+                key: "current-plan",
+                label: "Current plan",
+                value: snapshot.planDisplayName ?? toTitleCase(snapshot.plan),
+              },
+              {
+                key: "effective-plan",
+                label: "Effective access plan",
+                value:
+                  snapshot.effectiveAccessPlanDisplayName ??
+                  toTitleCase(snapshot.effectiveAccessPlan),
+              },
+              {
+                key: "subscription-status",
+                label: "Subscription status",
+                value: toTitleCase(
+                  snapshot.subscriptionStatus ?? snapshot.billingStatus,
+                ),
+              },
+              {
+                key: "billing-status",
+                label: "Billing status",
+                value: toTitleCase(snapshot.billingStatus),
+              },
+              {
+                key: "period-start",
+                label: "Current period start",
+                value: formatBillingDate(snapshot.billingCycleStart),
+              },
+              {
+                key: "period-end",
+                label: "Current period end",
+                value: formatBillingDate(
+                  snapshot.billingCycleEnd ?? snapshot.renewalDate,
+                ),
+              },
+              {
+                key: "pending-plan",
+                label: "Pending plan",
+                value: snapshot.pendingDowngradePlan
+                  ? toTitleCase(snapshot.pendingDowngradePlan)
+                  : "None",
+              },
+              {
+                key: "pending-effective-at",
+                label: "Pending change effective at",
+                value: formatBillingDate(snapshot.pendingDowngradeEffectiveAt),
+              },
+              {
+                key: "pending-change-type",
+                label: "Pending change type",
+                value: pendingSummary.typeLabel,
+              },
+              {
+                key: "trial-status",
+                label: "Trial status",
+                value: snapshot.trialStatus
+                  ? toTitleCase(snapshot.trialStatus)
+                  : "None",
+              },
+              {
+                key: "trial-ends-at",
+                label: "Trial ends at",
+                value:
+                  snapshot.trialEndsAt === null
+                    ? "Not applicable"
+                    : formatBillingDate(snapshot.trialEndsAt),
+              },
+            ]}
+          />
         </Panel>
-      ) : (
-        <Panel
-          title="Billing Tools"
-          subtitle="Open invoice history and payment settings."
-        >
-          {billingActions.error ? (
-            <PortalNotice tone="error">
-              <p>{billingActions.error}</p>
-            </PortalNotice>
-          ) : null}
+      </Tabs.Panel>
 
-          <Paper p="lg" radius="lg" withBorder>
-            <Stack gap="md">
-              <div>
-                <Title order={4}>Open the Billing Portal</Title>
-                <Text c="dimmed" mt={4} size="sm">
-                  Manage invoices and payment methods in the billing portal.
-                </Text>
-              </div>
-              <Group gap="sm" wrap="wrap">
-                <Button
-                  disabled={!isAdmin}
-                  loading={billingActions.isPending}
-                  onClick={() => {
-                    setStatusMessage(
-                      "Opening the billing portal for invoices and payment details.",
-                    );
-                    void billingActions
-                      .cancelSubscription({
-                        returnUrl: defaultReturnUrl(),
-                        strategy: "backend_billing_portal",
-                      })
-                      .then((result) => {
-                        if (result.kind === "redirect") {
-                          redirectToDestination(result.destinationUrl);
-                        }
-                      })
-                      .catch(() => {});
-                  }}
-                  variant="filled"
-                >
-                  Open Portal
-                </Button>
-              </Group>
-            </Stack>
-          </Paper>
+      <Tabs.Panel pt="md" value="plan">
+        {visibilityOnly ? (
+          <Panel
+            title="Included Limits"
+            subtitle="These limits apply to your current plan."
+          >
+            <PortalMetricGrid>
+              <UsageSummaryCard
+                label="Monthly requests"
+                value={(
+                  snapshot.includedLimits?.monthlyRequests ??
+                  snapshot.usage.limit
+                ).toLocaleString()}
+              />
+              <UsageSummaryCard
+                label="Requests per minute"
+                value={(
+                  snapshot.includedLimits?.requestsPerMinute ?? 0
+                ).toLocaleString()}
+              />
+              <UsageSummaryCard
+                label="Batch items"
+                value={(
+                  snapshot.includedLimits?.batchItems ?? 0
+                ).toLocaleString()}
+              />
+            </PortalMetricGrid>
+          </Panel>
+        ) : (
+          <Panel
+            title="Manage Plans"
+            subtitle="Compare plans and choose the next billing action."
+          >
+            <PricingPlanGrid items={planItems} />
+          </Panel>
+        )}
+      </Tabs.Panel>
 
-          <Text c="dimmed" fz="sm" mt="md">
-            Your current plan is <strong>{session.plan}</strong>. Use this page
-            to review usage, manage billing, and make plan changes.
-          </Text>
-        </Panel>
-      )}
-    </StackedDetailSections>
+      <Tabs.Panel pt="md" value="capabilities">
+        {visibilityOnly ? (
+          <Panel
+            title="Enabled Capabilities"
+            subtitle="Features available with your current plan."
+          >
+            <CapabilityVisibilityPanel snapshot={snapshot} />
+          </Panel>
+        ) : (
+          <Panel
+            title="Billing Tools"
+            subtitle="Open invoice history and payment settings."
+          >
+            {billingActions.error ? (
+              <PortalNotice tone="error">
+                <p>{billingActions.error}</p>
+              </PortalNotice>
+            ) : null}
+
+            <Paper p="lg" radius="lg" withBorder>
+              <Stack gap="md">
+                <div>
+                  <Title order={4}>Open the Billing Portal</Title>
+                  <Text c="dimmed" mt={4} size="sm">
+                    Manage invoices and payment methods in the billing portal.
+                  </Text>
+                </div>
+                <Group gap="sm" wrap="wrap">
+                  <Button
+                    disabled={!isAdmin}
+                    loading={billingActions.isPending}
+                    onClick={() => {
+                      setStatusMessage(
+                        "Opening the billing portal for invoices and payment details.",
+                      );
+                      void billingActions
+                        .cancelSubscription({
+                          returnUrl: defaultReturnUrl(),
+                          strategy: "backend_billing_portal",
+                        })
+                        .then((result) => {
+                          if (result.kind === "redirect") {
+                            redirectToDestination(result.destinationUrl);
+                          }
+                        })
+                        .catch(() => {});
+                    }}
+                    variant="filled"
+                  >
+                    Open Portal
+                  </Button>
+                </Group>
+              </Stack>
+            </Paper>
+
+            <Text c="dimmed" fz="sm" mt="md">
+              Your current plan is <strong>{session.plan}</strong>. Use this
+              page to review usage, manage billing, and make plan changes.
+            </Text>
+          </Panel>
+        )}
+      </Tabs.Panel>
+    </Tabs>
   );
 }
 
@@ -459,7 +482,9 @@ function CapabilityVisibilityPanel(input: {
   );
 }
 
-function resolveUsageTotals(snapshot: PortalUsageBillingSnapshot): PortalUsageTotals {
+function resolveUsageTotals(
+  snapshot: PortalUsageBillingSnapshot,
+): PortalUsageTotals {
   return (
     snapshot.usage.totals ?? {
       apiRequests: snapshot.usage.used,
@@ -477,10 +502,7 @@ function resolveUsageMetrics(
   return snapshot.usage.metrics ?? [];
 }
 
-function UsageSummaryGrid(input: {
-  limit: number;
-  totals: PortalUsageTotals;
-}) {
+function UsageSummaryGrid(input: { limit: number; totals: PortalUsageTotals }) {
   const items = [
     {
       key: "api-requests",
@@ -800,9 +822,7 @@ function describePendingChange(snapshot: PortalUsageBillingSnapshot) {
 }
 
 function planRank(planCode: string): number {
-  return ["free", "starter", "growth", "pro", "enterprise"].indexOf(
-    planCode,
-  );
+  return ["free", "starter", "growth", "pro", "enterprise"].indexOf(planCode);
 }
 
 function defaultReturnUrl(): string {

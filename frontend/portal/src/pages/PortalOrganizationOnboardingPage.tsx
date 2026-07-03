@@ -1,4 +1,4 @@
-import { Modal, Stack, TextInput } from "@mantine/core";
+import { Modal, Stack, Text, TextInput } from "@mantine/core";
 import { useId, useState, type FormEvent } from "react";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import {
@@ -65,14 +65,17 @@ export function PortalOrganizationOnboardingPage({
       }}
       onClose={onClose}
       opened
+      styles={{
+        title: { fontSize: "var(--mantine-font-size-xl)", fontWeight: 700 },
+      }}
       title="Create Your Organization"
     >
       <div data-testid="organization-onboarding-page">
         <Stack gap="lg">
-          <PortalHint>
+          <Text c="dimmed" lh={1.6} size="md">
             Create your organization to start managing your team, billing, and
             verification work.
-          </PortalHint>
+          </Text>
 
           <form noValidate onSubmit={handleSubmit}>
             <Stack gap="md">
@@ -109,8 +112,8 @@ export function PortalOrganizationOnboardingPage({
               />
 
               <PortalHint>
-                The slug is generated from the organization name and can be adjusted
-                before creation.
+                The slug is generated from the organization name and can be
+                adjusted before creation.
               </PortalHint>
 
               {validationMessage ? (

@@ -1,5 +1,6 @@
-import { Stack, TextInput } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
+import { useEffect, useState, type ReactNode } from "react";
+import { InfoTooltip } from "../components/InfoTooltip";
 import {
   PortalActionGroup,
   PortalButton,
@@ -8,6 +9,30 @@ import {
 import { PortalNotice } from "../components/feedback";
 import { normalizeSlugCandidate } from "../lib/slug";
 import type { PortalOrganizationProfileSettingsController } from "./usePortalOrganizationProfileSettings";
+
+function LabeledFieldWithTooltip({
+  children,
+  htmlFor,
+  label,
+  tooltip,
+}: {
+  children: ReactNode;
+  htmlFor: string;
+  label: string;
+  tooltip: string;
+}) {
+  return (
+    <Stack gap={4}>
+      <Group gap={4}>
+        <Text component="label" fw={500} htmlFor={htmlFor} size="sm">
+          {label}
+        </Text>
+        <InfoTooltip label={tooltip} />
+      </Group>
+      {children}
+    </Stack>
+  );
+}
 
 interface OrganizationProfileSettingsPanelProps {
   controller: PortalOrganizationProfileSettingsController;
@@ -55,42 +80,57 @@ export function OrganizationProfileSettingsPanel({
 
   return (
     <Stack gap="md">
-      <TextInput
-        id="organization-display-name"
+      <LabeledFieldWithTooltip
+        htmlFor="organization-display-name"
         label="Display name"
-        onBlur={() => setTouched(true)}
-        onChange={(event) => {
-          controller.clearNotice();
-          setDisplayName(event.target.value);
-        }}
-        placeholder="VerifyForGood"
-        value={displayName}
-      />
+        tooltip="The customer-facing name shown throughout the portal and in emails to your team."
+      >
+        <TextInput
+          id="organization-display-name"
+          onBlur={() => setTouched(true)}
+          onChange={(event) => {
+            controller.clearNotice();
+            setDisplayName(event.target.value);
+          }}
+          placeholder="VerifyForGood"
+          value={displayName}
+        />
+      </LabeledFieldWithTooltip>
 
-      <TextInput
-        id="organization-slug"
+      <LabeledFieldWithTooltip
+        htmlFor="organization-slug"
         label="Slug"
-        onBlur={() => setTouched(true)}
-        onChange={(event) => {
-          controller.clearNotice();
-          setSlug(normalizeSlugCandidate(event.target.value));
-        }}
-        placeholder="verify-for-good"
-        value={slug}
-      />
+        tooltip="A stable, URL-safe identifier for this organization. Use lowercase letters, numbers, and single hyphens only."
+      >
+        <TextInput
+          id="organization-slug"
+          onBlur={() => setTouched(true)}
+          onChange={(event) => {
+            controller.clearNotice();
+            setSlug(normalizeSlugCandidate(event.target.value));
+          }}
+          placeholder="verify-for-good"
+          value={slug}
+        />
+      </LabeledFieldWithTooltip>
 
-      <TextInput
-        id="organization-contact-email"
+      <LabeledFieldWithTooltip
+        htmlFor="organization-contact-email"
         label="Contact email"
-        onBlur={() => setTouched(true)}
-        onChange={(event) => {
-          controller.clearNotice();
-          setContactEmail(event.target.value);
-        }}
-        placeholder="ops@example.org"
-        type="email"
-        value={contactEmail}
-      />
+        tooltip="Where early administrative notices about this organization are sent. Leave blank to clear it."
+      >
+        <TextInput
+          id="organization-contact-email"
+          onBlur={() => setTouched(true)}
+          onChange={(event) => {
+            controller.clearNotice();
+            setContactEmail(event.target.value);
+          }}
+          placeholder="ops@example.org"
+          type="email"
+          value={contactEmail}
+        />
+      </LabeledFieldWithTooltip>
 
       <PortalHint>
         Keep the organization display name customer-facing, use the slug for

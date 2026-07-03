@@ -64,7 +64,6 @@ export function PortalLayout({
     navigationSections,
   });
   const profileNavigationTarget = resolvePortalProfileNavigationTarget({
-    audience,
     routes,
   });
 
@@ -75,8 +74,12 @@ export function PortalLayout({
       headerActions={
         <Group gap="sm" wrap="nowrap">
           <PortalOrganizationSwitcher
-            activeOrganizationId={organization.activeOrganization.organization_id}
-            activeOrganizationName={organization.activeOrganization.organization_name}
+            activeOrganizationId={
+              organization.activeOrganization.organization_id
+            }
+            activeOrganizationName={
+              organization.activeOrganization.organization_name
+            }
             availableOrganizations={auth.availableOrganizations}
             onCreateOrganization={onOpenOrganizationOnboarding}
             onSelectOrganization={(nextOrganization) => {

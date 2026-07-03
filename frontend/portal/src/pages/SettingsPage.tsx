@@ -1,5 +1,6 @@
 import { Panel } from "@charity-status/shared-ui";
-import { Tabs } from "@mantine/core";
+import { Stack, Tabs } from "@mantine/core";
+import { billingPortalRoute } from "../app/portalRouteCatalog";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
@@ -8,7 +9,12 @@ import {
   type PortalUsageBillingController,
 } from "../billing/usePortalUsageBilling";
 import { DetailPageLayout, PortalPageShell } from "../components/shell";
-import { PortalDetailList } from "../components/PortalPrimitives";
+import {
+  PortalActionGroup,
+  PortalAnchorButton,
+  PortalDetailList,
+  PortalHint,
+} from "../components/PortalPrimitives";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
 import { OrganizationProfileSettingsPanel } from "../settings/OrganizationProfileSettingsPanel";
@@ -56,6 +62,8 @@ export function SettingsPage({
   const defaultDeletionController = usePortalOrganizationDeletion();
   const deletion = deletionController ?? defaultDeletionController;
   const organization = usePortalOrganization();
+  const isOrganizationAdmin =
+    organization.currentMembership?.role?.toLowerCase() === "admin";
 
   return (
     <PortalPageShell
@@ -76,7 +84,9 @@ export function SettingsPage({
               title="Organization Profile"
               subtitle="Update the display name, slug, and contact details your team sees."
             >
-              <OrganizationProfileSettingsPanel controller={organizationProfile} />
+              <OrganizationProfileSettingsPanel
+                controller={organizationProfile}
+              />
             </Panel>
           </Tabs.Panel>
 
@@ -85,27 +95,47 @@ export function SettingsPage({
               title="Plan & Access"
               subtitle="A quick summary of your current plan and access level."
             >
-              <PortalDetailList
-                items={[
-                  {
-                    key: "role",
-                    label: "Your role",
-                    value: formatLabelValue(organization.currentMembership?.role),
-                  },
-                  {
-                    key: "plan",
-                    label: "Plan",
-                    value: formatLabelValue(session.plan),
-                  },
-                  {
-                    key: "updated-at",
-                    label: "Last updated",
-                    value: formatFriendlyDateTime(
-                      organization.activeOrganization.updated_at,
-                    ),
-                  },
-                ]}
-              />
+              <Stack gap="md">
+                <PortalDetailList
+                  items={[
+                    {
+                      key: "role",
+                      label: "Your role",
+                      value: formatLabelValue(
+                        organization.currentMembership?.role,
+                      ),
+                    },
+                    {
+                      key: "plan",
+                      label: "Plan",
+                      value: formatLabelValue(session.plan),
+                    },
+                    {
+                      key: "updated-at",
+                      label: "Last updated",
+                      value: formatFriendlyDateTime(
+                        organization.activeOrganization.updated_at,
+                      ),
+                    },
+                  ]}
+                />
+
+                {isOrganizationAdmin ? (
+                  <PortalActionGroup>
+                    <PortalAnchorButton
+                      href={billingPortalRoute.hash}
+                      tone="primary"
+                    >
+                      Manage plan
+                    </PortalAnchorButton>
+                  </PortalActionGroup>
+                ) : (
+                  <PortalHint>
+                    Only organization admins can change the plan. Contact an
+                    admin on your team to make changes.
+                  </PortalHint>
+                )}
+              </Stack>
             </Panel>
           </Tabs.Panel>
 

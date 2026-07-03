@@ -133,14 +133,11 @@ export function resolveCustomerAdminPortalPane(params: {
 }
 
 export function resolvePortalProfileNavigationTarget(params: {
-  audience: PortalNavigationAudience;
   routes: readonly PortalRouteDefinition[];
 }): { href: string; label: string } | undefined {
-  const page =
-    params.audience === "customer_user"
-      ? "settings-profile"
-      : "settings-organization";
-  const route = params.routes.find((candidate) => candidate.page === page);
+  const route = params.routes.find(
+    (candidate) => candidate.page === "settings-profile",
+  );
   return route ? { href: route.hash, label: route.label } : undefined;
 }
 

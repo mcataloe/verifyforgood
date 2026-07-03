@@ -1,4 +1,5 @@
-import { Checkbox, Paper, Stack } from "@mantine/core";
+import { Checkbox, Group, Paper, Stack } from "@mantine/core";
+import { InfoTooltip } from "../components/InfoTooltip";
 import { PortalHint } from "../components/PortalPrimitives";
 
 interface HardStopEnforcementFieldProps {
@@ -17,18 +18,21 @@ export function HardStopEnforcementField({
   return (
     <Paper p="md" radius="md" withBorder>
       <Stack gap="sm">
-        <Checkbox
-          checked={hardStopEnabled}
-          label="Enable hard-stop enforcement"
-          onChange={(event) => {
-            onChange(event.target.checked);
-          }}
-        />
+        <Group gap={4}>
+          <Checkbox
+            checked={hardStopEnabled}
+            label="Enable hard-stop enforcement"
+            onChange={(event) => {
+              onChange(event.target.checked);
+            }}
+          />
+          <InfoTooltip label="When enabled, requests stop as soon as the monthly limit is reached. When disabled, requests can continue past the limit and may incur overage." />
+        </Group>
         <PortalHint>
-        {describeBudgetConsequence({
-          allowOverage,
-          monthlyRequestCap,
-        })}
+          {describeBudgetConsequence({
+            allowOverage,
+            monthlyRequestCap,
+          })}
         </PortalHint>
       </Stack>
     </Paper>

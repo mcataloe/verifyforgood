@@ -1,13 +1,38 @@
-import { Stack, TextInput } from "@mantine/core";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
 import {
   PortalActionGroup,
   PortalButton,
   PortalHint,
 } from "../components/PortalPrimitives";
+import { InfoTooltip } from "../components/InfoTooltip";
 import { PortalNotice } from "../components/feedback";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { PortalBudgetSettingsController } from "./usePortalBudgetSettings";
 import { HardStopEnforcementField } from "./HardStopEnforcementField";
+
+function LabeledFieldWithTooltip({
+  children,
+  htmlFor,
+  label,
+  tooltip,
+}: {
+  children: ReactNode;
+  htmlFor: string;
+  label: string;
+  tooltip: string;
+}) {
+  return (
+    <Stack gap={4}>
+      <Group gap={4}>
+        <Text component="label" fw={500} htmlFor={htmlFor} size="sm">
+          {label}
+        </Text>
+        <InfoTooltip label={tooltip} />
+      </Group>
+      {children}
+    </Stack>
+  );
+}
 
 interface BudgetConfigurationPanelProps {
   controller: PortalBudgetSettingsController;
@@ -40,19 +65,24 @@ export function BudgetConfigurationPanel({
 
   return (
     <Stack gap="md">
-      <TextInput
-        id="monthly-request-cap"
-        inputMode="numeric"
+      <LabeledFieldWithTooltip
+        htmlFor="monthly-request-cap"
         label="Organization request cap"
-        min="1"
-        onChange={(event) => {
-          controller.clearNotice();
-          setMonthlyRequestCap(event.target.value);
-        }}
-        placeholder="Optional"
-        type="number"
-        value={monthlyRequestCap}
-      />
+        tooltip="An optional monthly request limit for this organization. Leave it blank to use the allowance included with your plan."
+      >
+        <TextInput
+          id="monthly-request-cap"
+          inputMode="numeric"
+          min="1"
+          onChange={(event) => {
+            controller.clearNotice();
+            setMonthlyRequestCap(event.target.value);
+          }}
+          placeholder="Optional"
+          type="number"
+          value={monthlyRequestCap}
+        />
+      </LabeledFieldWithTooltip>
       <PortalHint>{describeCapGuidance(includedPlanLimit)}</PortalHint>
       <HardStopEnforcementField
         allowOverage={allowOverage}
@@ -137,4 +167,3 @@ function getValidationMessage(value: string): string | null {
   }
   return null;
 }
-

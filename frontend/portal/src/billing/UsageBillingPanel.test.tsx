@@ -42,45 +42,45 @@ function renderWithOrganization(
 ) {
   const billingActionsController: PortalBillingInteractionsController =
     options?.billingActionsController ?? {
-    cancelSubscription: vi.fn(async () => ({
-      action: "cancel_subscription" as const,
-      billingPeriodEnd: null,
-      billingStatus: "active",
-      changeType: "cancellation_scheduled",
-      currentPlanCode: "free",
-      effectiveFrom: null,
-      effectiveTo: null,
-      kind: "subscription_updated" as const,
-      pendingPlanCode: null,
-      pendingPlanEffectiveAt: null,
-      providerBoundary: "backend_managed" as const,
-      reused: false,
-    })),
-    clearError: vi.fn(),
-    createSubscription: vi.fn(async () => ({
-      action: "create_subscription" as const,
-      destinationUrl: "https://example.com/checkout",
-      kind: "redirect" as const,
-      providerBoundary: "backend_managed" as const,
-      reused: false,
-    })),
-    error: null,
-    isPending: false,
-    updatePlan: vi.fn(async () => ({
-      action: "update_plan" as const,
-      billingPeriodEnd: null,
-      billingStatus: "active",
-      changeType: "updated",
-      currentPlanCode: "pro",
-      effectiveFrom: null,
-      effectiveTo: null,
-      kind: "subscription_updated" as const,
-      pendingPlanCode: null,
-      pendingPlanEffectiveAt: null,
-      providerBoundary: "backend_managed" as const,
-      reused: false,
-    })),
-  };
+      cancelSubscription: vi.fn(async () => ({
+        action: "cancel_subscription" as const,
+        billingPeriodEnd: null,
+        billingStatus: "active",
+        changeType: "cancellation_scheduled",
+        currentPlanCode: "free",
+        effectiveFrom: null,
+        effectiveTo: null,
+        kind: "subscription_updated" as const,
+        pendingPlanCode: null,
+        pendingPlanEffectiveAt: null,
+        providerBoundary: "backend_managed" as const,
+        reused: false,
+      })),
+      clearError: vi.fn(),
+      createSubscription: vi.fn(async () => ({
+        action: "create_subscription" as const,
+        destinationUrl: "https://example.com/checkout",
+        kind: "redirect" as const,
+        providerBoundary: "backend_managed" as const,
+        reused: false,
+      })),
+      error: null,
+      isPending: false,
+      updatePlan: vi.fn(async () => ({
+        action: "update_plan" as const,
+        billingPeriodEnd: null,
+        billingStatus: "active",
+        changeType: "updated",
+        currentPlanCode: "pro",
+        effectiveFrom: null,
+        effectiveTo: null,
+        kind: "subscription_updated" as const,
+        pendingPlanCode: null,
+        pendingPlanEffectiveAt: null,
+        providerBoundary: "backend_managed" as const,
+        reused: false,
+      })),
+    };
 
   const value: PortalOrganizationContextValue = {
     activeOrganization: createSessionPortalOrganization({
@@ -297,9 +297,9 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Current Subscription" }),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/Use this page to review usage, manage billing, and make plan changes./i),
-    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Manage Plans" }));
+
     expect(screen.getAllByText("starter").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Manage Plans" })).toBeTruthy();
     expect(screen.getByText("Current billing plan")).toBeTruthy();
@@ -307,11 +307,17 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getAllByRole("button", { name: "Schedule downgrade" }).length,
     ).toBeGreaterThan(0);
-    expect(
-      screen.getByRole("button", { name: "Keep this plan" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep this plan" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Cancel at period end" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Billing Tools" }));
+
+    expect(
+      screen.getByText(
+        /Use this page to review usage, manage billing, and make plan changes./i,
+      ),
     ).toBeTruthy();
 
     vi.useRealTimers();
@@ -386,7 +392,9 @@ describe("UsageBillingPanel", () => {
     expect(screen.getByText("Nonprofit lookups")).toBeTruthy();
     expect(screen.getByText("Usage Metrics Recorded This Month")).toBeTruthy();
     expect(
-      screen.queryByRole("heading", { name: "Subscription is in good standing" }),
+      screen.queryByRole("heading", {
+        name: "Subscription is in good standing",
+      }),
     ).toBeNull();
   });
 
@@ -457,16 +465,18 @@ describe("UsageBillingPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Subscription Visibility" }),
     ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Manage Plans" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open Portal" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Included Limits" }));
     expect(
       screen.getByRole("heading", { name: "Included Limits" }),
     ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Enabled Capabilities" }));
     expect(
       screen.getByRole("heading", { name: "Enabled Capabilities" }),
     ).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Manage Plans" })).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Open Portal" }),
-    ).toBeNull();
     expect(screen.getByText("Advanced reporting")).toBeTruthy();
   });
 
@@ -754,11 +764,13 @@ describe("UsageBillingPanel", () => {
       screen.getByText(/Only organization admins can make billing changes/i),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Current plan" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Billing Tools" }));
     expect(
       (
-        screen.getByRole("button", { name: "Open Portal" }) as
-          | HTMLButtonElement
-          | null
+        screen.getByRole("button", {
+          name: "Open Portal",
+        }) as HTMLButtonElement | null
       )?.disabled,
     ).toBe(true);
   });
@@ -892,11 +904,16 @@ describe("UsageBillingPanel", () => {
       billingActionsController,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel at period end" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Manage Plans" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel at period end" }),
+    );
 
     await waitFor(() => {
       expect(cancelSubscription).toHaveBeenCalled();
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Current Subscription" }));
     await waitFor(() => {
       expect(
         screen.getByText(
@@ -904,6 +921,8 @@ describe("UsageBillingPanel", () => {
         ),
       ).toBeTruthy();
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Subscription Details" }));
     expect(screen.getByText("Cancellation at period end")).toBeTruthy();
     expect(reload).toHaveBeenCalled();
   });
@@ -1037,11 +1056,14 @@ describe("UsageBillingPanel", () => {
       billingActionsController,
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "Manage Plans" }));
     fireEvent.click(screen.getByRole("button", { name: "Keep this plan" }));
 
     await waitFor(() => {
       expect(updatePlan).toHaveBeenCalledWith({ planCode: "growth" });
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Current Subscription" }));
     expect(
       screen.getByText(/The pending billing change was cleared/i),
     ).toBeTruthy();
@@ -1059,7 +1081,11 @@ describe("UsageBillingPanel", () => {
     const assign = vi.fn();
     Object.defineProperty(window, "location", {
       configurable: true,
-      value: { ...window.location, assign, href: "https://example.com/billing" },
+      value: {
+        ...window.location,
+        assign,
+        href: "https://example.com/billing",
+      },
     });
     const controller: PortalUsageBillingController = {
       error: null,
@@ -1111,6 +1137,7 @@ describe("UsageBillingPanel", () => {
       billingActionsController,
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "Billing Tools" }));
     fireEvent.click(screen.getByRole("button", { name: "Open Portal" }));
 
     await waitFor(() => {

@@ -326,7 +326,8 @@ function AppShellSidebarUtilityNav({
   upgradeHref?: string;
 }) {
   const [helpOpened, setHelpOpened] = useState(false);
-  const iconSize = 20;
+  const iconSize = 22;
+  const iconStroke = 1.75;
 
   return (
     <Stack className="vf-sidebar-utility" gap={2} visibleFrom="md">
@@ -338,7 +339,7 @@ function AppShellSidebarUtilityNav({
             href={upgradeHref}
           >
             <Group gap="sm" wrap="nowrap">
-              <IconRocket aria-hidden="true" size={iconSize} stroke={1.8} />
+              <IconRocket aria-hidden="true" size={iconSize} stroke={iconStroke} />
               {collapsed ? null : <Text fz="sm">Upgrade subscription</Text>}
             </Group>
           </UnstyledButton>
@@ -359,9 +360,14 @@ function AppShellSidebarUtilityNav({
               <UnstyledButton
                 aria-expanded={helpOpened}
                 className="vf-sidebar-utility__item"
+                onClick={() => setHelpOpened((opened) => !opened)}
               >
                 <Group gap="sm" wrap="nowrap">
-                  <IconHelpCircle aria-hidden="true" size={iconSize} stroke={1.8} />
+                  <IconHelpCircle
+                    aria-hidden="true"
+                    size={iconSize}
+                    stroke={iconStroke}
+                  />
                   {collapsed ? null : <Text fz="sm">Help</Text>}
                 </Group>
               </UnstyledButton>
@@ -396,13 +402,13 @@ function AppShellSidebarUtilityNav({
               <IconLayoutSidebarLeftExpand
                 aria-hidden="true"
                 size={iconSize}
-                stroke={1.8}
+                stroke={iconStroke}
               />
             ) : (
               <IconLayoutSidebarLeftCollapse
                 aria-hidden="true"
                 size={iconSize}
-                stroke={1.8}
+                stroke={iconStroke}
               />
             )}
             {collapsed ? null : (

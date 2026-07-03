@@ -74,20 +74,24 @@ export function RouteContentPage({
         <ApiAccessPage pane="api" />
       );
     case "billing":
-      return <BillingPage endpoints={endpoints} pane="billing" session={session} />;
+      return (
+        <BillingPage endpoints={endpoints} pane="billing" session={session} />
+      );
     case "usage":
-      return <BillingPage endpoints={endpoints} pane="usage" session={session} />;
+      return (
+        <BillingPage endpoints={endpoints} pane="usage" session={session} />
+      );
     case "settings-profile":
-      return audience === "customer_user" ? (
+      return (
         <CustomerUserProfilePage
           environment={runtimeConfig.environment}
           session={session}
         />
-      ) : (
-        <SettingsPage endpoints={endpoints} pane="settings" session={session} />
       );
     case "settings-organization":
-      return <SettingsPage endpoints={endpoints} pane="settings" session={session} />;
+      return (
+        <SettingsPage endpoints={endpoints} pane="settings" session={session} />
+      );
     case "compare-plans":
       return <ComparePlansPage />;
     case "help":

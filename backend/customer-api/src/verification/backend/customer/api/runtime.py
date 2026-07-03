@@ -1350,7 +1350,7 @@ def _is_portal_membership_request(event: dict[str, Any], method: str) -> bool:
 
 
 def _is_portal_api_key_request(event: dict[str, Any], method: str) -> bool:
-    if method not in {"GET", "POST", "DELETE"}:
+    if method not in {"GET", "POST", "PATCH", "DELETE"}:
         return False
     resource, path = _route_paths(event)
     candidate = resource or path
