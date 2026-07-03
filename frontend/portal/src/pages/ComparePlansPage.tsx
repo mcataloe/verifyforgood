@@ -1,4 +1,4 @@
-import { ErrorState, LoadingSkeleton, PricingPlanGrid } from "@charity-status/shared-ui";
+import { ErrorState, LoadingSkeleton, PricingPlanTable } from "@charity-status/shared-ui";
 import { usePortalPricingPlans } from "../billing/usePortalPricingPlans";
 import { PortalPageShell } from "../components/shell";
 
@@ -21,7 +21,7 @@ export function ComparePlansPage() {
         <ErrorState description={pricing.error} title="Plans unavailable" />
       ) : null}
       {!pricing.isLoading && !pricing.error ? (
-        <PricingPlanGrid items={pricing.plans} />
+        <PricingPlanTable plans={pricing.plans.map((item) => item.plan)} />
       ) : null}
     </PortalPageShell>
   );

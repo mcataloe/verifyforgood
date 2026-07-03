@@ -5,6 +5,7 @@ import {
   Modal,
   NativeSelect,
   Stack,
+  Tabs,
   Text,
   TextInput,
   Tooltip,
@@ -20,7 +21,6 @@ import {
   PortalButton,
 } from "../components/PortalPrimitives";
 import { PortalNotice } from "../components/feedback";
-import { StackedDetailSections } from "../components/shell";
 import { usePortalOrganization } from "./usePortalOrganization";
 import {
   createPortalMembershipClient,
@@ -363,149 +363,161 @@ export function TeamManagementPanel() {
   };
 
   return (
-    <StackedDetailSections
-      sectionWrapper={({ section }) => <section>{section}</section>}
-    >
-      <Panel
-        title="Team management"
-        subtitle="Invite teammates and manage access for your organization."
-      >
-        {error ? (
-          <PortalNotice tone="error">
-            <p>{error}</p>
-          </PortalNotice>
-        ) : null}
+    <>
+      <Tabs color="primary" defaultValue="team-management" variant="outline">
+        <Tabs.List aria-label="Team sections">
+          <Tabs.Tab value="team-management">Team Management</Tabs.Tab>
+          <Tabs.Tab value="active-members">Active Members</Tabs.Tab>
+          <Tabs.Tab value="invitations">Invitations</Tabs.Tab>
+        </Tabs.List>
 
-        {inviteResult ? (
-          <PortalNotice title="Invitation created" tone="warning">
-            <p>
-              Share this token with the invited user now:
-              {" "}
-              <code>{inviteResult.token}</code>
-            </p>
-            <p>
-              The invitation also appears below in the Invitations table for
-              durable status tracking.
-            </p>
-          </PortalNotice>
-        ) : null}
+        <Tabs.Panel pt="md" value="team-management">
+          <Panel
+            title="Team management"
+            subtitle="Invite teammates and manage access for your organization."
+          >
+            {error ? (
+              <PortalNotice tone="error">
+                <p>{error}</p>
+              </PortalNotice>
+            ) : null}
 
-        {!canManageMembers ? (
-          <PortalNotice title="Read-only team view" tone="empty">
-            <p>
-              Only organization admins may invite teammates or change
-              membership state.
-            </p>
-          </PortalNotice>
-        ) : (
-          <form onSubmit={handleInvite}>
-            <Stack gap="md">
-              <TextInput
-                label="Invite email"
-                name="invite-email"
-                onChange={(event) => setInviteEmail(event.currentTarget.value)}
-                placeholder="teammate@example.org"
-                type="email"
-                value={inviteEmail}
+            {inviteResult ? (
+              <PortalNotice title="Invitation created" tone="warning">
+                <p>
+                  Share this token with the invited user now:
+                  {" "}
+                  <code>{inviteResult.token}</code>
+                </p>
+                <p>
+                  The invitation also appears below in the Invitations table for
+                  durable status tracking.
+                </p>
+              </PortalNotice>
+            ) : null}
+
+            {!canManageMembers ? (
+              <PortalNotice title="Read-only team view" tone="empty">
+                <p>
+                  Only organization admins may invite teammates or change
+                  membership state.
+                </p>
+              </PortalNotice>
+            ) : (
+              <form onSubmit={handleInvite}>
+                <Stack gap="md">
+                  <TextInput
+                    label="Invite email"
+                    name="invite-email"
+                    onChange={(event) => setInviteEmail(event.currentTarget.value)}
+                    placeholder="teammate@example.org"
+                    type="email"
+                    value={inviteEmail}
+                  />
+
+                  <NativeSelect
+                    data={[
+                      { label: "User", value: "user" },
+                      { label: "Admin", value: "admin" },
+                    ]}
+                    label="Role"
+                    name="invite-role"
+                    onChange={(event) => {
+                      setInviteRole(normalizeMemberRole(event.currentTarget.value));
+                    }}
+                    value={inviteRole}
+                  />
+
+                  <PortalActionGroup>
+                    <PortalButton loading={isInviting} tone="primary" type="submit">
+                      Invite user
+                    </PortalButton>
+                    <PortalButton
+                      disabled={isRefreshing}
+                      onClick={() => {
+                        void handleRefresh();
+                      }}
+                      tone="secondary"
+                      type="button"
+                    >
+                      {isRefreshing ? "Refreshing..." : "Refresh"}
+                    </PortalButton>
+                  </PortalActionGroup>
+                </Stack>
+              </form>
+            )}
+          </Panel>
+        </Tabs.Panel>
+
+        <Tabs.Panel pt="md" value="active-members">
+          <Panel
+            title="Active members"
+            subtitle="People who currently have access to this organization."
+          >
+            {organization.membersStatus === "loading" ? (
+              <PortalNotice title="Loading" tone="loading">
+                <p>Loading members for the current organization.</p>
+              </PortalNotice>
+            ) : null}
+
+            {organization.membersStatus !== "loading" &&
+            organization.members.length === 0 ? (
+              <PortalNotice title="No members yet" tone="empty">
+                <p>The current organization has no visible memberships yet.</p>
+              </PortalNotice>
+            ) : null}
+
+            {organization.members.length > 0 ? (
+              <DataTable
+                ariaLabel="Active organization members"
+                columns={memberColumns}
+                getSearchText={(member) =>
+                  `${member.full_name ?? ""} ${member.email ?? ""} ${member.role} ${member.status}`
+                }
+                initialSort={{ columnKey: "updated_at", direction: "desc" }}
+                pageSize={8}
+                rowKey={(member) => member.user_id}
+                rows={organization.members}
+                searchPlaceholder="Search members"
               />
+            ) : null}
+          </Panel>
+        </Tabs.Panel>
 
-              <NativeSelect
-                data={[
-                  { label: "User", value: "user" },
-                  { label: "Admin", value: "admin" },
-                ]}
-                label="Role"
-                name="invite-role"
-                onChange={(event) => {
-                  setInviteRole(normalizeMemberRole(event.currentTarget.value));
-                }}
-                value={inviteRole}
+        <Tabs.Panel pt="md" value="invitations">
+          <Panel
+            title="Invitations"
+            subtitle="Pending, accepted, and expired invitation lifecycle records for the current organization."
+          >
+            {invitationsStatus === "loading" ? (
+              <PortalNotice title="Loading" tone="loading">
+                <p>Loading invitations for the current organization.</p>
+              </PortalNotice>
+            ) : null}
+
+            {invitationsStatus !== "loading" && invitations.length === 0 ? (
+              <PortalNotice title="No invitations yet" tone="empty">
+                <p>The current organization has no invitation activity yet.</p>
+              </PortalNotice>
+            ) : null}
+
+            {invitations.length > 0 ? (
+              <DataTable
+                ariaLabel="Organization invitations"
+                columns={invitationColumns}
+                getSearchText={(invitation) =>
+                  `${invitation.email} ${invitation.role} ${invitation.status} ${invitation.invited_by_user_id ?? ""}`
+                }
+                initialSort={{ columnKey: "created_at", direction: "desc" }}
+                pageSize={8}
+                rowKey={(invitation) => invitation.invitation_id}
+                rows={invitations}
+                searchPlaceholder="Search invitations"
               />
-
-              <PortalActionGroup>
-                <PortalButton loading={isInviting} tone="primary" type="submit">
-                  Invite user
-                </PortalButton>
-                <PortalButton
-                  disabled={isRefreshing}
-                  onClick={() => {
-                    void handleRefresh();
-                  }}
-                  tone="secondary"
-                  type="button"
-                >
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </PortalButton>
-              </PortalActionGroup>
-            </Stack>
-          </form>
-        )}
-      </Panel>
-
-      <Panel
-        title="Active members"
-        subtitle="People who currently have access to this organization."
-      >
-        {organization.membersStatus === "loading" ? (
-          <PortalNotice title="Loading" tone="loading">
-            <p>Loading members for the current organization.</p>
-          </PortalNotice>
-        ) : null}
-
-        {organization.membersStatus !== "loading" &&
-        organization.members.length === 0 ? (
-          <PortalNotice title="No members yet" tone="empty">
-            <p>The current organization has no visible memberships yet.</p>
-          </PortalNotice>
-        ) : null}
-
-        {organization.members.length > 0 ? (
-          <DataTable
-            ariaLabel="Active organization members"
-            columns={memberColumns}
-            getSearchText={(member) =>
-              `${member.full_name ?? ""} ${member.email ?? ""} ${member.role} ${member.status}`
-            }
-            initialSort={{ columnKey: "updated_at", direction: "desc" }}
-            pageSize={8}
-            rowKey={(member) => member.user_id}
-            rows={organization.members}
-            searchPlaceholder="Search members"
-          />
-        ) : null}
-      </Panel>
-
-      <Panel
-        title="Invitations"
-        subtitle="Pending, accepted, and expired invitation lifecycle records for the current organization."
-      >
-        {invitationsStatus === "loading" ? (
-          <PortalNotice title="Loading" tone="loading">
-            <p>Loading invitations for the current organization.</p>
-          </PortalNotice>
-        ) : null}
-
-        {invitationsStatus !== "loading" && invitations.length === 0 ? (
-          <PortalNotice title="No invitations yet" tone="empty">
-            <p>The current organization has no invitation activity yet.</p>
-          </PortalNotice>
-        ) : null}
-
-        {invitations.length > 0 ? (
-          <DataTable
-            ariaLabel="Organization invitations"
-            columns={invitationColumns}
-            getSearchText={(invitation) =>
-              `${invitation.email} ${invitation.role} ${invitation.status} ${invitation.invited_by_user_id ?? ""}`
-            }
-            initialSort={{ columnKey: "created_at", direction: "desc" }}
-            pageSize={8}
-            rowKey={(invitation) => invitation.invitation_id}
-            rows={invitations}
-            searchPlaceholder="Search invitations"
-          />
-        ) : null}
-      </Panel>
+            ) : null}
+          </Panel>
+        </Tabs.Panel>
+      </Tabs>
 
       <Modal
         centered
@@ -617,7 +629,7 @@ export function TeamManagementPanel() {
           </Group>
         </Stack>
       </Modal>
-    </StackedDetailSections>
+    </>
   );
 }
 

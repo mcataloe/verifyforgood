@@ -1581,6 +1581,9 @@ def _handle_portal_api_key_request(
             request=ApiKeyCreateRequest(
                 display_name=str(payload.get("display_name") or ""),
                 description=str(payload.get("description") or ""),
+                permission_level=str(payload.get("permission_level") or ""),
+                expires_at=str(payload.get("expires_at") or "") or None,
+                allowed_cidr=str(payload.get("allowed_cidr") or "") or None,
             ),
         )
         return json_response(201, created.to_dict(), response_context=response_context)

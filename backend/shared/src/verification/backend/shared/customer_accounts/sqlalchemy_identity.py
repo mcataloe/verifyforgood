@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .identity_models import (
+    ApiKeyPermissionLevel,
     ApiKeyRecord,
     ApiKeyStatus,
     FeatureFlagKey,
@@ -925,6 +926,9 @@ def _api_key_model(record: ApiKeyRecord) -> OrganizationApiKeyModel:
         "created_by_user_id": _require_int_id(record.created_by_user_id, field_name="created_by_user_id"),
         "status": record.status.value,
         "last_used_at": _parse_timestamp(record.last_used_at) if record.last_used_at else None,
+        "permission_level": record.permission_level.value,
+        "expires_at": _parse_timestamp(record.expires_at) if record.expires_at else None,
+        "allowed_cidr": record.allowed_cidr,
     }
     key_id = _normalize_int_id(record.key_id)
     if key_id is not None:
@@ -943,6 +947,9 @@ def _api_key_record(model: OrganizationApiKeyModel) -> ApiKeyRecord:
         created_by_user_id=model.created_by_user_id,
         status=ApiKeyStatus(model.status),
         last_used_at=_format_timestamp(model.last_used_at),
+        permission_level=ApiKeyPermissionLevel(model.permission_level or "full_access"),
+        expires_at=_format_timestamp(model.expires_at),
+        allowed_cidr=model.allowed_cidr,
     )
 
 

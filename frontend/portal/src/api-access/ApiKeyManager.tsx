@@ -2,6 +2,7 @@ import {
   ActionIcon,
   Group,
   Modal,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -30,6 +31,10 @@ import { PortalNotice } from "../components/feedback";
 import { StackedDetailSections } from "../components/shell";
 import { InfoTooltip } from "../components/InfoTooltip";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
+import type {
+  CreatePortalApiKeyInput,
+  PortalApiKeyPermissionLevel,
+} from "./apiKeys";
 import { usePortalApiKeys, type PortalApiKeysState } from "./usePortalApiKeys";
 
 interface ApiKeyManagerProps {
@@ -45,8 +50,7 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
     enabled: canManageKeys,
   });
   const apiKeys = controller ?? defaultController;
-  const [displayName, setDisplayName] = useState("");
-  const [description, setDescription] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [pendingRevokeKey, setPendingRevokeKey] = useState<
     (typeof apiKeys.items)[number] | null
   >(null);
@@ -159,61 +163,28 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                 </p>
               </PortalNotice>
             ) : (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setCopyFeedback(null);
-                  setIsSecretVisible(false);
-                  void apiKeys.createKey({
-                    description,
-                    display_name: displayName,
-                  });
-                  setDisplayName("");
-                  setDescription("");
-                }}
-              >
-                <Stack maw={540}>
-                  <TextInput
-                    label="Display name"
-                    onChange={(event) => {
-                      setDisplayName(event.currentTarget.value);
-                    }}
-                    placeholder="Server Integration"
-                    value={displayName}
-                  />
-                  <Textarea
-                    autosize
-                    label="Description"
-                    minRows={3}
-                    onChange={(event) => {
-                      setDescription(event.currentTarget.value);
-                    }}
-                    placeholder="What this key is used for."
-                    value={description}
-                  />
-
-                  <PortalActionGroup>
-                    <PortalButton
-                      loading={apiKeys.isCreating}
-                      tone="primary"
-                      type="submit"
-                    >
-                      {apiKeys.isCreating ? "Creating..." : "Create Key"}
-                    </PortalButton>
-                    <PortalButton
-                      disabled={apiKeys.isLoading}
-                      onClick={() => {
-                        setCopyFeedback(null);
-                        void apiKeys.refresh();
-                      }}
-                      tone="secondary"
-                      type="button"
-                    >
-                      Refresh
-                    </PortalButton>
-                  </PortalActionGroup>
-                </Stack>
-              </form>
+              <PortalActionGroup>
+                <PortalButton
+                  onClick={() => {
+                    setIsCreateModalOpen(true);
+                  }}
+                  tone="primary"
+                  type="button"
+                >
+                  Create Key
+                </PortalButton>
+                <PortalButton
+                  disabled={apiKeys.isLoading}
+                  onClick={() => {
+                    setCopyFeedback(null);
+                    void apiKeys.refresh();
+                  }}
+                  tone="secondary"
+                  type="button"
+                >
+                  Refresh
+                </PortalButton>
+              </PortalActionGroup>
             )}
 
             {apiKeys.error ? (
@@ -341,6 +312,19 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           </Stack>
         </Panel>
       </StackedDetailSections>
+      <ApiKeyCreateModal
+        isCreating={apiKeys.isCreating}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+        }}
+        onSubmit={(input) => {
+          setCopyFeedback(null);
+          setIsSecretVisible(false);
+          void apiKeys.createKey(input);
+          setIsCreateModalOpen(false);
+        }}
+        opened={isCreateModalOpen}
+      />
       <ApiKeyEditModal
         keyRecord={editingKey}
         onClose={() => {
@@ -361,6 +345,118 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
         revokingKeyId={apiKeys.isRevokingKeyId}
       />
     </>
+  );
+}
+
+const PERMISSION_LEVEL_OPTIONS = [
+  { label: "Full access", value: "full_access" },
+  { label: "Read only", value: "read_only" },
+];
+
+function ApiKeyCreateModal({
+  isCreating,
+  onClose,
+  onSubmit,
+  opened,
+}: {
+  isCreating: boolean;
+  onClose: () => void;
+  onSubmit: (input: CreatePortalApiKeyInput) => void;
+  opened: boolean;
+}) {
+  const [displayName, setDisplayName] = useState("");
+  const [description, setDescription] = useState("");
+  const [permissionLevel, setPermissionLevel] =
+    useState<PortalApiKeyPermissionLevel>("full_access");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [allowedCidr, setAllowedCidr] = useState("");
+
+  useEffect(() => {
+    if (!opened) {
+      return;
+    }
+    setDisplayName("");
+    setDescription("");
+    setPermissionLevel("full_access");
+    setExpiresAt("");
+    setAllowedCidr("");
+  }, [opened]);
+
+  return (
+    <Modal centered onClose={onClose} opened={opened} title="Create API Key">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit({
+            allowed_cidr: allowedCidr,
+            description,
+            display_name: displayName,
+            expires_at: expiresAt,
+            permission_level: permissionLevel,
+          });
+        }}
+      >
+        <Stack>
+          <TextInput
+            label="Display name"
+            onChange={(event) => {
+              setDisplayName(event.currentTarget.value);
+            }}
+            placeholder="Server Integration"
+            value={displayName}
+          />
+          <Textarea
+            autosize
+            label="Description"
+            minRows={3}
+            onChange={(event) => {
+              setDescription(event.currentTarget.value);
+            }}
+            placeholder="What this key is used for."
+            value={description}
+          />
+          <Select
+            data={PERMISSION_LEVEL_OPTIONS}
+            label="Level of Permissions"
+            onChange={(value) => {
+              setPermissionLevel(
+                (value as PortalApiKeyPermissionLevel | null) ?? "full_access",
+              );
+            }}
+            value={permissionLevel}
+          />
+          <TextInput
+            label="Date of Expiry"
+            onChange={(event) => {
+              setExpiresAt(event.currentTarget.value);
+            }}
+            type="date"
+            value={expiresAt}
+          />
+          <TextInput
+            label="CIDR notation"
+            onChange={(event) => {
+              setAllowedCidr(event.currentTarget.value);
+            }}
+            placeholder="0.0.0.0/0"
+            value={allowedCidr}
+          />
+          <PortalHint>
+            Optional. Restricts this key to requests originating from the given
+            CIDR range. Leave blank to allow requests from any address.
+          </PortalHint>
+
+          <Group justify="flex-end">
+            <PortalButton onClick={onClose} tone="secondary" type="button">
+              Cancel
+            </PortalButton>
+            <PortalButton loading={isCreating} tone="primary" type="submit">
+              {isCreating ? "Creating..." : "Create Key"}
+            </PortalButton>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 

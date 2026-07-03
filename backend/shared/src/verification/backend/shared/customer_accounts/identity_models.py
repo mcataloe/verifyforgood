@@ -26,6 +26,11 @@ class ApiKeyStatus(str, Enum):
     REVOKED = "revoked"
 
 
+class ApiKeyPermissionLevel(str, Enum):
+    FULL_ACCESS = "full_access"
+    READ_ONLY = "read_only"
+
+
 class SubscriptionStatus(str, Enum):
     ACTIVE = "active"
     PAST_DUE = "past_due"
@@ -116,6 +121,9 @@ class ApiKeyRecord:
     created_by_user_id: int | str
     status: ApiKeyStatus
     last_used_at: str | None = None
+    permission_level: ApiKeyPermissionLevel = ApiKeyPermissionLevel.FULL_ACCESS
+    expires_at: str | None = None
+    allowed_cidr: str | None = None
 
 
 @dataclass(frozen=True)

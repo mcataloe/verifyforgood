@@ -1,12 +1,19 @@
 ﻿from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from verification.backend.shared.auth import build_api_key_record
 
 from .audit_logging import AuditEventType, AuditLogService
-from .identity_models import ApiKeyRecord, ApiKeyStatus, MembershipRole, MembershipStatus
+from .identity_models import (
+    ApiKeyPermissionLevel,
+    ApiKeyRecord,
+    ApiKeyStatus,
+    MembershipRole,
+    MembershipStatus,
+)
 from .identity_repositories import ApiKeyRepository, MembershipRepository, OrganizationRepository
 
 DEFAULT_ORG_API_KEY_PLAN = "free"
@@ -28,6 +35,9 @@ class ApiKeyManagementError(ValueError):
 class ApiKeyCreateRequest:
     display_name: str
     description: str = ""
+    permission_level: str = ApiKeyPermissionLevel.FULL_ACCESS.value
+    expires_at: str | None = None
+    allowed_cidr: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +56,9 @@ class ApiKeyResponse:
     created_by_user_id: int | str
     status: str
     last_used_at: str | None
+    permission_level: str
+    expires_at: str | None
+    allowed_cidr: str | None
 
     def to_dict(self) -> dict[str, int | str | None]:
         return {
@@ -57,6 +70,9 @@ class ApiKeyResponse:
             "created_by_user_id": self.created_by_user_id,
             "status": self.status,
             "last_used_at": self.last_used_at,
+            "permission_level": self.permission_level,
+            "expires_at": self.expires_at,
+            "allowed_cidr": self.allowed_cidr,
         }
 
 
@@ -97,6 +113,9 @@ class ApiKeyService:
         self._require_admin(organization_id=organization_id, user_id=actor_user_id)
         display_name = _validate_display_name(request.display_name)
         description = _validate_description(request.description)
+        permission_level = _validate_permission_level(request.permission_level)
+        expires_at = _validate_expires_at(request.expires_at)
+        allowed_cidr = _validate_allowed_cidr(request.allowed_cidr)
         created_at = _utc_now()
 
         plaintext, stored = build_api_key_record(
@@ -119,6 +138,9 @@ class ApiKeyService:
                 created_by_user_id=actor_user_id,
                 status=ApiKeyStatus.ACTIVE,
                 last_used_at=None,
+                permission_level=permission_level,
+                expires_at=expires_at,
+                allowed_cidr=allowed_cidr,
             )
         )
         plaintext = f"csk_{persisted.key_id}.{plaintext.split('.', 1)[1]}"
@@ -134,6 +156,9 @@ class ApiKeyService:
                     "display_name": persisted.display_name,
                     "description": persisted.description,
                     "status": persisted.status.value,
+                    "permission_level": persisted.permission_level.value,
+                    "expires_at": persisted.expires_at,
+                    "allowed_cidr": persisted.allowed_cidr,
                 },
             )
 
@@ -215,6 +240,9 @@ def _to_response(record: ApiKeyRecord) -> ApiKeyResponse:
         created_by_user_id=record.created_by_user_id,
         status=record.status.value,
         last_used_at=record.last_used_at,
+        permission_level=record.permission_level.value,
+        expires_at=record.expires_at,
+        allowed_cidr=record.allowed_cidr,
     )
 
 
@@ -230,6 +258,50 @@ def _validate_description(value: str) -> str:
     if len(candidate) > 500:
         raise ApiKeyManagementError("description must be 500 characters or fewer")
     return candidate
+
+
+def _validate_permission_level(value: str | None) -> ApiKeyPermissionLevel:
+    candidate = str(value or "").strip().lower()
+    if not candidate:
+        return ApiKeyPermissionLevel.FULL_ACCESS
+    try:
+        return ApiKeyPermissionLevel(candidate)
+    except ValueError as exc:
+        allowed = ", ".join(level.value for level in ApiKeyPermissionLevel)
+        raise ApiKeyManagementError(f"permission_level must be one of: {allowed}") from exc
+
+
+def _validate_expires_at(value: str | None) -> str | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    try:
+        parsed_date = date.fromisoformat(candidate)
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ApiKeyManagementError("expires_at must be an ISO-8601 date") from exc
+    else:
+        parsed = datetime(
+            parsed_date.year, parsed_date.month, parsed_date.day, 23, 59, 59, tzinfo=timezone.utc
+        )
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed <= datetime.now(timezone.utc):
+        raise ApiKeyManagementError("expires_at must be in the future")
+    return parsed.replace(microsecond=0).isoformat()
+
+
+def _validate_allowed_cidr(value: str | None) -> str | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    try:
+        network = ipaddress.ip_network(candidate, strict=False)
+    except ValueError as exc:
+        raise ApiKeyManagementError("allowed_cidr must be valid CIDR notation") from exc
+    return str(network)
 
 
 def _utc_now() -> str:

@@ -481,6 +481,27 @@
   transform: rotate(90deg);
 }
 
+.vf-app-shell-nav__item--rail {
+  min-height: 2.75rem;
+  padding-inline: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.vf-app-shell-nav__item--rail .vf-app-shell-nav__item-body {
+  flex: 0 0 auto;
+}
+
+.vf-app-shell-sidebar--collapsed .vf-app-shell-sidebar__content-inner {
+  padding-inline: 0.5rem;
+}
+
+.vf-app-shell-sidebar--collapsed .vf-sidebar-utility__item {
+  display: flex;
+  justify-content: center;
+  padding-inline: 0.5rem;
+}
+
 .vf-app-shell-nav__children {
   margin-left: 0.75rem;
   border-left: 1px solid
@@ -699,6 +720,74 @@
 }
 
 .pricing-plan-feature-list__item--unavailable span:first-child {
+  background: color-mix(in srgb, var(--vf-theme-muted) 18%, transparent);
+  color: var(--vf-theme-muted);
+}
+
+.pricing-plan-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--vf-theme-panel-border);
+  border-radius: var(--vf-radius-sm);
+  background: var(--vf-theme-panel-bg);
+  box-shadow: var(--vf-theme-panel-shadow);
+}
+
+.pricing-plan-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.pricing-plan-table__caption {
+  caption-side: top;
+  text-align: left;
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+  padding: var(--vf-space-4) var(--vf-space-4) var(--vf-space-2);
+}
+
+.pricing-plan-table th,
+.pricing-plan-table td {
+  padding: var(--vf-space-3) var(--vf-space-4);
+  border-top: 1px solid var(--vf-theme-panel-border);
+  text-align: center;
+}
+
+.pricing-plan-table thead th {
+  border-top: none;
+  color: var(--vf-theme-text);
+  font-size: var(--vf-font-size-sm);
+  font-weight: 700;
+}
+
+.pricing-plan-table tbody th[scope="row"] {
+  text-align: left;
+  color: var(--vf-theme-muted);
+  font-size: var(--vf-font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pricing-plan-table thead th:first-child,
+.pricing-plan-table tbody th[scope="row"] {
+  position: sticky;
+  left: 0;
+  background: var(--vf-theme-panel-bg);
+}
+
+.pricing-plan-table__pill {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: var(--vf-font-size-xs);
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+}
+
+.pricing-plan-table__pill--available {
+  background: color-mix(in srgb, var(--vf-theme-accent) 18%, transparent);
+}
+
+.pricing-plan-table__pill--unavailable {
   background: color-mix(in srgb, var(--vf-theme-muted) 18%, transparent);
   color: var(--vf-theme-muted);
 }

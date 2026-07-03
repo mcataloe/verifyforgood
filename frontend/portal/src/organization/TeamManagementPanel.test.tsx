@@ -103,6 +103,7 @@ describe("TeamManagementPanel", () => {
       setMembers: vi.fn(),
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "Invitations" }));
     expect(screen.getByRole("heading", { name: "Invitations" })).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText("accepted@example.org")).toBeTruthy();
@@ -110,8 +111,10 @@ describe("TeamManagementPanel", () => {
     });
     expect(screen.getByText("accepted")).toBeTruthy();
     expect(screen.getByText("pending")).toBeTruthy();
-    expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
     expect(screen.queryByText(/10:39:54/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Active Members" }));
+    expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -236,9 +239,13 @@ describe("TeamManagementPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
 
     await waitFor(() => {
+      expect(screen.getByText("Invitation created")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Invitations" }));
+    await waitFor(() => {
       expect(screen.getByText("newinvite@example.org")).toBeTruthy();
     });
-    expect(screen.getByText("Invitation created")).toBeTruthy();
   });
 });
 

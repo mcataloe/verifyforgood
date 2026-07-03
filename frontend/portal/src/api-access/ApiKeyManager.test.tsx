@@ -69,13 +69,16 @@ describe("ApiKeyManager", () => {
       isUpdatingKeyId: null,
       items: [
         {
+          allowed_cidr: null,
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
           description: "Primary production integration",
           display_name: "Existing key",
+          expires_at: null,
           key_id: "key_existing",
           last_used_at: null,
           organization_id: "org_123",
+          permission_level: "full_access" as const,
           status: "active" as const,
         },
       ],
@@ -84,13 +87,16 @@ describe("ApiKeyManager", () => {
       updateKey: vi.fn(async () => {}),
       visibleSecret: {
         key: {
+          allowed_cidr: null,
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
           description: "New production key",
           display_name: "New key",
+          expires_at: null,
           key_id: "key_new",
           last_used_at: null,
           organization_id: "org_123",
+          permission_level: "full_access" as const,
           status: "active" as const,
         },
         secret: "csk_demo.secret",
@@ -127,16 +133,27 @@ describe("ApiKeyManager", () => {
     expect(stackedRoot?.children[3]).toBe(initialDividers[1]);
     expect(stackedRoot?.children[4]).toBe(stackedPanels?.[2]);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
-      target: { value: "New production key" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
-      target: { value: "For the production worker." },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Create Key" }));
+    const createDialog = await screen.findByRole("dialog", {
+      name: "Create API Key",
+    });
+    fireEvent.change(
+      within(createDialog).getByRole("textbox", { name: "Display name" }),
+      { target: { value: "New production key" } },
+    );
+    fireEvent.change(
+      within(createDialog).getByRole("textbox", { name: "Description" }),
+      { target: { value: "For the production worker." } },
+    );
+    fireEvent.click(
+      within(createDialog).getByRole("button", { name: "Create Key" }),
+    );
     expect(state.createKey).toHaveBeenCalledWith({
+      allowed_cidr: "",
       description: "For the production worker.",
       display_name: "New production key",
+      expires_at: "",
+      permission_level: "full_access",
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Reveal API key" }));
@@ -248,13 +265,16 @@ describe("ApiKeyManager", () => {
       updateKey: vi.fn(async () => {}),
       visibleSecret: {
         key: {
+          allowed_cidr: null,
           created_at: "2026-03-21T00:00:00Z",
           created_by_user_id: "user_verifyforgood_demo",
           description: "New production key",
           display_name: "New key",
+          expires_at: null,
           key_id: "key_new",
           last_used_at: null,
           organization_id: "org_123",
+          permission_level: "full_access" as const,
           status: "active" as const,
         },
         secret: "csk_demo.secret",

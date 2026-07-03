@@ -1,4 +1,5 @@
 import { Panel } from "@charity-status/shared-ui";
+import { Tabs } from "@mantine/core";
 import type { PortalEndpoints } from "../app/portalEndpoints";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
@@ -6,12 +7,7 @@ import {
   usePortalUsageBilling,
   type PortalUsageBillingController,
 } from "../billing/usePortalUsageBilling";
-import {
-  DetailPageLayout,
-  PortalPageShell,
-  SectionBlock,
-  SectionDivider,
-} from "../components/shell";
+import { DetailPageLayout, PortalPageShell } from "../components/shell";
 import { PortalDetailList } from "../components/PortalPrimitives";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { BudgetConfigurationPanel } from "../settings/BudgetConfigurationPanel";
@@ -67,71 +63,80 @@ export function SettingsPage({
       title="Workspace Settings"
     >
       <DetailPageLayout>
-        <SectionBlock>
-          <Panel
-            title="Organization Profile"
-            subtitle="Update the display name, slug, and contact details your team sees."
-          >
-            <OrganizationProfileSettingsPanel controller={organizationProfile} />
-          </Panel>
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
-          <Panel
-            title="Plan & Access"
-            subtitle="A quick summary of your current plan and access level."
-          >
-            <PortalDetailList
-              items={[
-                {
-                  key: "role",
-                  label: "Your role",
-                  value: formatLabelValue(organization.currentMembership?.role),
-                },
-                {
-                  key: "plan",
-                  label: "Plan",
-                  value: formatLabelValue(session.plan),
-                },
-                {
-                  key: "updated-at",
-                  label: "Last updated",
-                  value: formatFriendlyDateTime(
-                    organization.activeOrganization.updated_at,
-                  ),
-                },
-              ]}
-            />
-          </Panel>
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
-          <Panel
-            title="Usage Budget Controls"
-            subtitle="Set an optional organization request cap and decide whether requests stop when that threshold is reached."
-          >
-            <BudgetConfigurationPanel
-              controller={budget}
-              includedPlanLimit={
-                usage.snapshot?.includedLimits?.monthlyRequests ??
-                usage.snapshot?.usage.limit ??
-                null
-              }
-            />
-          </Panel>
-        </SectionBlock>
-        <SectionDivider />
-        <SectionBlock>
-          <Panel
-            title="Delete Organization"
-            subtitle="Remove this organization from the portal when it is no longer needed."
-          >
-            <OrganizationDeletionPanel
-              controller={deletion}
-              session={session}
-            />
-          </Panel>
-        </SectionBlock>
+        <Tabs color="primary" defaultValue="profile" variant="outline">
+          <Tabs.List aria-label="Workspace settings sections">
+            <Tabs.Tab value="profile">Organization Profile</Tabs.Tab>
+            <Tabs.Tab value="plan-access">Plan &amp; Access</Tabs.Tab>
+            <Tabs.Tab value="budget">Usage Budget</Tabs.Tab>
+            <Tabs.Tab value="danger-zone">Delete Organization</Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel pt="md" value="profile">
+            <Panel
+              title="Organization Profile"
+              subtitle="Update the display name, slug, and contact details your team sees."
+            >
+              <OrganizationProfileSettingsPanel controller={organizationProfile} />
+            </Panel>
+          </Tabs.Panel>
+
+          <Tabs.Panel pt="md" value="plan-access">
+            <Panel
+              title="Plan & Access"
+              subtitle="A quick summary of your current plan and access level."
+            >
+              <PortalDetailList
+                items={[
+                  {
+                    key: "role",
+                    label: "Your role",
+                    value: formatLabelValue(organization.currentMembership?.role),
+                  },
+                  {
+                    key: "plan",
+                    label: "Plan",
+                    value: formatLabelValue(session.plan),
+                  },
+                  {
+                    key: "updated-at",
+                    label: "Last updated",
+                    value: formatFriendlyDateTime(
+                      organization.activeOrganization.updated_at,
+                    ),
+                  },
+                ]}
+              />
+            </Panel>
+          </Tabs.Panel>
+
+          <Tabs.Panel pt="md" value="budget">
+            <Panel
+              title="Usage Budget Controls"
+              subtitle="Set an optional organization request cap and decide whether requests stop when that threshold is reached."
+            >
+              <BudgetConfigurationPanel
+                controller={budget}
+                includedPlanLimit={
+                  usage.snapshot?.includedLimits?.monthlyRequests ??
+                  usage.snapshot?.usage.limit ??
+                  null
+                }
+              />
+            </Panel>
+          </Tabs.Panel>
+
+          <Tabs.Panel pt="md" value="danger-zone">
+            <Panel
+              title="Delete Organization"
+              subtitle="Remove this organization from the portal when it is no longer needed."
+            >
+              <OrganizationDeletionPanel
+                controller={deletion}
+                session={session}
+              />
+            </Panel>
+          </Tabs.Panel>
+        </Tabs>
       </DetailPageLayout>
     </PortalPageShell>
   );

@@ -79,6 +79,7 @@ from .sqlalchemy_identity import (
 from .sqlalchemy_audit import SqlAlchemyAuditLogRepository
 from .sqlalchemy_support_tickets import SqlAlchemySupportTicketRepository
 from .identity_models import (
+    ApiKeyPermissionLevel,
     ApiKeyRecord,
     ApiKeyStatus,
     FeatureFlagKey,
@@ -213,6 +214,7 @@ __all__ = [
     "PLAN_LOOKUP_INDEX",
     "AUDIT_GLOBAL_PARTITION_KEY",
     "CustomerAccountsBase",
+    "ApiKeyPermissionLevel",
     "ApiKeyRecord",
     "ApiKeyStatus",
     "FeatureFlagKey",

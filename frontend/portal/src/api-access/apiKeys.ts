@@ -6,6 +6,8 @@ import {
 
 export type PortalApiKeyStatus = "active" | "revoked";
 
+export type PortalApiKeyPermissionLevel = "full_access" | "read_only";
+
 export interface PortalApiKeySummary {
   created_at: string;
   created_by_user_id: string;
@@ -15,11 +17,17 @@ export interface PortalApiKeySummary {
   last_used_at: string | null;
   organization_id: string;
   status: PortalApiKeyStatus;
+  permission_level: PortalApiKeyPermissionLevel;
+  expires_at: string | null;
+  allowed_cidr: string | null;
 }
 
 export interface CreatePortalApiKeyInput {
   display_name: string;
   description?: string;
+  permission_level?: PortalApiKeyPermissionLevel;
+  expires_at?: string;
+  allowed_cidr?: string;
 }
 
 export interface UpdatePortalApiKeyInput {
@@ -70,6 +78,9 @@ export function createPortalApiKeyService({
         body: {
           display_name: normalizeDisplayName(input.display_name),
           description: normalizeDescription(input.description),
+          permission_level: input.permission_level,
+          expires_at: normalizeOptionalValue(input.expires_at),
+          allowed_cidr: normalizeOptionalValue(input.allowed_cidr),
         },
       });
 
@@ -117,4 +128,9 @@ function normalizeDisplayName(value: string): string {
 
 function normalizeDescription(value: string | undefined): string {
   return String(value || "").trim();
+}
+
+function normalizeOptionalValue(value: string | undefined): string | undefined {
+  const candidate = String(value || "").trim();
+  return candidate || undefined;
 }

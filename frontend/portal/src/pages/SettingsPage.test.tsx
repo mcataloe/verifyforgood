@@ -115,30 +115,19 @@ describe("SettingsPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Usage Budget Controls" }),
-    ).toBeTruthy();
-    expect(
       screen.getByRole("heading", { name: "Workspace Settings" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Organization Profile" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Plan & Access" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Admin")).toBeTruthy();
-    expect(screen.getByText("Growth")).toBeTruthy();
     expect(screen.getByDisplayValue("Portal Test Org")).toBeTruthy();
     expect(screen.getByDisplayValue("portal-test-org")).toBeTruthy();
     expect(screen.getByDisplayValue("ops@example.org")).toBeTruthy();
-    expect(screen.getByDisplayValue("800")).toBeTruthy();
-    expect(screen.getByText("Budget controls saved.")).toBeTruthy();
     expect(screen.getByText("Organization profile saved.")).toBeTruthy();
     expect(screen.queryByText("Current backend anchor")).toBeNull();
     expect(screen.queryByText("Settings source")).toBeNull();
     expect(screen.getByTestId("detail-page-layout")).toBeTruthy();
     expect(container.querySelector(".portal-page-grid")).toBeNull();
-    expect(screen.getAllByTestId("section-divider")).toHaveLength(3);
     expect(
       screen.queryByRole("heading", { name: "Organization details" }),
     ).toBeNull();
@@ -148,6 +137,20 @@ describe("SettingsPage", () => {
     expect(
       screen.queryByRole("heading", { name: "Limit visualization" }),
     ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Plan & Access" }));
+    expect(
+      screen.getByRole("heading", { name: "Plan & Access" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.getByText("Growth")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Usage Budget" }));
+    expect(
+      screen.getByRole("heading", { name: "Usage Budget Controls" }),
+    ).toBeTruthy();
+    expect(screen.getByDisplayValue("800")).toBeTruthy();
+    expect(screen.getByText("Budget controls saved.")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Organization request cap"), {
       target: { value: "950" },
@@ -340,6 +343,7 @@ describe("SettingsPage", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("tab", { name: "Delete Organization" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete Organization" }));
 
     expect(screen.getAllByRole("heading", { name: "Delete Organization" }).length).toBeGreaterThan(0);

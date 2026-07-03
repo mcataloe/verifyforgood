@@ -43,6 +43,10 @@ export { Panel } from "./components/Panel";
 export { PlanFeatureList } from "./components/PlanFeatureList";
 export { PricingPlanCard } from "./components/PricingPlanCard";
 export { PricingPlanGrid } from "./components/PricingPlanGrid";
+export {
+  PricingPlanTable,
+  type PricingPlanTableProps,
+} from "./components/PricingPlanTable";
 export { SectionContainer } from "./components/SectionContainer";
 export {
   SidebarProfileSection,

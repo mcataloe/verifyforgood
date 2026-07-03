@@ -19,6 +19,8 @@ type AppShellNavigationItemInput =
 interface AppShellNavigationProps {
   activeNavigationKey?: string;
   ariaLabel?: string;
+  collapsed?: boolean;
+  onExpandSidebar?: () => void;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
   sections: readonly AppShellNavigationSectionInput[];
@@ -27,6 +29,8 @@ interface AppShellNavigationProps {
 export function AppShellNavigation({
   activeNavigationKey,
   ariaLabel = "Application navigation",
+  collapsed = false,
+  onExpandSidebar,
   onNavigate,
   onNavigationChange,
   sections,
@@ -71,8 +75,10 @@ export function AppShellNavigation({
         {visibleSections.map((section, index) => (
           <AppShellNavigationSectionView
             activeNavigationKey={activeNavigationKey}
+            collapsed={collapsed}
             isFirstSection={index === 0}
             key={section.key}
+            onExpandSidebar={onExpandSidebar}
             onNavigate={onNavigate}
             onNavigationChange={onNavigationChange}
             onToggleTopLevelBranch={(branchKey) => {
@@ -91,7 +97,9 @@ export function AppShellNavigation({
 
 function AppShellNavigationSectionView({
   activeNavigationKey,
+  collapsed,
   isFirstSection,
+  onExpandSidebar,
   onNavigate,
   onNavigationChange,
   onToggleTopLevelBranch,
@@ -99,7 +107,9 @@ function AppShellNavigationSectionView({
   section,
 }: {
   activeNavigationKey?: string;
+  collapsed: boolean;
   isFirstSection: boolean;
+  onExpandSidebar?: () => void;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
   onToggleTopLevelBranch: (branchKey: string) => void;
@@ -123,7 +133,7 @@ function AppShellNavigationSectionView({
         gap={6}
         pt={isFirstSection ? 0 : verifyForGoodTokens.spacing.baseUnit * 2}
       >
-        {section.label || section.helpText ? (
+        {!collapsed && (section.label || section.helpText) ? (
           <Box className="vf-app-shell-nav__section-heading">
             <SectionTooltipWrapper
               helpText={section.helpText}
@@ -147,8 +157,10 @@ function AppShellNavigationSectionView({
           {section.items.map((item) => (
             <AppShellNavigationItemView
               activeNavigationKey={activeNavigationKey}
+              collapsed={collapsed}
               item={item}
               key={item.key}
+              onExpandSidebar={onExpandSidebar}
               onNavigate={onNavigate}
               onNavigationChange={onNavigationChange}
               onToggleTopLevelBranch={onToggleTopLevelBranch}
@@ -163,21 +175,26 @@ function AppShellNavigationSectionView({
 
 function AppShellNavigationItemView({
   activeNavigationKey,
+  collapsed = false,
   depth = 0,
   item,
+  onExpandSidebar,
   onNavigate,
   onNavigationChange,
   onToggleTopLevelBranch,
   openedTopLevelBranchKey,
 }: {
   activeNavigationKey?: string;
+  collapsed?: boolean;
   depth?: number;
   item: AppShellNavigationItemInput;
+  onExpandSidebar?: () => void;
   onNavigate: () => void;
   onNavigationChange?: (item: VerifyForGoodNavigationItem) => void;
   onToggleTopLevelBranch: (branchKey: string) => void;
   openedTopLevelBranchKey: string | null;
 }) {
+  const isRailItem = collapsed && depth === 0;
   const children = item.children ?? [];
   const hasChildren = children.length > 0;
   const isLocked =
@@ -213,11 +230,15 @@ function AppShellNavigationItemView({
         active={isActive}
         aria-expanded={isOpened}
         aria-describedby={item.helpText ? helpTextId : undefined}
+        aria-label={isRailItem ? item.label : undefined}
         component="button"
-        label={item.label}
+        label={isRailItem ? undefined : item.label}
         leftSection={item.icon}
         onClick={() => {
           if (isTopLevelBranch) {
+            if (collapsed) {
+              onExpandSidebar?.();
+            }
             onToggleTopLevelBranch(item.key);
             return;
           }
@@ -225,22 +246,25 @@ function AppShellNavigationItemView({
           setOpened((current) => !current);
         }}
         rightSection={
-          <Box
-            aria-hidden="true"
-            className={
-              isOpened
-                ? "vf-app-shell-nav__item-chevron vf-app-shell-nav__item-chevron--opened"
-                : "vf-app-shell-nav__item-chevron"
-            }
-            component="span"
-          >
-            {">"}
-          </Box>
+          isRailItem ? undefined : (
+            <Box
+              aria-hidden="true"
+              className={
+                isOpened
+                  ? "vf-app-shell-nav__item-chevron vf-app-shell-nav__item-chevron--opened"
+                  : "vf-app-shell-nav__item-chevron"
+              }
+              component="span"
+            >
+              {">"}
+            </Box>
+          )
         }
         className={getNavigationItemClassName({
           depth,
           hasChildren: true,
           isExpanded: isOpened,
+          isRailItem,
         })}
         classNames={navigationItemClassNames}
         type="button"
@@ -249,14 +273,17 @@ function AppShellNavigationItemView({
 
     return (
       <Box key={item.key}>
-        <NavigationTooltipWrapper helpText={item.helpText}>
+        <NavigationTooltipWrapper
+          forceLabel={isRailItem ? item.label : undefined}
+          helpText={item.helpText}
+        >
           {branchLink}
         </NavigationTooltipWrapper>
         {item.helpText ? (
           <VisuallyHidden id={helpTextId}>{item.helpText}</VisuallyHidden>
         ) : null}
 
-        {isOpened ? (
+        {isOpened && !collapsed ? (
           <Stack
             className="vf-app-shell-nav__children"
             gap={4}
@@ -284,15 +311,20 @@ function AppShellNavigationItemView({
 
   if (isLocked || !item.href) {
     return (
-      <ItemWithTooltip helpText={item.helpText} helpTextId={helpTextId}>
+      <ItemWithTooltip
+        forceLabel={isRailItem ? item.label : undefined}
+        helpText={item.helpText}
+        helpTextId={helpTextId}
+      >
         <NavLink
           active={isActive}
           aria-current={isSelfActive ? "page" : undefined}
           aria-describedby={item.helpText ? helpTextId : undefined}
+          aria-label={isRailItem ? item.label : undefined}
           component="button"
           disabled={isLocked}
           key={item.key}
-          label={item.label}
+          label={isRailItem ? undefined : item.label}
           leftSection={item.icon}
           onClick={() => {
             if (isLocked) {
@@ -303,7 +335,7 @@ function AppShellNavigationItemView({
             onNavigate();
           }}
           rightSection={
-            isLocked ? (
+            isLocked && !isRailItem ? (
               <Text
                 className="vf-app-shell-nav__lock-pill"
                 component="span"
@@ -318,6 +350,7 @@ function AppShellNavigationItemView({
             depth,
             hasChildren: false,
             isLocked,
+            isRailItem,
           })}
           classNames={navigationItemClassNames}
           type="button"
@@ -327,15 +360,20 @@ function AppShellNavigationItemView({
   }
 
   return (
-    <ItemWithTooltip helpText={item.helpText} helpTextId={helpTextId}>
+    <ItemWithTooltip
+      forceLabel={isRailItem ? item.label : undefined}
+      helpText={item.helpText}
+      helpTextId={helpTextId}
+    >
       <NavLink
         active={isActive}
         aria-current={isSelfActive ? "page" : undefined}
         aria-describedby={item.helpText ? helpTextId : undefined}
+        aria-label={isRailItem ? item.label : undefined}
         component="a"
         href={item.href}
         key={item.key}
-        label={item.label}
+        label={isRailItem ? undefined : item.label}
         leftSection={item.icon}
         onClick={() => {
           onNavigationChange?.(item);
@@ -344,6 +382,7 @@ function AppShellNavigationItemView({
         className={getNavigationItemClassName({
           depth,
           hasChildren: false,
+          isRailItem,
         })}
         classNames={navigationItemClassNames}
       />
@@ -435,11 +474,13 @@ function getNavigationItemClassName({
   hasChildren,
   isExpanded = false,
   isLocked = false,
+  isRailItem = false,
 }: {
   depth: number;
   hasChildren: boolean;
   isExpanded?: boolean;
   isLocked?: boolean;
+  isRailItem?: boolean;
 }) {
   return [
     "vf-app-shell-nav__item",
@@ -447,6 +488,7 @@ function getNavigationItemClassName({
     hasChildren ? "vf-app-shell-nav__item--branch" : undefined,
     isExpanded ? "vf-app-shell-nav__item--expanded" : undefined,
     isLocked ? "vf-app-shell-nav__item--locked" : undefined,
+    isRailItem ? "vf-app-shell-nav__item--rail" : undefined,
   ]
     .filter(Boolean)
     .join(" ");
@@ -454,16 +496,20 @@ function getNavigationItemClassName({
 
 function ItemWithTooltip({
   children,
+  forceLabel,
   helpText,
   helpTextId,
 }: {
   children: ReactNode;
+  forceLabel?: string;
   helpText?: string;
   helpTextId: string;
 }) {
   return (
     <>
-      <NavigationTooltipWrapper helpText={helpText}>{children}</NavigationTooltipWrapper>
+      <NavigationTooltipWrapper forceLabel={forceLabel} helpText={helpText}>
+        {children}
+      </NavigationTooltipWrapper>
       {helpText ? <VisuallyHidden id={helpTextId}>{helpText}</VisuallyHidden> : null}
     </>
   );
@@ -471,17 +517,27 @@ function ItemWithTooltip({
 
 function NavigationTooltipWrapper({
   children,
+  forceLabel,
   helpText,
 }: {
   children: ReactNode;
+  forceLabel?: string;
   helpText?: string;
 }) {
-  if (!helpText) {
+  const label = forceLabel || helpText;
+  if (!label) {
     return <>{children}</>;
   }
 
   return (
-    <Tooltip label={helpText} multiline openDelay={120} withArrow withinPortal={false}>
+    <Tooltip
+      label={label}
+      multiline
+      openDelay={120}
+      position={forceLabel ? "right" : undefined}
+      withArrow
+      withinPortal={Boolean(forceLabel)}
+    >
       <Box>{children}</Box>
     </Tooltip>
   );

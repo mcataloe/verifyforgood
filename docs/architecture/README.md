@@ -31,6 +31,7 @@ Architecture organizes technical structure. It does not own the Mission, Strateg
 | [`../contributor-naming-rules.md`](../contributor-naming-rules.md) | Contributor naming rules | Supporting convention | `INIT-007`, `INIT-009` | Local filesystem links require repair |
 | [`../infrastructure-naming-normalization.md`](../infrastructure-naming-normalization.md) | Terraform and physical-resource naming | Supporting convention | `INIT-007` | Deployed names require explicit migration |
 | [`ADR-billing-provider.md`](ADR-billing-provider.md) | Billing provider direction | Provisional ADR | `INIT-006` | Production decisions remain separate |
+| [`plan-catalog.md`](plan-catalog.md) | Human-readable plan tier, limit, and feature snapshot | Supporting reference | `INIT-006` | Code and `/v1/plans` remain authoritative if this drifts |
 | [`ADR-identity-datastore.md`](ADR-identity-datastore.md) | Identity datastore direction | Provisional ADR | `INIT-004` | Security/privacy/migration approval required |
 | [`../../frontend/README.md`](../../frontend/README.md) | Frontend workspace boundaries | Supporting Architecture | `INIT-005`, `INIT-008` | Product surfaces must not redefine authority |
 | [`../../split-plan.json`](../../split-plan.json) | Machine-readable split mapping | Supporting contract | `INIT-001`, `INIT-007` | Intentionally unchanged by `INIT-009`; policy distinction incomplete |

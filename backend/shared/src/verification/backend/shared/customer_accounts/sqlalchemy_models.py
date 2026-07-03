@@ -121,6 +121,9 @@ class OrganizationApiKeyModel(CustomerAccountsBase):
     created_by_user_id: Mapped[int] = mapped_column(BIGINT_FOREIGN_KEY, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    permission_level: Mapped[str] = mapped_column(String(32), nullable=False, default="full_access", server_default="full_access")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    allowed_cidr: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     organization: Mapped[OrganizationModel] = relationship(back_populates="api_keys")
 

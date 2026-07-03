@@ -81,6 +81,7 @@ describe("TeamPage", () => {
       screen.queryByRole("heading", { name: "Signed-in account" }),
     ).toBeNull();
 
+    fireEvent.click(screen.getByRole("tab", { name: "Active Members" }));
     fireEvent.click(
       screen.getByRole("button", {
         name: "Edit member member@example.org",

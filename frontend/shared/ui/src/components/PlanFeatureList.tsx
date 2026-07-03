@@ -3,7 +3,7 @@ import type {
   PlanFeatureKey,
 } from "@charity-status/shared-types";
 
-const FEATURE_ORDER: PlanFeatureKey[] = [
+export const FEATURE_ORDER: PlanFeatureKey[] = [
   "verification",
   "risk_flags",
   "financial_trends",
@@ -14,7 +14,7 @@ const FEATURE_ORDER: PlanFeatureKey[] = [
   "organization_settings",
 ];
 
-const FEATURE_LABELS: Record<PlanFeatureKey, string> = {
+export const FEATURE_LABELS: Record<PlanFeatureKey, string> = {
   verification: "Verification",
   risk_flags: "Risk flags",
   financial_trends: "Financial trends",
