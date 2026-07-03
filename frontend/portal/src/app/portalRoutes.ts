@@ -15,11 +15,14 @@ export type OrganizationDetailSection =
   | "sources"
   | "activity";
 export type PortalPageKey =
+  | "home"
   | "onboarding-organization"
   | "dashboard"
   | "organizations"
   | "organization-detail"
   | "team"
+  | "support-contact"
+  | "support-report-issue"
   | "automation-general"
   | "automation-api-key"
   | "automation-oauth"
@@ -46,7 +49,7 @@ export type PortalProtectedRouteKey =
   | "api-access"
   | "usage-billing"
   | "settings";
-export type PortalPublicRouteKey = "register" | "sign-in";
+export type PortalPublicRouteKey = "home" | "register" | "sign-in";
 export type PortalRouteKey = PortalProtectedRouteKey | PortalPublicRouteKey;
 
 export interface PortalRouteDefinition {
@@ -68,8 +71,10 @@ export {
   portalPublicRoutes,
 };
 export const portalRoutes = [...portalPublicRoutes, ...portalProtectedRoutes];
-export const signInPortalRoute = portalPublicRoutes[0];
-export const registerPortalRoute = portalPublicRoutes[1];
+export const homePortalRoute = portalPublicRoutes[0];
+export const signInPortalRoute = portalPublicRoutes[1];
+export const registerPortalRoute = portalPublicRoutes[2];
+export const defaultPortalRoute = homePortalRoute;
 export const defaultProtectedPortalRoute = dashboardPortalRoute;
 
 const returnToKey = "verifyforgood.portal.return-to";
@@ -88,7 +93,7 @@ export function buildOrganizationPortalHash(
 
 export function resolvePortalRoute(hash: string): PortalRouteDefinition {
   const candidate = String(hash || "").trim();
-  if (!candidate) return { ...defaultProtectedPortalRoute };
+  if (!candidate) return { ...defaultPortalRoute };
 
   const candidatePath = getPortalHashPath(candidate);
   const canonical =
@@ -138,7 +143,8 @@ export function usePortalRoute() {
         !currentHash ||
         (resolved.page !== "not-found" && currentHash !== resolved.hash)
       ) {
-        window.history.replaceState(null, "", resolved.hash);
+        const nextUrl = `${window.location.pathname}${window.location.search}${resolved.hash}`;
+        window.history.replaceState(window.history.state, "", nextUrl);
       }
     };
     applyRoute();
@@ -151,16 +157,18 @@ export function usePortalRoute() {
 export function consumePortalReturnTo() {
   const storage = portalSessionStorage();
   if (!storage) return defaultProtectedPortalRoute.hash;
-  const remembered = normalizePortalHash(storage.getItem(returnToKey) || "");
+  const storedHash = storage.getItem(returnToKey) || "";
   storage.removeItem(returnToKey);
-  return remembered || defaultProtectedPortalRoute.hash;
+  return storedHash
+    ? normalizePortalHash(storedHash) || defaultProtectedPortalRoute.hash
+    : defaultProtectedPortalRoute.hash;
 }
 
 export function peekPortalReturnTo() {
   const storage = portalSessionStorage();
-  return storage
-    ? normalizePortalHash(storage.getItem(returnToKey) || "") ||
-        defaultProtectedPortalRoute.hash
+  const storedHash = storage?.getItem(returnToKey) || "";
+  return storedHash
+    ? normalizePortalHash(storedHash) || defaultProtectedPortalRoute.hash
     : defaultProtectedPortalRoute.hash;
 }
 
@@ -176,10 +184,22 @@ export function rememberPortalReturnTo(hash: string) {
   }
 }
 
-export function navigateToPortalRoute(hash: string) {
+export function navigateToPortalRoute(
+  hash: string,
+  options: { replace?: boolean } = {},
+) {
   const resolved = resolvePortalRoute(hash);
   const destination = resolved.page === "not-found" ? hash : resolved.hash;
-  if (window.location.hash !== destination) window.location.hash = destination;
+  if (window.location.hash === destination) return;
+
+  if (options.replace) {
+    const nextUrl = `${window.location.pathname}${window.location.search}${destination}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    window.dispatchEvent(new Event("hashchange"));
+    return;
+  }
+
+  window.location.hash = destination;
 }
 
 export function getPortalHashPath(hash: string) {

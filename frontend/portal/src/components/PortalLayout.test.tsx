@@ -176,10 +176,14 @@ describe("PortalLayout", () => {
 });
 
 function renderPortalLayout({
+  applyOrganization = vi.fn(() => session),
+  availableOrganizations,
   currentRoute = resolvePortalRoute("#/dashboard"),
   onOpenOrganizationOnboarding = vi.fn(),
   session = createMockPortalSession(),
 }: {
+  applyOrganization?: ReturnType<typeof vi.fn>;
+  availableOrganizations?: ReturnType<typeof createOrganizationRecord>[];
   currentRoute?: PortalRouteDefinition;
   onOpenOrganizationOnboarding?: ReturnType<typeof vi.fn>;
   session?: ReturnType<typeof createMockPortalSession>;

@@ -208,6 +208,7 @@ function createRecord(input: {
       riskIndicators: [],
       review: null,
       snapshotMaterializedAt: "2026-03-23T00:00:00+00:00",
+      sourceAvailability: [],
       sourceSummaries: [],
       state,
       subsection: "501(c)(3)",

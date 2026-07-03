@@ -12,7 +12,9 @@ import { OrganizationsPage } from "./OrganizationsPage";
 import { PortalDashboardPage } from "./PortalDashboardPage";
 import { PortalNotFoundPage } from "./PortalNotFoundPage";
 import { SettingsPage } from "./SettingsPage";
+import { SupportPage } from "./SupportPage";
 import { TeamPage } from "./TeamPage";
+import { WorkspacePage } from "./WorkspacePage";
 
 export function RouteContentPage({
   audience,
@@ -37,7 +39,11 @@ export function RouteContentPage({
         />
       );
     case "organizations":
-      return <OrganizationsPage />;
+      return currentRoute.key === "search" ? (
+        <WorkspacePage endpoints={endpoints} session={session} />
+      ) : (
+        <OrganizationsPage />
+      );
     case "organization-detail":
       return currentRoute.params?.ein && currentRoute.section ? (
         <OrganizationDetailPage
@@ -49,6 +55,10 @@ export function RouteContentPage({
       );
     case "team":
       return <TeamPage session={session} />;
+    case "support-contact":
+      return <SupportPage pane="support-contact" />;
+    case "support-report-issue":
+      return <SupportPage pane="support-report-issue" />;
     case "automation-general":
     case "automation-api-key":
     case "automation-oauth":
@@ -64,7 +74,7 @@ export function RouteContentPage({
           session={session}
         />
       ) : (
-        <ApiAccessPage endpoints={endpoints} pane="api" session={session} />
+        <ApiAccessPage pane="api" />
       );
     case "billing":
       return <BillingPage endpoints={endpoints} pane="billing" session={session} />;

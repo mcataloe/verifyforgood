@@ -60,6 +60,12 @@ interface BackendNonprofitDetailResponse {
     status?: string | null;
     valid_as_of?: string | null;
   }>;
+  source_availability?: Array<{
+    attempted?: boolean | null;
+    integration_id?: string | null;
+    label?: string | null;
+    status?: string | null;
+  }> | null;
 }
 
 interface BackendReviewEnvelope {
@@ -160,6 +166,13 @@ export interface PortalNonprofitSourceSummary {
   validAsOf: string;
 }
 
+export interface PortalNonprofitSourceAvailability {
+  attempted: boolean;
+  integrationId: string;
+  label: string;
+  status: string;
+}
+
 export interface PortalNonprofitDetail {
   appearsBecause: string[];
   complianceCheckType: string;
@@ -184,6 +197,7 @@ export interface PortalNonprofitDetail {
   review: PortalReviewEnvelope | null;
   riskIndicators: string[];
   snapshotMaterializedAt: string;
+  sourceAvailability: PortalNonprofitSourceAvailability[];
   sourceSummaries: PortalNonprofitSourceSummary[];
   state: string;
   subsection: string;
@@ -389,12 +403,40 @@ function mapDetail(
       snapshot.materialized_at,
       "Unavailable",
     ),
+    sourceAvailability: mapSourceAvailability(
+      detail.source_availability ?? [],
+      detail.sources ?? [],
+    ),
     sourceSummaries: mapSourceSummaries(detail.sources ?? []),
     state: normalizeText(overview.state, "Unavailable"),
     subsection: normalizeText(overview.subsection, "Unavailable"),
     taxDeductible: normalizeText(overview.tax_deductible, "Unavailable"),
     taxPeriod: normalizeText(latestFiling.tax_period, "No tax period"),
   };
+}
+
+function mapSourceAvailability(
+  availability: NonNullable<BackendNonprofitDetailResponse["source_availability"]>,
+  sources: NonNullable<BackendNonprofitDetailResponse["sources"]>,
+): PortalNonprofitSourceAvailability[] {
+  if (availability.length > 0) {
+    return availability.map((source, index) => ({
+      attempted: Boolean(source.attempted),
+      integrationId: normalizeText(source.integration_id, `source_${index}`),
+      label: normalizeText(source.label, `Source ${index + 1}`),
+      status: normalizeText(source.status, "unknown"),
+    }));
+  }
+
+  return sources.map((source, index) => {
+    const sourceName = normalizeText(source.source_name, `source_${index}`);
+    return {
+      attempted: true,
+      integrationId: sourceName,
+      label: normalizeText(source.provider_name, humanizeIdentifier(sourceName)),
+      status: normalizeText(source.status, "unknown"),
+    };
+  });
 }
 
 function mapReview(

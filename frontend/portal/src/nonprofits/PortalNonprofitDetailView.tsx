@@ -1,4 +1,3 @@
-import { DetailFieldList, StatusBadge } from "@charity-status/shared-ui";
 import {
   DetailFieldList,
   DetailStack,
@@ -6,6 +5,7 @@ import {
   StatusBadge,
 } from "@charity-status/shared-ui";
 import type { OrganizationDetailSection } from "../app/portalRoutes";
+import { PortalButton } from "../components/PortalPrimitives";
 import type { PortalNonprofitDetail } from "./nonprofitSearch";
 import {
   buildComplianceItems,
@@ -19,17 +19,32 @@ import { detailStatus, summaryStatus } from "./portalNonprofitStatus";
 interface PortalNonprofitDetailViewProps {
   activeSection?: OrganizationDetailSection;
   detail: PortalNonprofitDetail;
+  onBackToSearch?: () => void;
   onSectionChange?: (section: OrganizationDetailSection) => void;
 }
 
 export function PortalNonprofitDetailView({
   activeSection,
   detail,
+  onBackToSearch,
   onSectionChange,
 }: PortalNonprofitDetailViewProps) {
   return (
     <EntityDetailLayout
-      actions={<StatusBadge status={detailStatus(detail)} />}
+      actions={
+        <>
+          {onBackToSearch ? (
+            <PortalButton
+              onClick={onBackToSearch}
+              tone="secondary"
+              type="button"
+            >
+              Back to search
+            </PortalButton>
+          ) : null}
+          <StatusBadge status={detailStatus(detail)} />
+        </>
+      }
       activeTabKey={activeSection}
       description="Shared organization detail layout for trust-forward entity review."
       ein={detail.ein}
@@ -74,20 +89,13 @@ export function PortalNonprofitEmbeddedDetail({
   detail,
 }: PortalNonprofitDetailViewProps) {
   return (
-    <Stack component="article" gap="md">
-      <Stack gap="md">
-        <Group align="center" gap="sm" wrap="wrap">
-          <Title order={3}>{detail.name}</Title>
-          <StatusBadge
-            label={`Evidence review: ${formatReviewStatus(
-              detail.review?.evidenceReview.status ?? "not_recorded",
-            )}`}
-            status={reviewBadgeStatus(
-              detail.review?.evidenceReview.status ?? "not_recorded",
-            )}
-          />
-        </Group>
-        <Text c="dimmed" fw={600}>
+    <article className="portal-nonprofit-embedded-detail">
+      <header className="portal-nonprofit-embedded-detail__header">
+        <div className="portal-nonprofit-embedded-detail__title-row">
+          <h3>{detail.name}</h3>
+          <StatusBadge status={detailStatus(detail)} />
+        </div>
+        <p className="portal-nonprofit-embedded-detail__identifier">
           EIN {detail.ein}
         </p>
         <DetailFieldList items={buildSummaryItems(detail)} />
@@ -95,11 +103,14 @@ export function PortalNonprofitEmbeddedDetail({
       <div className="portal-nonprofit-embedded-detail__sections">
         <DetailStack title="Overview">
           <DetailFieldList items={buildOverviewItems(detail)} />
-        </SectionBlock>
-        <SectionBlock title="Filings">
+        </DetailStack>
+        <DetailStack title="Filings">
           <DetailFieldList items={buildFilingsItems(detail)} />
-        </SectionBlock>
-        <SectionBlock title="Sources">
+        </DetailStack>
+        <DetailStack title="Compliance">
+          <DetailFieldList items={buildComplianceItems(detail)} />
+        </DetailStack>
+        <DetailStack title="Sources">
           <PortalNonprofitSourceSection detail={detail} />
         </DetailStack>
         <DetailStack title="Activity">

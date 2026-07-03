@@ -4,7 +4,6 @@ import {
   consumePortalReturnTo,
   defaultPortalRoute,
   defaultProtectedPortalRoute,
-  homePortalRoute,
   organizationOnboardingPortalRoute,
   rememberPortalReturnTo,
   registerPortalRoute,
@@ -65,7 +64,7 @@ describe("portal route resolution", () => {
       hash: "#/missing",
       page: "not-found",
     });
-    expect(resolvePortalRoute("")).toStrictEqual(defaultProtectedPortalRoute);
+    expect(resolvePortalRoute("")).toStrictEqual(defaultPortalRoute);
   });
 
   it("continues resolving public routes directly", () => {

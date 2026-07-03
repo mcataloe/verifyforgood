@@ -106,7 +106,7 @@ export function filterNavigationSectionsByMembershipRole(params: {
     }));
   }
 
-  return params.sections
+  const filteredSections = params.sections
     .map((section) => ({
       ...section,
       items: section.items
@@ -125,6 +125,12 @@ export function filterNavigationSectionsByMembershipRole(params: {
         ),
     }))
     .filter((section) => section.items.length > 0);
+
+  if (params.organizationContextStatus === "pending") {
+    return groupPendingOrganizationAccountNavigation(filteredSections);
+  }
+
+  return filteredSections;
 }
 
 export function resolveRouteAuthorization(params: {
@@ -336,6 +342,41 @@ function lockNavigationItemForPendingOrganization(
     helpText: appendPendingOrganizationHelpText(item.helpText),
     visibilityState: "locked",
   };
+}
+
+function groupPendingOrganizationAccountNavigation(
+  sections: VerifyForGoodResolvedNavigationSection[],
+): VerifyForGoodResolvedNavigationSection[] {
+  const accountSection = sections.find((section) => section.key === "account");
+  if (!accountSection || accountSection.items.length === 0) {
+    return sections;
+  }
+
+  const accountBranch: VerifyForGoodResolvedNavigationSection["items"][number] =
+    {
+      key: "customer-admin-account",
+      label: accountSection.label,
+      helpText: "Available after you create your organization.",
+      visibilityState: "visible",
+      children: accountSection.items,
+    };
+
+  let attached = false;
+  const grouped = sections
+    .filter((section) => section.key !== accountSection.key)
+    .map((section, index) => {
+      if (!attached && (section.key === "workspace" || index === 0)) {
+        attached = true;
+        return {
+          ...section,
+          items: [...section.items, accountBranch],
+        };
+      }
+
+      return section;
+    });
+
+  return attached ? grouped : sections;
 }
 
 function appendPendingOrganizationHelpText(helpText?: string) {

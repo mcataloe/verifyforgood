@@ -166,7 +166,7 @@ export function resolveActivePortalNavigationKey(params: {
     );
     if (organizationItem) return organizationItem.key;
   }
-  return params.currentRoute.page;
+  return params.currentRoute.page ?? params.currentRoute.key;
 }
 
 function findNavigationItem(

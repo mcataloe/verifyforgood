@@ -107,6 +107,26 @@ export function buildAudienceNavigationSections(
               "Organizations",
             ),
             item(routes, "team", "customer-admin-team", "Team"),
+            {
+              key: "customer-admin-support",
+              label: "Support",
+              helpText:
+                "Contact support and report issues without mixing support into organization settings.",
+              children: [
+                item(
+                  routes,
+                  "support-contact",
+                  "customer-admin-support-contact",
+                  "Contact Support",
+                ),
+                item(
+                  routes,
+                  "support-report-issue",
+                  "customer-admin-support-report-issue",
+                  "Report An Issue",
+                ),
+              ],
+            },
           ],
         },
         {

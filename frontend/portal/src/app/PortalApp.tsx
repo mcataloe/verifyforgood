@@ -74,12 +74,6 @@ function PortalAppShell({
   const requestedRoute = resolvePortalRoute(peekPortalReturnTo());
   const hasPendingOrganization =
     auth.session?.organization_context_status === "pending";
-  const authAudience = auth.session
-    ? resolvePortalNavigationAudience(auth.session.roles)
-    : null;
-  const authMembershipRole = auth.session
-    ? resolveMembershipRoleFromContext(auth.session.organization_membership)
-    : null;
   const [isOrganizationOnboardingOpen, setIsOrganizationOnboardingOpen] =
     useState(false);
   const organizationClient = useMemo(
@@ -146,7 +140,8 @@ function PortalAppShell({
   useEffect(() => {
     if (
       auth.status === "unauthenticated" &&
-      currentRoute.access === "protected"
+      currentRoute.access === "protected" &&
+      currentRoute.page !== "not-found"
     ) {
       rememberPortalReturnTo(window.location.hash || currentRoute.hash);
       navigateToPortalRoute(signInPortalRoute.hash, { replace: true });
@@ -186,32 +181,6 @@ function PortalAppShell({
       navigateToPortalRoute("#/dashboard", { replace: true });
     }
   }, [auth.status, currentRoute.key, hasPendingOrganization]);
-
-  useEffect(() => {
-    if (auth.status !== "authenticated" || hasPendingOrganization) {
-      return;
-    }
-
-    if (authAudience !== "customer_admin") {
-      return;
-    }
-
-    const canonicalHash = resolveCanonicalCustomerAdminHash({
-      currentHash:
-        typeof window === "undefined"
-          ? currentRoute.hash
-          : window.location.hash || currentRoute.hash,
-      currentRoute,
-    });
-    if (
-      canonicalHash &&
-      (typeof window === "undefined"
-        ? currentRoute.hash
-        : window.location.hash || currentRoute.hash) !== canonicalHash
-    ) {
-      navigateToPortalRoute(canonicalHash, { replace: true });
-    }
-  }, [auth.status, authAudience, currentRoute, hasPendingOrganization]);
 
   useEffect(() => {
     if (auth.status === "authenticated" && hasPendingOrganization) {
@@ -291,32 +260,6 @@ function PortalAppShell({
   const session = auth.session;
   if (!session) return null;
 
-  if (hasPendingOrganization) {
-    return (
-      <PortalAuthLayout
-        app={appInfo}
-        runtimeConfig={runtimeConfig}
-        subtitle="Create the first organization context before the portal opens."
-        title="Create your first organization"
-      >
-        <PortalOrganizationOnboardingPage
-          endpoints={endpoints}
-          isBusy={auth.isBusy}
-          onCreateOrganization={async (request) => {
-            if (!organizationClient)
-              throw new Error("Authentication is required");
-            const created =
-              await organizationClient.createOrganization(request);
-            auth.applyOrganization(
-              createPortalActiveOrganizationRecord(created),
-            );
-            navigateToPortalRoute("#/dashboard");
-          }}
-        />
-      </PortalAuthLayout>
-    );
-  }
-
   return (
     <PortalOrganizationProvider
       accessToken={auth.accessToken}
@@ -326,6 +269,22 @@ function PortalAppShell({
       <PortalAuthorizedShell
         currentRoute={currentRoute}
         endpoints={endpoints}
+        idleWarningVisible={idleTimeout.warningVisible}
+        isOrganizationOnboardingBusy={auth.isBusy}
+        isOrganizationOnboardingOpen={isOrganizationOnboardingOpen}
+        onCloseOrganizationOnboarding={() =>
+          setIsOrganizationOnboardingOpen(false)
+        }
+        onCreateOrganization={async (request) => {
+          if (!organizationClient) throw new Error("Authentication is required");
+          const created = await organizationClient.createOrganization(request);
+          auth.applyOrganization(createPortalActiveOrganizationRecord(created));
+          setIsOrganizationOnboardingOpen(false);
+        }}
+        onDismissIdleWarning={idleTimeout.dismissWarning}
+        onOpenOrganizationOnboarding={() =>
+          setIsOrganizationOnboardingOpen(true)
+        }
         onSignOut={auth.signOut}
         runtimeConfig={runtimeConfig}
         session={session}
@@ -370,21 +329,13 @@ function PortalAuthorizedShell({
   );
   const routeAuthorization = resolveRouteAuthorization({
     audience,
-    currentHash: currentRoute.hash,
+    currentHash:
+      typeof window === "undefined"
+        ? currentRoute.hash
+        : window.location.hash || currentRoute.hash,
     currentRoute,
     membershipRole,
   });
-
-  useEffect(() => {
-    if (
-      currentRoute.access === "protected" &&
-      !routeAuthorization.allowed &&
-      routeAuthorization.redirectHash &&
-      currentRoute.hash !== routeAuthorization.redirectHash
-    ) {
-      navigateToPortalRoute(routeAuthorization.redirectHash);
-    }
-  }, [currentRoute, routeAuthorization]);
 
   useEffect(() => {
     document.title = `${currentRoute.label} | VerifyForGood`;
@@ -396,21 +347,6 @@ function PortalAuthorizedShell({
       }
     });
   }, [currentRoute.hash, currentRoute.label]);
-
-  if (!routeAuthorization.allowed) {
-    return (
-      <PortalAuthLayout
-        app={appInfo}
-        runtimeConfig={runtimeConfig}
-        subtitle="Checking whether the current organization role allows this route."
-        title="Redirecting to an allowed area"
-      >
-        <PortalNotice title="Redirecting" tone="loading">
-          <p>Returning to the nearest allowed portal destination.</p>
-        </PortalNotice>
-      </PortalAuthLayout>
-    );
-  }
 
   return (
     <PortalLayout
@@ -424,13 +360,73 @@ function PortalAuthorizedShell({
       runtimeConfig={runtimeConfig}
       session={session}
     >
-      <RouteContentPage
-        audience={audience}
-        currentRoute={currentRoute}
-        endpoints={endpoints}
-        runtimeConfig={runtimeConfig}
-        session={session}
-      />
+      {idleWarningVisible ? (
+        <PortalNotice
+          onDismiss={onDismissIdleWarning}
+          title="Session expiring soon"
+          tone="warning"
+        >
+          <p>
+            You have been inactive for a while. Activity in the portal will keep
+            your session active; otherwise you will be signed out automatically.
+          </p>
+        </PortalNotice>
+      ) : null}
+      {session.organization_context_status === "pending" &&
+      !isOrganizationOnboardingOpen ? (
+        <Paper data-testid="pending-organization-callout" p="lg" radius="lg" withBorder>
+          <Stack gap="md">
+            <Title order={2}>Create Your Organization to Continue</Title>
+            <PortalHint>
+              Finish creating your organization to unlock billing, team access,
+              and verification tools.
+            </PortalHint>
+            <div>
+              <PortalButton
+                onClick={onOpenOrganizationOnboarding}
+                tone="primary"
+                type="button"
+              >
+                Create Organization
+              </PortalButton>
+            </div>
+          </Stack>
+        </Paper>
+      ) : null}
+      {!routeAuthorization.allowed ? (
+        <PortalNotice dismissible={false} title="Access denied" tone="error">
+          <p>
+            Your current role does not allow access to this portal section. If
+            your access recently changed, refresh the page or contact an
+            organization administrator.
+          </p>
+          <PortalButton
+            onClick={() => navigateToPortalRoute("#/dashboard")}
+            tone="primary"
+            type="button"
+          >
+            Go to dashboard
+          </PortalButton>
+        </PortalNotice>
+      ) : (
+        <>
+          <RouteContentPage
+            audience={audience}
+            currentRoute={currentRoute}
+            endpoints={endpoints}
+            runtimeConfig={runtimeConfig}
+            session={session}
+          />
+          {isOrganizationOnboardingOpen ? (
+            <PortalOrganizationOnboardingPage
+              endpoints={endpoints}
+              isBusy={isOrganizationOnboardingBusy}
+              onClose={onCloseOrganizationOnboarding}
+              onCreateOrganization={onCreateOrganization}
+            />
+          ) : null}
+        </>
+      )}
     </PortalLayout>
   );
 }

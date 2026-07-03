@@ -1,6 +1,7 @@
 import type { PortalRouteDefinition } from "./portalRoutes";
 
 export const portalPublicRoutes: PortalRouteDefinition[] = [
+  { access: "public", key: "home", page: "home", label: "Home", hash: "#/", description: "Review portal entry points." },
   { access: "public", key: "sign-in", page: "sign-in", label: "Sign In", hash: "#/sign-in", description: "Sign in to the customer portal." },
   { access: "public", key: "register", page: "register", label: "Register", hash: "#/register", description: "Create a customer portal account." },
 ];
@@ -14,8 +15,17 @@ export const dashboardPortalRoute: PortalRouteDefinition = {
 export const organizationsPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "workspace", page: "organizations", label: "Organizations", hash: "#/organizations", description: "Search nonprofit records and open source-backed profiles.",
 };
+export const nonprofitSearchPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "search", page: "organizations", label: "Nonprofit Search", hash: "#/search", description: "Search nonprofit records and open source-backed profiles.",
+};
 export const teamPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "workspace", page: "team", label: "Team", hash: "#/team", description: "Manage organization membership and workspace access.",
+};
+export const supportContactPortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "support", page: "support-contact", label: "Contact Support", hash: "#/support", description: "Contact support and review helpful product links.",
+};
+export const supportReportIssuePortalRoute: PortalRouteDefinition = {
+  access: "protected", key: "support", page: "support-report-issue", label: "Report An Issue", hash: "#/support/report-issue", description: "Send support requests and product recommendations.",
 };
 export const automationGeneralPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "api-access", page: "automation-general", label: "Automation", hash: "#/automation", description: "Review automation behavior and integration access.",
@@ -42,8 +52,11 @@ export const settingsOrganizationPortalRoute: PortalRouteDefinition = {
 export const portalProtectedRoutes: PortalRouteDefinition[] = [
   organizationOnboardingPortalRoute,
   dashboardPortalRoute,
+  nonprofitSearchPortalRoute,
   organizationsPortalRoute,
   teamPortalRoute,
+  supportContactPortalRoute,
+  supportReportIssuePortalRoute,
   automationGeneralPortalRoute,
   automationApiKeyPortalRoute,
   automationOauthPortalRoute,
@@ -58,13 +71,16 @@ export const legacyPortalAliases: Record<string, string> = {
   "#/dashboard?nav=customer-user-dashboard": "#/dashboard",
   "#/dashboard?nav=developer-overview": "#/dashboard",
   "#/dashboard?nav=portal-admin-dashboard": "#/dashboard",
-  "#/workspace": "#/organizations",
-  "#/workspace?nav=customer-user-search-ein": "#/organizations",
-  "#/workspace?nav=customer-user-search-address": "#/organizations",
+  "#/workspace": "#/search",
+  "#/workspace?nav=customer-user-search-ein": "#/search",
+  "#/workspace?nav=customer-user-search-address": "#/search",
   "#/workspace?nav=developer-tenants": "#/organizations",
   "#/workspace?nav=portal-admin-customers": "#/organizations",
   "#/workspace?nav=customer-admin-team": "#/team",
   "#/workspace?nav=portal-admin-support": "#/team",
+  "#/support": "#/support",
+  "#/support?nav=customer-admin-support-contact": "#/support",
+  "#/support?nav=customer-admin-support-report-issue": "#/support/report-issue",
   "#/api-access": "#/automation",
   "#/api-access?nav=customer-user-automation-general": "#/automation",
   "#/api-access?nav=customer-user-automation-api": "#/automation/api-keys",

@@ -97,6 +97,14 @@ describe("NonprofitSearchPanel", () => {
         review: null,
         riskIndicators: [],
         snapshotMaterializedAt: "2026-04-21T20:00:00+00:00",
+        sourceAvailability: [
+          {
+            attempted: true,
+            integrationId: "candid",
+            label: "Candid",
+            status: "matched",
+          },
+        ],
         sourceSummaries: [
           {
             category: "compliance",
@@ -124,13 +132,15 @@ describe("NonprofitSearchPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Helping Hands Foundation" }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Search results" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back to search" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Search results" }),
     ).toBeNull();
-    expect(screen.getByText("Matched and refreshed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
+    expect(screen.getByText("Candid")).toBeTruthy();
+    expect(screen.getByText("Matched")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Search results" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to search" }));
     expect(controller.closeDetail).toHaveBeenCalledOnce();
   });
 
