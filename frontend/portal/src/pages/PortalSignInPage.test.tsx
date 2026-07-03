@@ -5,7 +5,7 @@ import { PortalToastProvider } from "../components/feedback";
 import { PortalSignInPage } from "./PortalSignInPage";
 
 describe("PortalSignInPage", () => {
-  it("renders the login form with customer-facing entry guidance", () => {
+  it("renders a focused login form without the explanatory panel", () => {
     renderSignInPage();
 
     expect(screen.getByLabelText("Email")).toBeTruthy();
@@ -21,7 +21,11 @@ describe("PortalSignInPage", () => {
         .getByRole("button", { name: "Microsoft available soon" })
         .hasAttribute("disabled"),
     ).toBe(true);
-    expect(screen.getByText("Requested area")).toBeTruthy();
+    expect(
+      screen.queryByText("Secure Access for Verification Operations"),
+    ).toBeNull();
+    expect(screen.queryByText("Requested area")).toBeNull();
+    expect(screen.queryByText("We'll Take You There")).toBeNull();
     expect(screen.queryByText("Login endpoint")).toBeNull();
     expect(screen.queryByText("Session restore")).toBeNull();
     expect(screen.queryByText(/auth boundary/i)).toBeNull();
