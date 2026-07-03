@@ -3,50 +3,50 @@ import type { readRuntimeConfig } from "@charity-status/shared-config";
 import type { PortalNavigationAudience } from "../app/portalNavigation";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { PortalPageShell, StackedDetailSections } from "../components/shell";
-import { DashboardPage } from "./DashboardPage";
 
 export function PortalDashboardPage({
-  audience,
-  runtimeConfig,
+  audience: _audience,
+  runtimeConfig: _runtimeConfig,
   session,
 }: {
   audience: PortalNavigationAudience;
   runtimeConfig: ReturnType<typeof readRuntimeConfig>;
   session: PortalAuthenticatedSession;
 }) {
-  if (audience === "customer_admin") {
-    return (
-      <DashboardPage
-        pane="home"
-        runtimeConfig={runtimeConfig}
-        session={session}
-      />
-    );
-  }
-
   return (
     <PortalPageShell
-      description={`Choose a task for ${session.organization_name}. This page intentionally avoids unsupported operational metrics.`}
+      description={`Choose where to continue for ${session.organization_name}. Recent nonprofit searches are kept on the Organizations page.`}
       eyebrow="Portal home"
-      title="Dashboard"
+      title="Home"
     >
       <StackedDetailSections
         sectionWrapper={({ section }) => <section>{section}</section>}
       >
         <Panel
-          title="Review organizations"
-          subtitle="Search nonprofit records and open a shareable evidence profile."
+          title="Organizations"
+          subtitle="Search nonprofit records and review recent searches."
         >
-          <a className="portal-shell__action portal-shell__action--primary" href="#/organizations">
+          <a
+            className="portal-shell__action portal-shell__action--primary"
+            href="#/organizations"
+          >
             Open organizations
           </a>
         </Panel>
         <Panel
-          title="Manage automation"
-          subtitle="Review integration access without mixing credentials into organization search."
+          title="Team"
+          subtitle="Review organization membership and team information."
         >
-          <a className="portal-shell__action" href="#/automation">
-            Open automation
+          <a className="portal-shell__action" href="#/team">
+            Open team
+          </a>
+        </Panel>
+        <Panel
+          title="Settings"
+          subtitle="Review organization settings and preferences."
+        >
+          <a className="portal-shell__action" href="#/settings/organization">
+            Open settings
           </a>
         </Panel>
       </StackedDetailSections>
