@@ -8,13 +8,12 @@ import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { ApiAccessPage } from "./ApiAccessPage";
 import { BillingPage } from "./BillingPage";
 import { OrganizationDetailPage } from "./OrganizationDetailPage";
-import { OrganizationsPage } from "./OrganizationsPage";
+import { NonprofitSearchPage } from "./NonprofitSearchPage";
 import { PortalDashboardPage } from "./PortalDashboardPage";
 import { PortalNotFoundPage } from "./PortalNotFoundPage";
 import { SettingsPage } from "./SettingsPage";
 import { SupportPage } from "./SupportPage";
 import { TeamPage } from "./TeamPage";
-import { WorkspacePage } from "./WorkspacePage";
 
 export function RouteContentPage({
   audience,
@@ -39,11 +38,7 @@ export function RouteContentPage({
         />
       );
     case "organizations":
-      return currentRoute.key === "search" ? (
-        <WorkspacePage endpoints={endpoints} session={session} />
-      ) : (
-        <OrganizationsPage />
-      );
+      return <NonprofitSearchPage />;
     case "organization-detail":
       return currentRoute.params?.ein && currentRoute.section ? (
         <OrganizationDetailPage

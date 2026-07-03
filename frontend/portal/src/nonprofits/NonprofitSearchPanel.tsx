@@ -35,7 +35,7 @@ interface NonprofitSearchPanelProps {
 const resultColumns: DataTableColumn<PortalNonprofitSearchSummary>[] = [
   {
     key: "name",
-    header: "Organization",
+    header: "Nonprofit",
     sortable: true,
     render: (row) => row.name,
     sortValue: (row) => row.name,

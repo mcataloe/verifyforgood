@@ -39,9 +39,9 @@ describe("PortalLayout", () => {
 
     expect(screen.getAllByText("Workspace").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Organizations\b/i }),
+      screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Settings\b/i })).toBeTruthy();
@@ -73,9 +73,9 @@ describe("PortalLayout", () => {
       },
     });
 
-    expect(screen.getByRole("link", { name: /^Home\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Organizations\b/i }),
+      screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /^Billing\b/i })).toBeNull();
@@ -94,7 +94,7 @@ describe("PortalLayout", () => {
 
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Organizations\b/i }),
+      screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Automation\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Profile/i })).toBeTruthy();
@@ -111,9 +111,9 @@ describe("PortalLayout", () => {
 
     expect(screen.getByText("Build")).toBeTruthy();
     expect(screen.getByText("Controls")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /^Overview\b/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Organizations\b/i }),
+      screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Plans\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
@@ -133,7 +133,7 @@ describe("PortalLayout", () => {
     expect(screen.getByText("Account")).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Dashboard\b/i })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /^Organizations\b/i }),
+      screen.getByRole("link", { name: /^Search Nonprofits\b/i }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Team\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
@@ -163,13 +163,13 @@ describe("PortalLayout", () => {
     ).toBe("page");
   });
 
-  it("marks organizations active for a detail route", () => {
+  it("marks nonprofit search active for a detail route", () => {
     renderPortalLayout({
       currentRoute: resolvePortalRoute("#/organizations/123456789/sources"),
     });
     expect(
       screen
-        .getByRole("link", { name: /^Organizations\b/i })
+        .getByRole("link", { name: /^Search Nonprofits\b/i })
         .getAttribute("aria-current"),
     ).toBe("page");
   });

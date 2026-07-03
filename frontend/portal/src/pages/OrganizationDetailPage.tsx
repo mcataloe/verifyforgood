@@ -30,21 +30,21 @@ export function OrganizationDetailPage({
   return (
     <div className="portal-dashboard">
       <nav aria-label="Breadcrumb">
-        <a href={organizationsPortalRoute.hash}>Organizations</a>
+        <a href={organizationsPortalRoute.hash}>Search Nonprofits</a>
         <span aria-hidden="true"> / </span>
         <span aria-current="page">EIN {ein}</span>
       </nav>
       {search.isLoading || isInitialLoad ? (
         <LoadingSkeleton
           description="Loading the selected nonprofit record and filing context."
-          title="Loading organization profile"
+          title="Loading nonprofit profile"
           variant="card"
         />
       ) : null}
       {search.error ? (
         <ErrorState
           description={search.error}
-          title="Organization profile unavailable"
+          title="Nonprofit profile unavailable"
         />
       ) : null}
       {!search.isLoading && !search.error && search.detail ? (
@@ -58,8 +58,8 @@ export function OrganizationDetailPage({
       ) : null}
       {!search.isLoading && !isInitialLoad && !search.error && !search.detail ? (
         <EmptyState
-          description="Return to organization search and confirm the EIN."
-          title="No organization profile found"
+          description="Return to nonprofit search and confirm the EIN."
+          title="No nonprofit profile found"
         />
       ) : null}
     </div>

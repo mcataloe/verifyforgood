@@ -24,7 +24,7 @@ describe("portal navigation config", () => {
     expect(sections[0]?.items[1]).toMatchObject({
       href: "#/organizations",
       key: "customer-admin-organizations",
-      label: "Organizations",
+      label: "Search Nonprofits",
     });
     expect(sections[1]?.items[2]).toMatchObject({
       href: "#/automation/api-keys",
@@ -58,7 +58,7 @@ describe("portal navigation config", () => {
         roles: [FRONTEND_ACCESS_ROLE.customerUser],
       }),
     ).toEqual([
-      { items: ["Dashboard", "Organizations", "Automation"], label: "" },
+      { items: ["Dashboard", "Search Nonprofits", "Automation"], label: "" },
     ]);
   });
 
@@ -71,7 +71,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Organizations", "Team", "Support"],
+        items: ["Dashboard", "Search Nonprofits", "Team", "Support"],
         label: "Workspace",
       },
       {
@@ -89,7 +89,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Dashboard", "Organizations", "Team"],
+        items: ["Dashboard", "Search Nonprofits", "Team"],
         label: "Operations",
       },
       { items: ["Billing", "Usage", "Settings"], label: "Account" },
@@ -103,7 +103,7 @@ describe("portal navigation config", () => {
         roles: [FRONTEND_ACCESS_ROLE.developer],
       }),
     ).toEqual([
-      { items: ["Overview", "Organizations", "Plans"], label: "Build" },
+      { items: ["Dashboard", "Search Nonprofits", "Plans"], label: "Build" },
       { items: ["Usage", "System", "Settings"], label: "Controls" },
     ]);
   });
@@ -175,7 +175,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Home", "Organizations", "Team"],
+        items: ["Dashboard", "Search Nonprofits", "Team"],
         label: "Workspace",
       },
     ]);

@@ -217,11 +217,11 @@ function normalizePortalHash(hash: string) {
 
 function sectionLabel(section: OrganizationDetailSection) {
   const labels: Record<OrganizationDetailSection, string> = {
-    overview: "Organization Overview",
-    filings: "Organization Filings",
-    compliance: "Organization Compliance Evidence",
-    sources: "Organization Sources",
-    activity: "Organization Activity",
+    overview: "Nonprofit Overview",
+    filings: "Nonprofit Filings",
+    compliance: "Nonprofit Compliance Evidence",
+    sources: "Nonprofit Sources",
+    activity: "Nonprofit Activity",
   };
   return labels[section];
 }

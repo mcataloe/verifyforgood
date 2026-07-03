@@ -13,10 +13,10 @@ export const dashboardPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "dashboard", page: "dashboard", label: "Dashboard", hash: "#/dashboard", description: "Review recent activity and next actions.",
 };
 export const organizationsPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "workspace", page: "organizations", label: "Organizations", hash: "#/organizations", description: "Search nonprofit records and open source-backed profiles.",
+  access: "protected", key: "workspace", page: "organizations", label: "Search Nonprofits", hash: "#/organizations", description: "Search nonprofit records and open source-backed profiles.",
 };
 export const nonprofitSearchPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "search", page: "organizations", label: "Nonprofit Search", hash: "#/search", description: "Search nonprofit records and open source-backed profiles.",
+  access: "protected", key: "search", page: "organizations", label: "Search Nonprofits", hash: "#/search", description: "Search nonprofit records and open source-backed profiles.",
 };
 export const teamPortalRoute: PortalRouteDefinition = {
   access: "protected", key: "workspace", page: "team", label: "Team", hash: "#/team", description: "Manage organization membership and workspace access.",

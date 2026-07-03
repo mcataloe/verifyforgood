@@ -1207,7 +1207,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit Search" }),
+      await screen.findByRole("heading", { name: "Search Nonprofits" }),
     ).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Search query" })).toBeTruthy();
   });
@@ -1245,7 +1245,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit Search" }),
+      await screen.findByRole("heading", { name: "Search Nonprofits" }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/search");
   });
@@ -1545,7 +1545,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Nonprofit Search" }),
+      await screen.findByRole("heading", { name: "Search Nonprofits" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Primary Org").length).toBeGreaterThan(0);
 

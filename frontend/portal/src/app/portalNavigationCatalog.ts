@@ -42,8 +42,8 @@ export function buildAudienceNavigationSections(
           key: "build",
           label: "Build",
           items: [
-            item(routes, "dashboard", "developer-overview", "Overview"),
-            item(routes, "organizations", "developer-tenants", "Organizations"),
+            item(routes, "dashboard", "developer-overview", "Dashboard"),
+            item(routes, "organizations", "developer-tenants", "Search Nonprofits"),
             item(routes, "billing", "developer-plans", "Plans"),
           ],
         },
@@ -73,7 +73,7 @@ export function buildAudienceNavigationSections(
               routes,
               "organizations",
               "portal-admin-customers",
-              "Organizations",
+              "Search Nonprofits",
             ),
             item(routes, "team", "portal-admin-support", "Team"),
           ],
@@ -99,12 +99,12 @@ export function buildAudienceNavigationSections(
           key: "workspace",
           label: "Workspace",
           items: [
-            item(routes, "dashboard", "customer-admin-home", "Home"),
+            item(routes, "dashboard", "customer-admin-home", "Dashboard"),
             item(
               routes,
               "organizations",
               "customer-admin-organizations",
-              "Organizations",
+              "Search Nonprofits",
             ),
             item(routes, "team", "customer-admin-team", "Team"),
             {
@@ -158,7 +158,7 @@ export function buildAudienceNavigationSections(
               routes,
               "organizations",
               "customer-user-organizations",
-              "Organizations",
+              "Search Nonprofits",
             ),
             {
               key: "customer-user-automation",
