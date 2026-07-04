@@ -35,18 +35,15 @@ export function PortalNonprofitDetailView({
   return (
     <EntityDetailLayout
       actions={
-        <>
-          {onBackToSearch ? (
-            <PortalButton
-              onClick={onBackToSearch}
-              tone="secondary"
-              type="button"
-            >
-              Back to search
-            </PortalButton>
-          ) : null}
-          <StatusBadge status={detailStatus(detail)} />
-        </>
+        onBackToSearch ? (
+          <PortalButton
+            onClick={onBackToSearch}
+            tone="secondary"
+            type="button"
+          >
+            Back to search
+          </PortalButton>
+        ) : null
       }
       activeTabKey={activeSection}
       description="Shared organization detail layout for trust-forward entity review."

@@ -88,17 +88,17 @@ Prefer evidence from the repository over assumptions.
 
 When the user invokes a LEAP command, route it to current LEAP Framework behavior instead of responding generically. Use `docs/leap.md` as the lifecycle reference and the current prompt files when available.
 
-| Command | Route and behavior |
-| --- | --- |
-| `Run LEAP Charter` | Use `prompts/leap-charter-standard.md` to establish or reconcile project direction, source truth, roadmap, baseline assumptions, and implementation posture. |
-| `Run LEAP Recon` | Use `prompts/leap-recon-standard.md` to investigate a focused feature, risk, layer, dependency, contract, repo area, or architecture question before implementation planning. |
-| `Generate LEAP Prompt` | Use `prompts/leap-prompt-standard.md` only after source truth, repo reality, scope, validation, stop conditions, and execution configuration are clear enough. |
-| `Run LEAP Prompt` | Execute or apply an already-approved LEAP Prompt according to its stated scope, constraints, validation, and stop conditions. |
-| `Generate LEAP LHS` | Generate a staged LEAP Prompt format only when implementation gravity warrants Build Units; LHS is not a mandatory lifecycle phase. |
-| `Run LEAP LHS` | Execute or apply an approved LHS prompt in Build Unit sequence with its validation and stop conditions. |
-| `Run LEAP Governance` | Use `prompts/leap-governance-pass-standard.md` for source-truth, framework, prompt-library, adoption, terminology, or docs drift. |
-| `Run LEAP Validation` | Verify completed work against scope, tests/checks, docs, acceptance criteria, and stop conditions. |
-| `Run LEAP Handoff` | Summarize completed work, unresolved risks, validation status, deviations, and recommended follow-up. |
+| Command                | Route and behavior                                                                                                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Run LEAP Charter`     | Use `prompts/leap-charter-standard.md` to establish or reconcile project direction, source truth, roadmap, baseline assumptions, and implementation posture.                  |
+| `Run LEAP Recon`       | Use `prompts/leap-recon-standard.md` to investigate a focused feature, risk, layer, dependency, contract, repo area, or architecture question before implementation planning. |
+| `Generate LEAP Prompt` | Use `prompts/leap-prompt-standard.md` only after source truth, repo reality, scope, validation, stop conditions, and execution configuration are clear enough.                |
+| `Run LEAP Prompt`      | Execute or apply an already-approved LEAP Prompt according to its stated scope, constraints, validation, and stop conditions.                                                 |
+| `Generate LEAP LHS`    | Generate a staged LEAP Prompt format only when implementation gravity warrants Build Units; LHS is not a mandatory lifecycle phase.                                           |
+| `Run LEAP LHS`         | Execute or apply an approved LHS prompt in Build Unit sequence with its validation and stop conditions.                                                                       |
+| `Run LEAP Governance`  | Use `prompts/leap-governance-pass-standard.md` for source-truth, framework, prompt-library, adoption, terminology, or docs drift.                                             |
+| `Run LEAP Validation`  | Verify completed work against scope, tests/checks, docs, acceptance criteria, and stop conditions.                                                                            |
+| `Run LEAP Handoff`     | Summarize completed work, unresolved risks, validation status, deviations, and recommended follow-up.                                                                         |
 
 Default Recon behavior:
 
@@ -311,7 +311,6 @@ Do not:
 - Treat AI-generated assumptions as source of truth.
 - Continue past a serious unresolved ambiguity.
 
-
 <!-- LEAP_MASTER_GLOBAL_SECTION_END -->
 
 ---
@@ -344,17 +343,17 @@ Primary users and use cases:
 
 ## LEAP Baseline State
 
-| Item | Value |
-| --- | --- |
-| Baseline record | Inline in `AGENTS.md`; no `leap.baseline.yaml` found |
-| Last full reconcile | `Never` |
-| Last reconcile mode | `Never` |
-| Current source-truth entry point | `README.md` |
-| Canonical docs location | `docs/`, plus surface-specific READMEs |
-| Archive location | `Not established` |
-| Gap register / known drift | `TODO.md` |
-| Baseline confidence | `Medium` for repo topology and commands; `Unknown` for formal product-roadmap reconciliation |
-| Reconcile triggers | Architecture pivot; persistence/backend cutover; source-truth conflict; stale README/docs; large new phase/layer; public/private repo split; billing/auth contract change |
+| Item                             | Value                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Baseline record                  | Inline in `AGENTS.md`; no `leap.baseline.yaml` found                                                                                                                      |
+| Last full reconcile              | `Never`                                                                                                                                                                   |
+| Last reconcile mode              | `Never`                                                                                                                                                                   |
+| Current source-truth entry point | `README.md`                                                                                                                                                               |
+| Canonical docs location          | `docs/`, plus surface-specific READMEs                                                                                                                                    |
+| Archive location                 | `Not established`                                                                                                                                                         |
+| Gap register / known drift       | `TODO.md`                                                                                                                                                                 |
+| Baseline confidence              | `Medium` for repo topology and commands; `Unknown` for formal product-roadmap reconciliation                                                                              |
+| Reconcile triggers               | Architecture pivot; persistence/backend cutover; source-truth conflict; stale README/docs; large new phase/layer; public/private repo split; billing/auth contract change |
 
 This AGENTS.md population is not a full Brownfield Charter, Governance pass, or source-truth reconciliation. Do not update this table for ordinary feature work.
 
@@ -542,6 +541,31 @@ LEAP Prompt / implementation handoff expectations:
 - Call out whether work is in `frontend`, `backend`, `public-core`, `private-platform`, `infrastructure`, or a compatibility shim.
 - For staged work, keep units aligned to documented phases/layers and avoid cross-layer cleanup unless required.
 
+## Workflow Selection Reference
+
+Use `leap_framework/docs/user/which-leap-workflow.md` as the canonical chooser between Normal prompt, Quick LEAP Brief, LEAP Charter, LEAP Recon, LEAP Prompt, and LEAP LHS, and `leap_framework/docs/materiality-gate.md` for Materiality Gate criteria. Do not restate that decision logic here — it is framework-level, not VerifyForGood-specific, and a second copy would drift out of sync with the canonical version.
+
+What follows are VerifyForGood-specific worked examples showing which tier a task type typically maps to. "Normal prompt" in the framework doc is sometimes called "Direct Codex Prompt" in earlier VerifyForGood-specific notes when the executing agent is a coding agent rather than a chat session — treat the two names as the same tier.
+
+Typically Normal prompt / Quick LEAP Brief:
+
+- Copy, renames, routes, styling, accessibility, docs, component refactors, small tests.
+- Frontend UX using existing backend behavior; fixtures/mocks; non-contractual API-doc corrections.
+- Search/filter/sort/pagination; charity views using an established model; compatible API additions; normalization using approved sources.
+
+Typically requires LEAP Recon:
+
+- Anything touching auth, privacy, security, identity, billing, or payments.
+- External sources or terms, production/public access changes, public API compatibility changes, background processing changes.
+- Verification/eligibility rule changes; freshness, provenance, source-conflict, or entity-matching decisions; donation/compliance decisions; unsafe repository uncertainty.
+
+Typically requires LEAP LHS:
+
+- Staged PostgreSQL/DynamoDB cutover work, Terraform backend/state-file changes.
+- Cross-layer (`frontend`/`backend`/`infrastructure`) coordinated rollouts, public contract transitions, backfills, dependency ordering across ingest phases.
+
+These are starting points, not overrides — if a task looks like Quick Brief but touches anything in the Stop Conditions list below, follow Stop Conditions.
+
 ## Project Source of Truth
 
 Use this order of truth when making decisions:
@@ -607,6 +631,21 @@ If sources conflict, call out the conflict and prefer the more specific, more re
 - Do not introduce AI-generated or opaque decisioning into verification/scoring without explicit approval and traceability requirements.
 - Keep verification, scoring, and billing decisions explainable and auditable.
 - Do not fabricate nonprofit facts, customer facts, filings, credentials, billing state, or compliance outcomes.
+
+## Trust and Data Rules
+
+VerifyForGood is trust-sensitive. Treat provenance, status meaning, and claim accuracy as functional requirements, not documentation nice-to-haves.
+
+- Separate source facts from VerifyForGood-derived fields, scores, classifications, or recommendations.
+- Preserve source, source ID, retrieval time, reporting period, and transformation history.
+- Keep "not found," "unknown," "unavailable," "stale," "conflicting," and "ineligible" distinct — do not collapse these into a single generic negative state.
+- Do not call an organization "verified" unless the specific rule and evidence behind that claim are defined and traceable.
+- Do not infer tax status, eligibility, sanctions status, good standing, or donation suitability from incomplete or stale records.
+- Represent uncertainty explicitly when sources conflict or entity resolution is ambiguous, rather than picking one source silently.
+- Do not turn data presence into an unsupported legal, tax, financial, or compliance conclusion.
+- Keep raw evidence separable from normalized data and derived interpretation when practical.
+- Treat changes to verification definitions, confidence models, status labels, API fields, enumerations, errors, or semantics as contract changes — they need the same review as a breaking API change.
+- Do not imply more authority, completeness, recency, or certainty than the evidence supports; preserve enough evidence to explain each result.
 
 ## Security, Secrets, and Privacy Rules
 
@@ -690,6 +729,10 @@ Stop and ask before:
 - Replacing the documented architecture instead of extending it incrementally.
 - Implementing unclear business rules for nonprofit eligibility, scoring, compliance, billing, tenant access, or admin operations.
 - Weakening privacy, traceability, auditability, CORS, auth, or webhook security.
+- Merging or reconciling entity records (nonprofits, accounts, or identity records) where the merge could not be cleanly reversed.
+- Legal, licensing, attribution, or source-term risk — including scraping terms, data-vendor licensing, or attribution requirements on ingested IRS/state/enrichment data.
+- Any change that would affect a funding or donation-matching decision made by a downstream customer, even indirectly through scoring/eligibility output changes.
+- Any change that increases user-trust risk in a way not already covered by the specific triggers above — treat this as a catch-all, not a substitute for naming the specific risk when you can.
 
 ## Completion Requirements
 
@@ -701,5 +744,22 @@ A task is complete when:
 - Docs were updated when commands, contracts, env vars, architecture, or user workflows changed.
 - Known source-truth drift, compatibility risks, and follow-ups are called out.
 - The final response identifies files/areas changed, validation, tests not run, risks, and whether the work stayed within scope.
+
+## Definition of Done Enough
+
+Given this project's Rapid Prototype status, a feature may be "done enough" when:
+
+- the primary workflow works
+- local data/APIs are not unintentionally broken
+- obvious regressions are covered
+- failure and unknown states are represented honestly, not hidden
+- verification language matches the actual evidence behind it
+- data has sufficient provenance to explain itself later
+- docs distinguish built, mocked, assumed, and deferred behavior
+- major risks are named explicitly, not implied
+- the change is reversible
+- validation limits (what was and wasn't tested) are recorded
+
+"Done enough" does NOT mean production-ready, legally authoritative, complete, secure at scale, or suitable for real financial or compliance decisions, unless that bar is separately established and validated for the specific change.
 
 <!-- LEAP_MASTER_REPO_SECTION_END -->

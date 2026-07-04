@@ -49,14 +49,6 @@ describe("PortalLayout", () => {
     expect(screen.getByRole("link", { name: /^Billing\b/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /^Usage\b/i })).toBeTruthy();
 
-    fireEvent.click(getSidebarBranchButton("Support") as HTMLElement);
-    expect(
-      screen.getByRole("link", { name: /^Contact Support\b/i }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /^Feedback\b/i }),
-    ).toBeTruthy();
-
     fireEvent.click(screen.getByRole("button", { name: /account menu/i }));
     expect(screen.getByText("Alex Operator")).toBeTruthy();
     expect(screen.getByTestId("portal-user-menu-sign-out")).toBeTruthy();
@@ -300,14 +292,4 @@ function createOrganizationRecord(
     workspace_id:
       overrides.workspace_id ?? overrides.organization_id ?? "org_primary",
   };
-}
-
-function getSidebarBranchButton(label: string) {
-  return (
-    screen
-      .getAllByRole("button", { name: new RegExp(`^${label}\\b`, "i") })
-      .find((element) =>
-        element.className.includes("vf-app-shell-nav__item--branch"),
-      ) ?? null
-  );
 }

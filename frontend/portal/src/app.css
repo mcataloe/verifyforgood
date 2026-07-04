@@ -1740,3 +1740,68 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * Dark mode overrides.
+ *
+ * Card/chip backgrounds above are hardcoded as translucent white
+ * (`rgba(255, 255, 255, ...)`) so they read as light panels floating over
+ * the light page gradient. `--vf-color-forest-*`/`--vf-color-sage-*` text
+ * tokens already flip to light grays in dark mode (see shared theme.css),
+ * but a literal white translucency stays a light-gray card even on a dark
+ * page, which pairs badly with that now-light text. Give these panels a
+ * dark, low-opacity backdrop instead so text and status colors that were
+ * tuned for a light background stay legible against a dark one.
+ */
+html[data-mantine-color-scheme="dark"] .portal-notice--loading,
+html[data-mantine-color-scheme="dark"] .portal-notice--empty {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--vf-color-forest-900);
+}
+
+html[data-mantine-color-scheme="dark"] .portal-notice--warning {
+  background: rgba(244, 176, 34, 0.14);
+  color: #ffd166;
+}
+
+html[data-mantine-color-scheme="dark"] .portal-notice--error {
+  background: rgba(251, 115, 99, 0.14);
+  color: #ffb4a8;
+}
+
+html[data-mantine-color-scheme="dark"] .portal-notice {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+html[data-mantine-color-scheme="dark"] .portal-auth-page__onboarding,
+html[data-mantine-color-scheme="dark"] .portal-key-card,
+html[data-mantine-color-scheme="dark"] .portal-result-card,
+html[data-mantine-color-scheme="dark"] .portal-usage-context__metric,
+html[data-mantine-color-scheme="dark"] .portal-onboarding-metric,
+html[data-mantine-color-scheme="dark"] .portal-subscription-summary,
+html[data-mantine-color-scheme="dark"] .portal-billing-tools {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+html[data-mantine-color-scheme="dark"] .portal-toast--error {
+  border-color: rgba(251, 115, 99, 0.3);
+  color: #ffb4a8;
+}
+
+html[data-mantine-color-scheme="dark"] .portal-toast--warning,
+html[data-mantine-color-scheme="dark"] .portal-toast--success {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+html[data-mantine-color-scheme="dark"] .portal-feedback--error {
+  color: #ffb4a8;
+}
+
+html[data-mantine-color-scheme="dark"] .portal-subscription-status--warning {
+  color: #ffd166;
+}
+
+html[data-mantine-color-scheme="dark"] .portal-subscription-status--critical {
+  color: #ffb4a8;
+}

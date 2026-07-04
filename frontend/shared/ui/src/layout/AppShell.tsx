@@ -347,16 +347,16 @@ function AppShellSidebarUtilityNav({
       ) : null}
 
       {helpItems && helpItems.length > 0 ? (
-        <Menu
-          keepMounted
-          onChange={setHelpOpened}
-          opened={helpOpened}
-          position={collapsed ? "right-end" : "top-start"}
-          shadow="md"
-          width={260}
-        >
-          <Menu.Target>
-            <UtilityNavTooltip collapsed={collapsed} label="Help">
+        <UtilityNavTooltip collapsed={collapsed} label="Help">
+          <Menu
+            keepMounted
+            onChange={setHelpOpened}
+            opened={helpOpened}
+            position={collapsed ? "right-end" : "top-start"}
+            shadow="md"
+            width={260}
+          >
+            <Menu.Target>
               <UnstyledButton
                 aria-expanded={helpOpened}
                 className="vf-sidebar-utility__item"
@@ -371,21 +371,21 @@ function AppShellSidebarUtilityNav({
                   {collapsed ? null : <Text fz="sm">Help</Text>}
                 </Group>
               </UnstyledButton>
-            </UtilityNavTooltip>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {helpItems.map((item) => (
-              <Menu.Item
-                component="a"
-                data-testid={`vf-sidebar-help-item-${item.key}`}
-                href={item.href}
-                key={item.key}
-              >
-                {item.label}
-              </Menu.Item>
-            ))}
-          </Menu.Dropdown>
-        </Menu>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {helpItems.map((item) => (
+                <Menu.Item
+                  component="a"
+                  data-testid={`vf-sidebar-help-item-${item.key}`}
+                  href={item.href}
+                  key={item.key}
+                >
+                  {item.label}
+                </Menu.Item>
+              ))}
+            </Menu.Dropdown>
+          </Menu>
+        </UtilityNavTooltip>
       ) : null}
 
       <UtilityNavTooltip

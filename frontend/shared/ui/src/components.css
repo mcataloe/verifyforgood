@@ -728,22 +728,13 @@
   overflow-x: auto;
   border: 1px solid var(--vf-theme-panel-border);
   border-radius: var(--vf-radius-sm);
-  background: var(--vf-theme-panel-bg);
-  box-shadow: var(--vf-theme-panel-shadow);
+  background: var(--vf-theme-surface-subtle);
 }
 
 .pricing-plan-table {
   width: 100%;
   min-width: 640px;
   border-collapse: collapse;
-}
-
-.pricing-plan-table__caption {
-  caption-side: top;
-  text-align: left;
-  color: var(--vf-theme-muted);
-  font-size: var(--vf-font-size-sm);
-  padding: var(--vf-space-4) var(--vf-space-4) var(--vf-space-2);
 }
 
 .pricing-plan-table th,
@@ -772,22 +763,9 @@
 .pricing-plan-table tbody th[scope="row"] {
   position: sticky;
   left: 0;
-  background: var(--vf-theme-panel-bg);
+  background: var(--vf-theme-surface-subtle);
 }
 
-.pricing-plan-table__pill {
-  display: inline-block;
-  border-radius: 999px;
-  font-size: var(--vf-font-size-xs);
-  font-weight: 700;
-  padding: 0.2rem 0.6rem;
-}
-
-.pricing-plan-table__pill--available {
-  background: color-mix(in srgb, var(--vf-theme-accent) 18%, transparent);
-}
-
-.pricing-plan-table__pill--unavailable {
-  background: color-mix(in srgb, var(--vf-theme-muted) 18%, transparent);
-  color: var(--vf-theme-muted);
+.pricing-plan-table__check {
+  color: var(--vf-theme-accent);
 }

@@ -79,11 +79,17 @@ db-upgrade-nonprofit` after the platform migration step. The dedicated
 nonprofit flow now has its own Alembic history plus destructive dev helpers:
 
 - `python -m verification.backend.shared.local_dev db-reset-nonprofit`
-- `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
+- `python -m verification.backend.shared.local_dev db-cutover-nonprofit` (deprecated — see below)
 
 Those commands intentionally refuse to run unless
 `PLATFORM_NONPROFIT_POSTGRES_*` is configured, so destructive nonprofit resets
 or cutovers cannot accidentally target the shared platform database.
+
+`db-cutover-nonprofit` is no longer usable: it works by reflecting the legacy
+nonprofit tables off of the platform database, but Phase 28D
+(`alembic/versions/20260703_000019_phase28d_drop_legacy_platform_nonprofit_tables.py`)
+dropped those tables from the platform chain now that
+`alembic_nonprofit` is the sole source of truth for nonprofit data.
 
 Scaffold runtime commands:
 
@@ -258,8 +264,10 @@ Migration/source-of-truth note:
 - `python -m verification.backend.shared.local_dev db-reset-nonprofit`
   destructively recreates the dedicated nonprofit schema in dev
 - `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
-  destructively reloads nonprofit/Form 990 rows from the platform database into
-  the dedicated nonprofit database in dev
+  (deprecated) previously reloaded nonprofit/Form 990 rows from the platform
+  database into the dedicated nonprofit database in dev; the platform database
+  no longer has those tables to reflect from (see Phase 28D above), so this
+  command can no longer run
 - `alembic upgrade head` remains the underlying schema source-of-truth command
 - `alembic -c alembic_nonprofit.ini upgrade head` is the underlying dedicated
   nonprofit schema source-of-truth command

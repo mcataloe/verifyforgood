@@ -95,7 +95,7 @@ describe("pricing plan components", () => {
     expect(screen.getByText("250")).toBeTruthy();
     expect(screen.getByText(/\$0\.003 per request/)).toBeTruthy();
     expect(screen.getByText(/\$0\.005 per request/)).toBeTruthy();
-    expect(screen.getAllByText("Included").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Not included").length).toBeGreaterThan(0);
+    // 1 feature included on Free + 5 on Growth; the rest render no marker.
+    expect(screen.getAllByLabelText("Included").length).toBe(6);
   });
 });

@@ -1,3 +1,4 @@
+import { IconCheck } from "@tabler/icons-react";
 import type { PricingPlanMetadata } from "@charity-status/shared-types";
 import { FEATURE_LABELS, FEATURE_ORDER } from "./PlanFeatureList";
 
@@ -9,10 +10,6 @@ export function PricingPlanTable({ plans }: PricingPlanTableProps) {
   return (
     <div className="pricing-plan-table-wrap">
       <table className="pricing-plan-table">
-        <caption className="pricing-plan-table__caption">
-          Compare plan features, cost, and API limits to choose the right
-          plan for your organization.
-        </caption>
         <thead>
           <tr>
             <th scope="col">Plan</th>
@@ -65,15 +62,14 @@ export function PricingPlanTable({ plans }: PricingPlanTableProps) {
                 const available = plan.feature_availability[featureKey];
                 return (
                   <td key={plan.plan_code}>
-                    <span
-                      className={
-                        available
-                          ? "pricing-plan-table__pill pricing-plan-table__pill--available"
-                          : "pricing-plan-table__pill pricing-plan-table__pill--unavailable"
-                      }
-                    >
-                      {available ? "Included" : "Not included"}
-                    </span>
+                    {available ? (
+                      <IconCheck
+                        aria-label="Included"
+                        className="pricing-plan-table__check"
+                        size={18}
+                        stroke={2.5}
+                      />
+                    ) : null}
                   </td>
                 );
               })}

@@ -4,12 +4,9 @@ import {
   IconAdjustments,
   IconCreditCard,
   IconChartBar,
-  IconHeadset,
   IconKey,
   IconLayoutDashboard,
-  IconLifebuoy,
   IconLock,
-  IconMessageReport,
   IconRobot,
   IconSearch,
   IconServer2,
@@ -166,29 +163,6 @@ export function buildAudienceNavigationSections(
             item(routes, "team", "customer-admin-team", "Team", {
               icon: IconUsers,
             }),
-            {
-              key: "customer-admin-support",
-              label: "Support",
-              helpText:
-                "Contact support and report issues without mixing support into organization settings.",
-              icon: navIcon(IconLifebuoy),
-              children: [
-                item(
-                  routes,
-                  "support-contact",
-                  "customer-admin-support-contact",
-                  "Contact Support",
-                  { icon: IconHeadset },
-                ),
-                item(
-                  routes,
-                  "support-report-issue",
-                  "customer-admin-support-report-issue",
-                  "Feedback",
-                  { icon: IconMessageReport },
-                ),
-              ],
-            },
           ],
         },
         {

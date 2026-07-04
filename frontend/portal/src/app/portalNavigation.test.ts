@@ -71,7 +71,7 @@ describe("portal navigation config", () => {
       }),
     ).toEqual([
       {
-        items: ["Dashboard", "Search Nonprofits", "Team", "Support"],
+        items: ["Dashboard", "Search Nonprofits", "Team"],
         label: "Workspace",
       },
       {

@@ -86,6 +86,7 @@ Nonprofit cutover guidance:
 1. run `alembic upgrade head`
 2. if using a dedicated nonprofit database, run `alembic -c alembic_nonprofit.ini upgrade head`
 3. for dev/shared-db cutover, run `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
+   (deprecated — see "Dedicated nonprofit dev helpers" below)
 4. run the nonprofit migration utility in `--dry-run` on a bounded window
 5. run a real bounded window and verify the report
 6. run the full migration
@@ -99,8 +100,11 @@ Dedicated nonprofit dev helpers:
 - `python -m verification.backend.shared.local_dev db-reset-nonprofit`
   drops and recreates the dedicated nonprofit schema and version table
 - `python -m verification.backend.shared.local_dev db-cutover-nonprofit`
-  destructively reloads nonprofit/Form 990 tables from the platform database
-  into the dedicated nonprofit database
+  (deprecated) previously reloaded nonprofit/Form 990 tables from the platform
+  database into the dedicated nonprofit database; Phase 28D
+  (`alembic/versions/20260703_000019_phase28d_drop_legacy_platform_nonprofit_tables.py`)
+  dropped those tables from the platform chain, so there is nothing left there
+  for this command to reflect and it can no longer run
 
 Safety rule:
 

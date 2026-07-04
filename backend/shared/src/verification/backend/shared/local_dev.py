@@ -181,10 +181,7 @@ def run_db_upgrade_nonprofit(*, root: Path | None = None, env_path: Path | None 
     load_backend_local_env(root=root, env_path=env_path)
     source_env = dict(os.environ)
     persistence_config = load_platform_persistence_config(source_env)
-    if (
-        persistence_config.nonprofit_store_backend != "postgres"
-        and persistence_config.nonprofit_query_backend != "postgres"
-    ):
+    if persistence_config.nonprofit_store_backend != "postgres":
         return
     _require_dedicated_nonprofit_database(source_env)
     alembic_command, _ = _alembic_modules()

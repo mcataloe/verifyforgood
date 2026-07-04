@@ -6,6 +6,7 @@ html[data-mantine-color-scheme="light"],
   /* Colors */
   --vf-color-forest-950: #10233c;
   --vf-color-forest-900: #1d3869;
+  --vf-color-forest-800: #1a2f52;
   --vf-color-forest-700: #1d4c9d;
   --vf-color-forest-600: #215dc2;
   --vf-color-sage-700: #17626a;
@@ -83,14 +84,61 @@ html[data-mantine-color-scheme="light"],
 html[data-mantine-color-scheme="dark"],
 [data-theme="inverse"] {
   color-scheme: dark;
-  --vf-theme-background: #0f172a;
-  --vf-theme-text: #e5eefb;
-  --vf-theme-muted: #a7b4c8;
-  --vf-theme-panel-bg: #162033;
-  --vf-theme-panel-border: rgba(71, 85, 105, 0.9);
-  --vf-theme-panel-shadow: 0 24px 64px rgba(2, 6, 23, 0.28);
-  --vf-theme-surface-subtle: #1e293b;
-  --vf-theme-accent: #5f9bec;
-  --vf-theme-accent-contrast: #020617;
-  --vf-theme-focus: rgba(95, 155, 236, 0.3);
+
+  /* Legacy vf-color-* tokens are consumed directly (bypassing --vf-theme-*)
+   * by a large share of portal component CSS (cards, chips, notices, status
+   * pills). Re-map the "ink" family (forest/sage) to light grays and the
+   * "paper" family (cream/surface) to dark grays so that CSS already written
+   * against these tokens automatically renders as readable gradations of
+   * black/white/gray instead of staying navy-on-navy in dark mode.
+   */
+  --vf-color-forest-950: #f4f4f5;
+  --vf-color-forest-900: #f4f4f5;
+  --vf-color-forest-800: #e4e4e7;
+  --vf-color-forest-700: #d4d4d8;
+  --vf-color-forest-600: #a1a1aa;
+  --vf-color-sage-700: #a1a1aa;
+  --vf-color-sage-600: #a1a1aa;
+  --vf-color-sage-500: #a1a1aa;
+  --vf-color-sage-400: #71717a;
+  --vf-color-cream-50: #17171a;
+  --vf-color-cream-100: #1c1c1f;
+  --vf-color-cream-200: #212124;
+  --vf-color-surface-0: #17171a;
+  --vf-color-surface-100: #1c1c1f;
+  --vf-color-surface-200: #212124;
+
+  --vf-theme-background: #0a0a0b;
+  --vf-theme-text: #f4f4f5;
+  --vf-theme-muted: #a1a1aa;
+  --vf-theme-panel-bg: #17171a;
+  --vf-theme-panel-border: rgba(63, 63, 70, 0.9);
+  --vf-theme-panel-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --vf-theme-surface-subtle: #212124;
+  --vf-theme-accent: #e4e4e7;
+  --vf-theme-accent-contrast: #09090b;
+  --vf-theme-focus: rgba(228, 228, 231, 0.35);
+
+  /* Neutralize Mantine's default blue/teal "primary"/"secondary" variant
+   * colors so buttons, badges, and links render as gradations of black,
+   * white, and gray in dark mode instead of blue. Light mode is untouched.
+   * !important guarantees these win over Mantine's own runtime-injected
+   * `:root[data-mantine-color-scheme="dark"]` variable declarations,
+   * whose position in the DOM (and therefore cascade order) isn't guaranteed.
+   */
+  --mantine-color-primary-filled: #52525b !important;
+  --mantine-color-primary-filled-hover: #63636c !important;
+  --mantine-color-primary-light: rgba(228, 228, 231, 0.12) !important;
+  --mantine-color-primary-light-hover: rgba(228, 228, 231, 0.18) !important;
+  --mantine-color-primary-light-color: #e4e4e7 !important;
+  --mantine-color-primary-outline: #a1a1aa !important;
+  --mantine-color-primary-outline-hover: rgba(161, 161, 170, 0.08) !important;
+
+  --mantine-color-secondary-filled: #3f3f46 !important;
+  --mantine-color-secondary-filled-hover: #52525b !important;
+  --mantine-color-secondary-light: rgba(212, 212, 216, 0.12) !important;
+  --mantine-color-secondary-light-hover: rgba(212, 212, 216, 0.18) !important;
+  --mantine-color-secondary-light-color: #d4d4d8 !important;
+  --mantine-color-secondary-outline: #a1a1aa !important;
+  --mantine-color-secondary-outline-hover: rgba(161, 161, 170, 0.08) !important;
 }
