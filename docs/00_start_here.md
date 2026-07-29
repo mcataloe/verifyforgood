@@ -11,7 +11,7 @@ END_LEAP_DOC_METADATA
 
 Status: Active canonical entry point  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Canonical owner of: Project documentation navigation  
 Related Initiatives: `INIT-009`
 
@@ -23,7 +23,7 @@ VerifyForGood enables customers to make evidence-based, explainable decisions ab
 
 The Brownfield documentation baseline is being established under `INIT-009`. The customer decision-authority principle is approved. Unless a document says otherwise, newly generated Charter, Strategic Outcome, Initiative, Roadmap, Domain, Delivery Unit, and Build Unit content remains **Draft until ratified**.
 
-Merged code, tests, schemas, and contracts remain authoritative for implemented behavior. Planning documents must not claim that proposed behavior is already implemented.
+Merged code, tests, schemas, and contracts remain authoritative for implemented behavior. Planning documents must not claim that proposed behavior is already implemented. Product/package plan intent is now documented in the proposed product catalog source and must still be reconciled with runtime code until a separate implementation Build Unit makes runtime loading or generation catalog-backed.
 
 ## Canonical Reading Order
 
@@ -35,9 +35,10 @@ Merged code, tests, schemas, and contracts remain authoritative for implemented 
 6. [Roadmap](strategy/roadmap.md) — timing and priority view.
 7. [Domain Map](domains/domain-map.md) — persistent responsibility boundaries.
 8. [Architecture Index](architecture/README.md) — technical structure and decisions.
-9. [Delivery Units](delivery/README.md) — releasable, adoptable, or demonstrable increments.
-10. [Build Units](build-units/README.md) — bounded implementation responsibilities.
-11. [Governance Records](governance/documentation-inventory.md) — inventory, gaps, migration, drift, and stale sources.
+9. [Product Plan Catalog](product/plan-catalog.md) — package meaning, structured plan values, and plan-catalog governance.
+10. [Delivery Units](delivery/README.md) — releasable, adoptable, or demonstrable increments.
+11. [Build Units](build-units/README.md) — bounded implementation responsibilities.
+12. [Governance Records](governance/documentation-inventory.md) — inventory, gaps, migration, drift, and stale sources.
 
 ## Project Documentation Areas
 
@@ -47,6 +48,7 @@ Merged code, tests, schemas, and contracts remain authoritative for implemented 
 | `docs/strategy/` | Outcomes, Initiatives, Roadmap | Draft until ratified |
 | `docs/domains/` | Persistent responsibility boundaries | Draft/supporting until ratified |
 | `docs/architecture/` | Technical structure and ADRs | Supporting or provisional unless ratified |
+| `docs/product/` | Product/package source truth, product-catalog values, and package governance | Proposed canonical where stated; ratify before treating as final product authority |
 | `docs/delivery/` | Delivery Unit records | Active planning/source-truth records |
 | `docs/build-units/` | Build Unit records | Active planning/source-truth records |
 | `docs/governance/` | Inventory, gaps, drift, migration, stale sources | Supporting governance evidence |
@@ -57,6 +59,8 @@ Merged code, tests, schemas, and contracts remain authoritative for implemented 
 ## Current Implementation Authority
 
 For questions about what the software does today, inspect current merged code, tests, schemas, routes, infrastructure configuration, and contracts. Documentation may describe an intended state, but it must identify that state as Draft, Proposed, Transitional, or Historical.
+
+For package/plan questions, start with [Product Plan Catalog](product/plan-catalog.md). Until runtime catalog loading or generation is approved and implemented, also inspect the backend billing code and plan-catalog tests to verify current behavior.
 
 ## Stale and Historical Sources
 
