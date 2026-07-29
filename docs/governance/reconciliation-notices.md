@@ -9,7 +9,7 @@ END_LEAP_DOC_METADATA
 
 # Existing-Document Reconciliation Status
 
-Status: Incomplete — large root/source documents still require safe bounded edits  
+Status: Incomplete — large root documents still require safe bounded edits  
 Owner / approver: Project owner  
 Last reconciled: 2026-07-28  
 Related Initiative: `INIT-009`  
@@ -32,6 +32,7 @@ The 2026-07-28 source-truth alignment pass also completed these bounded changes:
 | `docs/governance/drift-ledger.md` | Added plan-catalog and entry-point drift records | None |
 | `docs/governance/gap-register.md` | Added product/package source-truth and structured-catalog validation gaps | None |
 | `docs/governance/migration-map.md` | Mapped old architecture plan catalog to the new product catalog source | None |
+| `CUSTOMER_README.md` | Added project documentation source-truth pointers and plan-catalog authority guidance while preserving current customer API behavior | None |
 
 ## Existing Files Requiring Follow-Up
 
@@ -41,13 +42,48 @@ The approved LHS called for bounded updates to the following existing files:
 |---|---|---|
 | `AGENTS.md` | Add LEAP reading order, update source-truth entry point from `README.md` to `docs/00_start_here.md`, and add product plan-catalog source-truth note | Still pending; large existing file should be patched with local checkout or safe patch tooling to avoid reconstructing unrelated content |
 | `README.md` | Link `docs/00_start_here.md` and add concise authority statement | Still pending; large mixed file intentionally not reconstructed or overwritten in connector-only editing |
-| `CUSTOMER_README.md` | Clarify evidence, derived signals, policy templates, customer-owned outcomes, and link to product plan catalog for package source truth | Still pending; update should be bounded and preserve the current customer API contract text |
 | `CUSTOMER_README copy.md` | Add visible do-not-use warning while preserving historical content | Recorded in stale register; file itself not changed |
 | `TODO.md` | State that it is a backlog rather than strategy/Roadmap source truth | Not applied; large mixed file intentionally preserved |
 | `docs/contributor-naming-rules.md` | Replace local machine links with repository-relative links | Not applied; exact fix is recorded below |
 | `docs/repo-target-architecture.md` | Add unresolved customer-policy ownership boundary note | Covered in Architecture index; original file not changed |
 | `docs/implementation/portal-identity-membership-status.md` | Remove unrelated customer-support wording and mark Needs Reconciliation | Recorded in inventory/stale register; original file not changed |
 | `docs/implementation/billing-subscription-status.md` | Qualify “billing track complete” as a bounded prototype track | Recorded in inventory/stale register; original file not changed |
+
+## Exact Safe Root-Document Edits Pending
+
+Apply these with a local checkout or safe patch tooling rather than reconstructing the large files through connector-only replacement.
+
+### `AGENTS.md`
+
+In the repository section baseline table, replace:
+
+```text
+| Current source-truth entry point | `README.md` |
+```
+
+with:
+
+```text
+| Current source-truth entry point | `docs/00_start_here.md`; root `README.md` remains a supporting compatibility overview |
+```
+
+In `Primary source-truth documents`, add `docs/00_start_here.md`, `docs/charter/source-of-truth.md`, `docs/charter/decision-authority.md`, and `docs/product/plan-catalog.md` before `README.md`, and reclassify `README.md` as supporting overview rather than the owner of all project truth.
+
+In `Project Source of Truth`, align the order with `docs/charter/source-of-truth.md`: explicit user/project-owner decisions and ratified governing documents; current code/tests/contracts for implemented behavior; `AGENTS.md`; current canonical docs; then supporting/historical docs.
+
+### `README.md`
+
+Add a short authority notice near the top:
+
+```text
+## Documentation Authority
+
+Start with `docs/00_start_here.md` for current project documentation navigation. This root README is a supporting repository overview and compatibility entry point, not the owner of all project truth.
+
+For source-truth precedence, see `docs/charter/source-of-truth.md`. For customer decision-authority rules, see `docs/charter/decision-authority.md`. For product/package plan meaning, see `docs/product/plan-catalog.md` and exact structured values in `docs/product/plan-catalog.yaml`.
+
+For questions about what the software currently does, inspect current merged code, tests, schemas, routes, infrastructure configuration, and public contracts. Documentation must distinguish implemented behavior from proposed or draft intent.
+```
 
 ## Exact Safe Link Repairs Pending
 
@@ -74,4 +110,4 @@ The phrase `billing track complete` must be bounded. Current documentation suppo
 
 ## Gate
 
-`BU-GOV-007` remains incomplete until the large existing-file updates are applied through an environment that can safely patch existing files, followed by the full validation sequence. Do not treat the central stale register or product catalog source as a substitute for visible warnings and source-truth notices on the older files themselves.
+`BU-GOV-007` remains incomplete until the large root-document updates are applied through an environment that can safely patch existing files, followed by the full validation sequence. Do not treat the central stale register or product catalog source as a substitute for visible source-truth notices on the older files themselves.
