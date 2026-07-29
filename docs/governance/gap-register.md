@@ -11,9 +11,9 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting record  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Canonical owner of: Known documentation, source-truth, and planning gaps  
-Related Initiatives: `INIT-001`, `INIT-009`
+Related Initiatives: `INIT-001`, `INIT-006`, `INIT-009`
 
 | ID | Gap | Evidence | Material consequence | Owner / next action | Status |
 |---|---|---|---|---|---|
@@ -37,9 +37,12 @@ Related Initiatives: `INIT-001`, `INIT-009`
 | `GAP-018` | No stale/do-not-use register | Conflicting docs lack a central lifecycle record | Stale sources can compete with current truth | `BU-GOV-002` | Open |
 | `GAP-019` | No documentation migration map | Existing paths have no canonical destination record | Reorganization could break traceability or tests | `BU-GOV-002` | Open |
 | `GAP-020` | No Delivery/Build registry | Plans and Phases are not bounded consistently | Implementation agents may invent scope | `BU-GOV-006` | Open |
+| `GAP-021` | Product/package plan source truth needed ratification | Plan/package meaning was backend-code-owned with an architecture snapshot rather than product-owned docs | Humans and agents could treat package meaning as implementation-only and miss product governance | Ratify `docs/product/plan-catalog.md` and `docs/product/plan-catalog.yaml`; then update runtime projection in a separate Build Unit if approved | Requires Decision |
+| `GAP-022` | Runtime billing code does not load or generate from structured catalog | `service.py` and `catalog.py` still define/project plan values directly | Structured catalog can drift from runtime unless tests run and future changes follow the catalog-first rule | Keep `tests/test_plan_catalog_source_truth.py`; consider a later implementation Build Unit to load/generate runtime projection from the catalog | Open |
+| `GAP-023` | Large root/source-truth files still need safe entry-point edits | `AGENTS.md` and `README.md` contain old entry-point wording and are large existing files | Agents may continue to prefer old README-first source-truth entry until those files are safely patched | Apply bounded existing-file edits with local checkout or safe patch tooling | Open |
 
 ## Rules
 
-- Do not close a gap solely because a Draft document was created.
+- Do not close a gap solely because a Draft or Proposed document was created.
 - Mark a gap resolved only when its replacement source exists, status is accurate, and required validation passes.
 - Trust-sensitive or contract-sensitive gaps remain open or `Requires Decision` until the project owner approves the governing semantics.
