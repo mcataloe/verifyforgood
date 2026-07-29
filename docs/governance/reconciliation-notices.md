@@ -9,9 +9,9 @@ END_LEAP_DOC_METADATA
 
 # Existing-Document Reconciliation Status
 
-Status: Incomplete — safe update action unavailable in this execution environment  
+Status: Incomplete — large root/source documents still require safe bounded edits  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Related Initiative: `INIT-009`  
 Related Build Unit: `BU-GOV-007`
 
@@ -19,15 +19,29 @@ Related Build Unit: `BU-GOV-007`
 
 The documentation branch adds non-destructive source-truth, Charter, strategy, Domain, Architecture, Delivery, Build, inventory, gap, drift, stale-source, and migration records. No existing repository path was deleted, moved, or overwritten.
 
+The 2026-07-28 source-truth alignment pass also completed these bounded changes:
+
+| Path | Change | Runtime impact |
+|---|---|---|
+| `docs/product/plan-catalog.md` | Added proposed human-readable product/package plan catalog source | None |
+| `docs/product/plan-catalog.yaml` | Added proposed structured plan-catalog values | None |
+| `tests/test_plan_catalog_source_truth.py` | Added validation comparing structured catalog to current backend entitlements and public catalog projection | None |
+| `docs/architecture/plan-catalog.md` | Reclassified as supporting runtime/architecture reference and linked to product catalog source | None |
+| `docs/00_start_here.md` | Added product catalog to canonical reading order and documentation areas | None |
+| `docs/charter/source-of-truth.md` | Added product/package plan source-truth ownership and runtime-projection distinction | None |
+| `docs/governance/drift-ledger.md` | Added plan-catalog and entry-point drift records | None |
+| `docs/governance/gap-register.md` | Added product/package source-truth and structured-catalog validation gaps | None |
+| `docs/governance/migration-map.md` | Mapped old architecture plan catalog to the new product catalog source | None |
+
 ## Existing Files Requiring Follow-Up
 
 The approved LHS called for bounded updates to the following existing files:
 
 | Path | Intended bounded change | Current status |
 |---|---|---|
-| `AGENTS.md` | Add LEAP reading order and customer-decision authority rule | Not applied; existing-file replacement blocked by connector safety control |
-| `README.md` | Link `docs/00_start_here.md` and add concise authority statement | Not applied; large mixed file intentionally not reconstructed or overwritten |
-| `CUSTOMER_README.md` | Clarify evidence, derived signals, policy templates, and customer-owned outcomes | Not applied; existing-file replacement blocked |
+| `AGENTS.md` | Add LEAP reading order, update source-truth entry point from `README.md` to `docs/00_start_here.md`, and add product plan-catalog source-truth note | Still pending; large existing file should be patched with local checkout or safe patch tooling to avoid reconstructing unrelated content |
+| `README.md` | Link `docs/00_start_here.md` and add concise authority statement | Still pending; large mixed file intentionally not reconstructed or overwritten in connector-only editing |
+| `CUSTOMER_README.md` | Clarify evidence, derived signals, policy templates, customer-owned outcomes, and link to product plan catalog for package source truth | Still pending; update should be bounded and preserve the current customer API contract text |
 | `CUSTOMER_README copy.md` | Add visible do-not-use warning while preserving historical content | Recorded in stale register; file itself not changed |
 | `TODO.md` | State that it is a backlog rather than strategy/Roadmap source truth | Not applied; large mixed file intentionally preserved |
 | `docs/contributor-naming-rules.md` | Replace local machine links with repository-relative links | Not applied; exact fix is recorded below |
@@ -54,6 +68,10 @@ The phrase `customer support experience implemented` does not match the document
 
 The phrase `billing track complete` must be bounded. Current documentation supports implemented provider integration, organization billing identity, and subscription lifecycle work, while production policy and operations decisions remain unresolved.
 
+### Source-truth entry point
+
+`docs/00_start_here.md` now states the canonical documentation entry point. `AGENTS.md` and `README.md` still need bounded edits so future agents do not continue treating root `README.md` as the source-truth entry point.
+
 ## Gate
 
-`BU-GOV-007` is not complete. These updates should be applied through an environment that can safely edit existing repository files, followed by the full validation sequence. Do not treat the central stale register as a substitute for a visible warning on the stale file itself.
+`BU-GOV-007` remains incomplete until the large existing-file updates are applied through an environment that can safely patch existing files, followed by the full validation sequence. Do not treat the central stale register or product catalog source as a substitute for visible warnings and source-truth notices on the older files themselves.
