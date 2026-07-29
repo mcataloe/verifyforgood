@@ -11,9 +11,9 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting record  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Canonical owner of: Detected differences between source truth, documentation, and repository reality  
-Related Initiatives: `INIT-001`, `INIT-009`
+Related Initiatives: `INIT-001`, `INIT-006`, `INIT-009`
 
 ## Status Vocabulary
 
@@ -46,6 +46,10 @@ Related Initiatives: `INIT-001`, `INIT-009`
 | `DRIFT-016` | Local worktree was unavailable during Recon | Remote-only connector inspection | Acknowledged | Require local preflight before implementation | N/A | Remote execution cannot see local-only work |
 | `DRIFT-017` | Contributor naming doc contains local filesystem links | Committed Markdown | Open | Replace with repository-relative links | Pending | Link validation required |
 | `DRIFT-018` | ADRs lack a consolidated status index | Existing ADR files | Open | Architecture index | Pending | Ratification remains separate |
+| `DRIFT-019` | Source-truth entry point conflict | `AGENTS.md` recorded `README.md` while `docs/00_start_here.md` claimed active canonical entry-point status | Open | Update `AGENTS.md` and root `README.md` to point to `docs/00_start_here.md` as the canonical project-docs entry point | Pending | Agents may still start from the old entry point until existing large root files are safely edited |
+| `DRIFT-020` | Plan catalog was code-owned despite desired document-owned package governance | `docs/architecture/plan-catalog.md` previously said code and `/v1/plans` were authoritative for implemented plan values | Acknowledged | Added `docs/product/plan-catalog.md`, `docs/product/plan-catalog.yaml`, and reclassified architecture plan catalog as runtime reference | Pending | Runtime still reads code, not the structured catalog |
+| `DRIFT-021` | Plan package behavior was split across plan catalog, customer docs, code, and tests | Aliases, trial behavior, route mapping, overage policy, and fallback behavior were not all in the old plan catalog reference | Acknowledged | Consolidated the package model in `docs/product/plan-catalog.md` and `docs/product/plan-catalog.yaml` | Pending | `CUSTOMER_README.md` still needs a bounded link/update if safe editing is available |
+| `DRIFT-022` | Plan-catalog tests validated backend catalog from code, not documentation/catalog authority | `tests/test_billing_domain.py` asserted runtime payload matches `DEFAULT_ENTITLEMENTS` | Acknowledged | Added `tests/test_plan_catalog_source_truth.py` to validate the structured catalog against code and runtime projection | Pending | Tests still need local/CI execution |
 
 ## Update Rule
 
