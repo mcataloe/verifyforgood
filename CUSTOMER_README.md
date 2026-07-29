@@ -6,6 +6,8 @@ VerifyForGood helps customers verify and monitor U.S. nonprofits using IRS Exemp
 
 Branding is configuration-driven. The internal platform stays capability-based, while public-facing values such as brand name, support contact, and domain are injected through the shared branding layer.
 
+This customer guide summarizes the customer-facing API surface and currently implemented product behavior. It is not the canonical owner of project-wide source-truth hierarchy. Start with [`docs/00_start_here.md`](docs/00_start_here.md) for project documentation navigation and [`docs/charter/source-of-truth.md`](docs/charter/source-of-truth.md) for source-truth precedence.
+
 Typical customer workflows include:
 
 - verifying a nonprofit by EIN
@@ -134,6 +136,14 @@ The catalog currently includes:
 - feature availability flags
 
 The catalog is safe for public marketing-site consumption because it does not include tenant-specific billing state.
+
+## Plan Catalog Source Truth
+
+Package meaning is governed by [`docs/product/plan-catalog.md`](docs/product/plan-catalog.md) after ratification, with exact structured values in [`docs/product/plan-catalog.yaml`](docs/product/plan-catalog.yaml).
+
+Current runtime behavior still comes from the implemented backend billing code and the public `GET /v1/plans` projection. If customer-facing plan text, the structured catalog, and runtime code disagree, record the drift and reconcile it before changing limits, prices, entitlements, trial behavior, overage behavior, Stripe behavior, or public response shape.
+
+Monthly recurring subscription prices are configured through Stripe-hosted Checkout unless a separate project-owner decision moves those prices into repository-governed source truth.
 
 ## Plan Benefits
 
