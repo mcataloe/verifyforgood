@@ -11,19 +11,22 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting record  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Canonical owner of: Semantic mapping from legacy and mixed documents to current truth owners  
-Related Initiatives: `INIT-009`
+Related Initiatives: `INIT-006`, `INIT-009`
 
-Migration is semantic reconciliation, not global renaming. Existing paths remain in place during this Initiative.
+Migration is semantic reconciliation, not global renaming. Existing paths remain in place during this Initiative unless a separate approved migration changes them.
 
 | Legacy/current path | Existing meaning | New canonical owner | Path action | Status |
 |---|---|---|---|---|
 | `README.md` | Mixed overview, API, Architecture, operations, and history | `docs/00_start_here.md` plus specialized current docs | Keep; add canonical link and authority statement | Planned |
-| `CUSTOMER_README.md` | Customer API and product overview | Customer guide supported by Charter and Decision Authority | Keep; clarify authority | Planned |
+| `CUSTOMER_README.md` | Customer API and product overview | Customer guide supported by Charter, Decision Authority, and product catalog | Keep; clarify authority and link product catalog | Planned |
 | `CUSTOMER_README copy.md` | Conflicting duplicate customer guide | `CUSTOMER_README.md` | Keep; mark do not use | Planned |
 | `TODO.md` | Deferred work list | Initiative registry and Roadmap own strategy; TODO remains backlog | Keep; add ownership notice | Planned |
 | `PLAN.md` | Completed bounded ingest implementation | Historical Build Unit evidence under `INIT-003` | Keep; classify historical | Planned |
+| `docs/architecture/plan-catalog.md` | Human-readable snapshot of implemented plan catalog values and runtime projection notes | `docs/product/plan-catalog.md` for package meaning; `docs/product/plan-catalog.yaml` for structured values; architecture file remains runtime reference | Keep; reclassify as supporting runtime/architecture reference | Applied |
+| `docs/product/plan-catalog.md` | New human-readable product/package plan model | Product/package source after ratification | New file | Added; pending ratification |
+| `docs/product/plan-catalog.yaml` | New structured plan catalog values | Exact machine-readable catalog source after ratification | New file | Added; pending validation and ratification |
 | `docs/repo-target-architecture.md` | Architecture assessment and split direction | Architecture index and future ADRs | Keep; add unresolved customer-policy boundary note | Planned |
 | `docs/form990-ingest-plan.md` | Mixed Architecture, Delivery, Build, status, and history | `INIT-003` delivery/build records plus Architecture docs | Keep; later reconcile | Needs reconciliation |
 | `docs/implementation/portal-identity-membership-plan.md` | Implementation plan | `INIT-004` delivery/build records | Keep; link when records exist | Planned |
