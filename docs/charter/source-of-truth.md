@@ -11,7 +11,7 @@ END_LEAP_DOC_METADATA
 
 Status: Active canonical governance policy  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-07-28  
 Canonical owner of: Documentation precedence, ownership, lifecycle, and conflict handling  
 Related Initiatives: `INIT-009`
 
@@ -27,13 +27,14 @@ Use the highest applicable source:
 2. The Project Charter and Decision Authority document.
 3. Current merged code, tests, schemas, and public contracts for implemented behavior.
 4. Ratified ADRs and current Architecture documents for technical structure.
-5. Strategic Outcomes and Initiative registry for strategic intent and coordinated work.
-6. Roadmap for timing, priority, milestones, and sequencing only.
-7. Domain map for persistent responsibility boundaries.
-8. Delivery Unit and Build Unit records for bounded delivery and implementation.
-9. Current implementation plans and status records.
-10. Historical Phase and planning records.
-11. Stale, superseded, archived, or do-not-use documents.
+5. Product/package source documents for product package meaning where ratified.
+6. Strategic Outcomes and Initiative registry for strategic intent and coordinated work.
+7. Roadmap for timing, priority, milestones, and sequencing only.
+8. Domain map for persistent responsibility boundaries.
+9. Delivery Unit and Build Unit records for bounded delivery and implementation.
+10. Current implementation plans and status records.
+11. Historical Phase and planning records.
+12. Stale, superseded, archived, or do-not-use documents.
 
 A lower-precedence source cannot silently override a higher-precedence source.
 
@@ -44,6 +45,9 @@ A lower-precedence source cannot silently override a higher-precedence source.
 | Mission, boundaries, governing principles | Project Charter |
 | Customer decision authority | Decision Authority document |
 | Documentation precedence and lifecycle | This document |
+| Product/package plan meaning after ratification | `docs/product/plan-catalog.md` |
+| Exact structured plan-catalog values after ratification | `docs/product/plan-catalog.yaml` |
+| Runtime behavior of current plan entitlement enforcement | Merged code, tests, schemas, routes, contracts, and deployed evidence when available |
 | Desired observable changes | Strategic Outcomes |
 | Temporary coordinated work | Initiative registry and Initiative records |
 | Timing and priority | Roadmap |
@@ -56,6 +60,16 @@ A lower-precedence source cannot silently override a higher-precedence source.
 | Known conflicts and unresolved drift | Drift ledger and gap register |
 
 No two canonical documents should own the same truth.
+
+## Plan Catalog Governance
+
+Package meaning is product truth, not merely implementation detail. After ratification, `docs/product/plan-catalog.md` owns human-readable package meaning and `docs/product/plan-catalog.yaml` owns exact structured catalog values.
+
+Current backend code remains operational authority for what the runtime actually does today until a separately approved Build Unit changes billing code to load, generate from, or otherwise project from the structured catalog. If code and the product catalog disagree before that implementation change, report the drift; do not silently treat either side as both product intent and runtime fact.
+
+`GET /v1/plans` is a runtime projection for customer-facing plan-display surfaces. It should not become an independent product-governance authority.
+
+Monthly recurring subscription prices remain configured through Stripe-hosted checkout unless a separate project-owner decision moves those prices into repository-governed source truth.
 
 ## Status and Authority
 
@@ -119,4 +133,4 @@ Historical documents may remain useful evidence but do not automatically govern 
 
 ## Ratification
 
-The project owner ratifies Charter, Strategic Outcome, Initiative, and material Architecture decisions. Until ratified, such content must remain visibly Draft or Provisional. The customer decision-authority principle is already approved and must not be weakened without an explicit project-owner decision.
+The project owner ratifies Charter, Strategic Outcome, Initiative, material Architecture decisions, and product/package source-truth decisions. Until ratified, such content must remain visibly Draft, Proposed, or Provisional. The customer decision-authority principle and the plan-catalog governance direction approved in the source-truth alignment conversation must not be weakened without an explicit project-owner decision.
