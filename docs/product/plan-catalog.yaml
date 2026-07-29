@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "audience": ["user", "maintainer", "agent", "contributor"],
+    "doc_type": "product-plan-catalog-values",
+    "authority": "canonical-after-ratification",
+    "applies_to": "verifyforgood",
+    "status": "Proposed canonical machine-readable product/package source pending project-owner ratification",
+    "owner_approver": "Project owner and Billing and Usage domain owner",
+    "last_reconciled": "2026-07-28",
+    "related_initiatives": ["INIT-006", "INIT-009"]
+  },
+  "governance": {
+    "human_readable_owner": "docs/product/plan-catalog.md",
+    "runtime_projection": "backend/shared/src/verification/backend/shared/billing/catalog.py builds GET /v1/plans from current backend entitlements until runtime loading or generation from this catalog is separately approved.",
+    "current_runtime_authority": "backend/shared/src/verification/backend/shared/billing/service.py remains the operational authority for what the current runtime does until a separate implementation Build Unit changes runtime loading/generation.",
+    "monthly_subscription_price_boundary": "Monthly recurring subscription prices are configured in Stripe-hosted checkout and are not defined by GET /v1/plans or this catalog unless a separate product-owner decision changes that boundary.",
+    "change_rule": "After ratification, package/product intent changes should update docs/product/plan-catalog.md and this structured catalog first, then update runtime projection code and tests in the same bounded change."
+  },
+  "plan_codes": ["free", "starter", "growth", "pro", "enterprise"],
+  "plan_display_names": {
+    "free": "Free",
+    "starter": "Starter",
+    "growth": "Growth",
+    "pro": "Pro",
+    "enterprise": "Enterprise"
+  },
+  "plan_aliases": {
+    "developer": "free",
+    "team": "growth",
+    "business": "pro"
+  },
+  "features": [
+    "verification",
+    "risk_flags",
+    "financial_trends",
+    "benchmarking",
+    "state_registry",
+    "monitoring",
+    "batch_verification",
+    "organization_settings"
+  ],
+  "plans": {
+    "free": {
+      "included_usage": {
+        "monthly_requests": 250,
+        "batch_items": 0,
+        "requests_per_minute": 10
+      },
+      "overage_unit_price_usd_micros": 5000,
+      "feature_flags": [],
+      "allowed_capabilities": ["verification"]
+    },
+    "starter": {
+      "included_usage": {
+        "monthly_requests": 1000,
+        "batch_items": 0,
+        "requests_per_minute": 30
+      },
+      "overage_unit_price_usd_micros": 4000,
+      "feature_flags": ["risk_flags"],
+      "allowed_capabilities": ["verification", "risk_flags"]
+    },
+    "growth": {
+      "included_usage": {
+        "monthly_requests": 10000,
+        "batch_items": 100,
+        "requests_per_minute": 120
+      },
+      "overage_unit_price_usd_micros": 3000,
+      "feature_flags": ["financial_trends", "risk_flags", "benchmarking"],
+      "allowed_capabilities": ["verification", "risk_flags", "financial_trends", "benchmarking", "batch_verification"]
+    },
+    "pro": {
+      "included_usage": {
+        "monthly_requests": 100000,
+        "batch_items": 1000,
+        "requests_per_minute": 600
+      },
+      "overage_unit_price_usd_micros": 2000,
+      "feature_flags": ["financial_trends", "risk_flags", "benchmarking", "state_registry", "monitoring"],
+      "allowed_capabilities": ["verification", "risk_flags", "financial_trends", "benchmarking", "state_registry", "monitoring", "batch_verification", "organization_settings"]
+    },
+    "enterprise": {
+      "included_usage": {
+        "monthly_requests": 1000000,
+        "batch_items": 5000,
+        "requests_per_minute": 5000
+      },
+      "overage_unit_price_usd_micros": 1000,
+      "feature_flags": ["financial_trends", "risk_flags", "benchmarking", "state_registry", "monitoring"],
+      "allowed_capabilities": ["verification", "risk_flags", "financial_trends", "benchmarking", "state_registry", "monitoring", "batch_verification", "organization_settings"]
+    }
+  },
+  "route_capabilities": {
+    "POST /v1/verify": "verification",
+    "POST /v1/nonprofits/verify": "verification",
+    "POST /v1/verify/batch": "batch_verification",
+    "GET /v1/nonprofit/{ein}": "verification",
+    "GET /v1/nonprofits/{ein}": "verification",
+    "GET /v1/nonprofit/{ein}/filings": "verification",
+    "GET /v1/nonprofits/search": "verification",
+    "GET /v1/nonprofits/{ein}/sources": "financial_trends",
+    "GET /v1/nonprofits/{ein}/sources/{source_name}": "financial_trends",
+    "GET /v1/nonprofits/{ein}/compliance": "risk_flags",
+    "GET /v1/nonprofits/{ein}/federal-awards": "risk_flags"
+  },
+  "route_feature_requirements": {
+    "GET /v1/nonprofits/{ein}/sources": "financial_trends",
+    "GET /v1/nonprofits/{ein}/sources/{source_name}": "financial_trends",
+    "GET /v1/nonprofits/{ein}/compliance": "risk_flags",
+    "GET /v1/nonprofits/{ein}/federal-awards": "risk_flags"
+  },
+  "trial_behavior": {
+    "duration_days": 14,
+    "requires_credit_card": false,
+    "starts_on": "first authenticated customer product request made with an issued credential",
+    "trial_entitlement_plan_code": "growth",
+    "underlying_billing_plan_code": "free",
+    "creates_paid_subscription_automatically": false,
+    "charges_customer_automatically": false,
+    "fallback_after_expiry": "free"
+  },
+  "overage_behavior": {
+    "default_allow_overage": true,
+    "disable_setting": "billing.allowOverage=false",
+    "when_disabled_and_limit_exceeded": {
+      "http_status": 429
+    }
+  },
+  "subscription_resolution": {
+    "default_plan_when_missing": "free",
+    "fallback_plan_when_inactive": "free",
+    "active_statuses": ["active", "scheduled"],
+    "pending_downgrade_behavior": "keep current active plan until pending effective date",
+    "pending_cancellation_behavior": "keep current active plan until pending effective date"
+  },
+  "public_plan_catalog_payload": {
+    "endpoint": "GET /v1/plans",
+    "top_level_key": "plans",
+    "plan_fields": [
+      "plan_code",
+      "display_name",
+      "included_usage.monthly_requests",
+      "included_usage.batch_items",
+      "included_usage.requests_per_minute",
+      "per_request_pricing.amount_usd_micros",
+      "per_request_pricing.currency_code",
+      "per_request_pricing.unit",
+      "feature_availability"
+    ],
+    "per_request_pricing_currency_code": "USD",
+    "per_request_pricing_unit": "request"
+  }
+}
