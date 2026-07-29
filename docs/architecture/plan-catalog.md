@@ -7,26 +7,36 @@ LEAP_DOC_METADATA:
 END_LEAP_DOC_METADATA
 -->
 
-# Plan Catalog Reference
+# Plan Catalog Architecture Reference
 
-Status: Active supporting reference; snapshot of implemented plan catalog values
-Owner / approver: Billing and Usage domain owner
-Last reconciled: 2026-07-03
-Canonical owner of: Human-readable summary of the current plan catalog
-Related Initiatives: `INIT-006`
+Status: Active supporting architecture/runtime reference; superseded for product/package source truth  
+Owner / approver: Billing and Usage domain owner  
+Last reconciled: 2026-07-28  
+Canonical owner of: Runtime projection notes for the implemented plan catalog  
+Related Initiatives: `INIT-006`, `INIT-009`
+
+## Source-Truth Notice
+
+This file is no longer the product/package source of truth.
+
+Use [`../product/plan-catalog.md`](../product/plan-catalog.md) for the human-readable package model and [`../product/plan-catalog.yaml`](../product/plan-catalog.yaml) for the structured catalog values after ratification.
+
+This architecture reference only explains how the current backend runtime projects plan data today.
 
 ## Current Implementation Authority
 
-This table is a convenience snapshot for humans reading plan tiers, limits, and feature availability. It is **not** the source of truth. The implemented plan catalog is defined in code and served at runtime through the public `GET /v1/plans` contract:
+As of this reconciliation, the current runtime still defines the operational plan values in code and serves them through the public `GET /v1/plans` contract:
 
-- Plan tiers, request/batch limits, rate limits, and overage pricing: `backend/shared/src/verification/backend/shared/billing/service.py` (`DEFAULT_ENTITLEMENTS`)
+- Plan tiers, request/batch limits, rate limits, overage pricing, aliases, route capabilities, and entitlement behavior: `backend/shared/src/verification/backend/shared/billing/service.py`
 - Feature-availability mapping and the public catalog payload shape: `backend/shared/src/verification/backend/shared/billing/catalog.py`
 
-If this table and the code disagree, the code and the `/v1/plans` response are authoritative. Update this table when the catalog changes; do not treat it as a spec to implement against.
+That code remains authoritative for what the software does today until a separate approved Build Unit changes runtime loading or generation. Current implementation authority does not make code the long-term product-governance owner of package meaning.
 
-Monthly subscription price (the recurring seat/plan charge) is managed through Stripe-hosted checkout rather than the `/v1/plans` contract — see [`../implementation/billing-subscription-plan.md`](../implementation/billing-subscription-plan.md) and [`ADR-billing-provider.md`](ADR-billing-provider.md). This table only covers included usage, overage pricing, and feature availability.
+Future product/package changes should update the product catalog source first, then update or validate runtime projection code in the same bounded change.
 
-## Compare Plans
+Monthly subscription price (the recurring seat/plan charge) is managed through Stripe-hosted checkout rather than the `/v1/plans` contract — see [`../implementation/billing-subscription-plan.md`](../implementation/billing-subscription-plan.md) and [`ADR-billing-provider.md`](ADR-billing-provider.md). The catalog covers included usage, overage pricing, feature availability, route capability mapping, trial posture, and subscription-resolution posture, not Stripe-hosted monthly recurring prices.
+
+## Current Runtime Comparison Snapshot
 
 | | Free | Starter | Growth | Pro | Enterprise |
 |---|---|---|---|---|---|
@@ -43,7 +53,7 @@ Monthly subscription price (the recurring seat/plan charge) is managed through S
 | Batch verification | Not included | Not included | Included | Included | Included |
 | Organization settings | Not included | Not included | Not included | Included | Included |
 
-The portal renders this same data as a friendly comparison table on the Compare Plans screen (`frontend/portal/src/pages/ComparePlansPage.tsx`, using `PricingPlanTable` from `frontend/shared/ui/src/components/PricingPlanTable.tsx`), sourced live from `/v1/plans` rather than a hardcoded copy.
+The portal renders plan-comparison data from `/v1/plans` rather than from this Markdown table.
 
 ## Feature Key Reference
 
