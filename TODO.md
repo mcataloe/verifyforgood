@@ -1,5 +1,7 @@
 # TODO
 
+> `TODO.md` is an implementation/backlog list. It is not the canonical Strategy, Initiative registry, Roadmap, Architecture, or source-of-truth entry point. Start with `docs/00_start_here.md` for current project documentation navigation.
+
 ## TODO-ARCH-001
 
 ### Title
@@ -437,7 +439,6 @@ What remains open are edge-policy details such as customer messaging, support-le
 ### Constraint
 
 Preserve the Phase 21 organization-scoped subscription model and local pending-plan fields so any future policy refinement remains additive and does not change the current plan-change contract.
-
 ## TODO-ARCH-014
 
 ### Title
@@ -657,7 +658,6 @@ Keep the `OrganizationSupportService` read and intake contracts stable so CRM, e
 ## TODO-ARCH-023
 
 ### Title
-
 Replace implicit default organization selection with explicit portal organization switching for multi-membership users.
 
 ### Type
@@ -1195,6 +1195,5 @@ session model for stricter revocation, rotation, or inspection semantics.
 Keep the existing `POST /v1/auth/login`, `POST /v1/auth/register`, `POST /v1/auth/logout`,
 and `GET /v1/auth/me` contracts stable so a future session store can replace
 the cookie payload without changing the portal surface.
-
 
 
