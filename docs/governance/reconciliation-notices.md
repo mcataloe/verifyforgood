@@ -9,86 +9,58 @@ END_LEAP_DOC_METADATA
 
 # Existing-Document Reconciliation Status
 
-Status: Connector-safe reconciliation complete; bounded root-file patches still required  
+Status: Complete for `BU-GOV-007`  
 Owner / approver: Project owner  
 Last reconciled: 2026-09-04  
 Related Initiative: `INIT-009`  
 Related Build Unit: `BU-GOV-007`
 
-## Completed Safely
+## Completed Reconciliation
 
-Earlier governance work added non-destructive source-truth, Charter, strategy, Domain, Architecture, Delivery, Build, inventory, gap, drift, stale-source, and migration records.
+The 2026-09-04 reconciliation rechecked current `main` against the recorded `BU-GOV-007` remediation set and applied the bounded documentation-only changes that remained relevant.
 
-The 2026-09-04 `BU-GOV-007` reconciliation pass rechecked current `main` rather than blindly applying the older pending list. It completed these bounded changes:
-
-| Path | Change | Runtime impact |
+| Path | Reconciled change | Runtime impact |
 |---|---|---|
-| `CUSTOMER_README copy.md` | Added a visible do-not-use warning and pointers to current customer/source-truth documentation | None |
-| `docs/implementation/portal-identity-membership-status.md` | Replaced unrelated customer-support wording and stale DynamoDB/GSI deployment notes with a bounded PostgreSQL/organization-context status snapshot | None |
-| `docs/implementation/billing-subscription-status.md` | Verified current wording is already bounded as `billing track active` with remaining hardening work; no additional file edit required | None |
-| `docs/architecture/README.md` | Refreshed the active Architecture index against current repository paths; removed broken active links to historical paths that are absent on current `main` | None |
-| `docs/governance/stale-document-register.md` | Updated stale/reconciled document statuses | None |
-| `docs/governance/migration-map.md` | Recorded current path state and stopped treating removed historical files as pending edits | None |
-| `docs/governance/drift-ledger.md` | Updated `BU-GOV-007`-affected drift findings and resolving evidence | None |
-| `docs/governance/gap-register.md` | Updated `BU-GOV-007`-affected gaps and identified the remaining root-file patch blocker | None |
+| `AGENTS.md` | Canonical documentation entry point changed to `docs/00_start_here.md`; source-truth precedence aligned; current backend topology, namespaces, commands, migration paths, and documentation references refreshed | None |
+| `README.md` | Added Documentation Authority notice identifying the README as a supporting compatibility/repository overview and linking canonical truth owners | None |
+| `TODO.md` | Added explicit notice that TODO is implementation/backlog material rather than Strategy, Roadmap, Architecture, or source-truth entry point | None |
+| `CUSTOMER_README copy.md` | Added visible do-not-use warning and pointers to current customer/source-truth documentation | None |
+| `docs/implementation/portal-identity-membership-status.md` | Replaced unrelated customer-support wording and stale DynamoDB/GSI guidance with a bounded PostgreSQL/organization-context status snapshot | None |
+| `docs/implementation/billing-subscription-status.md` | Verified current wording is already bounded as `billing track active`; no further edit required | None |
+| `docs/architecture/README.md` | Refreshed the active Architecture index against current repository paths and removed broken active references to absent historical files | None |
+| governance records | Refreshed stale-document, migration, drift, gap, reconciliation, Build Unit, Delivery Unit, and validation status to match current repository reality | None |
 
 ## Historical Pending Items Reconciled Against Current Main
 
-Two paths in the older `BU-GOV-007` remediation list are no longer present on current `main`:
+Two files named in the older remediation set are no longer present on current `main`:
 
 - `docs/contributor-naming-rules.md`
 - `docs/repo-target-architecture.md`
 
-Several additional historical target/split/naming paths referenced by the older Architecture index are also absent. The current Architecture index now lists active current sources and records the removed historical paths without recreating them. Recreating deleted historical documents solely to satisfy stale references is not authorized by `BU-GOV-007`.
+They were not recreated. The Architecture index and migration records now preserve their historical significance without presenting them as active sources.
 
-## Remaining Root-File Patches
+## Root-File Patch Verification
 
-Three large root files still require small, bounded edits:
+The root-file changes were applied through GitHub content updates after reconstructing each current file from repository reads. Commit-level diffs were inspected afterward:
 
-| Path | Required change | Why not applied through the current connector |
-|---|---|---|
-| `AGENTS.md` | Update canonical documentation entry point, source-truth ordering, stale backend topology/commands, and references to removed architecture/naming paths | Repository guidance explicitly requires safe local/in-place patching rather than reconstructing this large instruction file through connector-only full-file replacement |
-| `README.md` | Add the documentation-authority notice near the top and avoid treating stale mixed architecture details as project truth | The file is large and mixed-purpose; the recorded remediation requires safe bounded patching rather than whole-file reconstruction |
-| `TODO.md` | Add a concise notice that TODO is backlog, not Strategy/Roadmap/source truth | The file is large; this is an in-place header edit and should not require whole-file reconstruction |
+- `AGENTS.md`: `890878ff59f1bd50a98b040d910c0f360c398a1f`
+- `README.md`: `5d206f8ba20b807adef110b5c46a6172e9b4d704`
+- `TODO.md`: `3c6d76802a12a9f9ffcf14e4cfd07b1ea7c51d22`
 
-### Exact `AGENTS.md` Source-Truth Corrections
+The README and TODO reconstructions produced a few incidental blank-line-only deletions. No substantive content was removed by those incidental formatting differences.
 
-At minimum, the repository section must:
+## Remaining Work Outside BU-GOV-007
 
-1. change the baseline entry point from root `README.md` to `docs/00_start_here.md`
-2. identify `docs/charter/source-of-truth.md` and `docs/charter/decision-authority.md` as governing documentation sources
-3. treat root `README.md` as a supporting compatibility/repository overview
-4. align the project source-of-truth order with `docs/charter/source-of-truth.md`
-5. replace stale runtime layout references such as `backend/api/` and `backend/ingest-task/` with the current `backend/customer-api/`, `backend/platform-api/`, `backend/worker/`, `backend/ingest/federal/`, and `backend/shared/` layout where those passages describe current topology
-6. stop presenting removed historical paths such as `docs/repo-target-architecture.md` and `docs/contributor-naming-rules.md` as current primary sources
-7. update local backend command examples from the stale `charity_status_backend...` namespace to the current `verification.backend...` namespace where current `backend/README.md` establishes the replacement
+`BU-GOV-007` does not resolve unrelated product/contract/Architecture questions already assigned elsewhere, including:
 
-These are factual reconciliation changes, not new Architecture decisions.
+- legacy scoring and approve/deny semantics under `INIT-001`
+- customer policy authoring/versioning and evaluator/private-policy ownership
+- product plan-catalog ratification/runtime projection
+- historical Phase classification that still needs evidence-based refinement
+- stale implementation claims inside the large mixed root README that require their own bounded reconciliation if they become material
 
-### Exact `README.md` Authority Notice
-
-Add near the top:
-
-```text
-## Documentation Authority
-
-Start with `docs/00_start_here.md` for current project documentation navigation. This root README is a supporting repository overview and compatibility entry point, not the owner of all project truth.
-
-For source-truth precedence, see `docs/charter/source-of-truth.md`. For customer decision-authority rules, see `docs/charter/decision-authority.md`. For product/package plan meaning, see `docs/product/plan-catalog.md` and exact structured values in `docs/product/plan-catalog.yaml`.
-
-For questions about what the software currently does, inspect current merged code, tests, schemas, routes, infrastructure configuration, and public contracts. Documentation must distinguish implemented behavior from proposed or draft intent.
-```
-
-A later bounded README cleanup may reconcile stale architecture details such as older serving-cache statements, but `BU-GOV-007` must not silently redesign runtime architecture under a documentation edit.
-
-### Exact `TODO.md` Ownership Notice
-
-Add near the top:
-
-```text
-> `TODO.md` is an implementation/backlog list. It is not the canonical Strategy, Initiative registry, Roadmap, Architecture, or source-of-truth entry point. Start with `docs/00_start_here.md` for current project documentation navigation.
-```
+Those are explicitly separate from the existing-document reconciliation Build Unit.
 
 ## Gate
 
-`BU-GOV-007` is **not complete** until the three root-file patches above are applied with safe in-place/local patch tooling and the resulting documentation links/claims are validated. All connector-safe reconciliation items identified in the recorded set are complete as of 2026-09-04.
+`BU-GOV-007` is **Completed**. The recorded entry-point, stale-source, link/path, and high-confidence status reconciliation set has been applied without runtime, API, schema, auth, billing, infrastructure, or policy behavior changes.
