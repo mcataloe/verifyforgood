@@ -1,5 +1,4 @@
 environment                     = "dev"
-resource_name_strategy          = "standardized"
 form990_schedule_expression     = "cron(30 4 * * ? *)"
 form990_execution_mode          = "orchestrated"
 form990_incremental_year_window = 1
@@ -8,22 +7,23 @@ refresh_schedule_expression     = "cron(0 6 * * ? *)"
 # Terraform-owned dev network. The legacy ECS/RDS id inputs remain populated
 # only to satisfy compatibility validations; managed-network locals supersede
 # them whenever environment_network_enabled=true.
-environment_network_enabled              = true
-environment_vpc_cidr                     = "10.10.0.0/16"
-environment_public_subnet_cidrs          = ["10.10.0.0/24", "10.10.1.0/24"]
-environment_private_subnet_cidrs         = ["10.10.10.0/24", "10.10.11.0/24"]
-environment_single_nat_gateway_enabled   = true
-environment_s3_gateway_endpoint_enabled  = true
-api_ecs_vpc_id                           = "managed-by-environment-network"
-api_ecs_public_subnet_ids                = ["managed-public-1", "managed-public-2"]
-api_ecs_private_subnet_ids               = ["managed-private-1", "managed-private-2"]
-platform_postgres_vpc_id                 = "managed-by-environment-network"
-platform_postgres_private_subnet_ids     = ["managed-private-1", "managed-private-2"]
+environment_network_enabled             = true
+environment_vpc_cidr                    = "10.10.0.0/16"
+environment_public_subnet_cidrs         = ["10.10.0.0/24", "10.10.1.0/24"]
+environment_private_subnet_cidrs        = ["10.10.10.0/24", "10.10.11.0/24"]
+environment_single_nat_gateway_enabled  = true
+environment_s3_gateway_endpoint_enabled = true
+api_ecs_vpc_id                          = "managed-by-environment-network"
+api_ecs_public_subnet_ids               = ["managed-public-1", "managed-public-2"]
+api_ecs_private_subnet_ids              = ["managed-private-1", "managed-private-2"]
+platform_postgres_vpc_id                = "managed-by-environment-network"
+platform_postgres_private_subnet_ids    = ["managed-private-1", "managed-private-2"]
 
-# Dev application runtime.
-api_ecs_enabled         = true
-api_ecs_image_uri       = ""
-api_ecs_secret_arns     = {}
+# Dev application runtime. Keep the repository's existing legacy resource-name
+# strategy for this brownfield state; resource renaming is a separate migration.
+api_ecs_enabled           = true
+api_ecs_image_uri         = ""
+api_ecs_secret_arns       = {}
 platform_postgres_enabled = true
 
 # Per-environment DNS. The parent verifyforgood.com hosted zone is intentionally
