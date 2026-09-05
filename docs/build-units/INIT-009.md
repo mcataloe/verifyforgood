@@ -11,7 +11,7 @@ END_LEAP_DOC_METADATA
 
 Status: Active  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-09-04  
 Initiative: `INIT-009 — LEAP Documentation and Traceability Baseline`
 
 ## Common Constraints
@@ -30,8 +30,12 @@ Initiative: `INIT-009 — LEAP Documentation and Traceability Baseline`
 | `BU-GOV-004` | `DU-GOV-001` | Establish Outcomes, Initiative registry, and Roadmap | Completed; strategy Draft | `docs(strategy): add outcomes, initiatives, and roadmap` |
 | `BU-GOV-005` | `DU-GOV-001` | Establish Domain map and Architecture index | Completed | `docs(architecture): add domain and architecture indexes` |
 | `BU-GOV-006` | `DU-GOV-001` | Establish Delivery and Build traceability and Phase classification | Completed | `docs(delivery): establish delivery and build traceability` |
-| `BU-GOV-007` | `DU-GOV-002` | Reconcile existing entry points, stale sources, links, and status records | In progress / limited by connector update controls | `docs(reconciliation): align existing docs with LEAP source truth` |
+| `BU-GOV-007` | `DU-GOV-002` | Reconcile existing entry points, stale sources, links, and status records | In progress — connector-safe items completed 2026-09-04; safe in-place patches to `AGENTS.md`, `README.md`, and `TODO.md` remain | `docs(reconciliation): align existing docs with LEAP source truth` |
 | `BU-GOV-008` | `DU-GOV-002` | Validate required paths, links, IDs, trust language, tests, and changed-file scope | Pending | `docs(validation): complete LEAP documentation baseline` |
+
+## BU-GOV-007 Remaining Completion Condition
+
+`BU-GOV-007` may be marked Completed only after the exact bounded root-file changes recorded in `docs/governance/reconciliation-notices.md` are applied with safe in-place/local patch tooling. Do not complete the Build Unit by reconstructing large root files through connector-only whole-file replacement.
 
 ## Historical Phase Classification
 
