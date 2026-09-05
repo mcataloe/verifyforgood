@@ -19,14 +19,15 @@ Migration is semantic reconciliation, not global renaming. Existing paths should
 
 | Legacy/current path | Existing meaning | New canonical owner | Path action | Status |
 |---|---|---|---|---|
-| `README.md` | Mixed overview, API, Architecture, operations, and history | `docs/00_start_here.md` plus specialized current docs | Keep; add canonical link and authority statement using safe local patching | Pending root-file patch |
+| `README.md` | Mixed overview, API, Architecture, operations, and history | `docs/00_start_here.md` plus specialized current docs | Keep; canonical link and authority statement added | Applied 2026-09-04 |
 | `CUSTOMER_README.md` | Customer API and product overview | Customer guide supported by Charter, Decision Authority, and product catalog | Keep; clarify authority and link product catalog | Applied |
 | `CUSTOMER_README copy.md` | Conflicting duplicate customer guide | `CUSTOMER_README.md` | Keep; mark do not use | Applied 2026-09-04 |
-| `TODO.md` | Deferred work list | Initiative registry and Roadmap own strategy; TODO remains backlog | Keep; add ownership notice using safe local patching | Pending root-file patch |
+| `TODO.md` | Deferred work list | Initiative registry and Roadmap own strategy; TODO remains backlog | Keep; backlog/source-truth ownership notice added | Applied 2026-09-04 |
 | `PLAN.md` | Completed bounded ingest implementation | Historical Build Unit evidence under `INIT-003` | Keep; classify historical | Classified |
 | `docs/architecture/plan-catalog.md` | Human-readable snapshot of implemented plan catalog values and runtime projection notes | `docs/product/plan-catalog.md` for package meaning; `docs/product/plan-catalog.yaml` for structured values; architecture file remains runtime reference | Keep; reclassify as supporting runtime/architecture reference | Applied |
 | `docs/product/plan-catalog.md` | Human-readable product/package plan model | Product/package source after ratification | Keep | Added; pending ratification where marked Draft/Proposed |
 | `docs/product/plan-catalog.yaml` | Structured plan catalog values | Exact machine-readable catalog source after ratification | Keep | Added; validation/ratification status governed by product docs |
+| `AGENTS.md` | Repository agent routing, project rules, topology, and source-truth navigation | Repository operating instructions aligned to current canonical docs and repo reality | Keep; update source-truth entry, backend topology/commands, and removed-source references | Applied 2026-09-04 |
 | `docs/repo-target-architecture.md` | Historical architecture assessment and split direction | Current Architecture index, current backend/frontend READMEs, and active ADRs | Do not recreate solely for compatibility; preserve historical references as migration evidence | Path absent on current `main`; index reconciled 2026-09-04 |
 | `docs/contributor-naming-rules.md` | Historical contributor naming guidance | Current repo conventions plus active source-of-truth/Architecture guidance | Do not recreate solely to repair historical local-machine links | Path absent on current `main`; index reconciled 2026-09-04 |
 | `docs/form990-ingest-plan.md` | Mixed Architecture, Delivery, Build, status, and history | `INIT-003` delivery/build records plus Architecture docs | Keep; later reconcile | Needs reconciliation |
