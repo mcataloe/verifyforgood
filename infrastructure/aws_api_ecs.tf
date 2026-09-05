@@ -151,7 +151,7 @@ resource "aws_security_group" "api_alb" {
 
   name        = local.api_alb_security_group_name
   description = "Security group for the ECS API application load balancer."
-  vpc_id      = var.api_ecs_vpc_id
+  vpc_id      = local.api_ecs_vpc_id_effective
 
   ingress {
     description = "Allow HTTP ingress to the API ALB."
@@ -185,7 +185,7 @@ resource "aws_security_group" "api_task" {
 
   name        = local.api_task_security_group_name
   description = "Security group for the ECS API tasks."
-  vpc_id      = var.api_ecs_vpc_id
+  vpc_id      = local.api_ecs_vpc_id_effective
 
   ingress {
     description     = "Allow application traffic from the API ALB."
@@ -213,7 +213,7 @@ resource "aws_lb" "api" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.api_alb[0].id]
-  subnets            = var.api_ecs_public_subnet_ids
+  subnets            = local.api_ecs_public_subnet_ids_effective
 
   tags = local.platform_common_tags
 }
@@ -225,7 +225,7 @@ resource "aws_lb_target_group" "api" {
   port                 = var.api_ecs_container_port
   protocol             = "HTTP"
   target_type          = "ip"
-  vpc_id               = var.api_ecs_vpc_id
+  vpc_id               = local.api_ecs_vpc_id_effective
   deregistration_delay = var.api_ecs_target_group_deregistration_delay_seconds
 
   health_check {
@@ -520,7 +520,7 @@ resource "aws_ecs_service" "api" {
   deployment_maximum_percent         = 200
 
   network_configuration {
-    subnets          = var.api_ecs_private_subnet_ids
+    subnets          = local.api_ecs_private_subnet_ids_effective
     security_groups  = concat([aws_security_group.api_task[0].id], var.api_ecs_additional_security_group_ids)
     assign_public_ip = false
   }
