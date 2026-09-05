@@ -24,6 +24,25 @@ export const publicEndpoints = {
   }),
 } as const;
 
+export const chatEndpoints = {
+  conversations: defineEndpoint("GET", "/chat/conversations", {
+    name: "chatConversations",
+  }),
+  createConversation: defineEndpoint("POST", "/chat/conversations", {
+    name: "chatCreateConversation",
+  }),
+  conversation: defineEndpoint("GET", "/chat/conversations/{conversationId}", {
+    name: "chatConversation",
+  }),
+  sendMessage: defineEndpoint(
+    "POST",
+    "/chat/conversations/{conversationId}/messages",
+    {
+      name: "chatSendMessage",
+    },
+  ),
+} as const;
+
 export const organizationEndpoints = {
   create: defineEndpoint("POST", "/organizations", {
     name: "createOrganization",
@@ -144,6 +163,7 @@ export const verificationEndpoints = {
 export const apiEndpoints = {
   auth: authEndpoints,
   billing: billingEndpoints,
+  chat: chatEndpoints,
   nonprofits: nonprofitEndpoints,
   organization: organizationEndpoints,
   public: publicEndpoints,
