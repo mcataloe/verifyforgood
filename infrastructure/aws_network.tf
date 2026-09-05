@@ -15,14 +15,14 @@ locals {
     for subnet in aws_subnet.environment_private : subnet.id
   ] : []
 
-  api_ecs_vpc_id_effective = var.environment_network_enabled ? local.environment_vpc_id : var.api_ecs_vpc_id
-  api_ecs_public_subnet_ids_effective = var.environment_network_enabled ? local.environment_public_subnet_ids : var.api_ecs_public_subnet_ids
+  api_ecs_vpc_id_effective             = var.environment_network_enabled ? local.environment_vpc_id : var.api_ecs_vpc_id
+  api_ecs_public_subnet_ids_effective  = var.environment_network_enabled ? local.environment_public_subnet_ids : var.api_ecs_public_subnet_ids
   api_ecs_private_subnet_ids_effective = var.environment_network_enabled ? local.environment_private_subnet_ids : var.api_ecs_private_subnet_ids
 
-  platform_postgres_vpc_id_effective = var.environment_network_enabled ? local.environment_vpc_id : var.platform_postgres_vpc_id
+  platform_postgres_vpc_id_effective             = var.environment_network_enabled ? local.environment_vpc_id : var.platform_postgres_vpc_id
   platform_postgres_private_subnet_ids_effective = var.environment_network_enabled ? local.environment_private_subnet_ids : var.platform_postgres_private_subnet_ids
 
-  monthly_ingest_private_subnet_ids_effective = var.environment_network_enabled ? local.environment_private_subnet_ids : var.monthly_ingest_private_subnet_ids
+  monthly_ingest_private_subnet_ids_effective      = var.environment_network_enabled ? local.environment_private_subnet_ids : var.monthly_ingest_private_subnet_ids
   monthly_ingest_task_security_group_ids_effective = var.environment_network_enabled ? [aws_security_group.monthly_ingest[0].id] : var.monthly_ingest_task_security_group_ids
 }
 

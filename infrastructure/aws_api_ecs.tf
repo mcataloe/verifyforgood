@@ -1,6 +1,6 @@
 locals {
   backend_runtime_ecs_cluster_enabled = var.api_ecs_enabled || var.worker_ecs_enabled
-  api_ecs_managed_image_enabled = trim(var.api_ecs_image_uri, " ") == ""
+  api_ecs_managed_image_enabled       = trim(var.api_ecs_image_uri, " ") == ""
   api_ecs_image_uri_resolved = trim(var.api_ecs_image_uri, " ") != "" ? trim(var.api_ecs_image_uri, " ") : (
     local.api_ecs_managed_image_enabled ? "${aws_ecr_repository.api[0].repository_url}:${var.api_ecs_image_tag}" : ""
   )
