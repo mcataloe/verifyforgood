@@ -11,15 +11,15 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting record  
 Owner / approver: Project owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-09-04  
 Canonical owner of: Stale, conflicting, superseded, and do-not-use document status  
 Related Initiatives: `INIT-009`
 
 | Path | Status | Evidence | Canonical replacement / owner | Permitted use | Disposition |
 |---|---|---|---|---|---|
-| `CUSTOMER_README copy.md` | Do not use — stale and conflicting | Publishes pricing and stronger claims that conflict with `CUSTOMER_README.md` and current source-truth posture | `CUSTOMER_README.md`, Project Charter, Decision Authority | Historical comparison only | Keep path; add warning; later archive/delete decision |
-| `docs/implementation/portal-identity-membership-status.md` | Needs reconciliation | Heading/scope concern identity and membership while status wording refers to customer support experience | Current code/tests plus `INIT-004` records | Evidence after verifying individual claims | Keep; flag/correct high-confidence mismatch |
-| `docs/implementation/billing-subscription-status.md` | Needs reconciliation | Broad completion statement conflicts with unresolved production decisions in billing plan | Current code/tests, billing plan, `INIT-006` | Bounded implementation evidence only | Keep; qualify completion |
+| `CUSTOMER_README copy.md` | Do not use — stale and conflicting; warning applied | Publishes pricing and stronger claims that conflict with `CUSTOMER_README.md` and current source-truth posture; visible warning now points readers to current sources | `CUSTOMER_README.md`, Project Charter, Decision Authority | Historical comparison only | Keep path with warning; later archive/delete decision |
+| `docs/implementation/portal-identity-membership-status.md` | Reconciled bounded snapshot | Status now reflects PostgreSQL customer-account persistence and active organization-context behavior; stale DynamoDB/GSI deployment guidance removed | Current code/tests/migrations plus `INIT-004` records | Bounded implementation evidence | Keep current bounded snapshot |
+| `docs/implementation/billing-subscription-status.md` | Reconciled bounded snapshot | Current status says `billing track active`, not complete, and explicitly lists remaining hardening work | Current code/tests, billing plan, `INIT-006` | Bounded implementation evidence only | Keep current bounded snapshot |
 | `PLAN.md` | Historical | Records completed implementation phases for a bounded ingest change | Current code/tests and future Build Unit history | Historical implementation traceability | Keep path; classify as historical |
 
 ## Candidate Rules
