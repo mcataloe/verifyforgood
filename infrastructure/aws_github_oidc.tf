@@ -20,6 +20,7 @@ locals {
   github_project_role_arns = var.github_oidc_deploy_role_enabled ? [
     "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/${local.namespace}-${local.platform}-*",
     "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/charitystatusapi-${local.environment_slug}-*",
+    "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/${var.github_dev_deploy_role_name}",
   ] : []
 
   github_project_policy_arns = var.github_oidc_deploy_role_enabled ? [
@@ -135,6 +136,21 @@ resource "aws_iam_role_policy" "github_dev_deploy" {
           "iam:PassRole"
         ]
         Resource = local.github_project_role_arns
+      },
+      {
+        Sid    = "ManageGitHubOidcProvider"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:AddClientIDToOpenIDConnectProvider",
+          "iam:RemoveClientIDFromOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider",
+          "iam:UntagOpenIDConnectProvider"
+        ]
+        Resource = "*"
       },
       {
         Sid    = "ReadManagedPolicies"
