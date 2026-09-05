@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from types import SimpleNamespace
+import pytest
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -117,6 +118,49 @@ def _client(services):
 
 def _headers(**extra):
     return {"Authorization": "Bearer test-token", **extra}
+
+
+@pytest.mark.parametrize("path", [
+    "/v1/chat/conversations",
+    "/v1/chat/conversations/1",
+    "/v1/chat/conversations/1/messages",
+])
+@pytest.mark.parametrize("origin,allowed", [
+    ("http://localhost:3953", True),
+    ("https://untrusted.example", False),
+])
+def test_chat_preflight_uses_existing_allowlist_without_services(monkeypatch, path, origin, allowed):
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3953")
+
+    def unexpected_services():
+        raise AssertionError("Preflight must not initialize Chat services")
+
+    app = FastAPI()
+    app.include_router(create_chat_router(unexpected_services))
+    response = TestClient(app).options(path, headers={
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type,x-portal-account-id,x-portal-workspace-id",
+    })
+    assert response.status_code == 200
+    if allowed:
+        assert response.headers["access-control-allow-origin"] == origin
+        assert response.headers["access-control-allow-credentials"] == "true"
+        assert "POST" in response.headers["access-control-allow-methods"]
+        assert "Authorization" in response.headers["access-control-allow-headers"]
+    else:
+        assert "access-control-allow-origin" not in response.headers
+
+
+def test_chat_actual_responses_include_cors_for_allowed_origin(monkeypatch):
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3953")
+    client = _client(_services(_ConversationRepository()))
+    for authorization, status in [("Bearer test-token", 200), ("invalid", 401)]:
+        response = client.get("/v1/chat/conversations", headers={
+            "Origin": "http://localhost:3953", "Authorization": authorization,
+        })
+        assert response.status_code == status
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3953"
 
 
 def test_chat_api_creates_sends_and_reads_conversation_with_server_owned_scope():

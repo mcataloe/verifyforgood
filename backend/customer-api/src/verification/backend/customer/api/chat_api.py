@@ -50,6 +50,14 @@ def create_chat_router(services_factory: ChatApiServicesFactory | None = None) -
     router = APIRouter(prefix="/v1/chat", tags=["chat"])
     get_services = services_factory or _get_chat_api_services
 
+    @router.options("/conversations", include_in_schema=False)
+    @router.options("/conversations/{conversation_id}", include_in_schema=False)
+    @router.options("/conversations/{conversation_id}/messages", include_in_schema=False)
+    async def preflight(request: Request) -> Response:
+        # Browser preflight has no bearer token. Reuse the shared origin allowlist
+        # without initializing persistence, authentication, or the model provider.
+        return _success(request, 200, {})
+
     @router.post("/conversations")
     async def create_conversation(request: Request) -> Response:
         try:
