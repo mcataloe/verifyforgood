@@ -1,3 +1,7 @@
+> [!WARNING]
+> **Do not use this file for current product, pricing, API, or decision-authority guidance.**
+> This is a stale historical copy retained for traceability only. Use `CUSTOMER_README.md` for the current customer guide, `docs/00_start_here.md` for project documentation navigation, `docs/charter/source-of-truth.md` for source precedence, and `docs/charter/decision-authority.md` for customer decision-authority rules.
+
 # Charity Status API — Customer Guide & Pricing
 
 ## Overview
