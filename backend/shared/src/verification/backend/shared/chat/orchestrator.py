@@ -12,6 +12,7 @@ from .contracts import (
     ChatToolExecutionResult,
     ChatToolExecutor,
 )
+from .policies import VerifyForGoodChatOutputPolicy
 from .providers import ChatProviderError, ChatProviderRegistry
 from .retrieval import (
     ChatRetrievalMode,
@@ -92,7 +93,7 @@ class ChatConversationOrchestrator:
         self._retrieval_router = retrieval_router or ChatRetrievalRouter()
         self._semantic_retriever = semantic_retriever or DisabledChatSemanticRetriever()
         self._input_policy = input_policy or DefaultChatInputPolicy()
-        self._output_policy = output_policy or PassThroughChatOutputPolicy()
+        self._output_policy = output_policy or VerifyForGoodChatOutputPolicy()
         self._max_tool_iterations = max(0, int(max_tool_iterations))
 
     def run(
