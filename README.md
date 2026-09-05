@@ -1,5 +1,13 @@
 ﻿# Charity Status API
 
+## Documentation Authority
+
+Start with `docs/00_start_here.md` for current project documentation navigation. This root README is a supporting repository overview and compatibility entry point, not the owner of all project truth.
+
+For source-truth precedence, see `docs/charter/source-of-truth.md`. For customer decision-authority rules, see `docs/charter/decision-authority.md`. For product/package plan meaning, see `docs/product/plan-catalog.md` and exact structured values in `docs/product/plan-catalog.yaml`.
+
+For questions about what the software currently does, inspect current merged code, tests, schemas, routes, infrastructure configuration, and public contracts. Documentation must distinguish implemented behavior from proposed or draft intent.
+
 Charity Status API ingests IRS Exempt Organizations data and Form 990 XML-derived datasets into AWS, then serves nonprofit verification and scoring through an ALB-fronted ECS Fargate API service.
 
 The primary API ingress is now Route53 -> ALB -> ECS Fargate. The legacy
@@ -437,7 +445,6 @@ Governance indicators:
 - `compensation_review_process`
 - `public_disclosure_available`
 - `audited_financials_indicator`
-
 Narrative/disclosure signals:
 
 - mission description present
@@ -1537,7 +1544,6 @@ stripe trigger invoice.paid
 ```
 
 Use the signing secret emitted by `stripe listen` as `STRIPE_WEBHOOK_SECRET`.
-
 Local Stripe test mode:
 
 - use a Stripe test secret key in `STRIPE_SECRET_KEY`
@@ -2256,4 +2262,3 @@ Non-prod defaults remain low-cost:
 - lazy/on-demand serving stays the default
 - targeted/manual refresh modes still supported (`refresh_changed`, `backfill_missing`, explicit EIN lists)
 - no automatic non-prod eager bootstrap
-
