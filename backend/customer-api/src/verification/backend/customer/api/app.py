@@ -14,6 +14,7 @@ from .transport import CUSTOMER_API_ROUTE_SPECS, build_backend_request, runtime_
 load_backend_local_env()
 
 from . import runtime
+from .chat_api import create_chat_router
 
 
 async def _dispatch_runtime_request(request: Request, *, resource: str) -> Response:
@@ -33,6 +34,8 @@ def create_app() -> FastAPI:
     @app.get("/ready")
     async def ready() -> JSONResponse:
         return JSONResponse({"status": "ready"})
+
+    app.include_router(create_chat_router())
 
     def register_route(resource_spec) -> None:
         async def endpoint(request: Request) -> Response:
@@ -55,4 +58,3 @@ app = create_app()
 
 
 __all__ = ["app", "create_app"]
-
