@@ -17,7 +17,7 @@ export interface PortalToastInput {
   tone: PortalToastTone;
 }
 
-interface PortalToastRecord extends Required<PortalToastInput> {}
+type PortalToastRecord = Required<PortalToastInput>;
 
 interface PortalToastContextValue {
   dismissToast: (id: string) => void;
@@ -38,7 +38,9 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
         setToasts((current) => current.filter((toast) => toast.id !== id));
       },
       showToast: (input) => {
-        const id = input.id ?? `toast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const id =
+          input.id ??
+          `toast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const nextToast: PortalToastRecord = {
           id,
           message: input.message,
@@ -56,11 +58,7 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
   );
 
   const toastRegion = (
-    <div
-      aria-atomic="false"
-      aria-live="polite"
-      className="portal-toast-region"
-    >
+    <div aria-atomic="false" aria-live="polite" className="portal-toast-region">
       {toasts.map((toast) => (
         <Paper
           className={`portal-toast portal-toast--${toast.tone}`}
@@ -85,7 +83,11 @@ export function PortalToastProvider({ children }: PropsWithChildren) {
               justifyContent: "space-between",
             }}
           >
-            <Stack className="portal-toast__content" gap={2} style={{ minWidth: 0 }}>
+            <Stack
+              className="portal-toast__content"
+              gap={2}
+              style={{ minWidth: 0 }}
+            >
               <Text fw={700}>{toast.title}</Text>
               <Text size="sm">{toast.message}</Text>
             </Stack>

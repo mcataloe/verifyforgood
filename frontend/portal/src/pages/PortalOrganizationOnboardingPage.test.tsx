@@ -48,7 +48,9 @@ describe("PortalOrganizationOnboardingPage", () => {
     const onCreateOrganization = vi.fn(async () => undefined);
     renderPage(onCreateOrganization);
 
-    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create Organization" }),
+    );
 
     expect(screen.getByRole("alert").textContent).toContain(
       "Enter an organization name to continue.",
@@ -75,7 +77,9 @@ describe("PortalOrganizationOnboardingPage", () => {
     fireEvent.change(screen.getByLabelText("Organization name"), {
       target: { value: "Verify For Good Org" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create Organization" }),
+    );
 
     expect(onCreateOrganization).toHaveBeenCalledWith({
       name: "Verify For Good Org",
@@ -95,7 +99,9 @@ describe("PortalOrganizationOnboardingPage", () => {
     fireEvent.change(screen.getByLabelText("Slug"), {
       target: { value: "Verify For Good Org !!" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Organization" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create Organization" }),
+    );
 
     expect(
       await screen.findByText("Organization slug is already in use"),

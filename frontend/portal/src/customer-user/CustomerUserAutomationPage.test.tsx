@@ -65,7 +65,9 @@ describe("CustomerUserAutomationPage", () => {
 
     expect(document.body.getAttribute("data-scroll-locked")).toBe("1");
     expect(
-      await screen.findByRole("heading", { name: "Confirm credential deletion" }),
+      await screen.findByRole("heading", {
+        name: "Confirm credential deletion",
+      }),
     ).toBeTruthy();
 
     const overlay = document.body.querySelector(".mantine-Modal-overlay");

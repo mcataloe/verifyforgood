@@ -172,12 +172,42 @@ export const verifyForGoodTokens = {
       caps: "0.08em",
     },
     headings: {
-      h1: { fontSize: "48px", lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.03em" },
-      h2: { fontSize: "36px", lineHeight: 1.1, fontWeight: 700, letterSpacing: "-0.02em" },
-      h3: { fontSize: "30px", lineHeight: 1.15, fontWeight: 600, letterSpacing: "-0.02em" },
-      h4: { fontSize: "24px", lineHeight: 1.2, fontWeight: 600, letterSpacing: "-0.01em" },
-      h5: { fontSize: "20px", lineHeight: 1.25, fontWeight: 600, letterSpacing: "-0.01em" },
-      h6: { fontSize: "18px", lineHeight: 1.3, fontWeight: 600, letterSpacing: "0" },
+      h1: {
+        fontSize: "48px",
+        lineHeight: 1.05,
+        fontWeight: 700,
+        letterSpacing: "-0.03em",
+      },
+      h2: {
+        fontSize: "36px",
+        lineHeight: 1.1,
+        fontWeight: 700,
+        letterSpacing: "-0.02em",
+      },
+      h3: {
+        fontSize: "30px",
+        lineHeight: 1.15,
+        fontWeight: 600,
+        letterSpacing: "-0.02em",
+      },
+      h4: {
+        fontSize: "24px",
+        lineHeight: 1.2,
+        fontWeight: 600,
+        letterSpacing: "-0.01em",
+      },
+      h5: {
+        fontSize: "20px",
+        lineHeight: 1.25,
+        fontWeight: 600,
+        letterSpacing: "-0.01em",
+      },
+      h6: {
+        fontSize: "18px",
+        lineHeight: 1.3,
+        fontWeight: 600,
+        letterSpacing: "0",
+      },
     },
   },
   spacing: {
@@ -201,7 +231,8 @@ export const verifyForGoodTokens = {
     subtle: "0 1px 2px rgba(15, 23, 42, 0.08)",
     card: "0 12px 32px rgba(15, 23, 42, 0.12)",
     modal: "0 24px 64px rgba(2, 6, 23, 0.18)",
-    overlay: "0 0 0 1px rgba(148, 163, 184, 0.18), 0 32px 80px rgba(2, 6, 23, 0.28)",
+    overlay:
+      "0 0 0 1px rgba(148, 163, 184, 0.18), 0 32px 80px rgba(2, 6, 23, 0.28)",
   },
 } as const;
 

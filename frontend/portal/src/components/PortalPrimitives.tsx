@@ -1,11 +1,4 @@
-import {
-  Button,
-  Group,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Button, Group, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 import type {
   ComponentPropsWithoutRef,
   PropsWithChildren,
@@ -71,9 +64,7 @@ export function PortalAnchorButton({
   );
 }
 
-export function PortalActionGroup({
-  children,
-}: PropsWithChildren) {
+export function PortalActionGroup({ children }: PropsWithChildren) {
   return (
     <Group align="center" gap="sm" wrap="wrap">
       {children}

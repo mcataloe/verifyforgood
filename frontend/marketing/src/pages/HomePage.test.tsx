@@ -17,6 +17,7 @@ describe("HomePage", () => {
     render(
       <VerifyForGoodMantineProvider>
         <HomePage
+          platformLoginUrl="https://platform.verifyforgood.test/#/sign-in"
           endpoints={endpoints as Parameters<typeof HomePage>[0]["endpoints"]}
           runtimeConfig={
             runtimeConfig as Parameters<typeof HomePage>[0]["runtimeConfig"]
@@ -35,8 +36,6 @@ describe("HomePage", () => {
         /Value-forward onboarding keeps usage and upgrade decisions explicit/i,
       ),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/Grantmaking teams/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/Grantmaking teams/i)).toBeTruthy();
   });
 });

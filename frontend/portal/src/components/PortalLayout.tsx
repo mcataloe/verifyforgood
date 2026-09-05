@@ -8,7 +8,6 @@ import type { PropsWithChildren } from "react";
 import {
   resolveActivePortalNavigationKey,
   resolvePortalProfileNavigationTarget,
-  resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
 import { resolveMembershipRoleFromContext } from "../app/portalAuthorization";
@@ -16,6 +15,7 @@ import { billingPortalRoute } from "../app/portalRouteCatalog";
 import type { PortalRouteDefinition } from "../app/portalRoutes";
 import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { usePortalAuth } from "../auth/usePortalAuth";
+import { PortalChatDrawer } from "../chat/PortalChatDrawer";
 import { usePortalOrganization } from "../organization/usePortalOrganization";
 import { PortalOrganizationSwitcher } from "./PortalOrganizationSwitcher";
 import { PortalUserMenu } from "./PortalUserMenu";
@@ -38,12 +38,11 @@ export function PortalLayout({
   onOpenOrganizationOnboarding,
   onSignOut,
   routes,
-  runtimeConfig: _runtimeConfig,
+  runtimeConfig,
   session,
 }: PortalLayoutProps) {
   const auth = usePortalAuth();
   const organization = usePortalOrganization();
-  const audience = resolvePortalNavigationAudience(session.roles);
   const membershipRole = resolveMembershipRoleFromContext(
     organization.currentMembership ?? session.organization_membership,
   );
@@ -73,6 +72,7 @@ export function PortalLayout({
       appName={app.title}
       headerActions={
         <Group gap="sm" wrap="nowrap">
+          <PortalChatDrawer runtimeConfig={runtimeConfig} session={session} />
           <PortalOrganizationSwitcher
             activeOrganizationId={
               organization.activeOrganization.organization_id

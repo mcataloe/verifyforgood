@@ -15,8 +15,6 @@ describe("MarketingSite", () => {
     expect(
       screen.getByRole("heading", { name: "Developer onboarding" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Switch to dark mode" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Theme mode" })).toBeTruthy();
   });
 });

@@ -75,7 +75,11 @@ export function buildComplianceItems(detail: PortalNonprofitDetail) {
 function buildSourceItems(detail: PortalNonprofitDetail) {
   return [
     { key: "model-source", label: "Model source", value: detail.modelSource },
-    { key: "model-version", label: "Model version", value: detail.modelVersion },
+    {
+      key: "model-version",
+      label: "Model version",
+      value: detail.modelVersion,
+    },
     {
       key: "query-execution",
       label: "Query execution",

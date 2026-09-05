@@ -2,6 +2,7 @@ export {
   apiEndpoints,
   authEndpoints,
   billingEndpoints,
+  chatEndpoints,
   nonprofitEndpoints,
   organizationEndpoints,
   publicEndpoints,

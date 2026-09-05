@@ -1,8 +1,6 @@
 import { Panel } from "@charity-status/shared-ui";
 import type { CustomerAdminPortalPane } from "../app/portalNavigation";
-import {
-  PortalPageShell,
-} from "../components/shell";
+import { PortalPageShell } from "../components/shell";
 import { SupportHelpPanel } from "../settings/SupportHelpPanel";
 import {
   usePortalSupport,
@@ -14,14 +12,10 @@ interface SupportPageProps {
   supportController?: PortalSupportController;
 }
 
-export function SupportPage({
-  pane,
-  supportController,
-}: SupportPageProps) {
+export function SupportPage({ pane, supportController }: SupportPageProps) {
   const defaultSupportController = usePortalSupport();
   const support = supportController ?? defaultSupportController;
-  const supportPane =
-    pane === "support-report-issue" ? "report" : "contact";
+  const supportPane = pane === "support-report-issue" ? "report" : "contact";
 
   return (
     <PortalPageShell

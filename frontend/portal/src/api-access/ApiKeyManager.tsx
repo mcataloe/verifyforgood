@@ -152,14 +152,17 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           <Stack gap="md">
             <PortalHint>
               API keys shown here belong to{" "}
-              <strong>{organization.activeOrganization.organization_name}</strong>.
+              <strong>
+                {organization.activeOrganization.organization_name}
+              </strong>
+              .
             </PortalHint>
 
             {!canManageKeys ? (
               <PortalNotice title="Admin Access Required" tone="warning">
                 <p>
-                  Only organization admins may create, edit, or revoke API keys for
-                  this organization.
+                  Only organization admins may create, edit, or revoke API keys
+                  for this organization.
                 </p>
               </PortalNotice>
             ) : (
@@ -224,7 +227,9 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
                     withinPortal
                   >
                     <ActionIcon
-                      aria-label={isSecretVisible ? "Hide API key" : "Reveal API key"}
+                      aria-label={
+                        isSecretVisible ? "Hide API key" : "Reveal API key"
+                      }
                       onClick={() => {
                         setIsSecretVisible((current) => !current);
                       }}
@@ -265,7 +270,8 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
               </div>
               <PortalActionGroup>
                 <Text size="sm">
-                  Key name: <strong>{apiKeys.visibleSecret.key.display_name}</strong>
+                  Key name:{" "}
+                  <strong>{apiKeys.visibleSecret.key.display_name}</strong>
                 </Text>
                 <PortalButton
                   onClick={() => {
@@ -282,7 +288,10 @@ export function ApiKeyManager({ controller }: ApiKeyManagerProps) {
           </Panel>
         ) : null}
 
-        <Panel title="Organization API Keys" subtitle="Manage active and revoked keys.">
+        <Panel
+          title="Organization API Keys"
+          subtitle="Manage active and revoked keys."
+        >
           <Stack gap="md">
             {apiKeys.isLoading ? (
               <PortalNotice title="Loading" tone="loading">

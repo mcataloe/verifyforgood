@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -61,7 +67,8 @@ describe("TeamPage", () => {
     };
 
     renderWithOrganization(<TeamPage session={createMockPortalSession()} />, {
-      apiClient: apiClient as unknown as PortalOrganizationContextValue["apiClient"],
+      apiClient:
+        apiClient as unknown as PortalOrganizationContextValue["apiClient"],
       currentMembership: {
         role: "admin",
         status: "active",
@@ -88,7 +95,9 @@ describe("TeamPage", () => {
       }),
     );
 
-    const editDialog = await screen.findByRole("dialog", { name: "Edit Member" });
+    const editDialog = await screen.findByRole("dialog", {
+      name: "Edit Member",
+    });
     fireEvent.change(within(editDialog).getByLabelText("Role"), {
       target: { value: "admin" },
     });

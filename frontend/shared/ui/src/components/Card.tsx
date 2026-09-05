@@ -42,7 +42,11 @@ export function Card({
         <Group align="flex-start" justify="space-between" mb="md" wrap="wrap">
           <Stack gap="xs">
             {title ? <Text fw={600}>{title}</Text> : null}
-            {description ? <Text c="dimmed" fz="sm">{description}</Text> : null}
+            {description ? (
+              <Text c="dimmed" fz="sm">
+                {description}
+              </Text>
+            ) : null}
           </Stack>
           {actions ? <Group gap="sm">{actions}</Group> : null}
         </Group>

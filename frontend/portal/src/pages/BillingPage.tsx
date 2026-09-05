@@ -11,11 +11,7 @@ interface BillingPageProps {
   session: PortalAuthenticatedSession;
 }
 
-export function BillingPage({
-  endpoints,
-  pane,
-  session,
-}: BillingPageProps) {
+export function BillingPage({ endpoints, pane, session }: BillingPageProps) {
   const organization = usePortalOrganization();
   const focus = pane === "usage" ? "usage" : "billing";
 

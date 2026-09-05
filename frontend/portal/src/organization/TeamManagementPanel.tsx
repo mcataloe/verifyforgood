@@ -49,8 +49,12 @@ export function TeamManagementPanel() {
   const [isInviting, setIsInviting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
-  const [invitations, setInvitations] = useState<PortalOrganizationInvitationSummary[]>([]);
-  const [invitationsStatus, setInvitationsStatus] = useState<"idle" | "loading" | "ready">("idle");
+  const [invitations, setInvitations] = useState<
+    PortalOrganizationInvitationSummary[]
+  >([]);
+  const [invitationsStatus, setInvitationsStatus] = useState<
+    "idle" | "loading" | "ready"
+  >("idle");
   const [editingMember, setEditingMember] = useState<
     (typeof organization.members)[number] | null
   >(null);
@@ -66,7 +70,9 @@ export function TeamManagementPanel() {
   const canManageMembers =
     organization.currentMembership?.role === "admin" &&
     organization.currentMembership?.status === "active";
-  const memberColumns: DataTableColumn<(typeof organization.members)[number]>[] = [
+  const memberColumns: DataTableColumn<
+    (typeof organization.members)[number]
+  >[] = [
     {
       key: "name",
       header: "Name",
@@ -314,10 +320,7 @@ export function TeamManagementPanel() {
     }
   };
 
-  const handleRoleChange = async (
-    memberId: string,
-    role: "admin" | "user",
-  ) => {
+  const handleRoleChange = async (memberId: string, role: "admin" | "user") => {
     setError(null);
     setUpdatingMemberId(memberId);
     try {
@@ -385,8 +388,7 @@ export function TeamManagementPanel() {
             {inviteResult ? (
               <PortalNotice title="Invitation created" tone="warning">
                 <p>
-                  Share this token with the invited user now:
-                  {" "}
+                  Share this token with the invited user now:{" "}
                   <code>{inviteResult.token}</code>
                 </p>
                 <p>
@@ -409,7 +411,9 @@ export function TeamManagementPanel() {
                   <TextInput
                     label="Invite email"
                     name="invite-email"
-                    onChange={(event) => setInviteEmail(event.currentTarget.value)}
+                    onChange={(event) =>
+                      setInviteEmail(event.currentTarget.value)
+                    }
                     placeholder="teammate@example.org"
                     type="email"
                     value={inviteEmail}
@@ -423,13 +427,19 @@ export function TeamManagementPanel() {
                     label="Role"
                     name="invite-role"
                     onChange={(event) => {
-                      setInviteRole(normalizeMemberRole(event.currentTarget.value));
+                      setInviteRole(
+                        normalizeMemberRole(event.currentTarget.value),
+                      );
                     }}
                     value={inviteRole}
                   />
 
                   <PortalActionGroup>
-                    <PortalButton loading={isInviting} tone="primary" type="submit">
+                    <PortalButton
+                      loading={isInviting}
+                      tone="primary"
+                      type="submit"
+                    >
                       Invite user
                     </PortalButton>
                     <PortalButton
@@ -538,12 +548,12 @@ export function TeamManagementPanel() {
               { label: "User", value: "user" },
               { label: "Admin", value: "admin" },
             ]}
-            disabled={!editingMember || updatingMemberId === editingMember.user_id}
+            disabled={
+              !editingMember || updatingMemberId === editingMember.user_id
+            }
             label="Role"
             onChange={(event) => {
-              setEditingRole(
-                normalizeMemberRole(event.currentTarget.value),
-              );
+              setEditingRole(normalizeMemberRole(event.currentTarget.value));
             }}
             value={editingRole}
           />
@@ -558,7 +568,9 @@ export function TeamManagementPanel() {
               Cancel
             </PortalButton>
             <PortalButton
-              disabled={!editingMember || updatingMemberId === editingMember.user_id}
+              disabled={
+                !editingMember || updatingMemberId === editingMember.user_id
+              }
               onClick={() => {
                 if (!editingMember) {
                   return;
@@ -666,7 +678,9 @@ function formatLabelValue(value: string | null | undefined) {
     .join(" ");
 }
 
-function normalizeMemberRole(value: string | null | undefined): "admin" | "user" {
+function normalizeMemberRole(
+  value: string | null | undefined,
+): "admin" | "user" {
   return value === "admin" ? "admin" : "user";
 }
 

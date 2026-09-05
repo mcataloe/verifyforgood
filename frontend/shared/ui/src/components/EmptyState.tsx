@@ -74,7 +74,9 @@ export function EmptyState({
           <Text c="dimmed" fw={600} fz="xs" tt="uppercase">
             Empty state
           </Text>
-          <Title order={3}>{title ?? presetContent?.title ?? "Nothing to show yet"}</Title>
+          <Title order={3}>
+            {title ?? presetContent?.title ?? "Nothing to show yet"}
+          </Title>
           <Text c="dimmed" component="div">
             {description ??
               presetContent?.description ??

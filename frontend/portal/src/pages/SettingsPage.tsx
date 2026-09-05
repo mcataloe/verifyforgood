@@ -45,9 +45,7 @@ interface SettingsPageProps {
 export function SettingsPage({
   budgetController,
   deletionController,
-  endpoints: _endpoints,
   organizationProfileController,
-  pane: _pane,
   session,
   usageController,
 }: SettingsPageProps) {

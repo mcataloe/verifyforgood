@@ -1,4 +1,7 @@
-import type { FrontendAccessRole, PlanCode } from "@charity-status/shared-types";
+import type {
+  FrontendAccessRole,
+  PlanCode,
+} from "@charity-status/shared-types";
 import type { ReactNode } from "react";
 
 export type VerifyForGoodNavigationVisibilityState =
@@ -41,15 +44,19 @@ export interface VerifyForGoodNavigationSection {
   items: VerifyForGoodNavigationItem[];
 }
 
-export interface VerifyForGoodResolvedNavigationItem
-  extends Omit<VerifyForGoodNavigationItem, "children"> {
+export interface VerifyForGoodResolvedNavigationItem extends Omit<
+  VerifyForGoodNavigationItem,
+  "children"
+> {
   children?: VerifyForGoodResolvedNavigationItem[];
   /** Final render state after role/plan filtering has been applied upstream. */
   visibilityState: Exclude<VerifyForGoodNavigationVisibilityState, "hidden">;
 }
 
-export interface VerifyForGoodResolvedNavigationSection
-  extends Omit<VerifyForGoodNavigationSection, "items"> {
+export interface VerifyForGoodResolvedNavigationSection extends Omit<
+  VerifyForGoodNavigationSection,
+  "items"
+> {
   items: VerifyForGoodResolvedNavigationItem[];
 }
 

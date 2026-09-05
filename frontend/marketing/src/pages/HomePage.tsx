@@ -25,10 +25,16 @@ export function HomePage({
       <HeroSection
         actions={
           <>
-            <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/product">
+            <a
+              className="marketing-shell__cta marketing-shell__cta--primary"
+              href="#/product"
+            >
               Explore product
             </a>
-            <a className="marketing-shell__cta marketing-shell__cta--secondary" href={platformLoginUrl}>
+            <a
+              className="marketing-shell__cta marketing-shell__cta--secondary"
+              href={platformLoginUrl}
+            >
               Portal login
             </a>
           </>
@@ -39,7 +45,8 @@ export function HomePage({
           <Card title="Platform snapshot">
             <div className="marketing-page-stack">
               <p className="marketing-shell__lede" style={{ margin: 0 }}>
-                Shared token-driven styling keeps the portal and marketing site aligned.
+                Shared token-driven styling keeps the portal and marketing site
+                aligned.
               </p>
               <dl className="marketing-shell__details">
                 <div>
@@ -107,10 +114,16 @@ export function HomePage({
         <CallToAction
           actions={
             <>
-              <a className="marketing-shell__cta marketing-shell__cta--primary" href="#/pricing">
+              <a
+                className="marketing-shell__cta marketing-shell__cta--primary"
+                href="#/pricing"
+              >
                 Review plans
               </a>
-              <a className="marketing-shell__cta marketing-shell__cta--secondary" href="#/developers">
+              <a
+                className="marketing-shell__cta marketing-shell__cta--secondary"
+                href="#/developers"
+              >
                 API guide
               </a>
             </>

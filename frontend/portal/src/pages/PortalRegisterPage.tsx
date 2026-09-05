@@ -28,7 +28,6 @@ interface PortalRegisterPageProps {
 }
 
 export function PortalRegisterPage({
-  endpoints: _endpoints,
   isBusy,
   onRegister,
   requestedRoute,
@@ -65,7 +64,8 @@ export function PortalRegisterPage({
     } catch (error) {
       showToast({
         id: "portal-register",
-        message: error instanceof Error ? error.message : "Registration failed.",
+        message:
+          error instanceof Error ? error.message : "Registration failed.",
         title: "Unable to create account",
         tone: "error",
       });
@@ -103,8 +103,8 @@ export function PortalRegisterPage({
               <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
                 <li>Create your account with your work details.</li>
                 <li>
-                  After sign-in, we&apos;ll check whether you already belong to an
-                  organization.
+                  After sign-in, we&apos;ll check whether you already belong to
+                  an organization.
                 </li>
                 <li>
                   If you do not, you can create one in a dedicated setup step.
@@ -120,7 +120,9 @@ export function PortalRegisterPage({
           <Stack gap="lg">
             <Stack gap="xs">
               <Title order={3}>Create Account</Title>
-              <PortalHint>Use your work email to create your portal login.</PortalHint>
+              <PortalHint>
+                Use your work email to create your portal login.
+              </PortalHint>
             </Stack>
 
             <TextInput
@@ -175,10 +177,22 @@ export function PortalRegisterPage({
             <Divider label="Identity providers" labelPosition="center" />
 
             <Stack gap="sm">
-              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+              <Button
+                disabled
+                fullWidth
+                justify="flex-start"
+                type="button"
+                variant="default"
+              >
                 Google available soon
               </Button>
-              <Button disabled fullWidth justify="flex-start" type="button" variant="default">
+              <Button
+                disabled
+                fullWidth
+                justify="flex-start"
+                type="button"
+                variant="default"
+              >
                 Microsoft available soon
               </Button>
             </Stack>

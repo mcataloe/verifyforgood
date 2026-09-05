@@ -7,7 +7,10 @@ import {
 
 interface PricingPageProps {
   controller?: MarketingPricingPlansController;
-  runtimeConfig: Pick<FrontendRuntimeConfig, "apiBaseUrl" | "apiVersion">;
+  runtimeConfig: Pick<
+    FrontendRuntimeConfig,
+    "apiBaseUrl" | "apiVersion" | "environment"
+  >;
 }
 
 export function PricingPage({ controller, runtimeConfig }: PricingPageProps) {

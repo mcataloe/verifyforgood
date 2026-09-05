@@ -57,7 +57,9 @@ export const verifyForGoodMantineTheme = createTheme({
   primaryShade: { light: 6, dark: 4 },
   colors: {
     primary: toMantineColorsTuple(verifyForGoodTokens.color.palette.primary),
-    secondary: toMantineColorsTuple(verifyForGoodTokens.color.palette.secondary),
+    secondary: toMantineColorsTuple(
+      verifyForGoodTokens.color.palette.secondary,
+    ),
     success: toMantineColorsTuple(verifyForGoodTokens.color.palette.success),
     warning: toMantineColorsTuple(verifyForGoodTokens.color.palette.warning),
     danger: toMantineColorsTuple(verifyForGoodTokens.color.palette.danger),

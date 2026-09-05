@@ -669,7 +669,8 @@ code {
 }
 
 .portal-table tbody td {
-  border-bottom: 1px solid color-mix(in srgb, var(--vf-theme-panel-border) 78%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--vf-theme-panel-border) 78%, transparent);
 }
 
 .portal-table tbody tr:last-child td {
@@ -704,7 +705,11 @@ code {
   padding: 0 0.8rem;
   border: 1px solid var(--vf-theme-panel-border);
   border-left: 0;
-  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 84%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--vf-theme-surface-subtle) 84%,
+    transparent
+  );
   color: var(--vf-theme-text);
   cursor: pointer;
 }
@@ -715,7 +720,11 @@ code {
 }
 
 .portal-secret-field__action:hover {
-  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 72%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--vf-theme-surface-subtle) 72%,
+    transparent
+  );
 }
 
 .portal-key-row {
@@ -1732,7 +1741,6 @@ code {
   .portal-profile-page__avatar-panel {
     grid-template-columns: 1fr;
   }
-
 }
 
 @media (max-width: 1100px) {

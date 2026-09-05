@@ -1,4 +1,8 @@
-import { ErrorState, LoadingSkeleton, PricingPlanTable } from "@charity-status/shared-ui";
+import {
+  ErrorState,
+  LoadingSkeleton,
+  PricingPlanTable,
+} from "@charity-status/shared-ui";
 import { usePortalPricingPlans } from "../billing/usePortalPricingPlans";
 import { PortalPageShell } from "../components/shell";
 

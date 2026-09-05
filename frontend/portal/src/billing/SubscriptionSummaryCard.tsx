@@ -15,7 +15,12 @@ export function SubscriptionSummaryCard({
   const presentation = getSubscriptionStatusPresentation(snapshot);
 
   return (
-    <Alert color={resolveToneColor(presentation.tone)} radius="lg" title={presentation.title} variant="light">
+    <Alert
+      color={resolveToneColor(presentation.tone)}
+      radius="lg"
+      title={presentation.title}
+      variant="light"
+    >
       <Stack gap="md">
         <p style={{ margin: 0 }}>{presentation.description}</p>
         <PortalDetailList
@@ -43,7 +48,9 @@ export function SubscriptionSummaryCard({
             {
               key: "current-period-end",
               label: "Current period end",
-              value: formatDateLabel(snapshot.billingCycleEnd ?? snapshot.renewalDate),
+              value: formatDateLabel(
+                snapshot.billingCycleEnd ?? snapshot.renewalDate,
+              ),
             },
             {
               key: "billing-state",

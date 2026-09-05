@@ -23,11 +23,7 @@ export function PortalDetailView({
   const sections = Children.toArray(children);
 
   return (
-    <DetailPageLayout
-      eyebrow={eyebrow}
-      intro={intro}
-      title={title}
-    >
+    <DetailPageLayout eyebrow={eyebrow} intro={intro} title={title}>
       {sections.map((section, index) => (
         <Fragment key={`portal-detail-section-${index}`}>
           {section}

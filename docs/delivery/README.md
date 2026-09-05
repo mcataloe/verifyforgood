@@ -27,6 +27,7 @@ Delivery Units are coherent functional increments that can be released, enabled,
 
 ## Active Records
 
+- [`INIT-005 — Customer API and Portal Experience`](INIT-005.md)
 - [`INIT-009 — Documentation and Traceability Baseline`](INIT-009.md)
 
 A Delivery Unit is not a Roadmap phase. Roadmap placement may change without changing Delivery Unit identity.

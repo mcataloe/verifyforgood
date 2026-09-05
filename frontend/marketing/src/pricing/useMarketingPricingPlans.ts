@@ -64,7 +64,7 @@ export function useMarketingPricingPlans(
     return () => {
       isCancelled = true;
     };
-  }, [client]);
+  }, [client, runtimeConfig]);
 
   const reload = async () => {
     setIsLoading(true);

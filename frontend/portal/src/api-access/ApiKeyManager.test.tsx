@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { createSessionPortalOrganization } from "../organization/portalOrganization";
@@ -164,7 +170,9 @@ describe("ApiKeyManager", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "csk_demo.secret",
     );
-    expect(await screen.findByText("API key copied to clipboard.")).toBeTruthy();
+    expect(
+      await screen.findByText("API key copied to clipboard."),
+    ).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss notification" }),
@@ -179,13 +187,21 @@ describe("ApiKeyManager", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Edit key Existing key" }),
     );
-    const editDialog = await screen.findByRole("dialog", { name: "Edit API Key" });
-    fireEvent.change(within(editDialog).getByRole("textbox", { name: "Display name" }), {
-      target: { value: "Renamed key" },
+    const editDialog = await screen.findByRole("dialog", {
+      name: "Edit API Key",
     });
-    fireEvent.change(within(editDialog).getByRole("textbox", { name: "Description" }), {
-      target: { value: "Updated description" },
-    });
+    fireEvent.change(
+      within(editDialog).getByRole("textbox", { name: "Display name" }),
+      {
+        target: { value: "Renamed key" },
+      },
+    );
+    fireEvent.change(
+      within(editDialog).getByRole("textbox", { name: "Description" }),
+      {
+        target: { value: "Updated description" },
+      },
+    );
     fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
     expect(state.updateKey).toHaveBeenCalledWith("key_existing", {
       description: "Updated description",
@@ -199,8 +215,12 @@ describe("ApiKeyManager", () => {
       screen.getByRole("button", { name: "Revoke key Existing key" }),
     );
     expect(state.revokeKey).not.toHaveBeenCalled();
-    const revokeDialog = await screen.findByRole("dialog", { name: "Revoke API Key" });
-    fireEvent.click(within(revokeDialog).getByRole("button", { name: "Revoke" }));
+    const revokeDialog = await screen.findByRole("dialog", {
+      name: "Revoke API Key",
+    });
+    fireEvent.click(
+      within(revokeDialog).getByRole("button", { name: "Revoke" }),
+    );
     expect(state.revokeKey).toHaveBeenCalledWith("key_existing");
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));

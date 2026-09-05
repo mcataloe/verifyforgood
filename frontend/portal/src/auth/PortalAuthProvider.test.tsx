@@ -22,7 +22,10 @@ describe("PortalAuthProvider", () => {
     render(
       <PortalAuthProvider
         authClient={authClient}
-        runtimeConfig={{ apiBaseUrl: "http://localhost:8000", apiVersion: "v1" }}
+        runtimeConfig={{
+          apiBaseUrl: "http://localhost:8000",
+          apiVersion: "v1",
+        }}
       >
         <TestHarness />
       </PortalAuthProvider>,
@@ -71,7 +74,10 @@ describe("PortalAuthProvider", () => {
     render(
       <PortalAuthProvider
         authClient={authClient}
-        runtimeConfig={{ apiBaseUrl: "http://localhost:8000", apiVersion: "v1" }}
+        runtimeConfig={{
+          apiBaseUrl: "http://localhost:8000",
+          apiVersion: "v1",
+        }}
       >
         <RefreshHarness />
       </PortalAuthProvider>,
@@ -94,10 +100,12 @@ function TestHarness() {
       <span>{auth.isBusy ? "busy" : "idle"}</span>
       <button
         onClick={() => {
-          void auth.login({
-            email: "jamie.admin@example.org",
-            password: "wrong-pass",
-          }).catch(() => {});
+          void auth
+            .login({
+              email: "jamie.admin@example.org",
+              password: "wrong-pass",
+            })
+            .catch(() => {});
         }}
         type="button"
       >

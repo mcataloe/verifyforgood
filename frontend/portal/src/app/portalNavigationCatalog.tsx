@@ -29,7 +29,13 @@ const NAV_ICON_SIZE = 20;
 const NAV_ICON_STROKE = 1.75;
 
 function navIcon(IconComponent: TablerIconComponent) {
-  return <IconComponent aria-hidden="true" size={NAV_ICON_SIZE} stroke={NAV_ICON_STROKE} />;
+  return (
+    <IconComponent
+      aria-hidden="true"
+      size={NAV_ICON_SIZE}
+      stroke={NAV_ICON_STROKE}
+    />
+  );
 }
 
 function item(
@@ -75,9 +81,15 @@ export function buildAudienceNavigationSections(
             item(routes, "dashboard", "developer-overview", "Dashboard", {
               icon: IconLayoutDashboard,
             }),
-            item(routes, "organizations", "developer-tenants", "Search Nonprofits", {
-              icon: IconSearch,
-            }),
+            item(
+              routes,
+              "organizations",
+              "developer-tenants",
+              "Search Nonprofits",
+              {
+                icon: IconSearch,
+              },
+            ),
             item(routes, "billing", "developer-plans", "Plans", {
               icon: IconStack2,
             }),
@@ -175,10 +187,16 @@ export function buildAudienceNavigationSections(
             item(routes, "usage", "customer-admin-usage", "Usage", {
               icon: IconChartBar,
             }),
-            item(routes, "automation-api-key", "customer-admin-api", "API Keys", {
-              allowedPlans: ["growth", "pro", "enterprise"],
-              icon: IconKey,
-            }),
+            item(
+              routes,
+              "automation-api-key",
+              "customer-admin-api",
+              "API Keys",
+              {
+                allowedPlans: ["growth", "pro", "enterprise"],
+                icon: IconKey,
+              },
+            ),
             item(
               routes,
               "settings-organization",

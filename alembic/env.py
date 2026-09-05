@@ -17,6 +17,10 @@ for path in (ROOT, INFRA_PATH):
 
 from verification.backend.shared.platform import resolve_postgres_sqlalchemy_url  # noqa: E402
 from verification.backend.shared.customer_accounts import CustomerAccountsBase  # noqa: E402
+from verification.backend.shared.chat import (  # noqa: F401,E402
+    ChatConversationModel,
+    ChatMessageModel,
+)
 from verification.backend.shared.nonprofits import (  # noqa: F401,E402
     ComplianceCheckModel,
     NonprofitFilingModel,
@@ -77,4 +81,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

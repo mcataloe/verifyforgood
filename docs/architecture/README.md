@@ -11,7 +11,7 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting index; individual decisions retain their own authority  
 Owner / approver: Project owner / Architecture owner  
-Last reconciled: 2026-09-04  
+Last reconciled: 2026-09-05  
 Canonical owner of: Navigation and status of technical-structure documentation  
 Related Initiatives: `INIT-001`, `INIT-003`, `INIT-004`, `INIT-005`, `INIT-006`, `INIT-007`, `INIT-009`
 
@@ -24,6 +24,7 @@ Architecture organizes technical structure. It does not own the Mission, Strateg
 | [`../../backend/README.md`](../../backend/README.md) | Current backend runtime-host boundaries, local development, persistence, and container contracts | Supporting current runtime reference | `INIT-003`, `INIT-004`, `INIT-005`, `INIT-007` | Verify implementation against current code, migrations, and tests |
 | [`../../frontend/README.md`](../../frontend/README.md) | Frontend workspace and portal/shared dependency boundaries | Supporting current runtime reference | `INIT-005`, `INIT-008` | Product surfaces must not redefine authority |
 | [`ADR-advisory-copilot-product-doctrine.md`](ADR-advisory-copilot-product-doctrine.md) | Customer-facing nonprofit advisory-copilot doctrine | Accepted decision | `INIT-001`, `INIT-005` | Legacy score/recommendation seams remain compatibility concerns |
+| [`chat-local-cloud-parity.md`](chat-local-cloud-parity.md) | Local Chat provider/routing/orchestration parity and cloud stop-gate architecture | Supporting current Architecture | `INIT-005`, future `INIT-007` | Cloud Bedrock/Guardrails implementation remains separately gated |
 | [`ADR-ecs-runtime-pivot.md`](ADR-ecs-runtime-pivot.md) | ECS/ALB customer API runtime direction | Architecture decision | `INIT-005`, `INIT-007` | Legacy rollback references require freshness checks |
 | [`ADR-identity-datastore.md`](ADR-identity-datastore.md) | Identity datastore direction | Provisional ADR | `INIT-004` | Security/privacy/migration approval required for material changes |
 | [`ADR-nonprofit-database-isolation.md`](ADR-nonprofit-database-isolation.md) | Nonprofit database isolation and persistence direction | Architecture decision | `INIT-002`, `INIT-003`, `INIT-007` | Verify current migration/runtime state before changing persistence |

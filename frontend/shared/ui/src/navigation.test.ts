@@ -191,7 +191,9 @@ describe("navigation filtering helpers", () => {
     const analytics = findItem(sections, "analytics");
 
     expect(analytics?.visibilityState).toBe("visible");
-    expect(analytics?.children?.map((child) => [child.key, child.visibilityState])).toEqual([
+    expect(
+      analytics?.children?.map((child) => [child.key, child.visibilityState]),
+    ).toEqual([
       ["analytics-overview", "visible"],
       ["analytics-export", "locked"],
     ]);
@@ -202,15 +204,24 @@ function findItem(
   sections: ReturnType<typeof filterNavigationSections>,
   key: string,
 ) {
-  return sections.flatMap((section) => flattenItems(section.items)).find((item) => item.key === key);
+  return sections
+    .flatMap((section) => flattenItems(section.items))
+    .find((item) => item.key === key);
 }
 
 function flattenItems(
-  items: NonNullable<ReturnType<typeof filterNavigationSections>[number]>["items"],
+  items: NonNullable<
+    ReturnType<typeof filterNavigationSections>[number]
+  >["items"],
 ): NonNullable<ReturnType<typeof filterNavigationSections>[number]>["items"] {
-  return items.flatMap((item) => [item, ...(item.children ? flattenItems(item.children) : [])]);
+  return items.flatMap((item) => [
+    item,
+    ...(item.children ? flattenItems(item.children) : []),
+  ]);
 }
 
 function flattenKeys(sections: ReturnType<typeof filterNavigationSections>) {
-  return sections.flatMap((section) => flattenItems(section.items)).map((item) => item.key);
+  return sections
+    .flatMap((section) => flattenItems(section.items))
+    .map((item) => item.key);
 }

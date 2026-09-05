@@ -1,8 +1,5 @@
 import { useComputedColorScheme } from "@mantine/core";
-import {
-  verifyForGoodTokens,
-  type VerifyForGoodThemeMode,
-} from "./tokens";
+import { verifyForGoodTokens, type VerifyForGoodThemeMode } from "./tokens";
 
 export function useVerifyForGoodThemeMode() {
   return useComputedColorScheme("light") as VerifyForGoodThemeMode;

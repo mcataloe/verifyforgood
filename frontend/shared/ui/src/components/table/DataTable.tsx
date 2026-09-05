@@ -138,15 +138,20 @@ export function DataTable<T>({
 
       return leftValue > rightValue ? direction : -direction;
     });
-  }, [columns, filterDefinitions, filters, getSearchText, rows, searchValue, sortState]);
+  }, [
+    columns,
+    filterDefinitions,
+    filters,
+    getSearchText,
+    rows,
+    searchValue,
+    sortState,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageStartIndex = (currentPage - 1) * pageSize;
-  const pagedRows = filteredRows.slice(
-    pageStartIndex,
-    currentPage * pageSize,
-  );
+  const pagedRows = filteredRows.slice(pageStartIndex, currentPage * pageSize);
 
   const hasFilterSurface = Boolean(getSearchText || filterDefinitions.length);
   const isFiltered =
@@ -155,7 +160,9 @@ export function DataTable<T>({
 
   const clearFilters = () => {
     setFilters(
-      Object.fromEntries(filterDefinitions.map((filter) => [filter.key, "all"])),
+      Object.fromEntries(
+        filterDefinitions.map((filter) => [filter.key, "all"]),
+      ),
     );
     setPage(1);
     setSearchValue("");
@@ -213,7 +220,8 @@ export function DataTable<T>({
             <Stack gap="sm">
               <Group justify="space-between" wrap="wrap">
                 <Text c="dimmed" fz="sm">
-                  {filteredRows.length} record{filteredRows.length === 1 ? "" : "s"}
+                  {filteredRows.length} record
+                  {filteredRows.length === 1 ? "" : "s"}
                 </Text>
                 {isFiltered ? (
                   <Button onClick={clearFilters} size="xs" variant="subtle">
@@ -308,7 +316,8 @@ export function DataTable<T>({
                             display: "inline-flex",
                             gap: verifyForGoodTokens.spacing.scale.xs,
                             fontWeight:
-                              verifyForGoodTokens.typography.fontWeight.semibold,
+                              verifyForGoodTokens.typography.fontWeight
+                                .semibold,
                           }}
                         >
                           <span>{column.header}</span>
@@ -353,7 +362,11 @@ export function DataTable<T>({
             {Math.min(currentPage * pageSize, filteredRows.length)} of{" "}
             {filteredRows.length}
           </Text>
-          <Pagination onChange={setPage} total={totalPages} value={currentPage} />
+          <Pagination
+            onChange={setPage}
+            total={totalPages}
+            value={currentPage}
+          />
         </Group>
       ) : null}
     </Stack>

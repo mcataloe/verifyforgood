@@ -38,7 +38,10 @@ export function ProductPage({
 
       <CallToAction
         actions={
-          <a className="marketing-shell__cta marketing-shell__cta--secondary" href={platformLoginUrl}>
+          <a
+            className="marketing-shell__cta marketing-shell__cta--secondary"
+            href={platformLoginUrl}
+          >
             Open portal
           </a>
         }

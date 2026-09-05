@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -121,7 +127,9 @@ describe("TeamManagementPanel", () => {
         name: "Edit member member@example.org",
       }),
     );
-    const editDialog = await screen.findByRole("dialog", { name: "Edit Member" });
+    const editDialog = await screen.findByRole("dialog", {
+      name: "Edit Member",
+    });
     fireEvent.change(within(editDialog).getByLabelText("Role"), {
       target: { value: "admin" },
     });
@@ -136,9 +144,15 @@ describe("TeamManagementPanel", () => {
         name: "Delete member member@example.org",
       }),
     );
-    const deleteDialog = await screen.findByRole("dialog", { name: "Delete Member" });
-    expect(within(deleteDialog).getByRole("button", { name: "Delete" })).toBeTruthy();
-    fireEvent.click(within(deleteDialog).getByRole("button", { name: "Delete" }));
+    const deleteDialog = await screen.findByRole("dialog", {
+      name: "Delete Member",
+    });
+    expect(
+      within(deleteDialog).getByRole("button", { name: "Delete" }),
+    ).toBeTruthy();
+    fireEvent.click(
+      within(deleteDialog).getByRole("button", { name: "Delete" }),
+    );
 
     await waitFor(() => {
       expect(deleteMember).toHaveBeenCalledOnce();
@@ -181,12 +195,8 @@ describe("TeamManagementPanel", () => {
 
     expect(screen.getByText("Read-only team view")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: /Edit member/i }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: /Delete member/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Edit member/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Delete member/i })).toBeNull();
   });
 
   it("shows newly created invitations in the invitation table after refresh", async () => {

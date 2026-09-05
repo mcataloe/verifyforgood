@@ -41,13 +41,9 @@ const supportCategories = [
   { label: "Other", value: "other" },
 ] as const;
 
-export function SupportHelpPanel({
-  controller,
-  pane,
-}: SupportHelpPanelProps) {
-  const [category, setCategory] = useState<
-    (typeof supportCategories)[number]["value"]
-  >("other");
+export function SupportHelpPanel({ controller, pane }: SupportHelpPanelProps) {
+  const [category, setCategory] =
+    useState<(typeof supportCategories)[number]["value"]>("other");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [watchers, setWatchers] = useState<string[]>([]);
@@ -140,7 +136,9 @@ export function SupportHelpPanel({
                 label: "Helpful links",
                 value: (
                   <>
-                    <a href={context.product_links.api_access_hash}>API access</a>
+                    <a href={context.product_links.api_access_hash}>
+                      API access
+                    </a>
                     {" | "}
                     <a href={context.product_links.usage_hash}>Usage</a>
                     {" | "}
@@ -150,7 +148,9 @@ export function SupportHelpPanel({
               },
             ]}
           />
-          <PortalHint>{context.issue_reporting.urgent_contact_notice}</PortalHint>
+          <PortalHint>
+            {context.issue_reporting.urgent_contact_notice}
+          </PortalHint>
         </Stack>
       ) : null}
 
@@ -188,9 +188,13 @@ export function SupportHelpPanel({
                 onChange={(values) => {
                   controller.clearReceipt();
                   setWatchers(values);
-                  const invalidWatcher = values.find((value) => !isValidEmail(value));
+                  const invalidWatcher = values.find(
+                    (value) => !isValidEmail(value),
+                  );
                   setWatcherMessage(
-                    invalidWatcher ? "Watchers must be valid email addresses." : null,
+                    invalidWatcher
+                      ? "Watchers must be valid email addresses."
+                      : null,
                   );
                 }}
                 placeholder="Add email and press Enter"
@@ -248,7 +252,9 @@ export function SupportHelpPanel({
                     withRemoveButton
                     removeButtonProps={{ "aria-label": `Remove ${file.name}` }}
                     onRemove={() => {
-                      const nextFiles = attachments.filter((_, i) => i !== index);
+                      const nextFiles = attachments.filter(
+                        (_, i) => i !== index,
+                      );
                       setAttachmentMessage(getAttachmentMessage(nextFiles));
                       setAttachments(nextFiles);
                     }}
@@ -286,8 +292,8 @@ export function SupportHelpPanel({
               <PortalNotice title="Support request sent" tone="warning">
                 <p>
                   Your request was sent on{" "}
-                  {formatDateTime(controller.receipt.submitted_at)}. We'll follow up
-                  through {controller.receipt.support_email}.
+                  {formatDateTime(controller.receipt.submitted_at)}. We'll
+                  follow up through {controller.receipt.support_email}.
                 </p>
               </PortalNotice>
             </div>
@@ -326,7 +332,8 @@ export function SupportHelpPanel({
                     },
                     description: description.trim(),
                     subject: subject.trim(),
-                    watchers: cleanedWatchers.length > 0 ? cleanedWatchers : null,
+                    watchers:
+                      cleanedWatchers.length > 0 ? cleanedWatchers : null,
                   })
                   .then(() => {
                     setSubject("");

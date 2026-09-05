@@ -13,6 +13,11 @@ The frontend workspace is pnpm-first.
 - `frontend/pnpm-lock.yaml` is the canonical frontend lockfile
 - backend Python and Terraform tooling at the repository root stays unchanged
 
+Frontend text files use LF line endings, enforced by `.gitattributes`, so
+Prettier checks behave consistently on Windows and in CI. Run `pnpm run format`
+to apply formatting. The generated `pnpm-lock.yaml` is excluded from Prettier;
+update it through pnpm.
+
 ## Naming Baseline
 
 Frontend-facing naming should prefer VerifyForGood and purpose-based terminology.

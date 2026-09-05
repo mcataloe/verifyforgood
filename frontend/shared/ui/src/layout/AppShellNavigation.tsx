@@ -1,4 +1,11 @@
-import { Box, NavLink, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
+import {
+  Box,
+  NavLink,
+  Stack,
+  Text,
+  Tooltip,
+  VisuallyHidden,
+} from "@mantine/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   VerifyForGoodNavigationItem,
@@ -41,7 +48,9 @@ export function AppShellNavigation({
   );
   const [openedTopLevelBranchKey, setOpenedTopLevelBranchKey] = useState<
     string | null
-  >(() => resolveInitialTopLevelBranchKey(visibleSections, activeNavigationKey));
+  >(() =>
+    resolveInitialTopLevelBranchKey(visibleSections, activeNavigationKey),
+  );
   const previousActiveNavigationKeyRef = useRef(activeNavigationKey);
 
   useEffect(() => {
@@ -58,10 +67,7 @@ export function AppShellNavigation({
         return activeBranchKey;
       }
 
-      if (
-        current &&
-        topLevelBranchExists(visibleSections, current)
-      ) {
+      if (current && topLevelBranchExists(visibleSections, current)) {
         return current;
       }
 
@@ -222,7 +228,9 @@ function AppShellNavigationItemView({
 
   const isActive = isSelfActive || hasActiveDescendant;
   const isTopLevelBranch = depth === 0 && hasChildren;
-  const isOpened = isTopLevelBranch ? openedTopLevelBranchKey === item.key : opened;
+  const isOpened = isTopLevelBranch
+    ? openedTopLevelBranchKey === item.key
+    : opened;
 
   if (hasChildren) {
     const branchLink = (
@@ -407,7 +415,10 @@ function resolveInitialTopLevelBranchKey(
 
   for (const section of sections) {
     for (const item of section.items) {
-      if ((item.children ?? []).length <= 1 && (item.children ?? []).length > 0) {
+      if (
+        (item.children ?? []).length <= 1 &&
+        (item.children ?? []).length > 0
+      ) {
         return item.key;
       }
     }
@@ -510,7 +521,9 @@ function ItemWithTooltip({
       <NavigationTooltipWrapper forceLabel={forceLabel} helpText={helpText}>
         {children}
       </NavigationTooltipWrapper>
-      {helpText ? <VisuallyHidden id={helpTextId}>{helpText}</VisuallyHidden> : null}
+      {helpText ? (
+        <VisuallyHidden id={helpTextId}>{helpText}</VisuallyHidden>
+      ) : null}
     </>
   );
 }

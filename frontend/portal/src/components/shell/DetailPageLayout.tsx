@@ -3,8 +3,7 @@ import { Stack } from "@mantine/core";
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 
 interface DetailPageLayoutProps
-  extends PropsWithChildren,
-    Omit<HTMLAttributes<HTMLElement>, "title"> {
+  extends PropsWithChildren, Omit<HTMLAttributes<HTMLElement>, "title"> {
   eyebrow?: ReactNode;
   header?: ReactNode;
   intro?: ReactNode;

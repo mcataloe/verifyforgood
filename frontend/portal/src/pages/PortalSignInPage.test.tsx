@@ -79,9 +79,7 @@ describe("PortalSignInPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
-    expect(
-      await screen.findByText("Invalid email or password"),
-    ).toBeTruthy();
+    expect(await screen.findByText("Invalid email or password")).toBeTruthy();
   });
 
   it("dismisses the sign-in toast when the user updates the form", async () => {
@@ -98,9 +96,7 @@ describe("PortalSignInPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
-    expect(
-      await screen.findByText("Invalid email or password"),
-    ).toBeTruthy();
+    expect(await screen.findByText("Invalid email or password")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "corrected-pass" },

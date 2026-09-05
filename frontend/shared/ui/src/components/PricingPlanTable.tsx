@@ -49,8 +49,7 @@ export function PricingPlanTable({ plans }: PricingPlanTableProps) {
             <th scope="row">Overage pricing</th>
             {plans.map((plan) => (
               <td key={plan.plan_code}>
-                {formatUsdMicros(plan.per_request_pricing.amount_usd_micros)}
-                {" "}
+                {formatUsdMicros(plan.per_request_pricing.amount_usd_micros)}{" "}
                 per {plan.per_request_pricing.unit}
               </td>
             ))}

@@ -73,13 +73,17 @@ export function usePortalOrganizationProfileSettings(): PortalOrganizationProfil
             account_id: organization.activeOrganization.account_id,
             auth_method: "portal_browser_session",
             organization_context_status: organization.selectionStatus,
-            organization_name: organization.activeOrganization.organization_name,
+            organization_name:
+              organization.activeOrganization.organization_name,
             workspace_id: organization.activeOrganization.workspace_id,
           },
           settings,
         });
         organization.setActiveOrganization(nextOrganization);
-        if (organization.currentMembership && nextOrganization.organization_id) {
+        if (
+          organization.currentMembership &&
+          nextOrganization.organization_id
+        ) {
           auth.applyOrganization({
             account_id: nextOrganization.account_id,
             membership: {

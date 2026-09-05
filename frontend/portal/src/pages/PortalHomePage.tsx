@@ -1,4 +1,12 @@
-import { Divider, List, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import {
+  Divider,
+  List,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import {
   PortalActionGroup,
   PortalAnchorButton,
@@ -18,8 +26,8 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
           <Title order={2}>Sign In to Manage Your Organization</Title>
           <PortalHint>
             Access billing, team access, API credentials, and verification
-            activity from one secure account. Sign in first, then create or
-            join an organization if needed.
+            activity from one secure account. Sign in first, then create or join
+            an organization if needed.
           </PortalHint>
         </Stack>
 
@@ -47,8 +55,8 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
             <Title order={3}>Get Started Quickly</Title>
             <List spacing="xs">
               <List.Item>
-                If you already belong to an organization, you go straight to your
-                dashboard.
+                If you already belong to an organization, you go straight to
+                your dashboard.
               </List.Item>
               <List.Item>
                 If you are new, you can create your organization in a dedicated
@@ -66,7 +74,9 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
         <Stack gap="lg">
           <Stack gap="xs">
             <Title order={3}>Start with Authentication</Title>
-            <PortalHint>Choose the account flow that fits your current state.</PortalHint>
+            <PortalHint>
+              Choose the account flow that fits your current state.
+            </PortalHint>
           </Stack>
 
           <PortalActionGroup>
@@ -85,9 +95,13 @@ export function PortalHomePage({ requestedRoute }: PortalHomePageProps) {
           <Divider label="What you can manage" labelPosition="center" />
 
           <List spacing="xs">
-            <List.Item>Verification dashboard and organization activity</List.Item>
+            <List.Item>
+              Verification dashboard and organization activity
+            </List.Item>
             <List.Item>Nonprofit search and detailed review</List.Item>
-            <List.Item>Usage, billing, settings, and API credential management</List.Item>
+            <List.Item>
+              Usage, billing, settings, and API credential management
+            </List.Item>
           </List>
         </Stack>
       </Paper>

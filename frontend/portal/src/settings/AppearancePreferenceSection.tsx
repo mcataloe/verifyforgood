@@ -26,8 +26,8 @@ export function AppearancePreferenceSection({
         </Title>
       ) : null}
       <Text c="dimmed" size="sm">
-        Choose how VerifyForGood should look for this browser. Auto follows
-        the system preference, while Light and Dark stay fixed until changed.
+        Choose how VerifyForGood should look for this browser. Auto follows the
+        system preference, while Light and Dark stay fixed until changed.
       </Text>
 
       <ColorSchemeToggle label="Appearance mode" />

@@ -7,6 +7,7 @@ import { PricingPage } from "./PricingPage";
 const runtimeConfig = {
   apiBaseUrl: "https://api.verifyforgood.test",
   apiVersion: "v1",
+  environment: "test",
 } as const;
 
 describe("PricingPage", () => {

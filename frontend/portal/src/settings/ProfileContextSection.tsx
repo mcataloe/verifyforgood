@@ -12,7 +12,6 @@ interface ProfileContextSectionProps {
 }
 
 export function ProfileContextSection({
-  environment: _environment,
   organization,
   session,
   showTitle = true,
@@ -22,7 +21,11 @@ export function ProfileContextSection({
       aria-labelledby={showTitle ? "profile-context-title" : undefined}
       gap="md"
     >
-      {showTitle ? <Title id="profile-context-title" order={3}>Account Details</Title> : null}
+      {showTitle ? (
+        <Title id="profile-context-title" order={3}>
+          Account Details
+        </Title>
+      ) : null}
       <Stack gap={2}>
         <Text fw={700} size="lg">
           {session.user.display_name}

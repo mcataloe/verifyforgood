@@ -1,4 +1,9 @@
-import { Children, Fragment, type PropsWithChildren, type ReactNode } from "react";
+import {
+  Children,
+  Fragment,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { SectionDivider } from "./SectionDivider";
 
 interface StackedDetailSectionsProps extends PropsWithChildren {

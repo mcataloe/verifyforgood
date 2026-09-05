@@ -34,11 +34,13 @@ html[data-mantine-color-scheme="light"],
   --vf-space-9: 3rem;
 
   /* Typography */
-  --vf-font-sans: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+  --vf-font-sans:
+    Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
     "Helvetica Neue", sans-serif;
   --vf-font-serif: Inter, "Segoe UI", system-ui, sans-serif;
   --vf-font-display: Inter, "Segoe UI", system-ui, sans-serif;
-  --vf-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --vf-font-mono:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --vf-font-size-xs: 0.78rem;
   --vf-font-size-sm: 0.92rem;
   --vf-font-size-md: 1rem;

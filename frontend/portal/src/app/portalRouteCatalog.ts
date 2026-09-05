@@ -1,61 +1,167 @@
 import type { PortalRouteDefinition } from "./portalRoutes";
 
 export const portalPublicRoutes: PortalRouteDefinition[] = [
-  { access: "public", key: "home", page: "home", label: "Home", hash: "#/", description: "Review portal entry points." },
-  { access: "public", key: "sign-in", page: "sign-in", label: "Sign In", hash: "#/sign-in", description: "Sign in to the customer portal." },
-  { access: "public", key: "register", page: "register", label: "Register", hash: "#/register", description: "Create a customer portal account." },
+  {
+    access: "public",
+    key: "home",
+    page: "home",
+    label: "Home",
+    hash: "#/",
+    description: "Review portal entry points.",
+  },
+  {
+    access: "public",
+    key: "sign-in",
+    page: "sign-in",
+    label: "Sign In",
+    hash: "#/sign-in",
+    description: "Sign in to the customer portal.",
+  },
+  {
+    access: "public",
+    key: "register",
+    page: "register",
+    label: "Register",
+    hash: "#/register",
+    description: "Create a customer portal account.",
+  },
 ];
 
 export const organizationOnboardingPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "onboarding-organization", page: "onboarding-organization", label: "Create Organization", hash: "#/onboarding/organization", description: "Create the first organization context.",
+  access: "protected",
+  key: "onboarding-organization",
+  page: "onboarding-organization",
+  label: "Create Organization",
+  hash: "#/onboarding/organization",
+  description: "Create the first organization context.",
 };
 export const dashboardPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "dashboard", page: "dashboard", label: "Dashboard", hash: "#/dashboard", description: "Review recent activity and next actions.",
+  access: "protected",
+  key: "dashboard",
+  page: "dashboard",
+  label: "Dashboard",
+  hash: "#/dashboard",
+  description: "Review recent activity and next actions.",
 };
 export const organizationsPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "workspace", page: "organizations", label: "Search Nonprofits", hash: "#/organizations", description: "Search nonprofit records and open source-backed profiles.",
+  access: "protected",
+  key: "workspace",
+  page: "organizations",
+  label: "Search Nonprofits",
+  hash: "#/organizations",
+  description: "Search nonprofit records and open source-backed profiles.",
 };
 export const nonprofitSearchPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "search", page: "organizations", label: "Search Nonprofits", hash: "#/search", description: "Search nonprofit records and open source-backed profiles.",
+  access: "protected",
+  key: "search",
+  page: "organizations",
+  label: "Search Nonprofits",
+  hash: "#/search",
+  description: "Search nonprofit records and open source-backed profiles.",
 };
 export const teamPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "workspace", page: "team", label: "Team", hash: "#/team", description: "Manage organization membership and workspace access.",
+  access: "protected",
+  key: "workspace",
+  page: "team",
+  label: "Team",
+  hash: "#/team",
+  description: "Manage organization membership and workspace access.",
 };
 export const supportContactPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "support", page: "support-contact", label: "Contact Support", hash: "#/support", description: "Contact support and review helpful product links.",
+  access: "protected",
+  key: "support",
+  page: "support-contact",
+  label: "Contact Support",
+  hash: "#/support",
+  description: "Contact support and review helpful product links.",
 };
 export const supportReportIssuePortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "support", page: "support-report-issue", label: "Feedback", hash: "#/support/report-issue", description: "Send support requests and product recommendations.",
+  access: "protected",
+  key: "support",
+  page: "support-report-issue",
+  label: "Feedback",
+  hash: "#/support/report-issue",
+  description: "Send support requests and product recommendations.",
 };
 export const automationGeneralPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "api-access", page: "automation-general", label: "Automation", hash: "#/automation", description: "Review automation behavior and integration access.",
+  access: "protected",
+  key: "api-access",
+  page: "automation-general",
+  label: "Automation",
+  hash: "#/automation",
+  description: "Review automation behavior and integration access.",
 };
 export const automationApiKeyPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "api-access", page: "automation-api-key", label: "API Keys", hash: "#/automation/api-keys", description: "Manage organization API keys.",
+  access: "protected",
+  key: "api-access",
+  page: "automation-api-key",
+  label: "API Keys",
+  hash: "#/automation/api-keys",
+  description: "Manage organization API keys.",
 };
 export const automationOauthPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "api-access", page: "automation-oauth", label: "OAuth", hash: "#/automation/oauth", description: "Review OAuth client access.",
+  access: "protected",
+  key: "api-access",
+  page: "automation-oauth",
+  label: "OAuth",
+  hash: "#/automation/oauth",
+  description: "Review OAuth client access.",
 };
 export const billingPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "usage-billing", page: "billing", label: "Billing", hash: "#/billing", description: "Review subscription and billing state.",
+  access: "protected",
+  key: "usage-billing",
+  page: "billing",
+  label: "Billing",
+  hash: "#/billing",
+  description: "Review subscription and billing state.",
 };
 export const usagePortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "usage-billing", page: "usage", label: "Usage", hash: "#/usage", description: "Review request usage and plan limits.",
+  access: "protected",
+  key: "usage-billing",
+  page: "usage",
+  label: "Usage",
+  hash: "#/usage",
+  description: "Review request usage and plan limits.",
 };
 export const settingsProfilePortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "settings", page: "settings-profile", label: "Profile", hash: "#/settings/profile", description: "Manage profile and appearance preferences.",
+  access: "protected",
+  key: "settings",
+  page: "settings-profile",
+  label: "Profile",
+  hash: "#/settings/profile",
+  description: "Manage profile and appearance preferences.",
 };
 export const settingsOrganizationPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "settings", page: "settings-organization", label: "Organization Settings", hash: "#/settings/organization", description: "Manage organization settings and integration defaults.",
+  access: "protected",
+  key: "settings",
+  page: "settings-organization",
+  label: "Organization Settings",
+  hash: "#/settings/organization",
+  description: "Manage organization settings and integration defaults.",
 };
 export const helpPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "help", page: "help", label: "Help", hash: "#/help", description: "Get help using the VerifyForGood portal.",
+  access: "protected",
+  key: "help",
+  page: "help",
+  label: "Help",
+  hash: "#/help",
+  description: "Get help using the VerifyForGood portal.",
 };
 export const helpDocumentationPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "help", page: "help-documentation", label: "Documentation", hash: "#/help/documentation", description: "Read product documentation.",
+  access: "protected",
+  key: "help",
+  page: "help-documentation",
+  label: "Documentation",
+  hash: "#/help/documentation",
+  description: "Read product documentation.",
 };
 export const comparePlansPortalRoute: PortalRouteDefinition = {
-  access: "protected", key: "usage-billing", page: "compare-plans", label: "Compare Plans", hash: "#/billing/compare-plans", description: "Compare plan features, cost, and API limits.",
+  access: "protected",
+  key: "usage-billing",
+  page: "compare-plans",
+  label: "Compare Plans",
+  hash: "#/billing/compare-plans",
+  description: "Compare plan features, cost, and API limits.",
 };
 
 export const portalProtectedRoutes: PortalRouteDefinition[] = [

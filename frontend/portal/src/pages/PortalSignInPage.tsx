@@ -27,10 +27,7 @@ interface PortalSignInPageProps {
   requestedRoute: PortalRouteDefinition;
 }
 
-export function PortalSignInPage({
-  isBusy,
-  onLogin,
-}: PortalSignInPageProps) {
+export function PortalSignInPage({ isBusy, onLogin }: PortalSignInPageProps) {
   const emailId = useId();
   const passwordId = useId();
   const { dismissToast, showToast } = usePortalToast();

@@ -460,7 +460,9 @@ function CredentialCard({
           <Group align="center" gap={6} wrap="nowrap">
             <IconActionButton
               ariaLabel={revealLabel}
-              icon={isRevealed ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+              icon={
+                isRevealed ? <IconEyeOff size={16} /> : <IconEye size={16} />
+              }
               onClick={onToggleReveal}
               tooltip={revealLabel}
             />

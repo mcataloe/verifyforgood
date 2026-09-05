@@ -5,8 +5,6 @@ import type { PortalAuthenticatedSession } from "../app/portalSession";
 import { PortalPageShell, StackedDetailSections } from "../components/shell";
 
 export function PortalDashboardPage({
-  audience: _audience,
-  runtimeConfig: _runtimeConfig,
   session,
 }: {
   audience: PortalNavigationAudience;

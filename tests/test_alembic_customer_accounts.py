@@ -25,7 +25,7 @@ finally:
     sys.path[:] = ORIGINAL_SYS_PATH
 
 
-def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_tables(tmp_path: Path):
+def test_alembic_upgrade_creates_current_platform_and_chat_tables(tmp_path: Path):
     db_path = tmp_path / "alembic.sqlite3"
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{db_path}")
@@ -50,11 +50,16 @@ def test_alembic_upgrade_creates_customer_account_and_nonprofit_foundation_table
     assert "organization_api_keys" in table_names
     assert "organization_audit_logs" in table_names
     assert "organization_support_tickets" in table_names
-    assert "nonprofits" in table_names
-    assert "nonprofit_filings" in table_names
-    assert "nonprofit_raw_filings" in table_names
-    assert "nonprofit_sources" in table_names
-    assert "compliance_checks" in table_names
+    assert "chat_conversations" in table_names
+    assert "chat_messages" in table_names
+
+    # Phase 28D removed nonprofit tables from the platform migration chain;
+    # nonprofit data is managed by alembic_nonprofit instead.
+    assert "nonprofits" not in table_names
+    assert "nonprofit_filings" not in table_names
+    assert "nonprofit_raw_filings" not in table_names
+    assert "nonprofit_sources" not in table_names
+    assert "compliance_checks" not in table_names
 
 
 def test_phase28_migration_uses_postgres_safe_explicit_identifier_names():

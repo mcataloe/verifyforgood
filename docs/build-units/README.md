@@ -29,6 +29,7 @@ A Build Unit is a bounded implementation responsibility that can be implemented,
 
 ## Active Records
 
+- [`INIT-005 — Customer API and Portal Experience`](INIT-005.md)
 - [`INIT-009 — Documentation and Traceability Baseline`](INIT-009.md)
 
 Build Units must remain within approved scope and stop when a material product, Architecture, contract, or source-truth decision is required.

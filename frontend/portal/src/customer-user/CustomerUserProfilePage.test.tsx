@@ -29,9 +29,7 @@ describe("CustomerUserProfilePage", () => {
     expect(
       screen.getByRole("heading", { name: "Personal information" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Appearance" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
     expect(screen.getByLabelText("First Name")).toBeTruthy();
     expect(screen.getByLabelText("Last Name")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();

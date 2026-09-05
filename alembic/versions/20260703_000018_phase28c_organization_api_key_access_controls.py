@@ -22,7 +22,8 @@ def upgrade() -> None:
         "organization_api_keys",
         sa.Column("permission_level", sa.String(length=32), nullable=False, server_default="full_access"),
     )
-    op.alter_column("organization_api_keys", "permission_level", server_default=None)
+    with op.batch_alter_table("organization_api_keys") as batch_op:
+        batch_op.alter_column("permission_level", existing_type=sa.String(length=32), server_default=None)
     op.add_column(
         "organization_api_keys",
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),

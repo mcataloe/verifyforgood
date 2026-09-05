@@ -30,7 +30,9 @@ export function useCustomerUserApiKeys(createdBy: string) {
     void refresh();
   }, [refresh]);
 
-  const createItem = async (input: Omit<CreateCustomerUserCredentialInput, "createdBy">) => {
+  const createItem = async (
+    input: Omit<CreateCustomerUserCredentialInput, "createdBy">,
+  ) => {
     const created = await service.createKey({ ...input, createdBy });
     setItems((current) => [created, ...current]);
   };
@@ -71,7 +73,9 @@ export function useCustomerUserOAuthClients(createdBy: string) {
     void refresh();
   }, [refresh]);
 
-  const createItem = async (input: Omit<CreateCustomerUserCredentialInput, "createdBy">) => {
+  const createItem = async (
+    input: Omit<CreateCustomerUserCredentialInput, "createdBy">,
+  ) => {
     const created = await service.createClient({ ...input, createdBy });
     setItems((current) => [created, ...current]);
   };

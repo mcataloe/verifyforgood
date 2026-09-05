@@ -78,13 +78,13 @@ export function OrganizationDeletionPanel({
             {expectedSlug || "Slug unavailable"}
           </Text>
           <TextInput
-              label="Organization slug"
-              id="delete-organization-slug"
-              onChange={(event) => {
-                setConfirmationSlug(event.target.value);
-              }}
-              value={confirmationSlug}
-            />
+            label="Organization slug"
+            id="delete-organization-slug"
+            onChange={(event) => {
+              setConfirmationSlug(event.target.value);
+            }}
+            value={confirmationSlug}
+          />
 
           {controller.error ? (
             <PortalNotice tone="error">
@@ -106,13 +106,15 @@ export function OrganizationDeletionPanel({
               disabled={!canDelete}
               loading={controller.isDeleting}
               onClick={() => {
-                void controller.deleteOrganization({
-                  slug: confirmationSlug.trim(),
-                }).then((wasDeleted) => {
-                  if (wasDeleted) {
-                    setOpened(false);
-                  }
-                });
+                void controller
+                  .deleteOrganization({
+                    slug: confirmationSlug.trim(),
+                  })
+                  .then((wasDeleted) => {
+                    if (wasDeleted) {
+                      setOpened(false);
+                    }
+                  });
               }}
             >
               {controller.isDeleting ? "Deleting..." : "Delete Organization"}
