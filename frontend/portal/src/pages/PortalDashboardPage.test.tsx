@@ -22,8 +22,10 @@ describe("PortalDashboardPage", () => {
 
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Open organizations" }),
-    ).toHaveAttribute("href", "#/organizations");
+      screen
+        .getByRole("link", { name: "Open organizations" })
+        .getAttribute("href"),
+    ).toBe("#/organizations");
     expect(screen.getByRole("link", { name: "Open team" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open settings" })).toBeTruthy();
     expect(screen.queryByText("Organization Activity")).toBeNull();

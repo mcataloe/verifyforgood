@@ -77,7 +77,8 @@ type CreateMockPortalSessionOptions = {
 export function createMockPortalSession(
   options: CreateMockPortalSessionOptions = {},
 ): PortalAuthenticatedSession {
-  const email = options.email?.trim().toLowerCase() || "alex.operator@example.org";
+  const email =
+    options.email?.trim().toLowerCase() || "alex.operator@example.org";
   const providerLabel =
     options.provider === "google"
       ? "Google"

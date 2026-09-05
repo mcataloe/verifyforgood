@@ -25,7 +25,6 @@ interface CustomerUserProfilePageProps {
 }
 
 export function CustomerUserProfilePage({
-  environment: _environment,
   session,
 }: CustomerUserProfilePageProps) {
   const [savedPersonalInfo, setSavedPersonalInfo] = useState(() =>
@@ -39,7 +38,9 @@ export function CustomerUserProfilePage({
   const [lastName, setLastName] = useState(savedPersonalInfo.lastName);
   const [email, setEmail] = useState(savedPersonalInfo.email);
   const [pronouns, setPronouns] = useState(savedPersonalInfo.pronouns);
-  const [personalInfoNotice, setPersonalInfoNotice] = useState<string | null>(null);
+  const [personalInfoNotice, setPersonalInfoNotice] = useState<string | null>(
+    null,
+  );
   const [personalInfoTouched, setPersonalInfoTouched] = useState(false);
   const [avatarDraft, setAvatarDraft] = useState<File | null>(null);
   const [savedAvatar, setSavedAvatar] = useState<StoredAvatar | null>(() =>
@@ -222,18 +223,20 @@ export function CustomerUserProfilePage({
                   return;
                 }
 
-                void readFileAsDataUrl(avatarDraft).then((dataUrl) => {
-                  const nextAvatar = {
-                    dataUrl,
-                    name: avatarDraft.name,
-                  };
-                  storeAvatar(session.user.subject_id, nextAvatar);
-                  setSavedAvatar(nextAvatar);
-                  setAvatarDraft(null);
-                  setAvatarNotice("Avatar saved on this device.");
-                }).catch(() => {
-                  setAvatarError("Avatar could not be saved on this device.");
-                });
+                void readFileAsDataUrl(avatarDraft)
+                  .then((dataUrl) => {
+                    const nextAvatar = {
+                      dataUrl,
+                      name: avatarDraft.name,
+                    };
+                    storeAvatar(session.user.subject_id, nextAvatar);
+                    setSavedAvatar(nextAvatar);
+                    setAvatarDraft(null);
+                    setAvatarNotice("Avatar saved on this device.");
+                  })
+                  .catch(() => {
+                    setAvatarError("Avatar could not be saved on this device.");
+                  });
               }}
               tone="primary"
               type="button"

@@ -221,7 +221,11 @@ function createSnapshotFromSubscription(input: {
     plan,
   );
   const usage = input.usage
-    ? createUsageSnapshotFromBackend(input.usage, input.plans, effectiveAccessPlan)
+    ? createUsageSnapshotFromBackend(
+        input.usage,
+        input.plans,
+        effectiveAccessPlan,
+      )
     : createMockUsageSnapshot(effectiveAccessPlan, input.plans);
   const includedLimits = {
     batchItems: normalizeCount(input.subscription.included_limits?.batch_items),
@@ -239,7 +243,8 @@ function createSnapshotFromSubscription(input: {
       input.subscription.billing_status,
       input.session.billing_status,
     ),
-    billingCycleEnd: input.subscription.billing_cycle?.current_period_end ?? null,
+    billingCycleEnd:
+      input.subscription.billing_cycle?.current_period_end ?? null,
     billingCycleStart:
       input.subscription.billing_cycle?.current_period_start ?? null,
     budgetStatus: resolveBudgetStatus(input.organization, input.usage),
@@ -265,7 +270,8 @@ function createSnapshotFromSubscription(input: {
     notice: input.usage
       ? "Usage totals reflect current organization metering for the active tracking period."
       : "Subscription state comes from the backend. Usage summary was unavailable, so the portal is showing a plan-based baseline.",
-    pendingChangeType: input.subscription.pending_downgrade?.change_type ?? null,
+    pendingChangeType:
+      input.subscription.pending_downgrade?.change_type ?? null,
     pendingDowngradeEffectiveAt:
       input.subscription.pending_downgrade?.effective_at ?? null,
     pendingDowngradePlan: input.subscription.pending_downgrade?.plan ?? null,
@@ -364,8 +370,9 @@ function createUsageSnapshotFromBackend(
   planCode: string,
 ): PortalUsageSnapshot {
   const limit =
-    normalizePositiveInteger(usage.plan_limit_context?.monthly_requests_limit) ??
-    resolvePlanLimit(planCode, plans);
+    normalizePositiveInteger(
+      usage.plan_limit_context?.monthly_requests_limit,
+    ) ?? resolvePlanLimit(planCode, plans);
   const totals: PortalUsageTotals = {
     apiRequests: normalizeCount(usage.totals?.api_requests),
     enrichmentRequests: normalizeCount(usage.totals?.enrichment_requests),
@@ -457,7 +464,10 @@ function normalizeStringList(value: unknown): string[] {
     return [];
   }
   return value
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .filter(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0,
+    )
     .map((item) => item.trim());
 }
 

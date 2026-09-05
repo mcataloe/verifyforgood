@@ -127,7 +127,9 @@ describe("CustomerAdminHomePanel", () => {
 
     expect(screen.getByText("Activity Visibility Unavailable")).toBeTruthy();
     expect(
-      screen.getByText(/Organization activity is visible only to active organization admins/i),
+      screen.getByText(
+        /Organization activity is visible only to active organization admins/i,
+      ),
     ).toBeTruthy();
   });
 });

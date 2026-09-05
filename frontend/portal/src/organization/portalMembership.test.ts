@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@charity-status/shared-api";
-import {
-  createPortalMembershipClient,
-} from "./portalMembership";
+import { createPortalMembershipClient } from "./portalMembership";
 
 describe("portalMembership client", () => {
   it("lists members from the current organization endpoint", async () => {
@@ -82,9 +80,7 @@ describe("portalMembership client", () => {
             "path" in firstTarget
           ? String((firstTarget as { path?: unknown }).path ?? "")
           : String(firstTarget);
-    expect(endpointPath).toContain(
-      "/organizations/current/invitations",
-    );
+    expect(endpointPath).toContain("/organizations/current/invitations");
     expect(items[0]?.status).toBe("pending");
   });
 

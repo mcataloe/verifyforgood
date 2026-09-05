@@ -63,7 +63,8 @@ const navigationFixtureSections: VerifyForGoodNavigationSection[] = [
         key: "dashboard",
         label: "Dashboard",
         href: "#/dashboard",
-        helpText: "High-level product activity and recent verification signals.",
+        helpText:
+          "High-level product activity and recent verification signals.",
       },
     ],
   },
@@ -75,7 +76,8 @@ const navigationFixtureSections: VerifyForGoodNavigationSection[] = [
       {
         key: "organization-group",
         label: "Organization",
-        helpText: "Workspace context and administration views grouped together.",
+        helpText:
+          "Workspace context and administration views grouped together.",
         children: [
           {
             key: "workspace",
@@ -90,7 +92,8 @@ const navigationFixtureSections: VerifyForGoodNavigationSection[] = [
             label: "Settings",
             href: "#/settings",
             allowedRoles: ADMIN_ROLES,
-            helpText: "Organization-level settings and future integrations configuration.",
+            helpText:
+              "Organization-level settings and future integrations configuration.",
           },
         ],
       },
@@ -104,7 +107,8 @@ const navigationFixtureSections: VerifyForGoodNavigationSection[] = [
       {
         key: "integrations-group",
         label: "Integrations",
-        helpText: "Automation and API entry points grouped for technical users.",
+        helpText:
+          "Automation and API entry points grouped for technical users.",
         children: [
           {
             key: "api-access",
@@ -125,7 +129,8 @@ const navigationFixtureSections: VerifyForGoodNavigationSection[] = [
   {
     key: "account",
     label: "Account",
-    helpText: "Commercial and subscription controls for account administrators.",
+    helpText:
+      "Commercial and subscription controls for account administrators.",
     items: [
       {
         key: "usage-billing",

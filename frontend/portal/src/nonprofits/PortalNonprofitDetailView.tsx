@@ -36,11 +36,7 @@ export function PortalNonprofitDetailView({
     <EntityDetailLayout
       actions={
         onBackToSearch ? (
-          <PortalButton
-            onClick={onBackToSearch}
-            tone="secondary"
-            type="button"
-          >
+          <PortalButton onClick={onBackToSearch} tone="secondary" type="button">
             Back to search
           </PortalButton>
         ) : null

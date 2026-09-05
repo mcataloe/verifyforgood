@@ -52,7 +52,6 @@ interface UsageBillingPanelProps {
 export function UsageBillingPanel({
   billingActionsController,
   controller,
-  endpoints,
   focus = "billing",
   managementMode = "manage",
   plansController,
@@ -581,15 +580,6 @@ function formatUsageMetricLabel(metricType: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function formatUsdMicros(amountUsdMicros: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 3,
-    minimumFractionDigits: 3,
-    style: "currency",
-  }).format(amountUsdMicros / 1_000_000);
 }
 
 function createPlanGridItem(input: {

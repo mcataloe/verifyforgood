@@ -26,13 +26,14 @@ export function usePortalSupport(
   ) => PortalSupportService,
 ): PortalSupportController {
   const organization = usePortalOrganization();
-  const [context, setContext] = useState<PortalOrganizationSupportContext | null>(
-    null,
-  );
+  const [context, setContext] =
+    useState<PortalOrganizationSupportContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [receipt, setReceipt] = useState<PortalSupportRequestReceipt | null>(null);
+  const [receipt, setReceipt] = useState<PortalSupportRequestReceipt | null>(
+    null,
+  );
 
   const service = useMemo(
     () =>

@@ -130,7 +130,9 @@ describe("VerifyForGoodAppShell", () => {
       sidebarUpgradeHref: "#/billing",
     });
 
-    expect(screen.getByRole("link", { name: /Upgrade subscription/i })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /Upgrade subscription/i }),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^Help$/i }));
 

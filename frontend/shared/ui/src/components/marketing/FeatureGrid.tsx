@@ -14,7 +14,13 @@ export function FeatureGrid({ items }: { items: FeatureGridItem[] }) {
   return (
     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
       {items.map((item) => (
-        <Card key={String(item.title)} padding="lg" radius="md" shadow="sm" withBorder>
+        <Card
+          key={String(item.title)}
+          padding="lg"
+          radius="md"
+          shadow="sm"
+          withBorder
+        >
           <Stack gap="sm">
             {item.eyebrow ? (
               <Text c="dimmed" fw={700} fz="xs" tt="uppercase">

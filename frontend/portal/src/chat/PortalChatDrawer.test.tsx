@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockPortalSession } from "../app/portalSession";
@@ -37,7 +43,9 @@ describe("PortalChatDrawer", () => {
     render(chatTree("1"));
     fireEvent.click(screen.getByRole("button", { name: "Open Chat" }));
 
-    expect(await screen.findByText("Organization context changed")).toBeTruthy();
+    expect(
+      await screen.findByText("Organization context changed"),
+    ).toBeTruthy();
     expect(screen.queryByText("Other organization")).toBeNull();
   });
 
@@ -51,7 +59,7 @@ describe("PortalChatDrawer", () => {
 
     const rendered = render(chatTree("1"));
     fireEvent.click(screen.getByRole("button", { name: "Open Chat" }));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     rendered.rerender(chatTree("2"));
 

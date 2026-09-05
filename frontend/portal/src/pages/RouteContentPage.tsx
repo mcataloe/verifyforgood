@@ -71,7 +71,7 @@ export function RouteContentPage({
           session={session}
         />
       ) : (
-        <ApiAccessPage pane="api" />
+        <ApiAccessPage />
       );
     case "billing":
       return (

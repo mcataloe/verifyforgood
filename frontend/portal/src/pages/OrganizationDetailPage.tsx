@@ -1,4 +1,8 @@
-import { EmptyState, ErrorState, LoadingSkeleton } from "@charity-status/shared-ui";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingSkeleton,
+} from "@charity-status/shared-ui";
 import { useEffect, useState } from "react";
 import {
   buildOrganizationPortalHash,
@@ -52,11 +56,16 @@ export function OrganizationDetailPage({
           activeSection={section}
           detail={search.detail}
           onSectionChange={(nextSection) => {
-            navigateToPortalRoute(buildOrganizationPortalHash(ein, nextSection));
+            navigateToPortalRoute(
+              buildOrganizationPortalHash(ein, nextSection),
+            );
           }}
         />
       ) : null}
-      {!search.isLoading && !isInitialLoad && !search.error && !search.detail ? (
+      {!search.isLoading &&
+      !isInitialLoad &&
+      !search.error &&
+      !search.detail ? (
         <EmptyState
           description="Return to nonprofit search and confirm the EIN."
           title="No nonprofit profile found"

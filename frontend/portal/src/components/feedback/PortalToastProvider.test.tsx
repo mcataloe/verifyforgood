@@ -17,7 +17,9 @@ describe("PortalToastProvider", () => {
 
     expect(screen.getByText("Close me")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
 
     expect(screen.queryByText("Close me")).toBeNull();
   });

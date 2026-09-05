@@ -54,15 +54,22 @@ export function PortalChatDrawer({
       }),
     [auth.accessToken, organization, runtimeConfig, session],
   );
-  const chatClient = useMemo(() => createPortalChatClient(apiClient), [apiClient]);
+  const chatClient = useMemo(
+    () => createPortalChatClient(apiClient),
+    [apiClient],
+  );
   const chatAvailable =
     session.organization_context_status === "active" &&
     Boolean(auth.accessToken) &&
     Boolean(activeOrganizationId);
 
   const [opened, setOpened] = useState(false);
-  const [conversations, setConversations] = useState<PortalChatConversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [conversations, setConversations] = useState<PortalChatConversation[]>(
+    [],
+  );
+  const [activeConversationId, setActiveConversationId] = useState<
+    number | null
+  >(null);
   const [messages, setMessages] = useState<PortalChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -131,7 +138,9 @@ export function PortalChatDrawer({
       if (!requestStillMatchesScope(requestScope)) {
         return null;
       }
-      if (!portalChatConversationMatchesOrganization(conversation, requestScope)) {
+      if (
+        !portalChatConversationMatchesOrganization(conversation, requestScope)
+      ) {
         setScopeMismatch(true);
         setConversations([]);
         setActiveConversationId(null);
@@ -163,17 +172,26 @@ export function PortalChatDrawer({
 
   const openConversation = async (conversation: PortalChatConversation) => {
     const requestScope = activeOrganizationIdRef.current;
-    if (!portalChatConversationMatchesOrganization(conversation, requestScope)) {
+    if (
+      !portalChatConversationMatchesOrganization(conversation, requestScope)
+    ) {
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const loaded = await chatClient.getConversation(conversation.conversation_id);
+      const loaded = await chatClient.getConversation(
+        conversation.conversation_id,
+      );
       if (!requestStillMatchesScope(requestScope)) {
         return;
       }
-      if (!portalChatConversationMatchesOrganization(loaded.conversation, requestScope)) {
+      if (
+        !portalChatConversationMatchesOrganization(
+          loaded.conversation,
+          requestScope,
+        )
+      ) {
         setScopeMismatch(true);
         setActiveConversationId(null);
         setMessages([]);
@@ -209,7 +227,9 @@ export function PortalChatDrawer({
         if (!requestStillMatchesScope(requestScope)) {
           return;
         }
-        if (!portalChatConversationMatchesOrganization(conversation, requestScope)) {
+        if (
+          !portalChatConversationMatchesOrganization(conversation, requestScope)
+        ) {
           setScopeMismatch(true);
           return;
         }
@@ -262,20 +282,22 @@ export function PortalChatDrawer({
       >
         <Stack gap="md" h="calc(100vh - 100px)">
           <Text c="dimmed" size="sm">
-            Local Chat validates retrieval and orchestration plumbing. Local model
-            answer quality is not a production-quality signal.
+            Local Chat validates retrieval and orchestration plumbing. Local
+            model answer quality is not a production-quality signal.
           </Text>
 
           {!chatAvailable ? (
             <Alert title="Organization required">
-              Chat is available after an authenticated organization context is active.
+              Chat is available after an authenticated organization context is
+              active.
             </Alert>
           ) : null}
           {scopeMismatch ? (
             <Alert color="yellow" title="Organization context changed">
-              Chat history is hidden because the server-resolved organization does
-              not match the organization selected in the portal. Refresh the
-              authenticated organization context before using Chat for this workspace.
+              Chat history is hidden because the server-resolved organization
+              does not match the organization selected in the portal. Refresh
+              the authenticated organization context before using Chat for this
+              workspace.
             </Alert>
           ) : null}
           {error ? <Alert color="red">{error}</Alert> : null}

@@ -67,9 +67,7 @@ export function FilterBar({
           data={filter.options}
           key={filter.key}
           label={filter.label}
-          onChange={(event) =>
-            onFilterChange?.(filter.key, event ?? "all")
-          }
+          onChange={(event) => onFilterChange?.(filter.key, event ?? "all")}
           value={filter.value}
         />
       ))}

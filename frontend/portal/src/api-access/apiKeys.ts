@@ -101,16 +101,22 @@ export function createPortalApiKeyService({
     },
     revokeKey(keyId) {
       return apiClient.delete<PortalApiKeySummary>(
-        resolvePathTemplate(apiEndpoints.organization.deleteCurrentApiKey.path, {
-          keyId,
-        }),
+        resolvePathTemplate(
+          apiEndpoints.organization.deleteCurrentApiKey.path,
+          {
+            keyId,
+          },
+        ),
       );
     },
     updateKey(keyId, input) {
       return apiClient.patch<PortalApiKeySummary, UpdatePortalApiKeyInput>(
-        resolvePathTemplate(apiEndpoints.organization.updateCurrentApiKey.path, {
-          keyId,
-        }),
+        resolvePathTemplate(
+          apiEndpoints.organization.updateCurrentApiKey.path,
+          {
+            keyId,
+          },
+        ),
         {
           body: {
             display_name: normalizeDisplayName(input.display_name),

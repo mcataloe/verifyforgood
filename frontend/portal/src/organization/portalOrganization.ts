@@ -1,4 +1,8 @@
-import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/shared-api";
+import {
+  apiEndpoints,
+  createApiClient,
+  type ApiClient,
+} from "@charity-status/shared-api";
 import type { FrontendRuntimeConfig } from "@charity-status/shared-types";
 import type {
   PortalActiveOrganizationRecord,
@@ -117,7 +121,9 @@ export function resolveAvailablePortalOrganizations(options: {
   availableOrganizations?: readonly PortalAvailableOrganizationRecord[] | null;
   organizationContext?: PortalActiveOrganizationRecord | null;
 }): PortalAvailableOrganizationRecord[] {
-  const resolved = dedupePortalOrganizations(options.availableOrganizations ?? []);
+  const resolved = dedupePortalOrganizations(
+    options.availableOrganizations ?? [],
+  );
 
   if (!resolved.length && options.organizationContext) {
     return [options.organizationContext];
@@ -132,10 +138,11 @@ export function resolveActivePortalOrganization(options: {
   storedOrganization?: PortalActiveOrganizationRecord | null;
 }): PortalActiveOrganizationRecord | null {
   const matchingStoredOrganization = options.storedOrganization
-    ? options.availableOrganizations.find(
+    ? (options.availableOrganizations.find(
         (organization) =>
-          organization.organization_id === options.storedOrganization?.organization_id,
-      ) ?? null
+          organization.organization_id ===
+          options.storedOrganization?.organization_id,
+      ) ?? null)
     : null;
 
   return matchingStoredOrganization ?? options.organizationContext ?? null;
@@ -184,7 +191,10 @@ export function mapSettingsToPortalOrganization({
         : null,
     contact_email: organization?.contactEmail ?? null,
     created_at: organization?.createdAt ?? null,
-    organization_id: organization?.organizationId ?? settings.workspace_id ?? session.workspace_id,
+    organization_id:
+      organization?.organizationId ??
+      settings.workspace_id ??
+      session.workspace_id,
     organization_name:
       organization?.displayName?.trim() || session.organization_name,
     organization_updated_at: organization?.updatedAt ?? null,
@@ -240,9 +250,7 @@ export function createPortalOrganizationClient({
   };
 }
 
-export function readStoredActiveOrganization():
-  | PortalActiveOrganizationRecord
-  | null {
+export function readStoredActiveOrganization(): PortalActiveOrganizationRecord | null {
   const storage = resolveStorage();
   if (!storage) {
     return null;

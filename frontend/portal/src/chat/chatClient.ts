@@ -38,7 +38,10 @@ export interface PortalChatClient {
     conversation: PortalChatConversation;
     messages: PortalChatMessage[];
   }>;
-  sendMessage(conversationId: number, content: string): Promise<{
+  sendMessage(
+    conversationId: number,
+    content: string,
+  ): Promise<{
     user_message: PortalChatMessage;
     assistant_message: PortalChatMessage;
     orchestration: PortalChatOrchestrationSummary;
@@ -50,7 +53,9 @@ export function portalChatConversationMatchesOrganization(
   organizationId: PortalChatScopedId | null | undefined,
 ) {
   const expected = String(organizationId ?? "").trim();
-  return expected.length > 0 && String(conversation.organization_id) === expected;
+  return (
+    expected.length > 0 && String(conversation.organization_id) === expected
+  );
 }
 
 export function filterPortalChatConversationsForOrganization(

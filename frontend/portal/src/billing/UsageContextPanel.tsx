@@ -1,8 +1,6 @@
 import { Group, Progress, Stack, Text, Title } from "@mantine/core";
 import type { PricingPlanMetadata } from "@charity-status/shared-types";
-import {
-  PortalDetailList,
-} from "../components/PortalPrimitives";
+import { PortalDetailList } from "../components/PortalPrimitives";
 import type {
   PortalBudgetStatus,
   PortalUsageSnapshot,
@@ -36,7 +34,9 @@ export function UsageContextPanel({
     <Stack gap="md" className="portal-usage-context">
       <Group align="start" justify="space-between" wrap="wrap">
         <div>
-          <Title order={3}>Usage compared with this plan&apos;s included quota</Title>
+          <Title order={3}>
+            Usage compared with this plan&apos;s included quota
+          </Title>
           <Text c="dimmed" mt={4} size="sm">
             Current month usage and estimate based on average daily requests so
             far this month.

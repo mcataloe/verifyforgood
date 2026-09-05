@@ -167,7 +167,9 @@ export function VerifyForGoodAppShell({
             <Group gap="sm" wrap="nowrap">
               <ActionIcon
                 hiddenFrom="md"
-                aria-label={mobileOpened ? "Collapse sidebar" : "Expand sidebar"}
+                aria-label={
+                  mobileOpened ? "Collapse sidebar" : "Expand sidebar"
+                }
                 onClick={() => setMobileOpened((current) => !current)}
                 size="sm"
                 variant="subtle"
@@ -289,7 +291,9 @@ export function VerifyForGoodAppShell({
             <AppShellSidebarUtilityNav
               collapsed={desktopCollapsed}
               helpItems={sidebarHelpItems}
-              onToggleCollapsed={() => setDesktopCollapsed((current) => !current)}
+              onToggleCollapsed={() =>
+                setDesktopCollapsed((current) => !current)
+              }
               upgradeHref={sidebarUpgradeHref}
             />
           </Box>
@@ -339,7 +343,11 @@ function AppShellSidebarUtilityNav({
             href={upgradeHref}
           >
             <Group gap="sm" wrap="nowrap">
-              <IconRocket aria-hidden="true" size={iconSize} stroke={iconStroke} />
+              <IconRocket
+                aria-hidden="true"
+                size={iconSize}
+                stroke={iconStroke}
+              />
               {collapsed ? null : <Text fz="sm">Upgrade subscription</Text>}
             </Group>
           </UnstyledButton>
@@ -412,7 +420,9 @@ function AppShellSidebarUtilityNav({
               />
             )}
             {collapsed ? null : (
-              <Text fz="sm">{collapsed ? "Expand sidebar" : "Collapse sidebar"}</Text>
+              <Text fz="sm">
+                {collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              </Text>
             )}
           </Group>
         </UnstyledButton>

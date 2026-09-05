@@ -60,7 +60,9 @@ export function TrialOnboardingPanel({
             <List.Item>
               The free tier remains available after the trial window ends.
             </List.Item>
-            <List.Item>There is no automatic paid conversion tied to this trial.</List.Item>
+            <List.Item>
+              There is no automatic paid conversion tied to this trial.
+            </List.Item>
             <List.Item>
               Move to a paid plan only when the broader limits are useful.
             </List.Item>

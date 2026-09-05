@@ -31,7 +31,10 @@ function createStorageMock(): Storage {
   };
 }
 
-function buildEnvelope<TData>(data: TData, errors: Array<{ code: string; message: string }> = []) {
+function buildEnvelope<TData>(
+  data: TData,
+  errors: Array<{ code: string; message: string }> = [],
+) {
   return {
     api_release: "2026-03-27",
     api_version: "v1",
@@ -106,9 +109,9 @@ describe("portal auth client", () => {
     expect(state.session.user.email).toBe("person@example.com");
     expect(state.session.user.display_name).toBe("Portal Person");
     expect(state.session.account_id).toBe("acct_portal_pending");
-    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toContain(
-      "token_register",
-    );
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.auth.session"),
+    ).toContain("token_register");
   });
 
   it("logs in, stores the token, and can restore the session from local storage", async () => {
@@ -176,7 +179,7 @@ describe("portal auth client", () => {
       configurable: true,
       value: createStorageMock(),
     });
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/v1/auth/me")) {
         return new Response(
@@ -285,9 +288,9 @@ describe("portal auth client", () => {
     expect(restored?.session.organization_name).toBe("Verify For Good Org");
     expect(restored?.session.account_id).toBe("org_123");
     expect(restored?.session.workspace_id).toBe("org_123");
-    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
-      "\"organization_name\":\"Verify For Good Org\"",
-    );
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain('"organization_name":"Verify For Good Org"');
   });
 
   it("clears stale stored organization state when /auth/me returns no organization context", async () => {
@@ -350,7 +353,9 @@ describe("portal auth client", () => {
     const restored = await client.getSession();
 
     expect(restored?.session.organization_context_status).toBe("pending");
-    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toBeNull();
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toBeNull();
   });
 
   it("prefers backend organization context over stale local organization storage", async () => {
@@ -438,9 +443,9 @@ describe("portal auth client", () => {
 
     expect(restored?.session.organization_name).toBe("Verify For Good Org");
     expect(restored?.session.organization_membership?.role).toBe("admin");
-    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
-      "\"organization_id\":\"org_123\"",
-    );
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain('"organization_id":"org_123"');
   });
 
   it("clears invalid stored tokens when /auth/me returns unauthorized", async () => {
@@ -465,10 +470,9 @@ describe("portal auth client", () => {
       if (url.endsWith("/v1/auth/me")) {
         return new Response(
           JSON.stringify(
-            buildEnvelope(
-              {},
-              [{ code: "unauthorized", message: "Authentication is required" }],
-            ),
+            buildEnvelope({}, [
+              { code: "unauthorized", message: "Authentication is required" },
+            ]),
           ),
           { headers: { "Content-Type": "application/json" }, status: 401 },
         );
@@ -484,7 +488,9 @@ describe("portal auth client", () => {
     const restored = await client.getSession();
 
     expect(restored).toBeNull();
-    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.auth.session"),
+    ).toBeNull();
   });
 
   it("restores a persisted selected organization when it is still available from /auth/me", async () => {
@@ -585,9 +591,9 @@ describe("portal auth client", () => {
     expect(restored?.session.organization_name).toBe("Secondary Org");
     expect(restored?.session.organization_membership?.role).toBe("user");
     expect(restored?.availableOrganizations).toHaveLength(2);
-    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
-      "\"organization_id\":\"org_secondary\"",
-    );
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain('"organization_id":"org_secondary"');
   });
 
   it("falls back to backend organization context when the stored selected organization is no longer available", async () => {
@@ -675,9 +681,9 @@ describe("portal auth client", () => {
 
     expect(restored?.session.organization_name).toBe("Primary Org");
     expect(restored?.session.organization_membership?.role).toBe("admin");
-    expect(window.localStorage.getItem("verifyforgood.portal.organization.active")).toContain(
-      "\"organization_id\":\"org_primary\"",
-    );
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.organization.active"),
+    ).toContain('"organization_id":"org_primary"');
   });
 
   it("removes persisted auth state on sign out", async () => {
@@ -697,15 +703,18 @@ describe("portal auth client", () => {
         },
       }),
     );
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/v1/auth/logout")) {
-        return new Response(JSON.stringify(buildEnvelope({ signed_out: true })), {
-          headers: {
-            "Content-Type": "application/json",
+        return new Response(
+          JSON.stringify(buildEnvelope({ signed_out: true })),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
           },
-          status: 200,
-        });
+        );
       }
       return new Response("Not Found", { status: 404 });
     }) as typeof fetch;
@@ -716,8 +725,12 @@ describe("portal auth client", () => {
 
     await client.signOut();
 
-    expect(window.localStorage.getItem("verifyforgood.portal.auth.session")).toBeNull();
-    expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]?.credentials).toBe("include");
+    expect(
+      window.localStorage.getItem("verifyforgood.portal.auth.session"),
+    ).toBeNull();
+    expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]?.credentials).toBe(
+      "include",
+    );
   });
 
   it("applies refreshed frontend roles from /auth/me", async () => {
@@ -758,5 +771,4 @@ describe("portal auth client", () => {
 
     expect(refreshed?.session.roles).toEqual(["customer_user"]);
   });
-
 });

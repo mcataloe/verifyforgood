@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { VerifyForGoodMantineProvider } from "@charity-status/shared-ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,20 +51,21 @@ describe("SettingsPage", () => {
 
   it("renders budget controls and persists the configured state", () => {
     const save = vi.fn(async () => {});
-    const organizationProfileController: PortalOrganizationProfileSettingsController = {
-      clearNotice: vi.fn(),
-      error: null,
-      isLoading: false,
-      isSaving: false,
-      notice: "Organization profile saved.",
-      save: vi.fn(async () => {}),
-      settings: {
-        contactEmail: "ops@example.org",
-        displayName: "Portal Test Org",
-        slug: "portal-test-org",
-        updatedAt: "2026-03-21T00:00:00Z",
-      },
-    };
+    const organizationProfileController: PortalOrganizationProfileSettingsController =
+      {
+        clearNotice: vi.fn(),
+        error: null,
+        isLoading: false,
+        isSaving: false,
+        notice: "Organization profile saved.",
+        save: vi.fn(async () => {}),
+        settings: {
+          contactEmail: "ops@example.org",
+          displayName: "Portal Test Org",
+          slug: "portal-test-org",
+          updatedAt: "2026-03-21T00:00:00Z",
+        },
+      };
     const budgetController: PortalBudgetSettingsController = {
       clearNotice: vi.fn(),
       error: null,
@@ -131,17 +138,13 @@ describe("SettingsPage", () => {
     expect(
       screen.queryByRole("heading", { name: "Organization details" }),
     ).toBeNull();
-    expect(
-      screen.queryByRole("heading", { name: "Support" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();
     expect(
       screen.queryByRole("heading", { name: "Limit visualization" }),
     ).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Plan & Access" }));
-    expect(
-      screen.getByRole("heading", { name: "Plan & Access" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Plan & Access" })).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.getByText("Growth")).toBeTruthy();
 
@@ -155,9 +158,7 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText("Organization request cap"), {
       target: { value: "950" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save Budget" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Save Budget" }));
 
     expect(save).toHaveBeenCalledWith({
       allowOverage: false,
@@ -245,20 +246,21 @@ describe("SettingsPage", () => {
 
   it("submits organization profile updates through the shared settings surface", () => {
     const save = vi.fn(async () => {});
-    const organizationProfileController: PortalOrganizationProfileSettingsController = {
-      clearNotice: vi.fn(),
-      error: null,
-      isLoading: false,
-      isSaving: false,
-      notice: null,
-      save,
-      settings: {
-        contactEmail: "ops@example.org",
-        displayName: "Portal Test Org",
-        slug: "portal-test-org",
-        updatedAt: "2026-03-21T00:00:00Z",
-      },
-    };
+    const organizationProfileController: PortalOrganizationProfileSettingsController =
+      {
+        clearNotice: vi.fn(),
+        error: null,
+        isLoading: false,
+        isSaving: false,
+        notice: null,
+        save,
+        settings: {
+          contactEmail: "ops@example.org",
+          displayName: "Portal Test Org",
+          slug: "portal-test-org",
+          updatedAt: "2026-03-21T00:00:00Z",
+        },
+      };
 
     renderWithOrganization(
       <SettingsPage
@@ -277,9 +279,7 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText("Contact email"), {
       target: { value: "support@example.org" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save Changes" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(save).toHaveBeenCalledWith({
       contactEmail: "support@example.org",
@@ -289,20 +289,21 @@ describe("SettingsPage", () => {
   });
 
   it("keeps successful profile save feedback visible after a successful save", () => {
-    const organizationProfileController: PortalOrganizationProfileSettingsController = {
-      clearNotice: vi.fn(),
-      error: null,
-      isLoading: false,
-      isSaving: false,
-      notice: "Organization profile saved.",
-      save: vi.fn(async () => {}),
-      settings: {
-        contactEmail: "ops@example.org",
-        displayName: "Portal Test Org",
-        slug: "portal-test-org",
-        updatedAt: "2026-03-21T00:00:00Z",
-      },
-    };
+    const organizationProfileController: PortalOrganizationProfileSettingsController =
+      {
+        clearNotice: vi.fn(),
+        error: null,
+        isLoading: false,
+        isSaving: false,
+        notice: "Organization profile saved.",
+        save: vi.fn(async () => {}),
+        settings: {
+          contactEmail: "ops@example.org",
+          displayName: "Portal Test Org",
+          slug: "portal-test-org",
+          updatedAt: "2026-03-21T00:00:00Z",
+        },
+      };
 
     renderWithOrganization(
       <SettingsPage
@@ -321,9 +322,9 @@ describe("SettingsPage", () => {
   });
 
   it("requires an exact slug match before deleting an organization", async () => {
-    const deleteOrganization = vi.fn(
-      async (_input: { slug: string }) => {},
-    );
+    const deleteOrganization = vi.fn<
+      (input: { slug: string }) => Promise<void>
+    >(async () => {});
     const deletionController: PortalOrganizationDeletionController = {
       deleteOrganization: vi.fn(async ({ slug }) => {
         await deleteOrganization({ slug });
@@ -344,9 +345,13 @@ describe("SettingsPage", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Delete Organization" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete Organization" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Organization" }),
+    );
 
-    expect(screen.getAllByRole("heading", { name: "Delete Organization" }).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("heading", { name: "Delete Organization" }).length,
+    ).toBeGreaterThan(0);
     const modal = await screen.findByRole("dialog");
     const slugInput = await screen.findByLabelText("Organization slug");
     expect(document.body.textContent).toContain(
@@ -375,7 +380,6 @@ describe("SettingsPage", () => {
       });
     });
   });
-
 });
 
 function createStorageMock(): Storage {
@@ -515,4 +519,3 @@ function renderWithOrganization(element: ReactNode) {
     </PortalAuthContext.Provider>,
   );
 }
-

@@ -7,7 +7,11 @@ describe("PortalDetailView", () => {
   it("keeps sibling sections in one shared detail layout with inserted dividers", () => {
     render(
       <VerifyForGoodMantineProvider defaultColorScheme="light">
-        <PortalDetailView eyebrow="Profile" intro="Shared intro" title="Detail title">
+        <PortalDetailView
+          eyebrow="Profile"
+          intro="Shared intro"
+          title="Detail title"
+        >
           <PortalDetailSection title="Overview">Alpha</PortalDetailSection>
           <PortalDetailSection title="Sources">Beta</PortalDetailSection>
           <PortalDetailSection title="Activity">Gamma</PortalDetailSection>

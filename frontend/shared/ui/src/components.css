@@ -184,7 +184,11 @@
 }
 
 .vf-sidebar-utility__item:hover {
-  background: color-mix(in srgb, var(--vf-theme-surface-subtle) 92%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--vf-theme-surface-subtle) 92%,
+    transparent
+  );
   color: var(--vf-theme-text);
 }
 

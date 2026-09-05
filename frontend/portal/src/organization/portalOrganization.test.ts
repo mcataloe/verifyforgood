@@ -40,7 +40,10 @@ function createStorageMock(): Storage {
   };
 }
 
-function buildEnvelope<TData>(data: TData, errors: Array<{ code: string; message: string }> = []) {
+function buildEnvelope<TData>(
+  data: TData,
+  errors: Array<{ code: string; message: string }> = [],
+) {
   return {
     api_release: "2026-03-27",
     api_version: "v1",
@@ -59,37 +62,41 @@ function buildEnvelope<TData>(data: TData, errors: Array<{ code: string; message
 
 describe("portal organization client", () => {
   it("submits a typed POST /organizations request and returns the bootstrap response", async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://api.verifyforgood.test/v1/organizations");
-      expect(init?.method).toBe("POST");
-      expect(init?.body).toBe(
-        JSON.stringify({
-          name: "Verify For Good Org",
-          slug: "verify-for-good-org",
-        }),
-      );
-
-      return new Response(
-        JSON.stringify(
-          buildEnvelope({
-            account_id: "org_123",
-            membership: {
-              role: "admin",
-              status: "active",
-              user_id: "user_123",
-            },
-            organization_id: "org_123",
-            organization_name: "Verify For Good Org",
+    const fetchImpl = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          "https://api.verifyforgood.test/v1/organizations",
+        );
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe(
+          JSON.stringify({
+            name: "Verify For Good Org",
             slug: "verify-for-good-org",
-            workspace_id: "org_123",
           }),
-        ),
-        {
-          headers: { "Content-Type": "application/json" },
-          status: 201,
-        },
-      );
-    }) as typeof fetch;
+        );
+
+        return new Response(
+          JSON.stringify(
+            buildEnvelope({
+              account_id: "org_123",
+              membership: {
+                role: "admin",
+                status: "active",
+                user_id: "user_123",
+              },
+              organization_id: "org_123",
+              organization_name: "Verify For Good Org",
+              slug: "verify-for-good-org",
+              workspace_id: "org_123",
+            }),
+          ),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 201,
+          },
+        );
+      },
+    ) as typeof fetch;
     const client = createPortalOrganizationClient({
       accessToken: "portal_token",
       fetchImpl,

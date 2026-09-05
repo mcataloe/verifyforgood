@@ -1,4 +1,8 @@
-import { DataTable, SectionContainer, type DataTableColumn } from "@charity-status/shared-ui";
+import {
+  DataTable,
+  SectionContainer,
+  type DataTableColumn,
+} from "@charity-status/shared-ui";
 import { Button, Stack } from "@mantine/core";
 import {
   PortalEmptyState,
@@ -25,13 +29,19 @@ const activityColumns: DataTableColumn<PortalOrganizationActivityItem>[] = [
     key: "actor",
     header: "Actor",
     render: (row) =>
-      row.actor.display_name ?? row.actor.email ?? row.actor.user_id ?? "System",
+      row.actor.display_name ??
+      row.actor.email ??
+      row.actor.user_id ??
+      "System",
   },
   {
     key: "target",
     header: "Target",
     render: (row) =>
-      row.target.display_name ?? row.target.email ?? row.target.user_id ?? "Organization",
+      row.target.display_name ??
+      row.target.email ??
+      row.target.user_id ??
+      "Organization",
   },
   {
     key: "occurred_at",
@@ -65,7 +75,10 @@ export function CustomerAdminHomePanel() {
         subtitle="Loading recent organization activity."
         title="Loading Activity"
       >
-        <p>Fetching recent API, membership, invitation, settings, and nonprofit access activity.</p>
+        <p>
+          Fetching recent API, membership, invitation, settings, and nonprofit
+          access activity.
+        </p>
       </PortalLoadingState>
     );
   }
@@ -100,7 +113,10 @@ export function CustomerAdminHomePanel() {
           subtitle="Activity appears here once the organization starts inviting teammates, managing keys, updating settings, or accessing nonprofit data."
           title="No Organization Activity Yet"
         >
-          <p>The current organization does not have any visible audit activity yet.</p>
+          <p>
+            The current organization does not have any visible audit activity
+            yet.
+          </p>
         </PortalEmptyState>
       ) : (
         <Stack gap="md">

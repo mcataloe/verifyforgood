@@ -2,8 +2,7 @@ import { PageHeader } from "@charity-status/shared-ui";
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 
 interface PortalPageShellProps
-  extends PropsWithChildren,
-    Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+  extends PropsWithChildren, Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   description: string;
   eyebrow?: string;
   toolbar?: ReactNode;
@@ -23,11 +22,10 @@ export function PortalPageShell({
       data-testid="portal-page-container"
       {...rest}
     >
-      <PageHeader
-        description={description}
-        title={title}
-      />
-      {toolbar ? <div className="portal-page-shell__toolbar">{toolbar}</div> : null}
+      <PageHeader description={description} title={title} />
+      {toolbar ? (
+        <div className="portal-page-shell__toolbar">{toolbar}</div>
+      ) : null}
       <div className="portal-page-shell__content">{children}</div>
     </div>
   );

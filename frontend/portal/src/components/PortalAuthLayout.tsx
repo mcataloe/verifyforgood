@@ -1,9 +1,4 @@
-import {
-  Container,
-  Page,
-  Panel,
-  Section,
-} from "@charity-status/shared-ui";
+import { Container, Page, Panel, Section } from "@charity-status/shared-ui";
 import { Stack, Text, Title } from "@mantine/core";
 import type {
   FrontendAppInfo,
@@ -23,7 +18,6 @@ export function PortalAuthLayout({
   app,
   children,
   containerSize = "narrow",
-  runtimeConfig,
   subtitle,
   title,
 }: PortalAuthLayoutProps) {

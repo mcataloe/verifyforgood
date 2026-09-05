@@ -20,10 +20,7 @@ import {
   type PortalLoginRequest,
   type PortalRegisterRequest,
 } from "./portalAuthClient";
-import {
-  PortalAuthContext,
-  type PortalAuthStatus,
-} from "./usePortalAuth";
+import { PortalAuthContext, type PortalAuthStatus } from "./usePortalAuth";
 import {
   clearStoredActiveOrganization,
   writeStoredActiveOrganization,
@@ -65,9 +62,8 @@ export function PortalAuthProvider({
     session: null,
     status: "loading",
   });
-  const refreshSessionPromiseRef = useRef<Promise<PortalAuthenticatedSession | null> | null>(
-    null,
-  );
+  const refreshSessionPromiseRef =
+    useRef<Promise<PortalAuthenticatedSession | null> | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -126,28 +122,31 @@ export function PortalAuthProvider({
     }
   };
 
-  const applyAuthClientState = useCallback((state: PortalAuthClientState | null) => {
-    if (!state) {
-      setAuthState({
-        accessToken: null,
-        availableOrganizations: [],
-        isBusy: false,
-        session: null,
-        status: "unauthenticated",
-      });
-      return null;
-    }
+  const applyAuthClientState = useCallback(
+    (state: PortalAuthClientState | null) => {
+      if (!state) {
+        setAuthState({
+          accessToken: null,
+          availableOrganizations: [],
+          isBusy: false,
+          session: null,
+          status: "unauthenticated",
+        });
+        return null;
+      }
 
-    setAuthState((currentState) => ({
-      ...currentState,
-      accessToken: state.accessToken,
-      availableOrganizations: state.availableOrganizations,
-      isBusy: false,
-      session: state.session,
-      status: "authenticated",
-    }));
-    return state.session;
-  }, []);
+      setAuthState((currentState) => ({
+        ...currentState,
+        accessToken: state.accessToken,
+        availableOrganizations: state.availableOrganizations,
+        isBusy: false,
+        session: state.session,
+        status: "authenticated",
+      }));
+      return state.session;
+    },
+    [],
+  );
 
   const refreshSession = useCallback(async () => {
     if (refreshSessionPromiseRef.current) {
@@ -200,17 +199,15 @@ export function PortalAuthProvider({
     }
 
     const persisted = writeStoredActiveOrganization(organization);
-    const nextAvailableOrganizations =
-      authState.availableOrganizations.some(
-        (candidate) =>
-          candidate.organization_id === persisted.organization_id,
-      )
-        ? authState.availableOrganizations.map((candidate) =>
-            candidate.organization_id === persisted.organization_id
-              ? persisted
-              : candidate,
-          )
-        : [...authState.availableOrganizations, persisted];
+    const nextAvailableOrganizations = authState.availableOrganizations.some(
+      (candidate) => candidate.organization_id === persisted.organization_id,
+    )
+      ? authState.availableOrganizations.map((candidate) =>
+          candidate.organization_id === persisted.organization_id
+            ? persisted
+            : candidate,
+        )
+      : [...authState.availableOrganizations, persisted];
     const nextSession = {
       ...authState.session,
       account_id: persisted.account_id,
@@ -322,5 +319,7 @@ function isAuthenticationRefreshFailure(error: unknown) {
     }
   }
 
-  return error instanceof Error && error.message === "Authentication is required";
+  return (
+    error instanceof Error && error.message === "Authentication is required"
+  );
 }

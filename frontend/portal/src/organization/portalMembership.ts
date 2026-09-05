@@ -1,7 +1,9 @@
-import { apiEndpoints, type ApiClient, resolvePathTemplate } from "@charity-status/shared-api";
-import type {
-  PortalOrganizationMemberSummary,
-} from "./usePortalOrganization";
+import {
+  apiEndpoints,
+  type ApiClient,
+  resolvePathTemplate,
+} from "@charity-status/shared-api";
+import type { PortalOrganizationMemberSummary } from "./usePortalOrganization";
 
 export interface PortalInvitationCreateRequest {
   email: string;
@@ -64,22 +66,25 @@ export function createPortalMembershipClient(
       });
     },
     async listInvitations() {
-      const payload = await apiClient.get<{ items: PortalOrganizationInvitationSummary[] }>(
-        apiEndpoints.organization.currentInvitations,
-      );
+      const payload = await apiClient.get<{
+        items: PortalOrganizationInvitationSummary[];
+      }>(apiEndpoints.organization.currentInvitations);
       return payload.items;
     },
     async listMembers() {
-      const payload = await apiClient.get<{ items: PortalOrganizationMemberSummary[] }>(
-        apiEndpoints.organization.currentMembers,
-      );
+      const payload = await apiClient.get<{
+        items: PortalOrganizationMemberSummary[];
+      }>(apiEndpoints.organization.currentMembers);
       return payload.items;
     },
     removeMember(memberId) {
       return apiClient.delete<PortalMemberRemovalResponse>(
-        resolvePathTemplate(apiEndpoints.organization.deleteCurrentMember.path, {
-          memberId,
-        }),
+        resolvePathTemplate(
+          apiEndpoints.organization.deleteCurrentMember.path,
+          {
+            memberId,
+          },
+        ),
       );
     },
     updateMember(memberId, request) {

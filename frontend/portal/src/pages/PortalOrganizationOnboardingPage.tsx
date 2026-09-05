@@ -20,7 +20,6 @@ interface PortalOrganizationOnboardingPageProps {
 }
 
 export function PortalOrganizationOnboardingPage({
-  endpoints: _endpoints,
   isBusy,
   onClose,
   onCreateOrganization,

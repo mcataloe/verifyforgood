@@ -118,7 +118,9 @@ export function usePortalNonprofitSearch(
         setSearchMode("name");
         setRecentSearches((current) =>
           prependSearchHistory(current, {
-            outcome: searchResults.items.length ? "results_loaded" : "no_results",
+            outcome: searchResults.items.length
+              ? "results_loaded"
+              : "no_results",
             query: trimmedQuery,
             resultsCount: searchResults.items.length,
             searchMode: "name",
@@ -176,12 +178,10 @@ export function usePortalNonprofitSearch(
     setError(null);
 
     try {
-      const searchResults: PortalNonprofitSearchPage = await service.searchByName(
-        lastQuery,
-        {
+      const searchResults: PortalNonprofitSearchPage =
+        await service.searchByName(lastQuery, {
           cursor: nextCursor,
-        },
-      );
+        });
       setResults((current) => [...current, ...searchResults.items]);
       setNextCursor(searchResults.nextCursor);
       setHasMoreResults(Boolean(searchResults.nextCursor));

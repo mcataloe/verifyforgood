@@ -11,7 +11,10 @@ export function PortalNotFoundPage() {
     >
       <EmptyState
         action={
-          <a className="portal-shell__action" href={organizationsPortalRoute.hash}>
+          <a
+            className="portal-shell__action"
+            href={organizationsPortalRoute.hash}
+          >
             Open organizations
           </a>
         }

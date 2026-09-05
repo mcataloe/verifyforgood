@@ -276,7 +276,8 @@ function PortalAppShell({
           setIsOrganizationOnboardingOpen(false)
         }
         onCreateOrganization={async (request) => {
-          if (!organizationClient) throw new Error("Authentication is required");
+          if (!organizationClient)
+            throw new Error("Authentication is required");
           const created = await organizationClient.createOrganization(request);
           auth.applyOrganization(createPortalActiveOrganizationRecord(created));
           setIsOrganizationOnboardingOpen(false);
@@ -374,7 +375,12 @@ function PortalAuthorizedShell({
       ) : null}
       {session.organization_context_status === "pending" &&
       !isOrganizationOnboardingOpen ? (
-        <Paper data-testid="pending-organization-callout" p="lg" radius="lg" withBorder>
+        <Paper
+          data-testid="pending-organization-callout"
+          p="lg"
+          radius="lg"
+          withBorder
+        >
           <Stack gap="md">
             <Title order={2}>Create Your Organization to Continue</Title>
             <PortalHint>

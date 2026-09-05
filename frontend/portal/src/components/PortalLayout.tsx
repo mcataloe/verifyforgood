@@ -8,7 +8,6 @@ import type { PropsWithChildren } from "react";
 import {
   resolveActivePortalNavigationKey,
   resolvePortalProfileNavigationTarget,
-  resolvePortalNavigationAudience,
   resolvePortalNavigation,
 } from "../app/portalNavigation";
 import { resolveMembershipRoleFromContext } from "../app/portalAuthorization";
@@ -44,7 +43,6 @@ export function PortalLayout({
 }: PortalLayoutProps) {
   const auth = usePortalAuth();
   const organization = usePortalOrganization();
-  const audience = resolvePortalNavigationAudience(session.roles);
   const membershipRole = resolveMembershipRoleFromContext(
     organization.currentMembership ?? session.organization_membership,
   );

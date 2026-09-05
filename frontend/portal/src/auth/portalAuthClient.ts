@@ -1,5 +1,12 @@
-import { apiEndpoints, createApiClient, type ApiClient } from "@charity-status/shared-api";
-import type { FrontendAccessRole, FrontendRuntimeConfig } from "@charity-status/shared-types";
+import {
+  apiEndpoints,
+  createApiClient,
+  type ApiClient,
+} from "@charity-status/shared-api";
+import type {
+  FrontendAccessRole,
+  FrontendRuntimeConfig,
+} from "@charity-status/shared-types";
 import {
   createPortalCompatibilitySession,
   type PortalAvailableOrganizationRecord,
@@ -117,7 +124,9 @@ export function createPortalAuthClient({
   };
 }
 
-function hydrateCurrentSession(apiClient: ApiClient): Promise<PortalAuthState | null> {
+function hydrateCurrentSession(
+  apiClient: ApiClient,
+): Promise<PortalAuthState | null> {
   return hydrateSessionFromCookie(apiClient).then((cookieSession) => {
     if (cookieSession) {
       return cookieSession;
@@ -136,7 +145,9 @@ async function hydrateSessionFromCookie(
   apiClient: ApiClient,
 ): Promise<PortalAuthState | null> {
   try {
-    const payload = await apiClient.get<PortalAuthMePayload>(apiEndpoints.auth.me);
+    const payload = await apiClient.get<PortalAuthMePayload>(
+      apiEndpoints.auth.me,
+    );
     return buildPortalAuthState(payload);
   } catch (error) {
     const status =
@@ -146,7 +157,10 @@ async function hydrateSessionFromCookie(
     if (status === 401) {
       return null;
     }
-    if (error instanceof Error && error.message === "Authentication is required") {
+    if (
+      error instanceof Error &&
+      error.message === "Authentication is required"
+    ) {
       return null;
     }
     throw error;
@@ -158,14 +172,20 @@ async function hydrateSessionFromRecord(
   record: PortalStoredAuthRecord,
 ): Promise<PortalAuthState | null> {
   try {
-    const payload = await apiClient.get<PortalAuthMePayload>(apiEndpoints.auth.me, {
-      headers: {
-        Authorization: `${record.token_type} ${record.access_token}`,
+    const payload = await apiClient.get<PortalAuthMePayload>(
+      apiEndpoints.auth.me,
+      {
+        headers: {
+          Authorization: `${record.token_type} ${record.access_token}`,
+        },
       },
-    });
+    );
     return buildPortalAuthState(payload, record.access_token);
   } catch (error) {
-    const status = typeof error === "object" && error !== null ? (error as { status?: unknown }).status : null;
+    const status =
+      typeof error === "object" && error !== null
+        ? (error as { status?: unknown }).status
+        : null;
     if (status === 401) {
       clearStoredActiveOrganization();
       clearStoredPortalAuthRecord();
@@ -203,9 +223,7 @@ function buildPortalAuthState(
   };
 }
 
-function resolveHydratedOrganizations(
-  payload: PortalAuthMePayload,
-): {
+function resolveHydratedOrganizations(payload: PortalAuthMePayload): {
   activeOrganization: PortalAvailableOrganizationRecord | null;
   availableOrganizations: PortalAvailableOrganizationRecord[];
 } {
@@ -319,6 +337,8 @@ function isPortalIdentityUser(value: unknown): value is PortalIdentityUser {
   return (
     typeof candidate.email === "string" &&
     typeof candidate.user_id === "string" &&
-    (typeof candidate.full_name === "string" || candidate.full_name === null || candidate.full_name === undefined)
+    (typeof candidate.full_name === "string" ||
+      candidate.full_name === null ||
+      candidate.full_name === undefined)
   );
 }

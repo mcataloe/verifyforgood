@@ -50,12 +50,20 @@ export const organizationEndpoints = {
   deleteCurrent: defineEndpoint("DELETE", "/organizations/current", {
     name: "deleteCurrentOrganization",
   }),
-  createCurrentApiKey: defineEndpoint("POST", "/organizations/current/api-keys", {
-    name: "createCurrentOrganizationApiKey",
-  }),
-  currentInvitations: defineEndpoint("POST", "/organizations/current/invitations", {
-    name: "currentOrganizationInvitations",
-  }),
+  createCurrentApiKey: defineEndpoint(
+    "POST",
+    "/organizations/current/api-keys",
+    {
+      name: "createCurrentOrganizationApiKey",
+    },
+  ),
+  currentInvitations: defineEndpoint(
+    "POST",
+    "/organizations/current/invitations",
+    {
+      name: "currentOrganizationInvitations",
+    },
+  ),
   currentApiKeys: defineEndpoint("GET", "/organizations/current/api-keys", {
     name: "currentOrganizationApiKeys",
   }),

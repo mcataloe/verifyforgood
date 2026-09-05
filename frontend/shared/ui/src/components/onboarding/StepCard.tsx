@@ -43,7 +43,10 @@ export function StepCard({
       <Stack gap="sm">
         <Group justify="space-between" wrap="wrap">
           <Group gap="sm" wrap="nowrap">
-            <Badge color={status === "complete" ? "success" : "primary"} variant="light">
+            <Badge
+              color={status === "complete" ? "success" : "primary"}
+              variant="light"
+            >
               Step {index}
             </Badge>
             <Title order={4}>{title}</Title>

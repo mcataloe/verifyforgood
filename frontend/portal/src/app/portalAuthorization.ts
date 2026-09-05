@@ -1,8 +1,9 @@
 import type { VerifyForGoodResolvedNavigationSection } from "@charity-status/shared-ui";
-import type { PortalAuthenticatedSession, PortalOrganizationMembership } from "./portalSession";
 import type {
-  PortalNavigationAudience,
-} from "./portalNavigation";
+  PortalAuthenticatedSession,
+  PortalOrganizationMembership,
+} from "./portalSession";
+import type { PortalNavigationAudience } from "./portalNavigation";
 import type {
   PortalProtectedRouteKey,
   PortalRouteDefinition,
@@ -74,7 +75,9 @@ const customerUserNavigationAccess: Record<string, true> = {
 export function normalizeCustomerMembershipRole(
   role: string | null | undefined,
 ): CustomerMembershipRole | null {
-  const candidate = String(role || "").trim().toLowerCase();
+  const candidate = String(role || "")
+    .trim()
+    .toLowerCase();
   if (candidate === "admin" || candidate === "user") {
     return candidate;
   }
@@ -96,7 +99,9 @@ export function hasCustomerMembershipAccess(params: {
 export function filterNavigationSectionsByMembershipRole(params: {
   audience: PortalNavigationAudience;
   membershipRole: CustomerMembershipRole | null;
-  organizationContextStatus?: PortalAuthenticatedSession["organization_context_status"] | null;
+  organizationContextStatus?:
+    | PortalAuthenticatedSession["organization_context_status"]
+    | null;
   sections: readonly VerifyForGoodResolvedNavigationSection[];
 }): VerifyForGoodResolvedNavigationSection[] {
   if (params.audience !== "customer_admin") {
@@ -269,7 +274,9 @@ function resolvePortalNavigationAlias(currentHash: string): string | null {
 function filterNavigationItemByMembershipRole(
   item: VerifyForGoodResolvedNavigationSection["items"][number],
   membershipRole: CustomerMembershipRole | null,
-  organizationContextStatus: PortalAuthenticatedSession["organization_context_status"] | null,
+  organizationContextStatus:
+    | PortalAuthenticatedSession["organization_context_status"]
+    | null,
 ): VerifyForGoodResolvedNavigationSection["items"][number] | null {
   const requiredAccess = customerAdminNavigationAccess[item.key];
   if (
@@ -311,7 +318,9 @@ function filterNavigationItemByMembershipRole(
   };
 }
 
-function cloneNavigationItem<TItem extends { children?: TItem[] }>(item: TItem): TItem {
+function cloneNavigationItem<TItem extends { children?: TItem[] }>(
+  item: TItem,
+): TItem {
   return {
     ...item,
     ...(item.children

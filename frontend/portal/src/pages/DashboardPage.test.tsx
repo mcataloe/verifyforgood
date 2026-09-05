@@ -54,7 +54,9 @@ describe("DashboardPage", () => {
     expect(mainColumn.className).toContain("portal-dashboard__main");
     expect(sidebarColumn.className).toContain("portal-dashboard__sidebar");
     expect(
-      container.querySelector(".portal-authenticated-container.portal-dashboard"),
+      container.querySelector(
+        ".portal-authenticated-container.portal-dashboard",
+      ),
     ).toBeTruthy();
     expect(
       screen.getByLabelText("Verification trend chart").className,

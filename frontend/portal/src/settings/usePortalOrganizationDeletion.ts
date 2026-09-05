@@ -38,7 +38,9 @@ export function usePortalOrganizationDeletion(): PortalOrganizationDeletionContr
           },
           method: "DELETE",
         });
-        auth.removeOrganization(organization.activeOrganization.organization_id ?? "");
+        auth.removeOrganization(
+          organization.activeOrganization.organization_id ?? "",
+        );
         return true;
       } catch (caughtError) {
         setError(

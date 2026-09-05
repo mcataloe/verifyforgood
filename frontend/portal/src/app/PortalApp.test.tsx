@@ -618,7 +618,10 @@ describe("PortalApp", () => {
     expect(
       screen.queryByRole("heading", { name: "Usage & Billing" }),
     ).toBeNull();
-    expect(screen.getByText(/Requested area/i)).toBeTruthy();
+    expect(window.location.hash).toBe("#/sign-in");
+    expect(
+      window.sessionStorage.getItem("verifyforgood.portal.return-to"),
+    ).toBeTruthy();
     expect(screen.queryByText("Login endpoint")).toBeNull();
   });
 
@@ -636,9 +639,7 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
@@ -674,9 +675,7 @@ describe("PortalApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
@@ -763,7 +762,7 @@ describe("PortalApp", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Organization Activity",
+        name: "Home",
       }),
     ).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
@@ -802,9 +801,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
 
@@ -840,9 +837,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
 
@@ -933,9 +928,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
     expect(
       window.localStorage.getItem("verifyforgood.portal.organization.active"),
@@ -959,9 +952,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByTestId("portal-page-container")).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(
@@ -995,9 +986,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(
       await screen.findByTestId("organization-onboarding-page"),
     ).toBeTruthy();
@@ -1126,9 +1115,7 @@ describe("PortalApp", () => {
     );
 
     expect(await screen.findByText("Access denied")).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Organization Activity" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Home" })).toBeNull();
     expect(window.location.hash).toBe("#/billing");
   });
 
@@ -1149,9 +1136,7 @@ describe("PortalApp", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByTestId("organization-onboarding-page")).toBeTruthy();
     expect(window.location.hash).toBe("#/dashboard");
   });
@@ -1189,9 +1174,7 @@ describe("PortalApp", () => {
     render(<App />);
 
     expect(await screen.findByText("Access denied")).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Organization Activity" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Home" })).toBeNull();
     expect(window.location.hash).toBe("#/usage");
   });
 
@@ -1594,7 +1577,7 @@ describe("PortalApp", () => {
     ).toContain('"organization_id":"org_secondary"');
   });
 
-  it("renders customer-admin home as an activity-first surface", async () => {
+  it("renders customer-admin home as a task landing page", async () => {
     window.localStorage.setItem(
       "verifyforgood.portal.auth.session",
       JSON.stringify({
@@ -1626,12 +1609,15 @@ describe("PortalApp", () => {
 
     render(<App />);
 
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(
-      await screen.findByRole("heading", { name: "Organization Activity" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Organization settings updated")).toBeTruthy();
+      screen
+        .getByRole("link", { name: "Open organizations" })
+        .getAttribute("href"),
+    ).toBe("#/organizations");
     expect(screen.getAllByText("Jamie Admin").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Load More" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open team" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open settings" })).toBeTruthy();
   });
 
   it("keeps billing and usage as distinct route surfaces", async () => {
@@ -1718,9 +1704,7 @@ describe("PortalApp", () => {
         await Promise.resolve();
       });
 
-      expect(
-        screen.getByRole("heading", { name: "Organization Activity" }),
-      ).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(55 * 60 * 1000);

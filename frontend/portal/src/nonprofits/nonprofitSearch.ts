@@ -416,7 +416,9 @@ function mapDetail(
 }
 
 function mapSourceAvailability(
-  availability: NonNullable<BackendNonprofitDetailResponse["source_availability"]>,
+  availability: NonNullable<
+    BackendNonprofitDetailResponse["source_availability"]
+  >,
   sources: NonNullable<BackendNonprofitDetailResponse["sources"]>,
 ): PortalNonprofitSourceAvailability[] {
   if (availability.length > 0) {
@@ -433,7 +435,10 @@ function mapSourceAvailability(
     return {
       attempted: true,
       integrationId: sourceName,
-      label: normalizeText(source.provider_name, humanizeIdentifier(sourceName)),
+      label: normalizeText(
+        source.provider_name,
+        humanizeIdentifier(sourceName),
+      ),
       status: normalizeText(source.status, "unknown"),
     };
   });

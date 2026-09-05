@@ -22,10 +22,10 @@ describe("SupportPage", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "Support" })).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Support" }),
-    ).toBeTruthy();
-    expect(screen.getAllByRole("heading", { name: "Contact Support" })).toHaveLength(1);
+      screen.getAllByRole("heading", { name: "Contact Support" }),
+    ).toHaveLength(1);
     expect(screen.getByText("support@verifyforgood.com")).toBeTruthy();
     expect(screen.queryByText("Portal Test Org")).toBeNull();
     expect(
@@ -46,9 +46,7 @@ describe("SupportPage", () => {
     expect(
       screen.queryByRole("heading", { name: "Report An Issue" }),
     ).toBeNull();
-    expect(
-      screen.getByRole("option", { name: "Recommendation" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Recommendation" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Contact Support" }),
     ).toBeNull();
@@ -93,7 +91,9 @@ describe("SupportPage", () => {
         .hasAttribute("disabled"),
     ).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Send support request" }),
+    );
     expect(submit).not.toHaveBeenCalled();
   });
 
@@ -133,10 +133,13 @@ describe("SupportPage", () => {
     });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: {
-        value: "Please add a recommendation workflow for future customer requests.",
+        value:
+          "Please add a recommendation workflow for future customer requests.",
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send support request" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Send support request" }),
+    );
 
     await waitFor(() => {
       expect(submit).toHaveBeenCalledTimes(1);
