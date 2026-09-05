@@ -1,0 +1,155 @@
+name: Deploy Dev
+
+on:
+  workflow_run:
+    workflows: ["CI and Security"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy main to dev
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AWS_REGION: us-east-1
+      AWS_DEV_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+      AWS_DEV_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEV_DEPLOY_ROLE_ARN }}
+      DEV_DNS_BOOTSTRAPPED: ${{ vars.DEV_DNS_BOOTSTRAPPED }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Verify dev deployment bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_DEV_ACCOUNT_ID}" ]]; then
+            echo "Missing dev GitHub Environment variable AWS_DEV_ACCOUNT_ID." >&2
+            exit 1
+          fi
+          if [[ -z "${AWS_DEV_DEPLOY_ROLE_ARN}" ]]; then
+            echo "Missing dev GitHub Environment variable AWS_DEV_DEPLOY_ROLE_ARN." >&2
+            echo "Run the documented one-time Terraform OIDC bootstrap first." >&2
+            exit 1
+          fi
+          if [[ "${DEV_DNS_BOOTSTRAPPED}" != "true" ]]; then
+            echo "DEV_DNS_BOOTSTRAPPED must be true before automatic dev deployment." >&2
+            echo "The external verifyforgood.com parent hosted zone must exist so dev.verifyforgood.com can be delegated and ACM can validate." >&2
+            exit 1
+          fi
+          if [[ -z "${DEPLOY_SHA}" ]]; then
+            echo "Unable to resolve the successful main-branch CI commit SHA." >&2
+            exit 1
+          fi
+
+      - name: Check out the validated commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEV_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+          allowed-account-ids: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+          role-session-name: verifyforgood-dev-${{ github.run_id }}
+
+      - name: Confirm target AWS account
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          test "${ACTUAL_ACCOUNT_ID}" = "${AWS_DEV_ACCOUNT_ID}"
+          echo "Deploying commit ${DEPLOY_SHA} to VerifyForGood dev in account ${ACTUAL_ACCOUNT_ID}."
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.6
+          terraform_wrapper: false
+
+      - name: Initialize dev Terraform state
+        run: terraform -chdir=infrastructure init -backend-config=backend-dev.hcl
+
+      - name: Validate Terraform before deployment
+        run: |
+          terraform -chdir=infrastructure fmt -check -recursive
+          terraform -chdir=infrastructure validate
+
+      - name: Ensure deployment ECR repositories exist
+        run: |
+          terraform -chdir=infrastructure apply \
+            -auto-approve \
+            -lock-timeout=5m \
+            -target=aws_ecr_repository.api \
+            -target=aws_ecr_repository.monthly_ingest_worker \
+            -var-file=terraform.shared.tfvars \
+            -var-file=terraform-dev.tfvars \
+            -var="api_ecs_image_tag=${DEPLOY_SHA}" \
+            -var="monthly_ingest_worker_image_tag=${DEPLOY_SHA}"
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable API and ingest images
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_REPOSITORY_URL="$(terraform -chdir=infrastructure output -raw api_ecr_repository_url)"
+          INGEST_REPOSITORY_URL="$(terraform -chdir=infrastructure output -raw monthly_ingest_worker_ecr_repository_url)"
+
+          docker build \
+            --file backend/customer-api/Dockerfile \
+            --tag "${API_REPOSITORY_URL}:${DEPLOY_SHA}" \
+            .
+          docker push "${API_REPOSITORY_URL}:${DEPLOY_SHA}"
+
+          docker build \
+            --file backend/ingest/federal/Dockerfile \
+            --tag "${INGEST_REPOSITORY_URL}:${DEPLOY_SHA}" \
+            .
+          docker push "${INGEST_REPOSITORY_URL}:${DEPLOY_SHA}"
+
+      - name: Plan dev infrastructure and application deployment
+        run: |
+          terraform -chdir=infrastructure plan \
+            -lock-timeout=5m \
+            -out=dev.tfplan \
+            -var-file=terraform.shared.tfvars \
+            -var-file=terraform-dev.tfvars \
+            -var="api_ecs_image_tag=${DEPLOY_SHA}" \
+            -var="monthly_ingest_worker_image_tag=${DEPLOY_SHA}"
+
+      - name: Apply dev deployment
+        run: terraform -chdir=infrastructure apply -auto-approve dev.tfplan
+
+      - name: Wait for API service stability
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLUSTER_NAME="$(terraform -chdir=infrastructure output -raw api_ecs_cluster_name)"
+          SERVICE_NAME="$(terraform -chdir=infrastructure output -raw api_ecs_service_name)"
+          aws ecs wait services-stable --cluster "${CLUSTER_NAME}" --services "${SERVICE_NAME}"
+
+      - name: Smoke test dev API route
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --retry 6 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            https://dev.verifyforgood.com/api/ready
