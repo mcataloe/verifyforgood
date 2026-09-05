@@ -21,6 +21,9 @@ locals {
 
   platform_postgres_vpc_id_effective = var.environment_network_enabled ? local.environment_vpc_id : var.platform_postgres_vpc_id
   platform_postgres_private_subnet_ids_effective = var.environment_network_enabled ? local.environment_private_subnet_ids : var.platform_postgres_private_subnet_ids
+
+  monthly_ingest_private_subnet_ids_effective = var.environment_network_enabled ? local.environment_private_subnet_ids : var.monthly_ingest_private_subnet_ids
+  monthly_ingest_task_security_group_ids_effective = var.environment_network_enabled ? [aws_security_group.monthly_ingest[0].id] : var.monthly_ingest_task_security_group_ids
 }
 
 resource "aws_vpc" "environment" {
@@ -143,6 +146,24 @@ resource "aws_route_table_association" "environment_private" {
 
   subnet_id      = aws_subnet.environment_private[count.index].id
   route_table_id = aws_route_table.environment_private[0].id
+}
+
+resource "aws_security_group" "monthly_ingest" {
+  count = var.environment_network_enabled ? 1 : 0
+
+  name        = "${local.namespace}-${local.platform}-ingest-task-sg-${local.environment_slug}-${local.region_short}"
+  description = "Private ECS ingest task security group. Egress uses the environment NAT gateway for IRS and future state sources."
+  vpc_id      = aws_vpc.environment[0].id
+
+  egress {
+    description = "Allow outbound HTTPS and AWS service access through the private route table."
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.platform_common_tags
 }
 
 resource "aws_vpc_endpoint" "s3_gateway" {
