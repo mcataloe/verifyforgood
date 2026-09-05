@@ -11,9 +11,9 @@ END_LEAP_DOC_METADATA
 
 Status: Active supporting index; individual decisions retain their own authority  
 Owner / approver: Project owner / Architecture owner  
-Last reconciled: 2026-07-02  
+Last reconciled: 2026-09-04  
 Canonical owner of: Navigation and status of technical-structure documentation  
-Related Initiatives: `INIT-001`, `INIT-003`, `INIT-004`, `INIT-006`, `INIT-007`, `INIT-009`
+Related Initiatives: `INIT-001`, `INIT-003`, `INIT-004`, `INIT-005`, `INIT-006`, `INIT-007`, `INIT-009`
 
 Architecture organizes technical structure. It does not own the Mission, Strategic Outcomes, Initiative identity, or Roadmap priority.
 
@@ -21,44 +21,54 @@ Architecture organizes technical structure. It does not own the Mission, Strateg
 
 | Path | Purpose | Authority / status | Related Initiatives | Known conflicts / ratification needs |
 |---|---|---|---|---|
-| [`../repo-target-architecture.md`](../repo-target-architecture.md) | Current assessment and target repository split | Supporting / provisional | `INIT-001`, `INIT-007` | Broad policy/decision public-core classification needs refinement |
-| [`../repo-split-guide.md`](../repo-split-guide.md) | Migration placement and dependency guidance | Supporting | `INIT-007` | Must remain compatible with current runtime paths |
-| [`../backend-stage1-readiness.md`](../backend-stage1-readiness.md) | Entrypoint ownership and shared-contract readiness | Supporting snapshot | `INIT-005`, `INIT-007` | Preserve tested headings and paths |
+| [`../../backend/README.md`](../../backend/README.md) | Current backend runtime-host boundaries, local development, persistence, and container contracts | Supporting current runtime reference | `INIT-003`, `INIT-004`, `INIT-005`, `INIT-007` | Verify implementation against current code, migrations, and tests |
+| [`../../frontend/README.md`](../../frontend/README.md) | Frontend workspace and portal/shared dependency boundaries | Supporting current runtime reference | `INIT-005`, `INIT-008` | Product surfaces must not redefine authority |
+| [`ADR-advisory-copilot-product-doctrine.md`](ADR-advisory-copilot-product-doctrine.md) | Customer-facing nonprofit advisory-copilot doctrine | Accepted decision | `INIT-001`, `INIT-005` | Legacy score/recommendation seams remain compatibility concerns |
+| [`ADR-ecs-runtime-pivot.md`](ADR-ecs-runtime-pivot.md) | ECS/ALB customer API runtime direction | Architecture decision | `INIT-005`, `INIT-007` | Legacy rollback references require freshness checks |
+| [`ADR-identity-datastore.md`](ADR-identity-datastore.md) | Identity datastore direction | Provisional ADR | `INIT-004` | Security/privacy/migration approval required for material changes |
+| [`ADR-nonprofit-database-isolation.md`](ADR-nonprofit-database-isolation.md) | Nonprofit database isolation and persistence direction | Architecture decision | `INIT-002`, `INIT-003`, `INIT-007` | Verify current migration/runtime state before changing persistence |
+| [`ADR-billing-provider.md`](ADR-billing-provider.md) | Billing provider direction | Provisional ADR | `INIT-006` | Production policy and operational decisions remain separate |
+| [`evidence-review-contract.md`](evidence-review-contract.md) | Evidence-first nonprofit review contract | Architecture/product contract reference | `INIT-001`, `INIT-002`, `INIT-005` | Customer decision authority remains governing constraint |
+| [`form990-local-workspace-architecture.md`](form990-local-workspace-architecture.md) | Local Form 990 workspace architecture | Supporting Architecture | `INIT-003` | Distinguish local workflow from deployed prerequisites |
 | [`../monthly-ingest-architecture.md`](../monthly-ingest-architecture.md) | Monthly ingest workflow and contracts | Supporting Architecture | `INIT-003`, `INIT-007` | Distinguish implementation from environment prerequisites |
 | [`../monthly-ingest-runbook.md`](../monthly-ingest-runbook.md) | Deployment and operational procedures | Supporting runbook | `INIT-003` | Operational source, not strategy |
-| [`../private-platform-service-areas.md`](../private-platform-service-areas.md) | Private-platform service boundaries | Supporting / transitional | `INIT-004`, `INIT-006`, `INIT-007` | Service areas are persistent boundaries, not Initiatives |
-| [`../capability-naming-abstraction.md`](../capability-naming-abstraction.md) | Neutral capability namespace and compatibility | Supporting convention | `INIT-007` | Preserve compatibility terms |
-| [`../contributor-naming-rules.md`](../contributor-naming-rules.md) | Contributor naming rules | Supporting convention | `INIT-007`, `INIT-009` | Local filesystem links require repair |
-| [`../infrastructure-naming-normalization.md`](../infrastructure-naming-normalization.md) | Terraform and physical-resource naming | Supporting convention | `INIT-007` | Deployed names require explicit migration |
-| [`ADR-billing-provider.md`](ADR-billing-provider.md) | Billing provider direction | Provisional ADR | `INIT-006` | Production decisions remain separate |
-| [`plan-catalog.md`](plan-catalog.md) | Human-readable plan tier, limit, and feature snapshot | Supporting reference | `INIT-006` | Code and `/v1/plans` remain authoritative if this drifts |
-| [`ADR-identity-datastore.md`](ADR-identity-datastore.md) | Identity datastore direction | Provisional ADR | `INIT-004` | Security/privacy/migration approval required |
-| [`../../frontend/README.md`](../../frontend/README.md) | Frontend workspace boundaries | Supporting Architecture | `INIT-005`, `INIT-008` | Product surfaces must not redefine authority |
-| [`../../split-plan.json`](../../split-plan.json) | Machine-readable split mapping | Supporting contract | `INIT-001`, `INIT-007` | Intentionally unchanged by `INIT-009`; policy distinction incomplete |
+| [`plan-catalog.md`](plan-catalog.md) | Runtime/architecture reference for plan catalog projection | Supporting reference | `INIT-006` | Product/package meaning is owned by `docs/product/plan-catalog.md` after ratification |
+| [`portal-routing.md`](portal-routing.md) | Portal routing reference | Supporting reference | `INIT-005` | Verify against current portal route implementation |
+| [`../../split-plan.json`](../../split-plan.json) | Machine-readable historical/transitional split mapping | Supporting compatibility contract | `INIT-001`, `INIT-007` | Do not treat stale target paths as current physical topology without repo evidence |
+
+## Removed or Historical Architecture Paths
+
+The following paths were referenced by earlier governance/index records but are not present on current `main` as of 2026-09-04:
+
+- `docs/repo-target-architecture.md`
+- `docs/repo-split-guide.md`
+- `docs/backend-stage1-readiness.md`
+- `docs/private-platform-service-areas.md`
+- `docs/capability-naming-abstraction.md`
+- `docs/contributor-naming-rules.md`
+- `docs/infrastructure-naming-normalization.md`
+
+Do not recreate these paths merely to satisfy historical references. Use current repository reality and the active sources above. Historical references should be treated as migration evidence until a separately approved documentation migration establishes replacement paths.
 
 ## Current Structural Model
 
-The repository is transitioning toward:
+Current repository reality uses first-class `frontend/`, `backend/`, and `infrastructure/` runtime/deployment boundaries, with `public-core/` and `private-platform/` retained as compatibility/evolution boundaries where still present. The current backend runtime hosts are documented under `backend/customer-api/`, `backend/platform-api/`, `backend/worker/`, `backend/ingest/federal/`, and `backend/shared/`.
 
-- `public-core/` for reusable deterministic/open-safe logic
-- `private-platform/` for customer/account/auth/billing/admin/runtime and proprietary concerns
-- `infrastructure/` for deployment configuration and entrypoint wiring
-
-Current runtime code still exists under legacy paths. Transitional documentation must not claim the physical split is complete.
+Do not infer physical topology from older target-state documents when current paths, code, or tests disagree.
 
 ## Customer-Policy Ownership Boundary — Unresolved
 
-`INIT-001` must resolve this boundary before code movement.
+`INIT-001` must resolve material customer-policy ownership changes before code movement or contract redesign.
 
-### Reusable public-core candidates
+### Reusable/open-safe candidates
 
 - source-fact and evidence models
 - normalization
 - pure policy rule schemas
 - pure deterministic rule evaluation
-- generic scoring primitives with explicit semantics
+- generic scoring primitives with explicit semantics where retained internally
 
-### Customer-private private-platform concerns
+### Customer-private concerns
 
 - customer policy definitions and assignment
 - policy precedence, versions, and lifecycle
@@ -67,12 +77,12 @@ Current runtime code still exists under legacy paths. Transitional documentation
 - evaluation history and final customer decisions
 - proprietary templates where applicable
 
-The existing target architecture and `split-plan.json` broadly list policy and decision modules as public-core candidates. This index records the unresolved distinction but does not ratify a source move, alter the split plan, or change runtime behavior.
+The accepted advisory-copilot doctrine and customer decision-authority rules prohibit treating legacy score/recommendation seams as customer-facing product truth. This index records the unresolved implementation-placement distinction but does not ratify a source move, alter split-plan compatibility, or change runtime behavior.
 
 ## ADR Needed
 
-A focused `INIT-001` Recon should produce an ADR proposal covering evaluator versus policy-definition ownership, persistence/versioning, authorization, API compatibility, evidence snapshots, audit history, migration, and rollback.
+A focused `INIT-001` Recon should produce an ADR proposal if evaluator versus customer-policy ownership, persistence/versioning, authorization, API compatibility, evidence snapshots, audit history, migration, or rollback requires a material architecture change.
 
 ## Reading Rule
 
-Use the most specific current Architecture source for technical structure, then verify implementation against merged code and tests. Record conflicts in the drift ledger. Do not promote a provisional ADR or target-state document to implemented fact without repository evidence.
+Use the most specific current Architecture source for technical structure, then verify implementation against merged code, tests, schemas, and migrations. Record conflicts in the drift ledger. Do not promote a provisional ADR or historical target-state document to implemented fact without repository evidence.
