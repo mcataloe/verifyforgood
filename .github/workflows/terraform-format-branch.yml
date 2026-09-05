@@ -1,0 +1,54 @@
+name: Temporary Terraform Formatter
+
+on:
+  push:
+    branches:
+      - leap/dev-infrastructure-bootstrap
+
+permissions:
+  contents: write
+
+concurrency:
+  group: terraform-format-dev-infrastructure-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@v6
+        with:
+          ref: leap/dev-infrastructure-bootstrap
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.6
+
+      - name: Format only Terraform files changed by this PR
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          mapfile -t files < <(git diff --name-only origin/main...HEAD -- 'infrastructure/*.tf')
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No changed Terraform files to format."
+            exit 0
+          fi
+          terraform fmt "${files[@]}"
+
+      - name: Commit formatter output when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- infrastructure; then
+            echo "Terraform files already formatted."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- 'infrastructure/*.tf'
+          git commit -m "Chore — format changed Terraform files"
+          git push origin HEAD:leap/dev-infrastructure-bootstrap
