@@ -124,19 +124,38 @@ jobs:
         uses: github/codeql-action/analyze@v4
 
   dependency-review:
-    name: Dependency review
+    name: Dependency review (advisory)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Review dependency changes
+      - name: Review dependency changes when GitHub dependency graph is available
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+  sca-scan:
+    name: Software composition analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Scan repository dependencies for known vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: '1'
 
   secret-scan:
     name: Secret scan
