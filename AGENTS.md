@@ -346,36 +346,38 @@ Primary users and use cases:
 | Item                             | Value                                                                                                                                                                     |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Baseline record                  | Inline in `AGENTS.md`; no `leap.baseline.yaml` found                                                                                                                      |
-| Last full reconcile              | `Never`                                                                                                                                                                   |
-| Last reconcile mode              | `Never`                                                                                                                                                                   |
-| Current source-truth entry point | `README.md`                                                                                                                                                               |
+| Last full reconcile              | `2026-09-04`                                                                                                                                                              |
+| Last reconcile mode              | `BU-GOV-007 documentation reconciliation`                                                                                                                                |
+| Current source-truth entry point | `docs/00_start_here.md`; root `README.md` is a supporting compatibility/repository overview                                                                              |
 | Canonical docs location          | `docs/`, plus surface-specific READMEs                                                                                                                                    |
 | Archive location                 | `Not established`                                                                                                                                                         |
-| Gap register / known drift       | `TODO.md`                                                                                                                                                                 |
-| Baseline confidence              | `Medium` for repo topology and commands; `Unknown` for formal product-roadmap reconciliation                                                                              |
+| Gap register / known drift       | `docs/governance/gap-register.md` and `docs/governance/drift-ledger.md`; `TODO.md` is backlog only                                                                      |
+| Baseline confidence              | `High` for current source-truth navigation and runtime topology; Draft product/strategy documents retain their own stated authority                                       |
 | Reconcile triggers               | Architecture pivot; persistence/backend cutover; source-truth conflict; stale README/docs; large new phase/layer; public/private repo split; billing/auth contract change |
 
-This AGENTS.md population is not a full Brownfield Charter, Governance pass, or source-truth reconciliation. Do not update this table for ordinary feature work.
+This table records the reconciled repository baseline. Ordinary feature work should not silently redefine source-truth ownership or ratify Draft documents.
 
 Primary source-truth documents:
 
-- `README.md` - main architecture, local development, runtime, deployment, naming, and API context.
-- `CUSTOMER_README.md` - customer-facing API surface, workflows, auth, plans, billing, and tenant setup.
-- `docs/repo-target-architecture.md` - target split and dependency rules.
-- `docs/backend-stage1-readiness.md` - backend runtime ownership and test strategy.
-- `docs/repo-split-guide.md` and `split-plan.json` - public/private/infra split planning.
-- `docs/architecture/ADR-ecs-runtime-pivot.md` - ECS/ALB API runtime decision.
-- `docs/architecture/ADR-platform-persistence-relational-pivot.md` - PostgreSQL migration decision.
-- `docs/architecture/ADR-billing-provider.md` - provisional Stripe billing decision.
-- `docs/monthly-ingest-architecture.md` and `docs/monthly-ingest-runbook.md` - monthly private-ingest source truth.
-- `docs/contributor-naming-rules.md`, `docs/capability-naming-abstraction.md`, and `docs/infrastructure-naming-normalization.md` - naming rules.
-- `docs/implementation/` - phase-specific implementation notes and status; verify freshness against code.
+- `docs/00_start_here.md` - canonical project documentation navigation and reading order.
+- `docs/charter/source-of-truth.md` - canonical documentation precedence, truth ownership, lifecycle, and conflict handling.
+- `docs/charter/decision-authority.md` - governing customer decision-authority rules.
+- `docs/charter/project-charter.md` - Mission, boundaries, governing intent, and non-goals at its stated Draft/approved-principle status.
+- `docs/product/plan-catalog.md` and `docs/product/plan-catalog.yaml` - product/package plan meaning and structured values at their stated authority status.
+- Current merged code, tests, schemas, routes, infrastructure configuration, and public contracts - operational authority for implemented behavior.
+- `docs/architecture/README.md` and current ADRs - current Architecture navigation and technical decisions at each document's stated authority.
+- `backend/README.md` and `frontend/README.md` - current runtime/workspace boundaries and local development commands.
+- `CUSTOMER_README.md` - customer-facing API/product guide, bounded by the Charter, Decision Authority, and product catalog.
+- `docs/monthly-ingest-architecture.md` and `docs/monthly-ingest-runbook.md` - current monthly private-ingest Architecture/operations guidance; verify implementation claims against merged code.
+- `docs/implementation/` - supporting implementation plans/status snapshots; verify lifecycle and freshness before use.
+- Root `README.md` - supporting repository overview and compatibility entry point, not the owner of all project truth.
+- `TODO.md` and `PLAN.md` - backlog/historical implementation evidence only; neither owns Strategy or Roadmap truth.
 
 Known stale or conflicting documentation risk:
 
-- Some docs still describe DynamoDB materialized profile/cache behavior, while `infrastructure/README.md` says the runtime and Terraform have retired that cache. Verify current code, Terraform, and tests before changing serving/cache behavior.
+- Root `README.md` remains a large mixed historical/current overview and contains stale architecture details; use `docs/00_start_here.md` plus current code/tests/Architecture docs for authoritative decisions.
 - Root `tests/` remains the active compatibility suite even though package-local test directories are scaffolded.
-- `.gitlab-ci.yml` contains the documented GitLab deployment posture, but many jobs appear commented; verify CI status before relying on automation.
+- `.gitlab-ci.yml` contains the documented GitLab deployment posture; verify current CI status before relying on automation.
 
 ## Repository Layout
 
@@ -385,44 +387,46 @@ Known stale or conflicting documentation risk:
 - `frontend/docs/` - frontend documentation app shell, separate from repository docs.
 - `frontend/shared/` - shared frontend API, config, UI, types, and utilities.
 - `backend/` - Python backend runtime host workspace.
-- `backend/api/` - FastAPI/ASGI API runtime and ECS API image contract.
+- `backend/customer-api/` - customer-facing FastAPI/ASGI API runtime host and ECS API image contract.
+- `backend/platform-api/` - platform/control-plane API runtime host for admin, ops, webhook, and machine-auth routes.
 - `backend/worker/` - scaffolded non-HTTP worker runtime host.
-- `backend/ingest-task/` - EO/BMF and Form 990 ECS/local ingest-task runtime.
-- `backend/shared/` - backend-local env loading and runtime bootstrap helpers.
+- `backend/ingest/federal/` - EO/BMF and Form 990 local/ECS federal-ingest runtime.
+- `backend/shared/` - backend runtime-shared bootstrap, config, logging, local-dev, and compatibility helpers.
 - `public-core/` - future public/open-safe package boundary for deterministic nonprofit logic.
 - `private-platform/` - private platform package boundary for auth, accounts, billing, admin, runtime, and proprietary orchestration.
-- `infrastructure/` - Terraform, deployment wiring, packaging scripts, compatibility shims, and legacy live runtime code still being extracted.
+- `infrastructure/` - Terraform, deployment wiring, packaging scripts, compatibility shims, and legacy deployment/runtime code still being extracted or retired.
 - `infra-deployment/` - scaffold for future deployment-artifacts repository boundary.
-- `alembic/` and `alembic.ini` - PostgreSQL schema migrations.
+- `alembic/` and `alembic.ini` - PostgreSQL platform/customer-account schema migrations.
+- `alembic_nonprofit/` and `alembic_nonprofit.ini` - dedicated nonprofit PostgreSQL schema migrations.
 - `tests/` - active integration, compatibility, deployment-adjacent, and legacy monorepo test suite.
 - `backend/tests/`, `public-core/tests/`, `private-platform/tests/` - package-local test homes for future or already-isolated coverage.
-- `docs/` - architecture, implementation, naming, ingest, and migration documentation.
+- `docs/` - canonical project documentation plus architecture, implementation, governance, naming, ingest, and migration documentation.
 - `postman/` - Postman collection for API exploration.
 
 ## Technology Stack
 
 - Frontend: React 19, TypeScript, Vite, Vitest, ESLint, Prettier, Mantine, Tabler icons, pnpm workspace.
-- Backend/API: Python 3.11, FastAPI, Uvicorn, setuptools workspaces, SQLAlchemy, Alembic.
-- Domain/runtime code: `charity_status` legacy/internal package, `charity_status_backend`, and `charity_status_platform`.
-- Database/persistence: PostgreSQL 16 for local relational development; Amazon RDS for PostgreSQL in infrastructure; transitional/legacy DynamoDB references remain.
-- Data/ingest: IRS EO/BMF CSVs, IRS TEOS/Form 990 ZIP/XML data, local/ECS workspaces, S3/Glue/Athena in deployment and older/compatibility paths.
-- Infrastructure: Terraform, AWS ECS Fargate, ALB, Route53, ACM, ECR, Lambda rollback shims, EventBridge, Step Functions, S3, CloudWatch, Secrets Manager/SSM-style secret injection.
+- Backend/API: Python 3.11, FastAPI, Uvicorn, setuptools/uv-backed backend workspace, SQLAlchemy, Alembic.
+- Current backend namespace: `verification.backend.*`; older `charity_status*` names may remain only where compatibility or historical code still requires them.
+- Database/persistence: PostgreSQL 16 for local relational development; Amazon RDS for PostgreSQL in infrastructure; transitional/legacy DynamoDB references remain and must be verified against current code before use.
+- Data/ingest: IRS EO/BMF CSVs, IRS TEOS/Form 990 ZIP/XML data, local/ECS workspaces, PostgreSQL persistence, with S3/Glue/Athena remaining in deployment and older/compatibility paths where current code still supports them.
+- Infrastructure: Terraform, AWS ECS Fargate, ALB, Route53, ACM, ECR, EventBridge, Step Functions, S3, CloudWatch, Secrets Manager/SSM-style secret injection, plus remaining compatibility resources where current Terraform proves they exist.
 - Billing/auth integrations: Stripe-hosted Checkout and billing portal; API keys and OAuth client credentials.
 - CI/CD: GitLab CI/CD is documented as canonical for backend image build, ECR publish, Terraform plan, and manual rollout; verify actual job enablement in `.gitlab-ci.yml`.
-- Package managers: `pip` for Python; `pnpm@10.33.0` for frontend.
+- Package managers: `uv`/`pip` for Python as documented by the current backend workspace; `pnpm@10.33.0` for frontend.
 - Test frameworks: `pytest` for Python; `vitest` and Testing Library for frontend.
 - Runtime versions: Python `>=3.11`; frontend package manager `pnpm@10.33.0`; Terraform examples use `1.9.8` in CI comments.
 
 ## Setup and Development Commands
 
-Python/backend setup from the repository root:
+Python/backend setup from the repository root follows the current backend workspace guidance. Prefer the current `backend/README.md` and `backend/pyproject.toml`/lockfile over older requirements-only examples.
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r .\infrastructure\requirements.txt -r .\infrastructure\requirements-dev.txt
-python -m pip install -e .\public-core -e .\private-platform -e .\backend
+python -m pip install -e .\backend
 ```
 
 Frontend setup:
@@ -437,14 +441,23 @@ Local PostgreSQL setup:
 ```powershell
 Copy-Item .\backend\.env.local.example .\backend\.env.local
 createdb verification_platform
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.shared.local_dev db-current
+createdb verification_nonprofit
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.shared.local_dev db-upgrade-nonprofit
+python -m verification.backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-current-nonprofit
 ```
 
 Local backend API:
 
 ```powershell
-python -m charity_status_backend.api.entrypoint
+python -m verification.backend.customer.api.entrypoint
+```
+
+Platform/control-plane API:
+
+```powershell
+python -m verification.backend.platform.api.entrypoint
 ```
 
 Frontend dev servers, run from `frontend/`:
@@ -455,21 +468,22 @@ pnpm run dev:marketing
 pnpm run dev:docs
 ```
 
-Ingest-task local examples:
+Federal-ingest local examples:
 
 ```powershell
-python -m charity_status_backend.ingest_task.cli run --limit 1
-python -m charity_status_backend.ingest_task.cli run-eo-bmf
-python -m charity_status_backend.ingest_task.cli ecs-run
-python -m charity_status_backend.ingest_task.cli monthly-worker
+python -m verification.backend.ingest.federal.cli run --limit 1
+python -m verification.backend.ingest.federal.cli run-eo-bmf
+python -m verification.backend.ingest.federal.cli ecs-run
+python -m verification.backend.ingest.federal.cli monthly-worker
 ```
 
 Docker build contracts, run from the repository root:
 
 ```powershell
-docker build -f backend/api/Dockerfile .
+docker build -f backend/customer-api/Dockerfile .
+docker build -f backend/platform-api/Dockerfile .
 docker build -f backend/worker/Dockerfile .
-docker build -f backend/ingest-task/Dockerfile .
+docker build -f backend/ingest/federal/Dockerfile .
 ```
 
 ## Validation Commands
@@ -507,9 +521,12 @@ terraform -chdir=infrastructure validate
 Migration commands:
 
 ```powershell
-python -m charity_status_backend.shared.local_dev db-upgrade
-python -m charity_status_backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-upgrade
+python -m verification.backend.shared.local_dev db-current
+python -m verification.backend.shared.local_dev db-upgrade-nonprofit
+python -m verification.backend.shared.local_dev db-current-nonprofit
 alembic upgrade head
+alembic -c alembic_nonprofit.ini upgrade head
 alembic revision -m "describe change"
 ```
 
@@ -519,7 +536,7 @@ Prefer targeted tests first, then broader checks when practical. Do not claim va
 
 When a task references a layer, phase, subsection, milestone, or roadmap item:
 
-1. Locate the corresponding docs or TODO section.
+1. Locate the corresponding canonical docs or bounded planning record through `docs/00_start_here.md`.
 2. Confirm current implementation state in code, migrations, tests, and Terraform.
 3. Identify affected routes, services, repositories, models, frontend packages, migrations, deployment wiring, and tests.
 4. Implement only the requested unit unless a prerequisite is required for safety.
@@ -529,8 +546,8 @@ When a task references a layer, phase, subsection, milestone, or roadmap item:
 
 During LEAP Recon:
 
-- Start with this repo section, then read `README.md` and the closest relevant README/docs.
-- Perform a lightweight baseline freshness check using the table above, `TODO.md`, source docs, code, tests, and deployment evidence.
+- Start with this repo section, then `docs/00_start_here.md`, `docs/charter/source-of-truth.md`, and the closest relevant current docs/READMEs.
+- Perform a lightweight baseline freshness check using the table above, governance drift/gap records, source docs, code, tests, and deployment evidence. Treat `TODO.md` as backlog only.
 - If the task touches integrations, API contracts, auth, billing, SDKs, provider boundaries, identity, payments, queues, events, or infrastructure dependencies, inspect package manifests, Terraform, tests, mocks, and provider-facing docs in the repo.
 - If `leap.dependencies.yaml` is missing, report that as a limitation, not a blocker.
 - Return Recon only unless the user asks for implementation or prompt generation.
@@ -539,7 +556,7 @@ LEAP Prompt / implementation handoff expectations:
 
 - Include scope, source-truth docs, files likely to change, validation commands, stop conditions, and compatibility risks.
 - Call out whether work is in `frontend`, `backend`, `public-core`, `private-platform`, `infrastructure`, or a compatibility shim.
-- For staged work, keep units aligned to documented phases/layers and avoid cross-layer cleanup unless required.
+- For staged work, keep units aligned to documented Initiatives/Delivery Units/Build Units or preserved historical phases and avoid cross-boundary cleanup unless required.
 
 ## Workflow Selection Reference
 
@@ -568,27 +585,31 @@ These are starting points, not overrides — if a task looks like Quick Brief bu
 
 ## Project Source of Truth
 
-Use this order of truth when making decisions:
+Use the precedence defined by `docs/charter/source-of-truth.md`. `AGENTS.md` governs agent routing, stop conditions, project-specific operating rules, and current repository facts; it does not replace canonical product/strategy/Architecture truth owners.
 
-1. Explicit user instruction for the current task.
-2. Current repository code, migrations, tests, and Terraform.
-3. This `AGENTS.md` repo section and any future closer scoped instruction files.
-4. `README.md` and surface-specific READMEs.
-5. Architecture ADRs and implementation docs under `docs/`.
-6. `CUSTOMER_README.md` for customer-facing API and product behavior.
-7. `TODO.md`, `PLAN.md`, and phase notes.
-8. Reasonable inference from nearby patterns.
+1. Explicit project-owner decisions and ratified governing documents.
+2. The Project Charter and Decision Authority document.
+3. Current merged code, tests, schemas, routes, infrastructure configuration, and public contracts for implemented behavior.
+4. Ratified ADRs and current Architecture documents for technical structure.
+5. Ratified product/package source documents for product/package meaning.
+6. Strategic Outcomes and Initiative registry for strategic intent and coordinated work.
+7. Roadmap for timing, priority, milestones, and sequencing only.
+8. Domain map for persistent responsibility boundaries.
+9. Delivery Unit and Build Unit records for bounded delivery and implementation.
+10. Current implementation plans and status records.
+11. Historical Phase and planning records.
+12. Stale, superseded, archived, or do-not-use documents.
 
-If sources conflict, call out the conflict and prefer the more specific, more recent, and safer evidence.
+If sources conflict, follow `docs/charter/source-of-truth.md`: record the conflict, inspect repo reality, identify the proper truth owner, and stop for a human decision when the conflict affects product meaning, Architecture, contracts, identity, privacy, security, money, legal exposure, or user trust.
 
 ## Architecture Rules
 
 - Preserve the documented dependency direction: `frontend` uses HTTP/shared frontend packages only; `backend` may depend on `public-core` and `private-platform`; `private-platform` may depend on `public-core`; `public-core` must not depend on `private-platform`; `infrastructure` may package/deploy runtime entrypoints but application code should not depend on deployment-only modules.
 - Keep deterministic, reusable, open-safe nonprofit logic in or moving toward `public-core`.
-- Keep auth, customer accounts, billing, quotas, admin operations, proprietary adapters, and runtime orchestration in `private-platform`.
-- Keep executable API, worker, ingest-task, and runtime bootstrap concerns in `backend`.
+- Keep auth, customer accounts, billing, quotas, admin operations, proprietary adapters, and runtime orchestration in `private-platform` where those boundaries are actually implemented or being extracted.
+- Keep executable customer API, platform API, worker, federal-ingest, and runtime bootstrap concerns in `backend`.
 - Keep Terraform, env files, deployment scripts, packaging, and temporary shims in `infrastructure`.
-- Treat `infrastructure/lambda_query.py` and other `infrastructure/lambda_*.py` files as compatibility/rollback surfaces unless current code proves otherwise.
+- Treat `infrastructure/lambda_query.py` and other `infrastructure/lambda_*.py` files as compatibility/legacy surfaces unless current code proves otherwise.
 - Use service/adapter splits where available: service modules own rules and orchestration; adapter modules own AWS/provider clients and persistence/query execution.
 - Do not introduce billing, Stripe, quota, entitlement, or customer-account logic into `public-core`.
 - Preserve existing `/v1/...` API routes, auth header behavior, CORS behavior, webhooks, and response envelopes unless a breaking contract change is explicitly approved.
@@ -602,7 +623,7 @@ If sources conflict, call out the conflict and prefer the more specific, more re
 - Keep migrations additive/reversible where practical and document rollback limits.
 - Use `backend/.env.local` for backend local development; do not commit real `.env` files or secret tfvars.
 - Treat `PLATFORM_POSTGRES_URL` as the primary local database setting.
-- Verify current persistence selectors before changing runtime behavior, including `PLATFORM_POSTGRES_ENABLED`, `PLATFORM_IDENTITY_STORE_BACKEND`, `PLATFORM_NONPROFIT_STORE_BACKEND`, and `PLATFORM_NONPROFIT_QUERY_BACKEND`.
+- Verify current persistence selectors before changing runtime behavior, including `PLATFORM_POSTGRES_ENABLED`, `PLATFORM_IDENTITY_STORE_BACKEND`, `PLATFORM_NONPROFIT_STORE_BACKEND`, and `PLATFORM_NONPROFIT_QUERY_BACKEND` where those selectors remain implemented.
 - Do not retire DynamoDB, Lambda, API Gateway, S3/Athena, or compatibility paths based only on stale docs; confirm current code, Terraform, tests, and rollout status.
 - Form 990 and EO/BMF local/ECS ingest paths use workspace-local artifacts and PostgreSQL-backed persistence in current backend docs; preserve cleanup and bounded workspace behavior.
 
@@ -627,9 +648,9 @@ If sources conflict, call out the conflict and prefer the more specific, more re
 
 ## AI / Automation Rules
 
-- The product uses deterministic rules-based scoring today; README states no black-box ML.
+- The product uses deterministic rules-based scoring today; current product doctrine requires customer-facing nonprofit surfaces to behave as an advisory copilot rather than a ratings/recommendation engine.
 - Do not introduce AI-generated or opaque decisioning into verification/scoring without explicit approval and traceability requirements.
-- Keep verification, scoring, and billing decisions explainable and auditable.
+- Keep verification, scoring, billing, and future AI-assisted outputs explainable and auditable.
 - Do not fabricate nonprofit facts, customer facts, filings, credentials, billing state, or compliance outcomes.
 
 ## Trust and Data Rules
@@ -684,20 +705,24 @@ Update docs when changes affect product behavior, customer workflows, API contra
 
 Keep these docs aligned with relevant changes:
 
+- `docs/00_start_here.md`
+- `docs/charter/source-of-truth.md`
+- `docs/charter/decision-authority.md`
 - `README.md`
 - `CUSTOMER_README.md`
 - `frontend/README.md`
 - `backend/README.md`
 - `infrastructure/README.md`
-- `docs/repo-target-architecture.md`
-- `docs/backend-stage1-readiness.md`
+- `docs/architecture/README.md`
+- current Architecture ADRs relevant to the change
+- `docs/backend-stage1-readiness.md` when that snapshot remains relevant
 - `docs/monthly-ingest-architecture.md`
 - `docs/monthly-ingest-runbook.md`
-- `docs/architecture/*.md`
 - `docs/implementation/*.md`
-- `TODO.md` when a documented gap is closed or materially changed
+- `docs/governance/drift-ledger.md` / `docs/governance/gap-register.md` when a recorded condition changes
+- `TODO.md` only when a backlog item is closed or materially changed
 
-Do not create new strategy, baseline, or roadmap docs unless explicitly asked.
+Do not create new strategy, baseline, or roadmap docs unless explicitly asked or required by an approved LEAP governance task.
 
 ## Commit, Branch, PR, and CI Expectations
 
@@ -723,7 +748,7 @@ Stop and ask before:
 - Changing auth/session/API-key/OAuth/tenant/organization ownership rules.
 - Changing billing provider behavior, Stripe webhook semantics, subscription state, entitlement enforcement, trial behavior, overage policy, or payment flows.
 - Breaking public `/v1/...` contracts, customer docs, frontend shared API contracts, or webhook contracts.
-- Retiring API Gateway/Lambda rollback resources, DynamoDB paths, or compatibility shims without explicit rollout approval.
+- Retiring active rollback/compatibility resources or paths without explicit rollout approval and current repo evidence.
 - Adding paid external services, live provider integrations, or new production dependencies.
 - Changing Terraform state backends, production tfvars, Route53, ACM, ALB, ECS, RDS, or secret wiring.
 - Replacing the documented architecture instead of extending it incrementally.
