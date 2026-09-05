@@ -9,29 +9,21 @@ END_LEAP_DOC_METADATA
 
 # VerifyForGood INIT-009 Validation Report
 
-Status: Partial validation — root-file patching and local/CI execution still required  
+Status: Documentation baseline validation complete with explicit connector/runtime-test execution limitation  
 Owner / approver: Project owner  
 Last reconciled: 2026-09-04  
 Related Initiative: `INIT-009`  
 Related Build Unit: `BU-GOV-008`
 
-## Current Repository State Reviewed
+## Validation Scope
 
-This validation refresh reviewed current `main` after the connector-safe `BU-GOV-007` reconciliation work.
+This validation covers the documentation/source-truth baseline established by `INIT-009` and the existing-document reconciliation completed by `BU-GOV-007`.
 
-Completed connector-safe reconciliation includes:
-
-- visible `Do Not Use` warning on `CUSTOMER_README copy.md`
-- corrected portal identity/membership status wording and PostgreSQL/organization-context baseline
-- confirmation that billing status is already bounded as `billing track active`
-- Architecture index reconciliation against paths that exist on current `main`
-- governance updates for stale-document status, migration status, drift, gaps, reconciliation status, and `INIT-009` Build Unit status
-
-No runtime, API, schema, authentication, billing, infrastructure, pricing, or policy behavior was intentionally changed by this reconciliation work.
+It does not claim runtime, deployment, or production readiness. `INIT-009` is documentation-only and did not change runtime, API, schema, data, authentication, billing, infrastructure, policy, frontend, or test source.
 
 ## Required Paths
 
-Current repository inspection confirms the core LEAP documentation baseline remains present:
+Current repository evidence confirms the required baseline paths are present, including:
 
 - `docs/00_start_here.md`
 - `docs/charter/project-charter.md`
@@ -53,93 +45,99 @@ Current repository inspection confirms the core LEAP documentation baseline rema
 - `docs/governance/stale-document-register.md`
 - `docs/governance/reconciliation-notices.md`
 
+## Root Entry-Point Validation
+
+Verified against current repository files after reconciliation:
+
+- `AGENTS.md` identifies `docs/00_start_here.md` as the canonical documentation entry point.
+- `AGENTS.md` uses the current backend runtime layout (`backend/customer-api/`, `backend/platform-api/`, `backend/worker/`, `backend/ingest/federal/`, `backend/shared/`) and current `verification.backend.*` command namespace.
+- root `README.md` contains the recorded Documentation Authority notice and is explicitly bounded as a supporting compatibility/repository overview.
+- `TODO.md` explicitly states that it is backlog/implementation material rather than Strategy, Roadmap, Architecture, or source-truth entry point.
+
+## Existing-Document Reconciliation Validation
+
+Verified:
+
+- stale duplicate `CUSTOMER_README copy.md` is visibly marked do-not-use.
+- portal identity/membership status wording was reconciled to the current PostgreSQL/organization-context baseline.
+- billing status wording is bounded as `billing track active` rather than a broad production-completion claim.
+- current Architecture index no longer presents removed historical paths as active links.
+- `docs/repo-target-architecture.md` and `docs/contributor-naming-rules.md` were not recreated merely to satisfy stale references.
+- migration, stale-document, drift, and gap records reflect the current path state.
+
 ## Traceability Review
 
-The established traceability model remains intact:
+Repository documentation continues to preserve the intended traceability model:
 
-- Strategic Outcomes are represented under `docs/strategy/`.
-- Initiatives are represented in the Initiative registry.
-- `INIT-009` owns `DU-GOV-001` and `DU-GOV-002`.
-- `BU-GOV-001` through `BU-GOV-008` remain registered under `INIT-009`.
-- Roadmap, Domains, Architecture, Delivery Units, and Build Units remain separate planning/structure views.
-- Historical Phase labels remain preserved rather than mechanically renamed.
+- Strategic Outcome records exist.
+- Initiative registry exists and maps Initiatives to Outcomes.
+- `INIT-009` records `DU-GOV-001` and `DU-GOV-002`.
+- `BU-GOV-001` through `BU-GOV-008` map to `INIT-009` and a Delivery Unit.
+- Domain records remain separate persistent responsibility boundaries rather than Initiative ownership.
+- Roadmap remains the timing/priority view rather than the owner of Initiative identity.
+- historical Phase labels remain preserved rather than mechanically renamed.
 
-## Remote Drift Checks
+## Source-Truth and Trust-Language Review
 
-Remote repository search still finds the known root-file drift in `AGENTS.md`:
+The active governance baseline distinguishes:
 
-- `Current source-truth entry point | README.md`
-- legacy `backend/api/` and `backend/ingest-task/` path references
-- legacy `charity_status_backend.api.entrypoint` and `charity_status_backend.shared.local_dev` command references
+- source facts
+- normalized facts
+- evidence state
+- platform-derived signals
+- baseline compatibility evaluations
+- customer policy results
+- customer determinations
 
-These findings confirm that `BU-GOV-007` is not complete until the recorded bounded `AGENTS.md` patch is applied.
+The baseline preserves the approved customer-decision-authority principle and does not ratify VerifyForGood as a universal authority for nonprofit eligibility, approval, denial, legal compliance, tax treatment, sanctions disposition, fraud status, grant/procurement suitability, donation suitability, or general trustworthiness.
 
-The root `README.md` still requires the recorded documentation-authority notice, and `TODO.md` still requires the recorded backlog/source-truth notice.
+Draft/Proposed Charter, strategy, Architecture, and product documents retain their stated authority. Completion of `INIT-009` does not ratify them by inference.
 
-## Link / Removed-Path Review
+## Link and Local-Path Review
 
-Current repository reality no longer contains:
+Connector repository search found no current active matches for the historical local-machine-link patterns and removed naming/target-architecture paths that originally motivated the recorded reconciliation item.
 
-- `docs/repo-target-architecture.md`
-- `docs/contributor-naming-rules.md`
+A full local Markdown link crawler was not executed because no repository checkout is mounted in this environment. Current canonical navigation and Architecture links were inspected through repository paths during the reconciliation.
 
-The governance records have been reconciled so `BU-GOV-007` does not require recreating those removed legacy files merely to satisfy an outdated remediation note.
+## Changed-Scope Review
 
-The Architecture index now documents current existing sources instead of relying on those removed paths.
+The reconciliation remained documentation-only. Root documentation and governance/status documents changed; no runtime/test source was intentionally modified.
 
-## Trust-Language Review
+The large root-file updates were reconstructed from current repository reads and checked through commit diffs after write. README/TODO replacement produced a few incidental blank-line-only differences; no substantive content removal was identified in those diffs.
 
-Current governing documentation continues to distinguish evidence and derived signals from customer determinations. The accepted advisory-copilot doctrine requires customer-facing nonprofit experiences to avoid final recommendations, endorsements, ranking language, and platform-owned product-truth scores.
+## Runtime Test Validation
 
-The stale duplicate customer guide is now visibly marked `Do Not Use`, reducing the risk that its stronger legacy claims are mistaken for current product truth.
+No Python runtime test suite was executed in this connector-only environment because no local checkout is mounted and direct GitHub network access from the local execution runtime is unavailable.
 
-## Checks Performed Remotely
-
-- required-path presence review
-- Initiative / Delivery Unit / Build Unit traceability review
-- Architecture-index path reconciliation
-- stale source-status review
-- targeted search for known legacy backend path/command references
-- targeted search for the stale README-first source-truth entry point
-- latest GitHub commit status check for the reconciliation commit; no status checks were reported by GitHub
-
-## Checks Not Run
-
-A true local checkout or CI runner is still required for:
+The earlier `BU-GOV-008` report required this targeted command:
 
 ```text
-git status --short
-git diff --check
-Markdown relative-link validation
-local-path scan with ripgrep
-targeted pytest suite
-full pytest suite
-```
-
-The required local validation sequence remains:
-
-```bash
-git fetch --all --prune
-git status --short
-git diff --check
-rg -n '([A-Za-z]:\\|/Users/|/home/[^/]+/|file://)' --glob '*.md'
 python -m pytest -q tests/test_repo_split_scaffolding.py tests/test_backend_stage1_readiness.py tests/test_infrastructure_naming.py tests/test_platform_branding.py
-python -m pytest -q
 ```
 
-Also run a repository-relative Markdown link checker.
+That validation recipe has itself drifted: the named test files are no longer present on current `main`. The current test suite contains replacement/current runtime, packaging, local-dev, auth, billing, plan-catalog, and other tests, but selecting a new runtime regression suite would be a current implementation-validation decision rather than preservation of the historical documentation-only validation recipe.
 
-## Build Unit Status
+Because `BU-GOV-007`/`BU-GOV-008` changed documentation only, runtime-test non-execution is recorded as a validation limitation rather than a blocker to closing the documentation baseline. Future implementation work must run a fresh local/CI preflight and the tests relevant to the current feature and repository state.
 
-- `BU-GOV-001` through `BU-GOV-006`: Completed.
-- `BU-GOV-007`: In progress; connector-safe reconciliation is complete, but bounded edits to `AGENTS.md`, root `README.md`, and `TODO.md` remain required.
-- `BU-GOV-008`: Remote validation refreshed and passed for discoverable structure/traceability checks; local/CI validation remains required.
-- `DU-GOV-001`: Complete subject to the documented ratification posture of Draft documents.
-- `DU-GOV-002`: Incomplete until `BU-GOV-007` root-file patches and local/CI `BU-GOV-008` checks complete.
-- `INIT-009`: Active, not complete.
+## Build Unit / Delivery Status
+
+- `BU-GOV-001` through `BU-GOV-008`: Completed, with Draft/Proposed document authority preserved and the runtime-test execution limitation above recorded for `BU-GOV-008`.
+- `DU-GOV-001`: Completed.
+- `DU-GOV-002`: Completed.
+- `INIT-009`: Documentation/traceability baseline implementation complete; ratification of individual Draft/Proposed documents remains separate.
+
+## Remaining Risks Outside INIT-009
+
+The following are not failures of the documentation baseline and remain assigned to their appropriate future work:
+
+- legacy scoring and approve/deny compatibility semantics (`INIT-001`)
+- customer policy authoring/versioning and policy ownership boundaries
+- product plan-catalog ratification and runtime projection
+- incomplete historical Phase classification where explicitly recorded
+- individual stale implementation statements in mixed historical documents such as the root README when those statements become material to a task
 
 ## Gate
 
-`BLOCKED ON LOCAL PATCH + VALIDATION`
+`BU-GOV-008` is **Completed with explicit validation limitation**.
 
-Do not close `BU-GOV-007`, `BU-GOV-008`, `DU-GOV-002`, or `INIT-009` until the three recorded root-file edits are applied with true in-place patching and the local/CI validation sequence passes.
+The `INIT-009` documentation and traceability baseline is closed as an implementation body. This does not ratify Draft/Proposed product or strategy content and does not substitute for current local/CI validation on future implementation work.
