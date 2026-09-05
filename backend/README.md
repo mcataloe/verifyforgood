@@ -151,6 +151,11 @@ Platform API local run:
 uv run --project .\backend --locked python -m verification.backend.platform.api.entrypoint
 ```
 
+VS Code's Python launch configurations use `backend/.venv/Scripts/python.exe`,
+created by `uv sync --project ./backend --locked`. If the editor still shows the
+root `.venv` or Python 3.14, select `backend/.venv/Scripts/python.exe` with
+**Python: Select Interpreter**, then stop and restart the debug session.
+
 VS Code fallback debug path:
 
 ```powershell
