@@ -145,6 +145,27 @@ def test_chat_conversation_history_is_user_and_organization_scoped(tmp_path: Pat
     assert service.list_conversations(user_id=user_a.user_id, organization_id=org_b.organization_id) == []
 
 
+def test_chat_message_timestamps_preserve_latest_instant(tmp_path: Path):
+    session_factory, user, _, org, _ = _seed_scope(tmp_path)
+    service = ChatConversationService(SqlAlchemyChatConversationRepository(session_factory))
+    scope = {"user_id": user.user_id, "organization_id": org.organization_id}
+    conversation = service.create_conversation(
+        **scope, title="Timestamp order", created_at="2026-09-05T12:00:00+00:00"
+    )
+    for timestamp in ("2026-09-05T08:00:00-05:00", "2026-09-05T12:30:00"):
+        service.append_message(
+            conversation.conversation_id, **scope, role=ChatMessageRole.USER,
+            content="Review filing", created_at=timestamp,
+        )
+
+    updated = service.get_conversation(conversation.conversation_id, **scope)
+    assert updated.updated_at.startswith("2026-09-05T13:00:00")
+    messages = service.list_messages(conversation.conversation_id, **scope)
+    assert [message.created_at[:19] for message in messages] == [
+        "2026-09-05T12:30:00", "2026-09-05T13:00:00"
+    ]
+
+
 def test_chat_conversation_listing_is_scoped_and_recent_first(tmp_path: Path):
     session_factory, user_a, _, org_a, _ = _seed_scope(tmp_path)
     service = ChatConversationService(SqlAlchemyChatConversationRepository(session_factory))

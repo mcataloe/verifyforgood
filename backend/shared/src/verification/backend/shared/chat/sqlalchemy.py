@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Identity, Index, Integer, JSON, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
@@ -172,7 +172,7 @@ class SqlAlchemyChatConversationRepository:
                 metadata_json=dict(message.metadata),
             )
             session.add(model)
-            conversation.updated_at = max(conversation.updated_at, created_at)
+            conversation.updated_at = max(_as_utc(conversation.updated_at), created_at)
             session.flush()
             session.refresh(model)
             return _message_record(model)
@@ -253,4 +253,11 @@ def _parse_timestamp(value: str) -> datetime:
     normalized = str(value).strip()
     if normalized.endswith("Z"):
         normalized = f"{normalized[:-1]}+00:00"
-    return datetime.fromisoformat(normalized)
+    return _as_utc(datetime.fromisoformat(normalized))
+
+
+def _as_utc(value: datetime) -> datetime:
+    # SQLite drops timezone information; persist UTC so comparisons stay valid.
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)

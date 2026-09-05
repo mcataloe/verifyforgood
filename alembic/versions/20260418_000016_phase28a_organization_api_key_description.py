@@ -22,7 +22,8 @@ def upgrade() -> None:
         "organization_api_keys",
         sa.Column("description", sa.Text(), nullable=False, server_default=""),
     )
-    op.alter_column("organization_api_keys", "description", server_default=None)
+    with op.batch_alter_table("organization_api_keys") as batch_op:
+        batch_op.alter_column("description", existing_type=sa.Text(), server_default=None)
 
 
 def downgrade() -> None:

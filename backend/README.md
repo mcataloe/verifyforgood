@@ -69,6 +69,27 @@ $env:PYTHONPATH = @(
 ) -join [IO.Path]::PathSeparator
 ```
 
+For Git Bash on Windows, run these commands from the repository root:
+
+```bash
+uv sync --project ./backend --locked
+export PYTHONPATH="$(pwd -W)/backend/shared/src"
+uv run --project ./backend --locked python -m verification.backend.shared.local_dev db-upgrade
+uv run --project ./backend --locked python -m verification.backend.shared.local_dev db-current
+uv run --project ./backend --locked python -m pytest -q tests/test_chat_conversations.py tests/test_chat_orchestrator.py tests/test_chat_tools.py tests/test_chat_api.py tests/test_chat_safety.py tests/test_alembic_customer_accounts.py
+uv run --project ./backend --locked python -m pytest -q
+```
+
+`uv run` selects the backend Python 3.11 environment, including development
+dependencies, instead of the system Python. The shared source root makes
+`local_dev` importable; that helper adds the remaining backend roots itself.
+The test bootstrap also adds the source roots automatically. Other runtime
+entrypoints still need the full source-root configuration above.
+
+Copy commands directly from code blocks: underscores do not need escaping.
+PowerShell backticks are not Bash line continuations; Bash executes their
+contents as commands. Keep the test invocation on one line as shown.
+
 The files under `infrastructure/requirements*.txt` remain temporarily for
 backend images that have not migrated to uv yet.
 

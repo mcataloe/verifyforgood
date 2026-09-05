@@ -30,6 +30,7 @@ classifiers = [
 dev = [
   "alembic>=1.13,<2.0",
   "debugpy>=1.8,<2.0",
+  "httpx2>=2.12.0",
   "pytest",
 ]
 
