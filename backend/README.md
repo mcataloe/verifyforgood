@@ -45,12 +45,32 @@ Migration note:
 Local development:
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r .\infrastructure\requirements.txt -r .\infrastructure\requirements-dev.txt
-python -m pip install -e .\backend
+uv sync --project .\backend --locked
 ```
+
+`backend/pyproject.toml` and `backend/uv.lock` are the dependency source of
+truth for backend development and the platform API image. Python is constrained
+to the 3.11 release line. The backend is currently a uv virtual project because
+its shared `verification` namespace spans several source roots that are not yet
+independently packaged workspace members.
+
+Until those packages are split, local module execution uses the same source-root
+path contract as the containers and test bootstrap:
+
+```powershell
+$env:PYTHONPATH = @(
+  ".\backend\customer-api\src"
+  ".\backend\platform-api\src"
+  ".\backend\worker\src"
+  ".\backend\shared\src"
+  ".\backend\ingest\federal\src"
+  ".\backend\ingest\state\src"
+  ".\backend\ingest\shared\src"
+) -join [IO.Path]::PathSeparator
+```
+
+The files under `infrastructure/requirements*.txt` remain temporarily for
+backend images that have not migrated to uv yet.
 
 Local PostgreSQL workflow:
 
@@ -107,7 +127,7 @@ python -m verification.backend.customer.api.entrypoint
 Platform API local run:
 
 ```powershell
-python -m verification.backend.platform.api.entrypoint
+uv run --project .\backend --locked python -m verification.backend.platform.api.entrypoint
 ```
 
 VS Code fallback debug path:

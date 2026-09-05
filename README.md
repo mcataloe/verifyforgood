@@ -1791,14 +1791,18 @@ Returns filing summaries:
 ### Install dependencies
 
 ```bash
-pip install -r infrastructure/requirements.txt
-pip install -r infrastructure/requirements-dev.txt
+uv sync --project backend --locked
 ```
+
+Backend dependencies are declared in `backend/pyproject.toml` and resolved in
+the committed `backend/uv.lock`. The lock is constrained to Python 3.11.
+Legacy `infrastructure/requirements*.txt` files remain for runtime images that
+have not migrated to uv yet.
 
 ### Run tests
 
 ```bash
-python -m pytest -q
+uv run --project backend --locked python -m pytest -q
 ```
 
 ### Local reference implementation (no Terraform required)
@@ -1806,7 +1810,7 @@ python -m pytest -q
 Run the reference script to execute core verification flow with in-memory repository data:
 
 ```bash
-python infrastructure/local_reference.py
+uv run --project backend --locked python infrastructure/local_reference.py
 ```
 
 This demonstrates local use of domain logic without Terraform, API Gateway, or Lambda deployment wiring.
@@ -1827,15 +1831,16 @@ Backend-local developer workflow:
 Example local bootstrap:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -r infrastructure/requirements.txt -r infrastructure/requirements-dev.txt
-python -m pip install -e .\\backend
+uv sync --project backend --locked
 cp backend/.env.local.example backend/.env.local
 createdb verification_platform
-python -m verification.backend.shared.local_dev db-upgrade
-python -m verification.backend.customer.api.entrypoint
+uv run --project backend --locked python -m verification.backend.shared.local_dev db-upgrade
+uv run --project backend --locked python -m verification.backend.customer.api.entrypoint
 ```
+
+Set the backend source-root `PYTHONPATH` documented in `backend/README.md`
+before running backend modules locally. This is temporary while the backend's
+shared namespace remains spread across multiple source roots.
 
 Set one of the following before running migrations locally:
 

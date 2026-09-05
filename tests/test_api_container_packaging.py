@@ -38,6 +38,13 @@ def test_api_dockerfile_uses_asgi_entrypoint():
         "PYTHONPATH=/app:/app/backend/customer-api/src:/app/backend/platform-api/src:/app/backend/shared/src:/app/backend/ingest/federal/src:/app/backend/ingest/state/src:/app/backend/ingest/shared/src"
         in platform_dockerfile
     )
+    assert "FROM python:3.11-slim" in platform_dockerfile
+    assert "ghcr.io/astral-sh/uv:0.12.6" in platform_dockerfile
+    assert "COPY backend/pyproject.toml backend/uv.lock" in platform_dockerfile
+    assert "uv sync --locked --no-dev --no-cache" in platform_dockerfile
+    assert "/app/backend/.venv/bin/uvicorn" in platform_dockerfile
+    assert "pip install" not in platform_dockerfile
+    assert "requirements-api.txt" not in platform_dockerfile
     assert "verification.backend.platform.api.app:app" in platform_dockerfile
     assert "backend/platform-api/src" in platform_dockerfile
     assert "backend/customer-api/src" in platform_dockerfile
@@ -82,4 +89,16 @@ def test_requirements_and_dockerignore_exist():
     assert ".terraform" in dockerignore
     assert ".env" in dockerignore
     assert "frontend/**/dist" in dockerignore
+    assert "**/.venv/" in dockerignore
+
+
+def test_backend_uv_project_is_locked_to_python_311():
+    pyproject = Path("backend/pyproject.toml").read_text(encoding="utf-8")
+    lockfile = Path("backend/uv.lock").read_text(encoding="utf-8")
+
+    assert 'requires-python = ">=3.11,<3.12"' in pyproject
+    assert "[dependency-groups]" in pyproject
+    assert "[tool.uv]" in pyproject
+    assert "package = false" in pyproject
+    assert 'requires-python = "==3.11.*"' in lockfile
 

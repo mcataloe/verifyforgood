@@ -27,8 +27,13 @@ Current phase posture:
 Local run:
 
 ```powershell
-python -m verification.backend.platform.api.entrypoint
+uv sync --project .\backend --locked
+uv run --project .\backend --locked python -m verification.backend.platform.api.entrypoint
 ```
+
+Set the backend source-root `PYTHONPATH` documented in `backend/README.md`
+before running the module. This remains necessary while the backend is a uv
+virtual project spanning multiple `verification` namespace roots.
 
 Container build/run:
 
@@ -40,6 +45,8 @@ docker run -p 5622:8000 --env-file backend/.env.local <platform-api-image>
 Container contract:
 
 - long-lived HTTP service
+- Python 3.11 runtime with dependencies synced from `backend/uv.lock`
+- production dependency sync uses `uv sync --locked --no-dev`
 - compose and local examples expose it on host port `5622`
 - starts with `uvicorn verification.backend.platform.api.app:app`
 
