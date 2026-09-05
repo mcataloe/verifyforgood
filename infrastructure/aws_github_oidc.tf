@@ -104,15 +104,27 @@ resource "aws_iam_role_policy" "github_dev_deploy" {
         Effect = "Allow"
         Action = [
           "acm:*",
+          "apigateway:*",
+          "application-autoscaling:*",
+          "athena:*",
+          "cloudwatch:*",
+          "dynamodb:*",
           "ec2:*",
           "ecr:*",
           "ecs:*",
           "elasticloadbalancing:*",
+          "events:*",
+          "glue:*",
+          "kms:*",
+          "lambda:*",
           "logs:*",
           "rds:*",
           "route53:*",
+          "s3:*",
           "secretsmanager:*",
-          "s3:*"
+          "sqs:*",
+          "ssm:*",
+          "states:*"
         ]
         Resource = "*"
       },
