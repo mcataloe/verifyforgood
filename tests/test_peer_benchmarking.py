@@ -1,5 +1,5 @@
-﻿from infrastructure.verification.backend.shared.scoring.peer_stats import compute_peer_stats
-from infrastructure.verification.backend.shared.scoring.peers import assign_peer_group, revenue_band
+﻿from verification.backend.shared.scoring.peer_stats import compute_peer_stats
+from verification.backend.shared.scoring.peers import assign_peer_group, revenue_band
 
 
 def test_revenue_band_assignment():

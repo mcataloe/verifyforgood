@@ -1,6 +1,6 @@
 ﻿from datetime import datetime, timezone
 
-from infrastructure.verification.backend.ingest.federal.form990.storage import (
+from verification.backend.ingest.federal.form990.storage import (
     checkpoint_key,
     discovery_diff_key,
     discovery_manifest_key,

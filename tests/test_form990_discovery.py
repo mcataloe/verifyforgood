@@ -1,9 +1,9 @@
 ﻿from __future__ import annotations
 
-from infrastructure.verification.backend.ingest.federal.form990.discovery import discover_archives, fetch_index_records
-from infrastructure.verification.backend.ingest.federal.form990.manifest import diff_manifest_entries
-from infrastructure.verification.backend.ingest.federal.form990.source_catalog import normalize_configured_sources
-from infrastructure.verification.backend.ingest.federal.form990.models import Form990IndexRecord
+from verification.backend.ingest.federal.form990.discovery import discover_archives, fetch_index_records
+from verification.backend.ingest.federal.form990.manifest import diff_manifest_entries
+from verification.backend.ingest.federal.form990.source_catalog import normalize_configured_sources
+from verification.backend.ingest.federal.form990.models import Form990IndexRecord
 
 
 class _FakeResponse:

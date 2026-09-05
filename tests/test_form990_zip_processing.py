@@ -3,7 +3,7 @@
 import io
 import zipfile
 
-from infrastructure.verification.backend.ingest.federal.form990.zip_processing import fetch_zip_records
+from verification.backend.ingest.federal.form990.zip_processing import fetch_zip_records
 
 
 class _FakeResponse:
