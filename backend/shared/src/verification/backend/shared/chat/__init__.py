@@ -41,6 +41,14 @@ from .providers import (
     FakeChatLLMProvider,
     OllamaChatLLMProvider,
 )
+from .retrieval import (
+    ChatRetrievalMode,
+    ChatRetrievalRoute,
+    ChatRetrievalRouter,
+    ChatSemanticRetriever,
+    ChatSemanticRetrievalResult,
+    DisabledChatSemanticRetriever,
+)
 from .routing import (
     ChatModelConfigurationError,
     ChatModelResolver,
@@ -54,6 +62,14 @@ from .sqlalchemy import (
     ChatConversationModel,
     ChatMessageModel,
     SqlAlchemyChatConversationRepository,
+)
+from .tools import (
+    ChatToolError,
+    ChatToolExecutionError,
+    ChatToolPolicy,
+    ChatToolPolicyError,
+    ChatToolRegistry,
+    ChatToolValidationError,
 )
 
 __all__ = [
@@ -90,12 +106,24 @@ __all__ = [
     "ChatProviderResponse",
     "ChatProviderTimeoutError",
     "ChatProviderUnavailableError",
+    "ChatRetrievalMode",
+    "ChatRetrievalRoute",
+    "ChatRetrievalRouter",
+    "ChatSemanticRetriever",
+    "ChatSemanticRetrievalResult",
     "ChatToolDefinition",
+    "ChatToolError",
+    "ChatToolExecutionError",
     "ChatToolExecutionResult",
     "ChatToolExecutor",
+    "ChatToolPolicy",
+    "ChatToolPolicyError",
+    "ChatToolRegistry",
     "ChatToolRequest",
+    "ChatToolValidationError",
     "ConversationNotFoundError",
     "DefaultChatInputPolicy",
+    "DisabledChatSemanticRetriever",
     "FakeChatLLMProvider",
     "InvalidChatMessageError",
     "OllamaChatLLMProvider",
