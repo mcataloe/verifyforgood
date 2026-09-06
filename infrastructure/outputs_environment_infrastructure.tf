@@ -38,7 +38,7 @@ output "customer_documents_bucket_name" {
   value       = var.customer_documents_bucket_enabled ? aws_s3_bucket.customer_documents[0].bucket : null
 }
 
-output "github_dev_deploy_role_arn" {
-  description = "GitHub Actions OIDC dev deployment role ARN. Configure this as the dev GitHub Environment variable AWS_DEV_DEPLOY_ROLE_ARN after the one-time bootstrap apply."
-  value       = var.github_oidc_deploy_role_enabled ? aws_iam_role.github_dev_deploy[0].arn : null
+output "github_deploy_role_arn" {
+  description = "GitHub Actions OIDC deployment role ARN for this environment. Configure it as the GitHub Environment variable AWS_DEPLOY_ROLE_ARN after the one-time bootstrap apply."
+  value       = var.github_oidc_deploy_role_enabled ? aws_iam_role.github_deploy[0].arn : null
 }
