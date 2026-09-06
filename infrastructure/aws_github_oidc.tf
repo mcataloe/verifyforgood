@@ -20,7 +20,7 @@ locals {
   github_project_role_arns = var.github_oidc_deploy_role_enabled ? [
     "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/${local.namespace}-${local.platform}-*",
     "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/charitystatusapi-${local.environment_slug}-*",
-    "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/${var.github_dev_deploy_role_name}",
+    "arn:aws:iam::${data.aws_caller_identity.github_deploy[0].account_id}:role/${var.github_deploy_role_name}",
   ] : []
 
   github_project_policy_arns = var.github_oidc_deploy_role_enabled ? [
@@ -29,16 +29,16 @@ locals {
   ] : []
 }
 
-resource "aws_iam_role" "github_dev_deploy" {
+resource "aws_iam_role" "github_deploy" {
   count = var.github_oidc_deploy_role_enabled ? 1 : 0
 
-  name = var.github_dev_deploy_role_name
+  name = var.github_deploy_role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "GitHubActionsDevEnvironment"
+        Sid    = "GitHubActionsEnvironment"
         Effect = "Allow"
         Principal = {
           Federated = local.github_oidc_provider_arn_effective
@@ -57,11 +57,11 @@ resource "aws_iam_role" "github_dev_deploy" {
   tags = local.platform_common_tags
 }
 
-resource "aws_iam_role_policy" "github_dev_deploy" {
+resource "aws_iam_role_policy" "github_deploy" {
   count = var.github_oidc_deploy_role_enabled ? 1 : 0
 
-  name = "${var.github_dev_deploy_role_name}-terraform"
-  role = aws_iam_role.github_dev_deploy[0].id
+  name = "${var.github_deploy_role_name}-terraform"
+  role = aws_iam_role.github_deploy[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -100,7 +100,7 @@ resource "aws_iam_role_policy" "github_dev_deploy" {
         ]
       },
       {
-        Sid    = "DevInfrastructureServices"
+        Sid    = "EnvironmentInfrastructureServices"
         Effect = "Allow"
         Action = [
           "acm:*",
