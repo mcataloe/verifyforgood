@@ -22,9 +22,9 @@ jobs:
     environment: dev
     env:
       AWS_REGION: us-east-1
-      AWS_DEV_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
-      AWS_DEV_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEV_DEPLOY_ROLE_ARN }}
-      DEV_DNS_BOOTSTRAPPED: ${{ vars.DEV_DNS_BOOTSTRAPPED }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      DNS_BOOTSTRAPPED: ${{ vars.DNS_BOOTSTRAPPED }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
@@ -32,17 +32,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${AWS_DEV_ACCOUNT_ID}" ]]; then
-            echo "Missing dev GitHub Environment variable AWS_DEV_ACCOUNT_ID." >&2
+          if [[ -z "${AWS_ACCOUNT_ID}" ]]; then
+            echo "Missing GitHub Environment variable AWS_ACCOUNT_ID." >&2
             exit 1
           fi
-          if [[ -z "${AWS_DEV_DEPLOY_ROLE_ARN}" ]]; then
-            echo "Missing dev GitHub Environment variable AWS_DEV_DEPLOY_ROLE_ARN." >&2
+          if [[ -z "${AWS_DEPLOY_ROLE_ARN}" ]]; then
+            echo "Missing GitHub Environment variable AWS_DEPLOY_ROLE_ARN." >&2
             echo "Run the documented one-time Terraform OIDC bootstrap first." >&2
             exit 1
           fi
-          if [[ "${DEV_DNS_BOOTSTRAPPED}" != "true" ]]; then
-            echo "DEV_DNS_BOOTSTRAPPED must be true before automatic dev deployment." >&2
+          if [[ "${DNS_BOOTSTRAPPED}" != "true" ]]; then
+            echo "DNS_BOOTSTRAPPED must be true before automatic deployment." >&2
             echo "The external verifyforgood.com parent hosted zone must exist so dev.verifyforgood.com can be delegated and ACM can validate." >&2
             exit 1
           fi
@@ -71,9 +71,9 @@ jobs:
       - name: Configure AWS credentials through GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEV_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
-          allowed-account-ids: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
           role-session-name: verifyforgood-dev-${{ github.run_id }}
 
       - name: Confirm target AWS account
@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           ACTUAL_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          test "${ACTUAL_ACCOUNT_ID}" = "${AWS_DEV_ACCOUNT_ID}"
+          test "${ACTUAL_ACCOUNT_ID}" = "${AWS_ACCOUNT_ID}"
           echo "Deploying commit ${DEPLOY_SHA} to VerifyForGood dev in account ${ACTUAL_ACCOUNT_ID}."
 
       - name: Set up Terraform
