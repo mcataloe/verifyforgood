@@ -33,7 +33,7 @@ resource "aws_secretsmanager_secret" "platform_postgres" {
 resource "aws_db_subnet_group" "platform_postgres" {
   count       = var.platform_postgres_enabled ? 1 : 0
   name        = local.platform_postgres_subnet_group_name
-  subnet_ids  = var.platform_postgres_private_subnet_ids
+  subnet_ids  = local.platform_postgres_private_subnet_ids_effective
   description = "Private subnet group for the platform PostgreSQL RDS instance."
   tags        = local.platform_common_tags
 }
@@ -42,7 +42,7 @@ resource "aws_security_group" "query_lambda_postgres" {
   count       = var.platform_postgres_enabled ? 1 : 0
   name        = local.query_lambda_postgres_sg_name
   description = "Security group attached to the query Lambda for PostgreSQL access."
-  vpc_id      = var.platform_postgres_vpc_id
+  vpc_id      = local.platform_postgres_vpc_id_effective
   tags        = local.platform_common_tags
 }
 
@@ -50,7 +50,7 @@ resource "aws_security_group" "platform_postgres" {
   count       = var.platform_postgres_enabled ? 1 : 0
   name        = local.platform_postgres_security_group_name
   description = "Security group for the platform PostgreSQL RDS instance."
-  vpc_id      = var.platform_postgres_vpc_id
+  vpc_id      = local.platform_postgres_vpc_id_effective
 
   ingress {
     description = "Allow PostgreSQL access from the query Lambda and ECS backend tasks."

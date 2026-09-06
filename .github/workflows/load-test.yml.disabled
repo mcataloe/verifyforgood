@@ -1,0 +1,45 @@
+# INTENTIONALLY DISABLED.
+#
+# GitHub only registers workflow files ending in .yml or .yaml. This file uses
+# .yml.disabled so load testing cannot run accidentally or create AWS/project
+# load before explicit approval.
+#
+# To activate later:
+#   1. choose and commit the load-test implementation/tool;
+#   2. define safe dev/staging thresholds and test data;
+#   3. review cost/rate-limit/customer-data implications;
+#   4. rename this file to load-test.yml only after approval.
+
+name: Load Test (Disabled Scaffold)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Explicit approved non-production target URL
+        required: true
+        default: https://dev.verifyforgood.com
+      duration:
+        description: Approved test duration
+        required: true
+        default: 60s
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    environment: dev-load-test
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Refuse until load-test implementation is approved
+        run: |
+          echo "Load testing is scaffolded but intentionally not implemented or enabled."
+          echo "Select the tool, workload, thresholds, and data policy before activation."
+          exit 1
+
+      # Future approved implementation belongs here. Prefer testing the public
+      # /api/* route so ALB, ECS, application, and persistence behavior are
+      # measured together rather than bypassing production-shaped ingress.

@@ -129,7 +129,7 @@ bootstrap_start_after_ein     = ""
 bootstrap_max_batches_per_run = 0
 
 batch_verify_max_size   = 25
-root_domain_name        = "charitystatusapi.com"
-route53_zone_name       = "charitystatusapi.com."
+root_domain_name        = "verifyforgood.com"
+route53_zone_name       = ""
 oauth_token_ttl_seconds = 3600
 

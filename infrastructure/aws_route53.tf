@@ -1,29 +1,68 @@
 #############################################
-# ACM CERTIFICATE
+# ENVIRONMENT DNS + ACM CERTIFICATE
 #############################################
 
 locals {
-  base_domain_name     = trim(local.domain_name, ".")
-  computed_domain_name = var.environment == "prod" ? local.base_domain_name : "${var.environment}.${local.base_domain_name}"
-  route53_zone_name    = var.route53_zone_name != "" ? var.route53_zone_name : "${local.base_domain_name}."
+  base_domain_name = trim(local.domain_name, ".")
+
+  # Production is always www.verifyforgood.com; never prod.verifyforgood.com.
+  computed_domain_name = local.environment_slug == "prod" ? "www.${local.base_domain_name}" : "${local.environment_slug}.${local.base_domain_name}"
+
+  environment_route53_zone_name = "${local.computed_domain_name}."
+  route53_zone_name = var.route53_zone_name != "" ? var.route53_zone_name : (
+    var.environment_route53_zone_enabled ? local.environment_route53_zone_name : "${local.base_domain_name}."
+  )
   enable_custom_domain = var.enable_custom_domain && local.base_domain_name != ""
 }
 
+resource "aws_route53_zone" "environment" {
+  count = var.environment_route53_zone_enabled ? 1 : 0
+
+  name = local.computed_domain_name
+
+  tags = merge(local.platform_common_tags, {
+    Purpose = "environment-public-dns"
+  })
+}
+
+# Backward-compatible lookup path for deployments that still supply an existing
+# hosted zone instead of letting this stack own the environment subdomain zone.
 data "aws_route53_zone" "selected" {
-  count = local.enable_custom_domain ? 1 : 0
+  count = local.enable_custom_domain && !var.environment_route53_zone_enabled ? 1 : 0
   name  = local.route53_zone_name
 
   private_zone = false
 }
 
+data "aws_route53_zone" "parent" {
+  count = var.parent_route53_delegation_enabled ? 1 : 0
+  name  = trim(var.parent_route53_zone_name, ".")
+
+  private_zone = false
+}
+
 locals {
-  route53_zone_id = local.enable_custom_domain ? data.aws_route53_zone.selected[0].zone_id : null
+  route53_zone_id = !local.enable_custom_domain ? null : (
+    var.environment_route53_zone_enabled ? aws_route53_zone.environment[0].zone_id : data.aws_route53_zone.selected[0].zone_id
+  )
+}
+
+resource "aws_route53_record" "environment_delegation" {
+  count = var.environment_route53_zone_enabled && var.parent_route53_delegation_enabled ? 1 : 0
+
+  zone_id = data.aws_route53_zone.parent[0].zone_id
+  name    = local.computed_domain_name
+  type    = "NS"
+  ttl     = 300
+  records = aws_route53_zone.environment[0].name_servers
 }
 
 resource "aws_acm_certificate" "cert" {
   count             = local.enable_custom_domain ? 1 : 0
   domain_name       = local.computed_domain_name
   validation_method = "DNS"
+
+  tags = local.platform_common_tags
 }
 
 resource "aws_route53_record" "cert_validation" {
@@ -50,7 +89,7 @@ resource "aws_acm_certificate_validation" "cert" {
 }
 
 #############################################
-# ROUTE53 RECORD
+# ROUTE53 APPLICATION RECORD
 #############################################
 
 resource "aws_route53_record" "api_record" {
