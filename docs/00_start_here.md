@@ -51,10 +51,15 @@ Merged code, tests, schemas, and contracts remain authoritative for implemented 
 | `docs/product/` | Product/package source truth, product-catalog values, and package governance | Proposed canonical where stated; ratify before treating as final product authority |
 | `docs/delivery/` | Delivery Unit records | Active planning/source-truth records |
 | `docs/build-units/` | Build Unit records | Active planning/source-truth records |
+| `docs/deployment/` | Operational deployment runbooks and environment procedures | Supporting; verify against current merged infrastructure before execution |
 | `docs/governance/` | Inventory, gaps, drift, migration, stale sources | Supporting governance evidence |
 | `docs/implementation/` | Evolving plans and status snapshots | Supporting; inspect lifecycle before use |
 | Root `README.md` | Repository overview and compatibility entry point | Supporting, not the owner of all project truth |
 | `frontend/docs/` | Customer/developer documentation application | Product runtime, not repository governance documentation |
+
+## Operational Deployment
+
+- [AWS Dev Deployment Runbook](deployment/aws-dev-deployment-runbook.md) — step-by-step Dev deployment procedure, current blockers, verification, and rollback guidance. Treat target-state or `BLOCKED` sections as non-executable until the corresponding infrastructure work is merged and reconciled.
 
 ## Current Implementation Authority
 
