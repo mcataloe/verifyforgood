@@ -132,6 +132,8 @@ The deployment:
 
 No static AWS access key or secret key is required by the workflow.
 
+The GitHub Environment is the environment boundary. Deployment configuration keys are intentionally environment-neutral so future `test`, `staging`, and `production` environments can reuse the same deployment contract without renaming variables.
+
 ## One-time GitHub OIDC bootstrap
 
 OIDC has a bootstrap dependency: GitHub cannot assume a role until that role and the account-level GitHub OIDC provider exist.
@@ -141,18 +143,20 @@ Use an already-authenticated AWS operator session once from the repository root:
 ```bash
 terraform -chdir=infrastructure init -backend-config=backend-dev.hcl
 terraform -chdir=infrastructure apply \
-  -target=aws_iam_role_policy.github_dev_deploy \
+  -target=aws_iam_role_policy.github_deploy \
   -var-file=terraform.shared.tfvars \
   -var-file=terraform-dev.tfvars
 ```
 
 That targeted bootstrap creates the OIDC provider, deploy role, and inline policy through their dependency chain without requiring the full DNS/application stack to be ready.
 
-Then configure the GitHub Environment named `dev` with these repository environment variables:
+Then configure the GitHub Environment named `dev` with these environment variables:
 
-- `AWS_DEV_ACCOUNT_ID`: the non-production AWS account ID
-- `AWS_DEV_DEPLOY_ROLE_ARN`: Terraform output `github_dev_deploy_role_arn`
-- `DEV_DNS_BOOTSTRAPPED`: set to `true` only after the parent `verifyforgood.com` hosted zone exists and registration delegates to it
+- `AWS_ACCOUNT_ID`: the non-production AWS account ID
+- `AWS_DEPLOY_ROLE_ARN`: Terraform output `github_deploy_role_arn`
+- `DNS_BOOTSTRAPPED`: set to `true` only after the parent `verifyforgood.com` hosted zone exists and registration delegates to it
+
+Future GitHub Environments should use the same variable names with environment-specific values. For example, a later `staging` environment will define its own `AWS_ACCOUNT_ID` and `AWS_DEPLOY_ROLE_ARN` rather than introducing `AWS_STAGING_*` keys.
 
 The deploy workflow intentionally fails closed when any of those values are absent or DNS is not declared bootstrapped.
 
