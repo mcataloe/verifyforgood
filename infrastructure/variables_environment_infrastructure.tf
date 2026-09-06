@@ -97,7 +97,7 @@ variable "bedrock_allowed_model_arns" {
 }
 
 variable "github_oidc_deploy_role_enabled" {
-  description = "Whether Terraform manages the GitHub Actions dev deployment IAM role. A one-time authenticated bootstrap apply is required before GitHub can assume this role."
+  description = "Whether Terraform manages the GitHub Actions environment deployment IAM role. A one-time authenticated bootstrap apply is required before GitHub can assume this role."
   type        = bool
   default     = false
 }
@@ -131,8 +131,8 @@ variable "github_environment_name" {
   default     = "dev"
 }
 
-variable "github_dev_deploy_role_name" {
-  description = "IAM role name assumed by the GitHub dev deployment workflow."
+variable "github_deploy_role_name" {
+  description = "IAM role name assumed by the GitHub deployment workflow for this environment."
   type        = string
   default     = "verifyforgood-github-dev-deploy"
 }
